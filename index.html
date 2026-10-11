@@ -188,9 +188,6 @@ section.block { padding: 110px 0 0; }
 .menu-btn { display: none; width: 36px; height: 36px; border-radius: 9px; align-items: center; justify-content: center; color: var(--muted); }
 .menu-btn:hover { background: var(--bg3); color: var(--text); }
 .modes { position: relative; display: inline-flex; background: var(--bg2); border: 1px solid var(--line); border-radius: 11px; padding: 3px; }
-.mode { position: relative; z-index: 1; padding: 5px 13px; border-radius: 8px; font-size: 13.5px; color: var(--muted); transition: color .25s; white-space: nowrap; }
-.mode.active { color: var(--text); }
-.mode-pill { position: absolute; top: 3px; bottom: 3px; left: 3px; border-radius: 8px; background: var(--bg4); transition: transform .35s var(--ease), width .35s var(--ease); }
 .topbar .spacer { flex: 1; }
 .chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg2); font-size: 12.5px; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .chip b { color: var(--text); font-weight: 500; }
@@ -200,12 +197,43 @@ section.block { padding: 110px 0 0; }
 
 .scroller { flex: 1; min-height: 0; overflow-y: auto; }
 .thread { max-width: 760px; margin: 0 auto; padding: 22px 22px 190px; }
-.msg { margin: 0 0 28px; animation: rise .4s var(--ease) both; }
+.msg { margin: 0 0 28px; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .msg.user { display: flex; justify-content: flex-end; }
 .msg.user > div { max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; }
 .msg.user .bubble { background: var(--bg3); border-radius: 18px; padding: 10px 16px; white-space: pre-wrap; word-wrap: break-word; }
 .msg.user .att { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 6px; }
+.spendbar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 80; pointer-events: none; opacity: 0; transition: opacity .3s; }
+body.in-app .spendbar { opacity: 1; }
+.spendbar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .6s var(--ease), background .4s; }
+.spendbar[data-level="warm"] i { background: #e9a23b; }
+.spendbar[data-level="hot"] i, .spendbar[data-level="over"] i { background: #e5484d; animation: spendpulse 1s ease-in-out infinite; }
+@keyframes spendpulse { 50% { opacity: .4; } }
+body.spend-hot::after { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 70; box-shadow: inset 0 0 0 2px rgba(229,72,77,.35), inset 0 0 90px rgba(229,72,77,.16); animation: spendpulse 1.6s ease-in-out infinite; }
+body.spend-over::after { box-shadow: inset 0 0 0 3px rgba(229,72,77,.65), inset 0 0 150px rgba(229,72,77,.32); }
+.spend { --c: var(--ok); --p: 0; width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(var(--c) calc(var(--p) * 1%), var(--line) 0); position: relative; flex: none; border: 0; padding: 0; cursor: pointer; }
+.spend::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--bg); }
+.spend[data-level="warm"] { --c: #e9a23b; }
+.spend[data-level="hot"], .spend[data-level="over"] { --c: #e5484d; animation: spendpulse 1s ease-in-out infinite; }
+.chk { display: flex; gap: 8px; align-items: center; font-size: 13.5px; color: var(--text); font-weight: 400; }
+.app-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 6px 0; }
+.app-tab { padding: 5px 10px; border-radius: 8px; font-size: 12.5px; color: var(--muted); border: 1px solid var(--line); background: transparent; font-family: var(--mono); }
+.app-tab.on { background: var(--bg4); color: var(--text); }
+.app-code { margin: 0; max-height: 480px; overflow: auto; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); font-size: 12.5px; line-height: 1.55; white-space: pre; }
+.sim { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; margin: 8px 0; }
+.sim-frame { width: 100%; height: min(560px, 72vh); border: 0; display: block; background: #fff; }
+.offer { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); background: var(--bg2); border-radius: 12px; }
+.offer p { margin: 0 0 8px; font-size: 14px; color: var(--text); }
+.offer-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.mu { margin-bottom: 10px; }
+.mu-btn { padding: 5px 10px; border-radius: 8px; font-size: 12.5px; color: var(--faint); border: 1px solid var(--line); background: transparent; }
+.mu-btn:hover { background: var(--bg3); color: var(--text); }
+.ucards[hidden] { display: none; }
+.ucards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 10px; }
+.ucard { border: 1px solid var(--line); background: var(--bg2); border-radius: 12px; padding: 10px 12px; }
+.ucard b { display: block; font-size: 13.5px; font-weight: 600; }
+.ucard span { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
+.ucard.bad { opacity: .6; }
 .meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
 .md { word-wrap: break-word; line-height: 1.7; }
 .md > *:first-child { margin-top: 0; }
@@ -304,7 +332,7 @@ section.block { padding: 110px 0 0; }
 .composer { pointer-events: auto; max-width: 760px; margin: 0 auto; border: 1px solid var(--line2); border-radius: var(--r-lg); background: var(--bg2); transition: border-color .2s, box-shadow .3s; }
 .composer:focus-within { border-color: var(--faint); }
 .route { display: flex; align-items: center; gap: 8px; padding: 10px 14px 0; min-height: 30px; flex-wrap: wrap; }
-.route .chip { animation: rise .3s var(--ease) both; }
+.route .chip { }
 .attached { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 14px 0; }
 .attached:empty { display: none; }
 .att-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px 3px 8px; font-size: 12.5px; color: var(--muted); max-width: 220px; background: var(--bg); }
@@ -419,7 +447,6 @@ body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg
 	.scrim.show { opacity: 1; pointer-events: auto; }
 	.menu-btn { display: inline-flex; }
 	.topbar { padding: 0 10px; padding-top: env(safe-area-inset-top); height: calc(54px + env(safe-area-inset-top)); }
-	.mode { padding: 5px 9px; font-size: 13px; }
 	#topChip { display: none; }
 	.thread, .welcome { padding-left: 16px; padding-right: 16px; }
 	.welcome { padding-top: 10vh; }
@@ -444,6 +471,7 @@ body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg
 </style>
 </head>
 <body>
+<div class="spendbar" id="spendbar" data-level="ok"><i></i></div>
 <svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><circle cx="16" cy="16" r="2.6" fill="currentColor"/><ellipse cx="16" cy="16" rx="13" ry="5" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(-30 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" transform="rotate(30 16 16)"/></symbol></defs></svg>
 
 <!-- ============================== the site ============================== -->
@@ -462,7 +490,7 @@ body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg
 
 	<section class="hero">
 		<div class="wrap">
-			<span class="pill"><span class="tag">NEW</span>Routes to <span id="newestModel">every new model the day it ships</span></span>
+			<span class="pill"><span class="tag">NEW</span>Routes to <span id="newestModel">each lab's strongest model, not just its newest</span></span>
 			<h1>The right model<br><span class="dim">for every message.</span></h1>
 			<p class="lead">Andromeda reads what you ask and sends it to the model that's best at it: the strongest coder for code, the best reasoner for maths, a live-search model for anything current. One OpenRouter key. No subscription.</p>
 			<div class="ctas"><button class="b pri lg" data-open-app>Start chatting</button><a class="b sec lg" href="#how">How it works</a></div>
@@ -484,7 +512,7 @@ body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg
 		<div class="wrap">
 			<div class="eyebrow">Four ways to work</div>
 			<h2>Not one chatbot. A team of the best ones.</h2>
-			<p class="sub2">Every mode uses the strongest model for each step, and shows you which one did what.</p>
+			<p class="sub2">Every answer uses the strongest model for each step, and can show you which one did what.</p>
 			<div class="grid4">
 				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div><h3>Auto</h3><p>Ask anything. It works out what kind of task it is and picks the model that's best at it.</p><div class="flow">code → Claude<br>maths → GPT<br>news → Sonar</div></div>
 				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="17" r="2.5"/><path d="M8 9.5l2.6 5.5M16 9.5l-2.6 5.5"/></svg></div><h3>Council</h3><p>Three labs answer the same question in parallel. A fourth reads all three and writes the best single answer.</p><div class="flow">3 answers → 1 verdict</div></div>
@@ -498,7 +526,7 @@ body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg
 		<div class="wrap">
 			<div class="eyebrow">Who handles what <span class="live"><i></i>live from OpenRouter</span></div>
 			<h2>Today's best model for each kind of task.</h2>
-			<p class="sub2">Read live from OpenRouter's catalog, so when a lab ships something better, Andromeda uses it that day. Pin your own picks any time.</p>
+			<p class="sub2">Read live from OpenRouter's catalog. Andromeda picks each lab's strongest proven model, and skips previews and small variants. Pin your own picks any time.</p>
 			<div class="tiers" id="tierTabs"></div>
 			<div class="table" id="modelTable"><div class="tr th"><span>Task</span><span>Model</span><span>Lab</span><span>$ / M out</span></div><div class="tr"><span class="task">Loading the catalog…</span></div></div>
 		</div>
@@ -560,14 +588,8 @@ body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg
 	<main class="main">
 		<header class="topbar" id="topbar">
 			<button class="menu-btn" id="menuBtn" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
-			<div class="modes" id="modes">
-				<span class="mode-pill" id="modePill"></span>
-				<button class="mode active" data-mode="auto">Auto</button>
-				<button class="mode" data-mode="council">Council</button>
-				<button class="mode" data-mode="build">Build</button>
-				<button class="mode" data-mode="study">Study</button>
-			</div>
 			<div class="spacer"></div>
+			<button class="spend" id="spendChip" data-level="ok" aria-label="Spent today"></button>
 			<span class="chip" id="topChip"><span class="dot"></span><span id="topChipText">Not connected</span></span>
 			<button class="menu-btn" id="newChatTop" aria-label="New chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
 		</header>
@@ -620,6 +642,53 @@ const settings = Object.assign({ key: "", tier: "best", overrides: {}, theme: "s
 const saveSettings = () => store.set("settings", settings);
 let convos = store.get("convos", []);
 let current = null;
+// what this browser has spent through OpenRouter today, and how close that is to the alert level
+const SPEND = (() => {
+	const d = new Date().toISOString().slice(0, 10), v = store.get("spend", null);
+	return v && v.day === d ? v : { day: d, usd: 0, warned: false };
+})();
+const spendCap = () => Math.max(1, Number(settings.spendCap) || 5);
+function spendLevel() {
+	const p = SPEND.usd / spendCap() * 100;
+	return p >= 100 ? "over" : p >= 80 ? "hot" : p >= 50 ? "warm" : "ok";
+}
+function drawSpend() {
+	const p = Math.min(100, SPEND.usd / spendCap() * 100), lvl = spendLevel();
+	const bar = $("#spendbar"), chip = $("#spendChip");
+	if (bar) { bar.dataset.level = lvl; bar.firstElementChild.style.width = p + "%"; }
+	if (chip) {
+		chip.dataset.level = lvl;
+		chip.style.setProperty("--p", p);
+		chip.title = "Spent today: $" + SPEND.usd.toFixed(2) + " of your $" + spendCap().toFixed(2) + " alert";
+	}
+	document.body.classList.toggle("spend-hot", lvl === "hot" || lvl === "over");
+	document.body.classList.toggle("spend-over", lvl === "over");
+}
+function addSpend(x) {
+	if (!(x > 0)) return;
+	const d = new Date().toISOString().slice(0, 10);
+	if (SPEND.day !== d) { SPEND.day = d; SPEND.usd = 0; SPEND.warned = false; }
+	SPEND.usd += x;
+	drawSpend();
+	if (spendLevel() === "over" && !SPEND.warned) {
+		SPEND.warned = true;
+		openModal('<h2 style="color:#e5484d">You passed your daily alert</h2><p class="sub">You have spent $' + SPEND.usd.toFixed(2) + " today, over the $" + spendCap().toFixed(2) + " you set. Top-model builds are paused until tomorrow or until you raise the alert.</p>" +
+			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="spendRaise">Raise alert to $' + (spendCap() * 2) + '</button><button class="btn dark" id="spendOk">OK</button></div>');
+		$("#spendOk").onclick = closeModal;
+		$("#spendRaise").onclick = () => { settings.spendCap = spendCap() * 2; saveSettings(); drawSpend(); closeModal(); };
+	}
+	store.set("spend", SPEND);
+}
+function confirmMax(left) {
+	return new Promise((res) => {
+		openModal("<h2>Use the top models together?</h2><p class=\"sub\">Several of the best models each build this, then one merges the best parts. It's the most capable option and the most expensive: usually a few dollars, more for a big project.</p>" +
+			'<div class="field"><div class="help">Balance $' + left.toFixed(2) + " · spent today $" + SPEND.usd.toFixed(2) + " of your $" + spendCap().toFixed(2) + ' alert</div></div>' +
+			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="mbNo">Just one model</button><button class="btn dark" id="mbYes">Use the top models</button></div>');
+		modalClose = () => res(false);
+		$("#mbYes").onclick = () => { modalClose = null; closeModal(); res(true); };
+		$("#mbNo").onclick = () => closeModal();
+	});
+}
 let mode = "auto";
 let busy = null; // AbortController while answering
 let attachments = [];
@@ -662,7 +731,45 @@ const TASK_INFO = {
 	vision: { label: "Vision", why: "best at reading images" },
 	quick: { label: "Quick", why: "fast and cheap for everyday questions" },
 };
+// More specific than the seven tasks: the kind of coding, maths, writing or research decides which labs go first.
+// First match wins; "also" lists the broader tasks it can sharpen (a science question the classifier called "quick").
+const SPECIALTIES = [
+	{ id: "debug", label: "Debugging", task: "code", re: /\b(bug|stack ?trace|traceback|exception|segfault|crash(es|ed|ing)?|doesn'?t work|not working|fails?|failing|undefined|null pointer|fix (this|my|the))\b/, labs: ["anthropic", "openai", "google", "deepseek"], why: "best at tracing a bug to its cause" },
+	{ id: "algorithms", label: "Algorithms", task: "code", re: /\b(algorithm|leetcode|complexity|big-?o|dynamic programming|recursion|data structures?|binary tree|linked list|graph (search|traversal)|competitive programming|sorting)\b/, labs: ["openai", "google", "deepseek", "anthropic"], why: "strongest at algorithmic problem solving" },
+	{ id: "data-code", label: "Data & queries", task: "code", re: /\b(sql|query|database|postgres|mysql|pandas|dataframe|numpy|regex|etl|excel formula|spreadsheet|json schema)\b/, labs: ["openai", "anthropic", "google", "qwen"], why: "best at SQL, data wrangling and formulas" },
+	{ id: "systems", label: "Systems code", task: "code", re: /\b(rust|c\+\+|golang|kernel|embedded|concurrency|multithread\w*|memory (leak|safety)|assembly|compiler|cuda|low[- ]level|firmware|arduino)\b/, labs: ["openai", "anthropic", "google", "deepseek"], why: "strongest at low-level and systems code" },
+	{ id: "frontend", label: "Front-end", task: "code", re: /\b(html|css|tailwind|react|vue|svelte|next\.?js|landing page|component|responsive|dom|canvas|svg|animation|ui|ux|website|web ?page)\b/, labs: ["anthropic", "google", "openai", "moonshotai"], why: "best at front-end and interface code" },
+	{ id: "backend", label: "Back-end", task: "code", re: /\b(api|server|node(\.js)?|express|django|flask|fastapi|docker|kubernetes|deploy\w*|auth(entication)?|oauth|rest|graphql|microservice|backend)\b/, labs: ["anthropic", "openai", "google", "deepseek"], why: "best at back-end and API code" },
+	{ id: "refactor", label: "Code review", task: "code", re: /\b(refactor|code review|clean up|improve this code|best practices|optimi[sz]e (this|my) code)\b/, labs: ["anthropic", "openai", "google"], why: "best at reviewing and cleaning up code" },
+	{ id: "proof", label: "Proofs", task: "reasoning", re: /\b(prove|proof|theorem|lemma|induction|conjecture)\b/, labs: ["openai", "google", "deepseek", "anthropic"], why: "strongest at rigorous mathematical proof" },
+	{ id: "math", label: "Maths", task: "reasoning", also: ["quick"], re: /\b(integral|derivative|equation|solve for|algebra|calculus|matrix|matrices|probability|statistics|geometry|trigonometry|limit of)\b|\d\s*[+\-*/^=]\s*\d/, labs: ["openai", "google", "deepseek", "anthropic"], why: "best at multi-step maths" },
+	{ id: "puzzle", label: "Logic puzzles", task: "reasoning", re: /\b(riddle|puzzle|logic|paradox|brain ?teaser)\b/, labs: ["openai", "google", "anthropic"], why: "best at careful logical reasoning" },
+	{ id: "science", label: "Science", task: "reasoning", also: ["quick", "research"], re: /\b(physics|chemistry|biology|atoms?|molecul\w+|quantum|genetics?|astronomy|anatomy|photosynthesis|evolution|thermodynamics|relativity|ecosystem)\b/, labs: ["google", "openai", "anthropic", "deepseek"], why: "strongest at explaining science accurately" },
+	{ id: "finance", label: "Business & finance", task: "reasoning", also: ["quick", "brainstorm"], re: /\b(finance|valuation|business plan|strategy|swot|roi|budget|forecast|pricing|unit economics|investment)\b/, labs: ["openai", "anthropic", "google"], why: "best at business and financial analysis" },
+	{ id: "legal", label: "Law & policy", task: "reasoning", also: ["quick", "write"], re: /\b(law|legal|contract|clause|regulation|policy|compliance|lawsuit)\b/, labs: ["anthropic", "openai", "google"], why: "best at careful reading of legal text" },
+	{ id: "creative", label: "Creative writing", task: "write", re: /\b(story|poem|lyrics|novel|fiction|screenplay|worldbuilding|dialogue|character|chapter|fanfic\w*)\b/, labs: ["anthropic", "openai", "x-ai", "google"], why: "most natural creative prose" },
+	{ id: "professional", label: "Professional writing", task: "write", re: /\b(email|cover letter|resume|cv|linkedin|proposal|report|memo|press release|pitch deck)\b/, labs: ["anthropic", "openai", "google"], why: "best at clear professional writing" },
+	{ id: "summarize", label: "Summarising", task: "write", re: /\b(summari[sz]e|tl;?dr|key points|condense|main points|abstract)\b/, labs: ["google", "anthropic", "openai"], why: "best at long documents and summaries" },
+	{ id: "translate", label: "Translation", task: "write", re: /\b(translate|translation|in (spanish|french|german|japanese|chinese|korean|arabic|indonesian|portuguese|italian|russian|hindi))\b/, labs: ["google", "openai", "anthropic"], why: "strongest across languages" },
+	{ id: "edit", label: "Editing", task: "write", re: /\b(proofread|rewrite|edit|grammar|paraphrase|polish|make it sound)\b/, labs: ["anthropic", "openai", "google"], why: "best at tone and editing" },
+	{ id: "essay", label: "Essays", task: "write", re: /\b(essay|thesis|dissertation|research paper|argumentative)\b/, labs: ["anthropic", "openai", "google"], why: "best at structured argument" },
+	{ id: "naming", label: "Names & branding", task: "brainstorm", re: /\b(names? for|slogans?|taglines?|brand(ing)?|domain name)\b/, labs: ["openai", "anthropic", "x-ai", "google"], why: "most inventive with names and wording" },
+	{ id: "startup", label: "Product ideas", task: "brainstorm", re: /\b(startup|business idea|side hustle|product idea|saas|app idea)\b/, labs: ["openai", "anthropic", "google", "x-ai"], why: "best at product and business ideas" },
+	{ id: "news", label: "Current events", task: "research", re: /\b(news|today|this week|breaking|latest|right now|just announced)\b/, labs: ["perplexity", "google", "openai", "x-ai"], why: "searches the live web for fresh news" },
+	{ id: "advice", label: "Advice & support", task: "quick", re: /\b(advice|should i|stressed|anxious|motivat\w+|relationship|lonely|feeling)\b/, labs: ["anthropic", "openai", "google"], why: "warmest and most thoughtful" },
+	{ id: "docread", label: "Reading documents", task: "vision", re: /\b(read|extract|transcribe|ocr|receipt|invoice|scan|handwriting|table)\b/, labs: ["google", "openai", "anthropic"], why: "best at reading text out of images" },
+	{ id: "screenshot", label: "Screens & charts", task: "vision", re: /\b(screenshot|chart|graph|diagram|ui|design|mockup|error message)\b/, labs: ["anthropic", "google", "openai"], why: "best at understanding screens and diagrams" },
+];
+let SPEC = null;
+function specialty(t, base) {
+	return SPECIALTIES.find((x) => (x.task === base || (x.also || []).includes(base)) && x.re.test(t)) || null;
+}
 function classify(text, atts = []) {
+	const base = classifyBase(text, atts);
+	SPEC = specialty((text || "").toLowerCase(), base);
+	return SPEC ? SPEC.task : base;
+}
+function classifyBase(text, atts = []) {
 	const t = (text || "").toLowerCase();
 	if (atts.some((a) => a.kind === "image")) return "vision";
 	if (/```|\b(code|bug|error|exception|stack ?trace|function|class|refactor|typescript|javascript|python|java\b|rust|golang|sql|regex|api|compile|html|css|react|vue|component|script|implement|debug|unit test)\b/.test(t) || atts.some((a) => /\.(js|ts|py|java|rs|go|c|cpp|cs|rb|php|html|css|sql|json|ya?ml|sh)$/i.test(a.name))) return "code";
@@ -721,23 +828,40 @@ function gen(m) {
 	for (const x of m.id.split("/")[1].matchAll(/(\d+)(?:\.\d+)?(?![\d.]*b\b)/g)) if (+x[1] < 100) return +x[1];
 	return 0;
 }
-// A lab's best model for this task right now (or its newest fast one)
+// A lab's best model for this task: its strongest proven line (not whatever was released last), at its latest stable
+// version. Previews, experiments and small variants are skipped, so a brand-new lesser model never beats a proven one.
+const UNPROVEN = /preview|experimental|-exp\b|\bbeta\b|\balpha\b|[-/](nano|mini|lite)\b|-[0-9]+b\b|:free$/;
+// each lab's own top line, strongest first
+const TOP_LINES = {
+	anthropic: [/opus/, /sonnet/],
+	openai: [/^openai\/gpt-[\d.]+$/, /^openai\/o\d/, /^openai\/gpt-[\d.]+-(?!mini|nano)/],
+	google: [/gemini-[\d.]+-pro/, /pro/],
+	"x-ai": [/grok-[\d.]+$/, /grok/],
+	deepseek: [/reason|r1/, /v\d|chat/],
+	moonshotai: [/kimi-k\d/, /k\d/],
+	qwen: [/max/, /plus/],
+	"z-ai": [/glm-[\d.]+$/, /glm/],
+	perplexity: [/sonar-(pro|reasoning)/, /sonar/],
+};
 function flagship(lab, task, fast) {
 	let pool = catalog.filter((m) => provider(m.id) === lab && usable(m, task));
 	// "-pro" that's only a costlier mode of the same model at the same price
 	pool = pool.filter((m) => !(/-pro$/.test(m.id) && pool.some((x) => x.id === m.id.slice(0, -4) && x.pout === m.pout)));
 	if (fast) pool = pool.filter((m) => FAST.test(m.id));
 	if (!pool.length) return null;
-	const newest = Math.max(...pool.map((m) => m.created));
-	pool = pool.filter((m) => m.created > newest - 200 * 86400);
-	if (fast) return pool.sort((a, b) => gen(b) - gen(a) || b.created - a.created)[0];
-	// the newest generation that already has a top-end model in it (not just a small one released first)
-	const top = Math.max(...pool.map((m) => m.pout));
-	const g = Math.max(...pool.filter((m) => m.pout >= top * 0.4).map(gen));
-	pool = pool.filter((m) => gen(m) >= g);
-	const lines = {};
-	for (const m of pool) { const l = line(m.id); if (!lines[l] || m.created > lines[l].created) lines[l] = m; }
-	return Object.values(lines).sort((a, b) => b.pout - a.pout || b.created - a.created || a.id.length - b.id.length)[0];
+	if (fast) {
+		const newest = Math.max(...pool.map((m) => m.created));
+		return pool.filter((m) => m.created > newest - 200 * 86400).sort((a, b) => gen(b) - gen(a) || b.created - a.created)[0];
+	}
+	const solid = pool.filter((m) => !UNPROVEN.test(m.id));
+	const use = solid.length ? solid : pool;
+	const byBest = (x, y) => gen(y) - gen(x) || y.pout - x.pout || y.created - x.created;
+	for (const re of TOP_LINES[lab] || []) {
+		const hit = use.filter((m) => re.test(m.id));
+		if (hit.length) return hit.sort(byBest)[0];
+	}
+	// a lab with no named line here: its highest-priced stable model (what a lab charges tracks what it thinks it can do)
+	return use.sort((a, b) => b.pout - a.pout || gen(b) - gen(a) || b.created - a.created)[0];
 }
 // The candidates for a task, best first, one per lab
 function rank(task) {
@@ -750,22 +874,11 @@ function rank(task) {
 		pool.forEach(add);
 		return out.slice(0, 6);
 	}
-	for (const lab of LABS[task] || LABS.quick) add(flagship(lab, task, task === "quick"));
+	for (const lab of SPEC && SPEC.task === task ? SPEC.labs : LABS[task] || LABS.quick) add(flagship(lab, task, task === "quick"));
 	if (out.length < 2) catalog.filter((m) => usable(m, task)).sort((a, b) => b.created - a.created).slice(0, 3).forEach(add);
 	return out;
 }
 const best = (task) => rank(task)[0] || { id: "openrouter/auto", name: "OpenRouter Auto", pout: 0 };
-// N strong models from different labs (for the council)
-function panel(task, n) {
-	const seen = new Set(), out = [];
-	for (const m of [...rank(task), ...rank("reasoning"), ...rank("write")]) {
-		if (seen.has(provider(m.id))) continue;
-		seen.add(provider(m.id));
-		out.push(m);
-		if (out.length === n) break;
-	}
-	return out;
-}
 const shortName = (m) => (m.name || m.id).replace(/\s*\(.*?\)\s*/g, "").trim();
 
 // ---------------------------------------------------------------- OpenRouter calls
@@ -796,13 +909,14 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 			let j;
 			try { j = JSON.parse(data); } catch { continue; }
 			if (j.error) throw new Error(j.error.message || "The model stopped with an error");
-			if (j.usage && acc) acc.cost = (acc.cost || 0) + (Number(j.usage.cost) || 0);
+			if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) acc.cost = (acc.cost || 0) + c; addSpend(c); }
 			const d = j.choices?.[0]?.delta?.content;
 			if (d) { text += d; onText(text); }
 		}
 	}
 	return text;
 }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 function fail(message, status) {
 	const e = new Error(message);
 	e.status = Number(status) || 0;
@@ -812,7 +926,7 @@ async function once(model, messages, extra = {}, acc = null) {
 	const r = await fetch(API + "/chat/completions", { method: "POST", headers: headers(), body: JSON.stringify({ model, messages, ...extra }) });
 	const j = await r.json();
 	if (!r.ok || j.error) throw fail(j.error?.message || r.statusText, r.ok ? j.error?.code : r.status);
-	if (j.usage && acc) acc.cost = (acc.cost || 0) + (Number(j.usage.cost) || 0);
+	if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) acc.cost = (acc.cost || 0) + c; addSpend(c); }
 	return j.choices?.[0]?.message?.content || "";
 }
 async function checkKey() {
@@ -838,7 +952,7 @@ function save() {
 	const slim = convos.map((c) => ({ ...c, msgs: c.msgs.map((m) => ({ ...m, atts: (m.atts || []).map((a) => ({ name: a.name, kind: a.kind })) })) }));
 	store.set("convos", slim);
 }
-function history() {
+function chatHistory() {
 	// what the model sees: the whole chat, with attachments folded into the user turns
 	return current.msgs.filter((m) => !m.error && (m.role === "user" || m.text)).map((m) => {
 		if (m.role !== "user" || !m.atts?.length) return { role: m.role, content: m.text || "" };
@@ -872,13 +986,13 @@ function sys(extra) {
 
 // ---------------------------------------------------------------- rendering
 marked.setOptions({ gfm: true, breaks: false });
-function md(text) {
+function md(text, live) {
 	const html = DOMPurify.sanitize(marked.parse(text || ""));
 	const box = document.createElement("div");
 	box.innerHTML = html;
 	box.querySelectorAll("pre > code").forEach((code) => {
 		const lang = (code.className.match(/language-([\w-]+)/) || [])[1] || "";
-		try { if (lang && hljs.getLanguage(lang)) hljs.highlightElement(code); else hljs.highlightElement(code); } catch {}
+		if (!live) { try { hljs.highlightElement(code); } catch {} }
 		const pre = code.parentElement, wrap = document.createElement("div");
 		wrap.className = "code";
 		wrap.innerHTML = '<div class="code-h"><span>' + esc(lang || "code") + '</span><span class="sp"></span>' + (/^(html|svg|xml)$/.test(lang) ? '<button data-preview>Preview</button>' : "") + '<button data-copy>Copy</button></div>';
@@ -910,19 +1024,19 @@ function renderWelcome() {
 		["Reasoning", "A bat and a ball cost $1.10. Explain the trap step by step"],
 		["Brainstorm", "Ten startup ideas for students with no money"],
 		["Research", "What happened in AI this week? Cite sources"],
+		["Flashcards", "Make 10 flashcards on photosynthesis"],
+		["Quiz", "Quiz me on the French Revolution"],
+		["Podcast", "Make a 5 minute podcast explaining black holes"],
+		["Simulation", "Make a simulation of a pendulum I can play with"],
+		["Build", "Build me a snake game I can play right here"],
 	];
-	const head = mode === "council" ? "Ask the council." : mode === "build" ? "What should we build?" : mode === "study" ? "What do you want to learn?" : "What can I help with?";
-	const lead = mode === "council" ? "Three labs answer at once. A fourth reads them all and writes the best single answer."
-		: mode === "build" ? "Brainstormed, planned, built and reviewed, each step by the model that's best at it."
-		: mode === "study" ? "A topic or your notes, turned into flashcards, a quiz or a two-voice podcast."
-		: "Each message goes to the model that's best at it. You'll see which one, and why.";
+	const head = "What can I help with?";
+	const lead = "Ask anything. A lead model calls in the right specialists for each part, and can make flashcards, quizzes and podcasts to study from.";
 	// the composer is about to be redrawn round: keep it safe in its dock first
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
 	$("#view").innerHTML = '<section class="welcome"><h1>' + head + '</h1><p class="lead">' + lead + '</p><div class="slot" id="slot"></div>' +
-		(mode === "study"
-			? '<div class="sugs">' + ["Photosynthesis", "The French Revolution", "Big-O notation", "Supply and demand"].map((t) => '<button class="sug" data-topic="' + esc(t) + '"><div class="k">Topic</div><div class="v">' + esc(t) + "</div></button>").join("") + "</div>"
-			: '<div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-sug="' + esc(v) + '"><div class="k">' + k + '</div><div class="v">' + esc(v) + "</div></button>").join("") + "</div>") +
-		'<div class="how"><div><b>Routed, not guessed</b>Every answer shows which model wrote it and why.</div><div><b>Always the newest</b>New models are used the day they ship.</div><div><b>Private</b>Your key and chats stay in this browser.</div></div></section>';
+		'<div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-sug="' + esc(v) + '"><div class="k">' + k + '</div><div class="v">' + esc(v) + "</div></button>").join("") + "</div>" +
+		'<div class="how"><div><b>Routed, not guessed</b>Every answer can show which models worked on it.</div><div><b>Best, not just newest</b>The strongest proven model from each lab, never a preview.</div><div><b>Private</b>Your key and chats stay in this browser.</div></div></section>';
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 }
@@ -930,6 +1044,52 @@ function renderThread() {
 	if (!current || !current.msgs.length) { renderWelcome(); return; }
 	if ($("#composer").parentElement !== $("#dock")) { $("#dock").appendChild($("#composer")); $("#dock").classList.remove("hide"); }
 	$("#view").innerHTML = '<div class="thread" id="thread">' + current.msgs.map(renderMsg).join("") + "</div>";
+}
+// the models behind an answer: shown only when asked for
+function modelsUsed(m) {
+	if (m.used) return m.used;
+	const out = [];
+	if (m.steps) {
+		for (const x of m.steps) {
+			if (!x.model) continue;
+			const what = x.label === "Analyze" ? "Read the request and planned the work" : x.goal || x.label;
+			const sp = m.spec && x.role && ROLES[x.role] && ROLES[x.role].task === m.spec.task ? " (" + m.spec.label + ": " + m.spec.why + ")" : "";
+			out.push({ name: x.model, desc: x.label + ": " + what + sp + (x.error ? " (this one was busy and was skipped)" : ""), bad: !!x.error });
+		}
+	} else if (m.members) {
+		for (const x of m.members) out.push({ name: x.name, desc: x.error ? "Council member: couldn't answer" : "Council member: answered on its own", bad: !!x.error });
+		if (m.judge) out.push({ name: m.judge, desc: "Read every answer and wrote the best single one" });
+	} else if (m.model) {
+		const cm = catalog.find((c) => c.id === m.model);
+		out.push({ name: cm ? shortName(cm) : m.model, desc: m.spec ? m.spec.label + ": " + m.spec.why : (TASK_INFO[m.task]?.label || "Answer") + ": " + (TASK_INFO[m.task]?.why || "answered this message") });
+	}
+	return out;
+}
+function usedHtml(m, i) {
+	const u = modelsUsed(m);
+	if (!u.length) return "";
+	return '<div class="mu"><button class="mu-btn" data-models="' + i + '">' + (m.showModels ? "Hide models used" : "Show models used") + "</button>" +
+		'<div class="ucards"' + (m.showModels ? "" : " hidden") + ">" + u.map((x) => '<div class="ucard' + (x.bad ? " bad" : "") + '"><b>' + esc(x.name) + "</b><span>" + esc(x.desc) + "</span></div>").join("") + "</div></div>";
+}
+const SCIENCEY = /\b(atoms?|molecul\w*|electrons?|protons?|neutrons?|physics|chemi\w+|biolog\w*|cells?|waves?|gravity|orbits?|planets?|forces?|motion|energy|friction|circuits?|voltage|current|magnet\w*|light|optics|lens\w*|gas(es)?|pressure|temperature|heat|thermo\w*|pendulum|springs?|projectile|velocity|acceleration|ecosystem|evolution|genetic\w*|dna|photosynthesis|osmosis|reactions?|acids?|bonds?|periodic|trigonometr\w+|sine|vectors?|probability|geometry|calculus|derivatives?|integrals?|sorting|machine learning|neural network)\b/i;
+const LEARNING = /\b(explain|what (is|are|was|were)|how (does|do|did|is|are)|why (does|do|is|are|did)|teach|learn|study|understand|exam|homework|lesson|concept|theory|difference between|describe|revision|revise|summari[sz]e)\b/i;
+function offerFor(text) {
+	const o = [];
+	if (SCIENCEY.test(text)) o.push("sim");
+	o.push("flashcards", "quiz", "podcast");
+	return o;
+}
+function offerTopic(text) {
+	return text.replace(/^(please\s+|can you\s+|could you\s+)?(explain( to me)?|teach me( about)?|tell me about|what('s| is| are| was| were)|how (does|do|did|is|are)|why (does|do|is|are|did)|describe|help me (understand|learn))\s+/i, "").replace(/[?.!]+$/, "").trim().slice(0, 90) || text.slice(0, 90);
+}
+const OFFER_NAME = { sim: "a simulation", flashcards: "flashcards", quiz: "a quiz", podcast: "a podcast" };
+const OFFER_BTN = { sim: "Simulation", flashcards: "Flashcards", quiz: "Quiz", podcast: "Podcast" };
+function offerHtml(m, i) {
+	if (!m.offer || m.streaming) return "";
+	const names = m.offer.map((k) => OFFER_NAME[k]);
+	const phrase = names.length > 1 ? names.slice(0, -1).join(", ") + " or " + names[names.length - 1] : names[0];
+	return '<div class="offer"><p>Would you like me to create ' + phrase + ' to help?</p><div class="offer-btns">' +
+		m.offer.map((k) => '<button class="mu-btn" data-offer="' + k + '" data-i="' + i + '">' + OFFER_BTN[k] + "</button>").join("") + "</div></div>";
 }
 function renderMsg(m, i) {
 	if (m.role === "user") {
@@ -945,17 +1105,52 @@ function renderMsg(m, i) {
 		body += '<div class="steps">' + (m.steps || []).map((s, k) => '<div class="step ' + (s.done ? "done" : s.running ? "run" : "") + (s.open ? " open" : "") + '" data-step="' + k + '"><div class="sh"><b>' + esc(s.label) + "</b><span>" + esc(s.model || "") + "</span></div>" + '<div class="sb md">' + (s.text ? md(s.text) : "") + "</div></div>").join("") + "</div>";
 	}
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
-	const chips = (m.chips || []).join("");
-	return '<div class="msg" data-i="' + i + '"><div class="meta">' + chips + '</div>' + (m.kind === "council" || m.kind === "build" ? body : "") + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(m.text) : m.streaming && !m.kind ? '<span class="thinking">Thinking</span>' : "") + "</div>" + (m.kind === "council" || m.kind === "build" ? "" : body) +
+		return '<div class="msg" data-i="' + i + '">' + usedHtml(m, i) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" || m.kind === "build" ? "" : body) +
 		(!m.streaming && m.text ? '<div class="actions"><button class="act" data-copymsg="' + i + '">Copy</button><button class="act" data-speak="' + i + '">Read aloud</button>' + (i === current.msgs.length - 1 ? '<button class="act" data-regen>Regenerate</button>' : "") + (m.cost ? '<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>" : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
+// Streaming: the network delivers text in bursts; what's on screen is revealed a few characters every frame
+// (60 fps), and only the answer's own text is redrawn, not the whole message.
+let paintRaf = 0;
 function updateLast() {
+	if (!paintRaf) paintRaf = requestAnimationFrame(frame);
+}
+function frame() {
+	paintRaf = 0;
+	paintLast();
+	const st = current && current.msgs[current.msgs.length - 1];
+	if (st && st.streaming && st.text && (st._shown || 0) < st.text.length) paintRaf = requestAnimationFrame(frame);
+}
+function shownText(m) {
+	return m.streaming && m._shown != null ? m.text.slice(0, m._shown) : m.text;
+}
+function structKey(m) {
+	return (m.chips || []).join("") + "|" + (m.members || []).map((x) => [x.name, x.done, !!x.error, (x.text || "").length].join(":")).join(",") + "|" +
+		(m.steps || []).map((x) => [x.done, x.running, x.open, (x.text || "").length].join(":")).join(",") + "|" + !!m.text + !!m.streaming + !!m.showModels + (m.status || "");
+}
+function paintLast() {
+	if (!current || !current.msgs.length) return;
 	const i = current.msgs.length - 1;
+	const st = current.msgs[i];
+	if (st.streaming && st.text) {
+		// a few characters per frame, more when it's far behind, so it never lags and never jumps
+		const left = st.text.length - (st._shown || 0);
+		if (left > 0) st._shown = (st._shown || 0) + Math.max(2, Math.ceil(left * 0.1));
+		if (st._shown > st.text.length) st._shown = st.text.length;
+	}
 	const el = $('.msg[data-i="' + i + '"]');
 	if (!el) { renderThread(); return; }
-	el.outerHTML = renderMsg(current.msgs[i], i);
-	const st = current.msgs[i];
+	const key = structKey(st);
+	const box = el.querySelector(":scope > .md");
+	if (st.role === "assistant" && st.streaming && st.text && box && el.dataset.key === key) {
+		box.innerHTML = md(shownText(st), true);
+		box.classList.add("caret");
+		stick();
+		return;
+	}
+	el.outerHTML = renderMsg(st, i);
+	const now = $('.msg[data-i="' + i + '"]');
+	if (now) now.dataset.key = key;
 	if (st.kind && $('[data-study="' + i + '"]')) renderStudy(st, i);
 	stick();
 }
@@ -974,14 +1169,8 @@ function updateRoute() {
 	const el = $("#route");
 	if (!settings.key) { el.innerHTML = '<span class="chip click" data-open-settings><span class="dot" style="background:var(--warn)"></span>Add your OpenRouter key to start</span>'; return; }
 	if (!catalog.length) { el.innerHTML = '<span class="chip">Loading models…</span>'; return; }
-	const task = mode === "study" ? "quick" : classify(text, attachments);
-	if (mode === "council") el.innerHTML = '<span class="chip"><span class="dot"></span>Council · ' + panel(task, 3).map((m) => "<b>" + esc(shortName(m)) + "</b>").join(" + ") + "</span>";
-	else if (mode === "build") el.innerHTML = '<span class="chip"><span class="dot"></span>Brainstorm → Plan → Build → Review</span>';
-	else if (mode === "study") el.innerHTML = '<span class="chip"><span class="dot"></span>Study · type a topic, or attach notes</span>';
-	else {
-		const m = best(task);
-		el.innerHTML = '<span class="chip click" data-pick="' + task + '" title="' + esc(TASK_INFO[task].why) + '"><span class="dot"></span>' + esc(TASK_INFO[task].label) + " → <b>" + esc(shortName(m)) + "</b></span>";
-	}
+	const intent = studyIntent(text, attachments);
+	el.innerHTML = '<span class="chip"><span class="dot"></span>' + (intent ? esc(STUDY[intent.kind].label) + " · interactive" : "Auto · the right models for each part") + "</span>";
 	$("#topChipText").textContent = settings.key ? catalog.length + " models live" : "Not connected";
 }
 
@@ -991,8 +1180,6 @@ async function send(textOverride) {
 	if (busy) return;
 	if (!text && !attachments.length) return;
 	if (!settings.key) { openSettings(); return; }
-	let study = null;
-	if (mode === "study" && !(study = await pickStudy())) return;
 	if (!catalog.length) await loadCatalog();
 	if (!current) newConvo();
 	const atts = attachments;
@@ -1008,10 +1195,11 @@ async function send(textOverride) {
 	busy = new AbortController();
 	setBusy(true);
 	try {
-		if (mode === "council") await runCouncil(text, atts);
-		else if (mode === "build") await runBuild(text, atts);
-		else if (mode === "study") await runStudy(text, atts, study);
-		else await runAuto(text, atts);
+		const intent = studyIntent(text, atts);
+		const code = intent ? null : appIntent(text, atts);
+		if (intent) await runStudy(text, atts, intent);
+		else if (code) await runApp(text, atts, code);
+		else await runSmart(text, atts);
 	} catch (e) {
 		const last = current.msgs[current.msgs.length - 1];
 		if (e.name === "AbortError") { if (last.role !== "user") { last.streaming = false; last.text = (last.text || "") + "\n\n*Stopped.*"; } }
@@ -1020,7 +1208,14 @@ async function send(textOverride) {
 			current.msgs.push({ role: "assistant", error: niceError(e) });
 		}
 	}
-	current.msgs.forEach((m) => (m.streaming = false));
+	current.msgs.forEach((m) => { m.streaming = false; delete m._shown; });
+	{
+		const lastMsg = current.msgs[current.msgs.length - 1];
+		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.error && !STUDY[lastMsg.kind] && (lastMsg.text || "").length > 300 && LEARNING.test(text) && classify(text, atts) !== "code" && !studyIntent(text, atts)) {
+			lastMsg.offer = offerFor(text);
+			lastMsg.offerTopic = offerTopic(text);
+		}
+	}
 	busy = null;
 	setBusy(false);
 	save();
@@ -1031,7 +1226,7 @@ function niceError(e) {
 	const s = String(e.message || e), st = e.status || 0;
 	if (st === 401 || /unauthor|invalid.*key|authenticat/i.test(s)) return "OpenRouter didn't accept the key. Check it in Settings.";
 	if (st === 402 || /credit|insufficient/i.test(s)) return "Your OpenRouter balance is too low for this model. Add credit, or pick a lower Quality (Economy or Free) in Settings.";
-	if (st === 429 || /rate.?limit/i.test(s)) return "Rate limited by the provider. Try again in a moment, or another model.";
+	if (st === 429 || /rate.?limit|too many|quota|capacity|overloaded|temporarily/i.test(s)) return "Too many requests right now: the free models are rate limited and every model I tried was busy. Wait a minute and try again, or add a little OpenRouter credit (even $5 lifts the limit a lot).";
 	return "Something went wrong: " + s;
 }
 function setBusy(on) {
@@ -1046,82 +1241,150 @@ async function runAuto(text, atts) {
 	const cands = rank(task);
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
-	const hist = [sys(), ...history()];
+	const hist = [sys(), ...chatHistory()];
 	// try the best model; if it fails before saying anything, the next one in line takes over
 	let lastErr;
-	for (const m of cands.length ? cands.slice(0, 3) : [best(task)]) {
+	for (const m of cands.length ? cands.slice(0, 5) : [best(task)]) {
 		msg.chips = [routeChip(m, task)];
 		msg.model = m.id;
+			msg.task = task;
+			msg.spec = SPEC && SPEC.task === task ? { label: SPEC.label, why: SPEC.why, task: SPEC.task } : null;
 		updateLast();
 		try {
 			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, {}, msg);
 			return;
 		} catch (e) {
 			if (e.name === "AbortError" || msg.text || e.status === 401) throw e;
-			lastErr = e;
+			lastErr = e; if (e.status === 429) await sleep(1200); } } throw lastErr || new Error("No model answered");
+}
+
+// ---------------------------------------------------------------- the team (Auto)
+// One lead reads the request and decides which specialists are needed; each step goes to the lab that's best at it
+// (Gemini analyses, GPT brainstorms, Claude codes and writes...), and each one builds on what came before.
+const ROLES = {
+	brainstorm: { label: "Brainstorm", task: "brainstorm", labs: ["openai", "anthropic", "x-ai", "google"] },
+	reason: { label: "Reason", task: "reasoning", labs: ["openai", "google", "anthropic", "deepseek"] },
+	research: { label: "Research", task: "research", labs: ["perplexity", "google", "openai"] },
+	code: { label: "Code", task: "code", labs: ["anthropic", "openai", "google", "moonshotai"] },
+	write: { label: "Write", task: "write", labs: ["anthropic", "openai", "google"] },
+	review: { label: "Review", task: "reasoning", labs: ["openai", "google", "anthropic"] },
+	analyze: { label: "Analyze", task: "reasoning", labs: ["google", "openai", "anthropic"] },
+};
+// candidates for a role, best first; labs not used by an earlier step come first so the work is spread across labs
+function teamFor(role, used) {
+	const r = ROLES[role], c = [];
+	const add = (m) => { if (m && !c.some((x) => x.id === m.id)) c.push(m); };
+	add(catalog.find((m) => m.id === settings.overrides[r.task]));
+	if (settings.tier !== "free") for (const lab of SPEC && SPEC.task === r.task ? SPEC.labs : r.labs) add(flagship(lab, r.task, false));
+	rank(r.task).forEach(add);
+	const fresh = c.filter((m) => !used.has(provider(m.id)));
+	return [...fresh, ...c.filter((m) => !fresh.includes(m))];
+}
+function withText(m, text) {
+	if (typeof m.content === "string") return { role: "user", content: text };
+	const parts = m.content.map((p) => (p.type === "text" ? { ...p, text } : p));
+	if (!parts.some((p) => p.type === "text")) parts.unshift({ type: "text", text });
+	return { role: "user", content: parts };
+}
+function readPlan(raw) {
+	try {
+		const j = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1"));
+		const steps = (j.steps || []).filter((x) => ROLES[x.role] && x.role !== "analyze").slice(0, 4).map((x) => ({ role: x.role, goal: String(x.goal || "").slice(0, 300) }));
+		if (steps.length) return { understanding: String(j.understanding || "").slice(0, 600), steps };
+	} catch {}
+	return null;
+}
+// short, simple messages go straight to one model; anything bigger goes to the team
+async function runSmart(text, atts) {
+	const short = text.trim().split(/\s+/).length < 14;
+	if (!atts.length && short && classify(text, atts) === "quick") return runAuto(text, atts);
+	return runTeam(text, atts);
+}
+async function runTeam(text, atts) {
+	const used = new Set();
+	const msg = { role: "assistant", kind: "build", text: "", streaming: true, chips: [], steps: [], spec: SPEC ? { label: SPEC.label, why: SPEC.why, task: SPEC.task } : null };
+	current.msgs.push(msg);
+	const hist = chatHistory();
+	const last = hist[hist.length - 1];
+	const request = text + (atts.length ? "\n\n(Attached: " + atts.map((a) => a.name).join(", ") + ")" : "");
+	const chip = () => { msg.chips = ['<span class="chip"><span class="dot"></span>Team · ' + msg.steps.map((x) => esc(x.model)).join(" → ") + "</span>"]; };
+	// the model that runs a step: the first candidate that answers (a busy one is skipped, and shows as failed)
+	async function run(step, cands, build, onText) {
+		let lastErr;
+		for (const m of cands.slice(0, 4)) {
+			step.model = shortName(m);
+			step.id = m.id;
+			chip();
+			updateLast();
+			try {
+				const out = await stream(m.id, build(), (t) => { step.text = t; onText && onText(t); updateLast(); }, busy.signal, {}, msg);
+				used.add(provider(m.id));
+				return out;
+			} catch (e) {
+				if (e.name === "AbortError" || e.status === 401 || step.text) throw e;
+				lastErr = e;
+				if (e.status === 429) await sleep(1200);
+			}
 		}
+		throw lastErr || new Error("No model answered");
 	}
-	throw lastErr || new Error("No model answered");
-}
 
-async function runCouncil(text, atts) {
-	const task = classify(text, atts);
-	const members = panel(task, 3);
-	const judge = settings.synth && catalog.find((m) => m.id === settings.synth) || best("reasoning");
-	const msg = { role: "assistant", kind: "council", text: "", streaming: true, chips: ['<span class="chip"><span class="dot"></span>Council · ' + esc(TASK_INFO[task].label) + "</span>"], members: members.map((m) => ({ id: m.id, name: shortName(m), text: "", done: false })) };
-	current.msgs.push(msg);
+	// 1. the lead reads the request and plans (Gemini first)
+	msg.status = "Analyzing";
+	const lead = { label: "Analyze", text: "", done: false, running: true, open: true, model: "", id: "" };
+	msg.steps.push(lead);
+	let plan = null;
+	try {
+		const out = await run(lead, teamFor("analyze", used), () => [sys(), withText(last, "You lead a team of specialist AI models. Read the user's request and decide what work it needs.\n\nReply with ONLY this JSON, nothing else:\n{\"understanding\": \"2-3 sentences: what they actually want and any hidden requirement\", \"steps\": [{\"role\": \"brainstorm|reason|research|code|write|review\", \"goal\": \"what this step must produce\"}]}\n\nUse only the steps that are genuinely needed (1 to 4): brainstorm only if ideas or options are wanted, research only if current facts are needed, reason for maths, logic and analysis, code only if code must be written, write for prose, review only for big or risky outputs. The LAST step must produce the final answer for the user.\n\nRequest:\n" + request)]);
+		plan = readPlan(out);
+	} catch (e) {
+		if (e.name === "AbortError" || e.status === 401) throw e;
+	}
+	if (!plan) {
+		const t = classify(text, atts);
+		plan = { understanding: "", steps: t === "code" ? [{ role: "code", goal: "Write the complete solution." }, { role: "review", goal: "Check it and output the corrected final version." }] : [{ role: t === "brainstorm" ? "brainstorm" : t === "research" ? "research" : t === "reasoning" ? "reason" : "write", goal: "Answer the request fully." }] };
+	}
+	lead.text = (plan.understanding ? plan.understanding + "\n\n" : "") + plan.steps.map((x, k) => (k + 1) + ". **" + ROLES[x.role].label + "**: " + x.goal).join("\n");
+	lead.running = false;
+	lead.done = true;
+	lead.open = false;
+	for (const p of plan.steps) msg.steps.push({ label: ROLES[p.role].label, model: "", id: "", text: "", done: false, running: false, open: false, role: p.role, goal: p.goal });
+	chip();
 	updateLast();
-	const hist = [sys(), ...history()];
-	await Promise.all(members.map(async (m, k) => {
-		try {
-			await stream(m.id, hist, (t) => { msg.members[k].text = t; updateLast(); }, busy.signal, {}, msg);
-		} catch (e) {
-			if (e.name === "AbortError") throw e;
-			msg.members[k].error = niceError(e);
-		}
-		msg.members[k].done = true;
-		updateLast();
-	}));
-	const answers = msg.members.filter((x) => x.text).map((x) => "### Answer from " + x.name + "\n" + x.text).join("\n\n");
-	if (!answers) throw new Error("None of the council answered");
-	msg.chips.push(routeChip(judge, null, "Synthesized by"));
-	const ask = [
-		sys("You combine several expert answers into the single best answer. Keep the strongest ideas, correct anything wrong, resolve disagreements explicitly when they matter, and remove repetition. Write it as one clean answer to the user, in Markdown. Don't mention the other answers unless the disagreement itself is useful."),
-		{ role: "user", content: "The user's request:\n" + text + "\n\n" + answers },
-	];
-	await stream(judge.id, ask, (t) => { msg.text = t; updateLast(); }, busy.signal, {}, msg);
-}
 
-async function runBuild(text, atts) {
-	const kind = classify(text, atts) === "code" ? "code" : "write";
-	const plan = [
-		{ label: "Brainstorm", task: "brainstorm", prompt: (r) => "Request:\n" + r + "\n\nGive 3 to 5 genuinely different approaches. For each: the idea in one line, why it could be great, the main risk. End with which one you'd pick." },
-		{ label: "Plan", task: "reasoning", prompt: (r, prev) => "Request:\n" + r + "\n\nApproaches proposed:\n" + prev[0] + "\n\nChoose the best approach (or combine) and write a concrete, numbered plan: structure, key decisions, edge cases, and what 'done' looks like." },
-		{ label: "Build", task: kind, prompt: (r, prev) => "Request:\n" + r + "\n\nPlan to follow:\n" + prev[1] + "\n\nCarry out the plan completely. Produce the finished deliverable" + (kind === "code" ? ": complete, runnable code with no placeholders." : ".") },
-		{ label: "Review", task: "reasoning", prompt: (r, prev) => "Request:\n" + r + "\n\nDraft:\n" + prev[2] + "\n\nReview this draft hard: fix every bug, gap and weak spot you find, then output the improved FINAL version in full. After it, add a short 'What I changed' list." },
-	];
-	const other = (task, not) => rank(task).find((x) => provider(x.id) !== provider(not.id)) || best(task);
-	const ideas = best("brainstorm"), planner = other("reasoning", ideas), builder = best(kind), reviewer = other("reasoning", builder);
-	const steps = plan.map((s, k) => {
-		const m = [ideas, planner, builder, reviewer][k];
-		return { ...s, model: shortName(m), id: m.id, text: "", done: false, running: false, open: false };
-	});
-	const msg = { role: "assistant", kind: "build", text: "", streaming: true, chips: ['<span class="chip"><span class="dot"></span>Build · ' + steps.map((s) => esc(s.model)).join(" → ") + "</span>"], steps };
-	current.msgs.push(msg);
-	updateLast();
+	// 2. each specialist builds on the ones before it
 	const outs = [];
-	for (const s of steps) {
-		s.running = true;
-		s.open = true;
+	const work = msg.steps.slice(1);
+	for (let k = 0; k < work.length; k++) {
+		const st = work[k], finalStep = k === work.length - 1;
+		st.running = true;
+		st.open = true;
+		msg.status = ({ Brainstorm: "Brainstorming", Reason: "Reasoning", Research: "Researching", Code: "Writing the code", Write: "Writing", Review: "Reviewing" })[st.label] || "Working";
 		updateLast();
-		const out = await stream(s.id, [sys(), { role: "user", content: s.prompt(text + (atts.length ? "\n\n(Attached: " + atts.map((a) => a.name).join(", ") + ")" : ""), outs) }], (t) => { s.text = t; updateLast(); }, busy.signal, {}, msg);
-		outs.push(out);
-		s.running = false;
-		s.done = true;
-		s.open = false;
+		const before = outs.map((o) => "### " + o.label + "\n" + o.text).join("\n\n");
+		const ask = "The user's request:\n" + request + "\n\n" + (plan.understanding ? "What the lead understood:\n" + plan.understanding + "\n\n" : "") + (before ? "Work so far:\n" + before + "\n\n" : "")
+			+ "Your job (" + st.label + "): " + st.goal + "\n\n" + (finalStep ? "This is the answer the user will read: write it completely and cleanly in Markdown. Don't mention the team or the steps." : "Keep it focused and useful: a specialist builds on what you write.");
+		let out;
+		try {
+			out = await run(st, teamFor(st.role, used), () => [sys(), ...hist.slice(0, -1), withText(last, ask)], finalStep ? (t) => { msg.text = t; } : null);
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401 || finalStep && !outs.length) throw e;
+			st.text = niceError(e);
+			st.error = true;
+			st.running = false;
+			st.done = true;
+			st.open = false;
+			updateLast();
+			continue;
+		}
+		outs.push({ label: st.label, text: out });
+		st.running = false;
+		st.done = true;
+		st.open = false;
 		updateLast();
 	}
-	msg.text = outs[3] || outs[2] || "";
+	msg.text = outs.length ? outs[outs.length - 1].text : "";
+	if (!msg.text) throw new Error("None of the models answered");
 }
 
 // ---------------------------------------------------------------- study
@@ -1130,14 +1393,272 @@ const STUDY = {
 	quiz: { label: "Multiple choice", help: "Pick the right option", qty: [3, 5, 8, 10] },
 	open: { label: "Q&A quiz", help: "Type answers, get graded", qty: [3, 5, 8, 10] },
 	podcast: { label: "Podcast", help: "Two hosts explain it aloud" },
+	sim: { label: "Simulation", help: "An interactive model to play with" },
+	app: { label: "App", help: "A small project, built and run in the browser" },
 };
 const PODCAST = { "2 min": 280, "5 min": 700, "10 min": 1400, "20 min": 2800, "30 min": 4200, "45 min": 6300, "1 hour": 8400 };
+function studyIntent(text, atts) {
+	const t = (text || "").trim();
+	if (!t) return null;
+	const ask = /\b(make|create|generate|give|write|build|turn|prepare|need|want|quiz me|test me|can you|could you|please|let'?s|show me|simulate)\b/i.test(t);
+	if (!ask) return null;
+	let kind = null;
+	if (/\b(simulat\w+|phet)\b|\binteractive (demo|model|visuali[sz]ation|animation)\b|\banimation (of|about|showing|that shows)\b.*\b(atom|molecul|cell|wave|orbit|gravity|physics|chemistry|biology|electron)/i.test(t)) kind = "sim";
+	else if (/\b(podcast|two hosts|audio (lesson|overview))\b/i.test(t)) kind = "podcast";
+	else if (/\bflash ?cards?\b/i.test(t)) kind = "flashcards";
+	else if (/\b(quiz|test me|multiple[- ]choice|mcq|practice questions?)\b/i.test(t)) kind = /\b(open|short answer|written|q ?(&|and) ?a|type)\b/i.test(t) ? "open" : "quiz";
+	if (!kind) return null;
+	const num = (t.match(/\b(\d{1,2})\s*(?:flash ?cards?|cards?|questions?|mcq|multiple)/i) || t.match(/\b(\d{1,2})\b(?!\s*(?:min|minute|hour|hr))/) || [])[1];
+	const cap = STUDY[kind].qty;
+	let qty = cap ? Number(num) || cap[1] : 0;
+	if (cap) qty = Math.max(cap[0], Math.min(cap[cap.length - 1], qty));
+	let dur = "5 min";
+	const mm = t.match(/\b(\d{1,2})\s*(?:min|minute)/i);
+	if (/\b(1|one|an)\s*(?:hour|hr)\b/i.test(t)) dur = "1 hour";
+	else if (mm) {
+		const keys = Object.keys(PODCAST).filter((k) => k.endsWith("min"));
+		dur = keys.reduce((a, k) => (Math.abs(parseInt(k) - Number(mm[1])) < Math.abs(parseInt(a) - Number(mm[1])) ? k : a), keys[0]);
+	}
+	let topic = t.replace(/^(please\s+)?(can|could) you\s+/i, "").replace(/^(make|create|generate|give|write|build|prepare)\s+(me|us)?\s*(an?|some|\d+)?\s*(\d+\s*)?(minute\s+)?(min\s+)?(flash ?cards?|quiz(zes)?|podcast|multiple[- ]choice( quiz)?|practice questions?|questions?)?\s*(about|on|for|covering|of|explaining|that explains)?\s*/i, "").trim();
+	topic = topic.replace(/^(quiz|test) me (on|about)s+/i, "").replace(/^(an? )?(d+[- ]question )?(multiple[- ]choice |open |short[- ]answer )?(quiz|test)( questions?)?s+(on|about|for|covering)s+/i, "").replace(/s+(short answer|multiple choice)s*$/i, "").trim();
+	topic = topic.replace(/^(quiz|test) me (on|about)\s+/i, "").replace(/^(an? )?(\d+[- ]question )?(multiple[- ]choice |open |short[- ]answer )?(quiz|test)( questions?)?\s+(on|about|for|covering)\s+/i, "").replace(/\s+(short answer|multiple choice)\s*$/i, "").trim();
+	if (kind === "sim") topic = topic.replace(/^(show me|simulate)\s+/i, "").replace(/^(an?\s+)?(interactive\s+)?(simulation|sim|animation|model)\s*(of|about|on|for|showing|that shows)?\s*/i, "").trim();
+	if (!topic || topic.length < 3) topic = t;
+	return { kind, qty, dur, topic };
+}
+// a self-contained interactive simulation (PhET-style), written by the strongest coding model
+function simHtml(out) {
+	const fence = String(out).match(/```(?:html)?\s*([\s\S]*?)(```|$)/i);
+	let h = fence ? fence[1] : String(out);
+	const a = h.search(/<!doctype html|<html[\s>]/i);
+	if (a > 0) h = h.slice(a);
+	return /<script/i.test(h) && /<(canvas|svg|div|body)/i.test(h) ? h.trim() : null;
+}
+async function runSim(text, atts, pick) {
+	const source = (atts.find((a) => a.kind === "text")?.data || "").slice(0, 20000);
+	const topic = pick.topic || text;
+	const msg = { role: "assistant", kind: "sim", text: "", streaming: true, status: "Building your simulation", data: null, used: [] };
+	current.msgs.push(msg);
+	updateLast();
+	const prompt = 'Build an interactive educational simulation about: "' + topic + '".\n\n' +
+		"Style: like a PhET simulation. A student should learn by playing with it.\n" +
+		"Requirements:\n- ONE self-contained HTML file: inline CSS and JavaScript, no external libraries, fonts, images or network requests.\n" +
+		"- Draw with <canvas> or SVG and animate with requestAnimationFrame so it runs live.\n" +
+		"- Real controls that change the physics/science as it runs: sliders with units and values, buttons, toggles, drag-and-drop where it makes sense.\n" +
+		"- Live readouts of the key quantities, and a Reset and a Pause/Play button.\n" +
+		"- Scientifically accurate, with correct formulas. Add a short caption explaining what to try.\n" +
+		"- Clean, light, friendly design that fills the available width and works on a phone (canvas scales to its container, redraws on resize).\n" +
+		"- Robust: no errors, no infinite loops, sensible slider ranges.\n" +
+		"Output ONLY the code in one ```html block, nothing else." + (source ? "\n\nBase it on this material:\n" + source : "");
+	let html = null, lastErr;
+	for (const m of rank("code").slice(0, 3)) {
+		msg.used = [{ name: shortName(m), desc: "Simulation: wrote the interactive model" }];
+		try {
+			const out = await stream(m.id, [sys(), { role: "user", content: prompt }], (t) => { msg.status = "Building your simulation (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, {}, msg);
+			html = simHtml(out);
+			if (html) break;
+			lastErr = new Error("The model didn't return a working simulation.");
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401) throw e;
+			lastErr = e;
+			if (e.status === 429) await sleep(1200);
+		}
+	}
+	if (!html) throw lastErr || new Error("No model could build that simulation.");
+	msg.data = { html, title: topic };
+	msg.text = "**" + topic + "**: a simulation you can play with";
+}
+// ---- the coder: a small multi-file project, written by the strongest coding model, run in a sandbox, edited by asking
+function appIntent(text, atts) {
+	const t = (text || "").trim();
+	if (!t) return null;
+	const msgs = current ? current.msgs : [];
+	const prev = [...msgs].reverse().find((m) => m.role === "assistant" && !m.error);
+	if (prev && prev.kind === "app" && prev.data && /\b(change|make (it|the|this)|add|remove|delete|fix|update|edit|modify|improve|move|rename|style|colou?r|bigger|smaller|faster|slower|instead|also|now|rewrite|refactor|center|align|dark mode|translate)\b/i.test(t)) return { edit: true };
+	if (/\b(build|make|create|code|develop|generate|write|program)\b/i.test(t) && /\b(app|web ?site|web ?page|webpage|landing page|game|calculator|dashboard|tool|clone|todo|to-do|portfolio|timer|tracker|quiz app|chatbot ui|form|snake|tetris|pong|platformer|page|widget)\b/i.test(t)) return { edit: false };
+	return null;
+}
+function parseFiles(out) {
+	const files = {}, del = [];
+	let notes = "", cur = null, buf = [];
+	const flush = () => {
+		if (!cur) return;
+		const body = buf.join("\n").replace(/^\s*```[\w-]*\n?/, "").replace(/\n?```\s*$/, "").replace(/^\n+|\n+$/g, "");
+		if (cur.t === "FILE") files[cur.p] = body;
+		else if (cur.t === "NOTES") notes = body;
+		buf = [];
+	};
+	for (const line of String(out).split("\n")) {
+		const m = line.match(/^===\s*(FILE|DELETE|NOTES)\s*:?\s*(.*?)\s*===\s*$/);
+		if (m) {
+			flush();
+			cur = m[1] === "DELETE" ? null : { t: m[1], p: m[2].replace(/^\.?\//, "") };
+			if (m[1] === "DELETE") del.push(m[2].replace(/^\.?\//, ""));
+			buf = [];
+			continue;
+		}
+		if (cur) buf.push(line);
+	}
+	flush();
+	return { files, del, notes };
+}
+// the project as one page: its stylesheet and script files go inline
+function appDoc(files) {
+	let h = files["index.html"] || Object.entries(files).find(([k]) => /\.html?$/i.test(k))?.[1] || "";
+	if (!h) return "<!doctype html><body style='font-family:sans-serif;padding:24px'>This project has no index.html yet.</body>";
+	const get = (p) => files[String(p).replace(/^\.?\//, "")];
+	h = h.replace(/<link[^>]*>/gi, (tag) => {
+		const href = (tag.match(/href=["']([^"']+)["']/i) || [])[1];
+		return /rel=["']?stylesheet/i.test(tag) && href && get(href) != null ? "<style>" + get(href) + "</style>" : tag;
+	});
+	h = h.replace(/<script([^>]*)src=["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (tag, a, src, b) => (get(src) != null ? "<script" + a + b + ">" + get(src).replace(/<\/script/gi, "<\\/script") + "<\/script>" : tag));
+	return h;
+}
+// ---- plenty of credit: the top models work on a build together
+const WALLET = { at: 0, left: null };
+const MAX_BUILD_AT = 15; // dollars of balance
+async function walletLeft() {
+	if (Date.now() - WALLET.at < 300000) return WALLET.left;
+	let left = null;
+	try {
+		const d = (await (await fetch(API + "/credits", { headers: headers() })).json()).data || {};
+		if (d.total_credits != null) left = Number(d.total_credits) - Number(d.total_usage || 0);
+	} catch {}
+	if (left == null) {
+		try {
+			const d = (await (await fetch(API + "/key", { headers: headers() })).json()).data || {};
+			if (d.limit_remaining != null) left = Number(d.limit_remaining);
+		} catch {}
+	}
+	WALLET.at = Date.now();
+	WALLET.left = left;
+	return left;
+}
+async function askFirst(cands, messages, msg, onText) {
+	let lastErr;
+	for (const m of cands) {
+		try {
+			const out = await stream(m.id, messages, onText || (() => {}), busy.signal, {}, msg);
+			return { out, model: m };
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401) throw e;
+			lastErr = e;
+			if (e.status === 429) await sleep(1200);
+		}
+	}
+	throw lastErr || new Error("No model answered");
+}
+// designer (best reasoner) -> three builders (one per lab, each writes the whole thing) -> the strongest coder merges the best parts
+async function maxBuild(text, rules, ask, source, msg) {
+	const used = [];
+	msg.status = "Designing it";
+	updateLast();
+	let spec = "";
+	try {
+		const r = await askFirst(teamFor("reason", new Set()).slice(0, 3), [sys(), { role: "user", content: "Write the product spec for: " + text + "\n\nCover: what it is, every feature and control, the rules or mechanics, the layout and look, edge cases, and five touches that make it feel polished. Concrete and under 500 words." + (source ? "\n\nMaterial:\n" + source.slice(0, 8000) : "") }], msg);
+		spec = r.out;
+		used.push({ name: shortName(r.model), desc: "Designer: wrote the spec the builders followed" });
+	} catch (e) {
+		if (e.name === "AbortError" || e.status === 401) throw e;
+	}
+	const pool = teamFor("code", new Set()), labs = new Set(), builders = [];
+	for (const m of pool) {
+		if (labs.has(provider(m.id))) continue;
+		labs.add(provider(m.id));
+		builders.push(m);
+		if (builders.length === 3) break;
+	}
+	if (builders.length < 2) return null;
+	msg.status = "Building it with " + builders.map(shortName).join(", ");
+	updateLast();
+	const buildAsk = ask + (spec ? "\n\nProduct spec to follow:\n" + spec : "");
+	const results = await Promise.all(builders.map(async (m, k) => {
+		await sleep(k * 500);
+		try {
+			const r = await askFirst([m], [sys(rules), { role: "user", content: buildAsk }], msg);
+			const p = parseFiles(r.out);
+			return Object.keys(p.files).length ? { m, p, raw: r.out } : null;
+		} catch (e) {
+			if (e.name === "AbortError") throw e;
+			return null;
+		}
+	}));
+	const ok = results.filter(Boolean);
+	ok.forEach((r) => used.push({ name: shortName(r.m), desc: "Builder: wrote a complete version" }));
+	if (!ok.length) return null;
+	if (ok.length === 1) { msg.used = used; return ok[0].p; }
+	msg.status = "Merging the best parts";
+	updateLast();
+	const judge = pool[0];
+	const versions = ok.map((r, k) => "######## VERSION " + (k + 1) + " ########\n" + r.raw.slice(0, 24000)).join("\n\n");
+	try {
+		const r = await askFirst([judge], [sys(rules), { role: "user", content: "Request: " + text + "\n\n" + (spec ? "Spec:\n" + spec + "\n\n" : "") + "Several engineers each built a full version independently:\n\n" + versions +
+			"\n\nProduce the single best final project: keep the strongest structure, features and polish from each, fix every bug, and make sure it runs correctly on first load. Output the complete final files in the required format." }], msg);
+		const p = parseFiles(r.out);
+		if (Object.keys(p.files).length) {
+			used.push({ name: shortName(judge), desc: "Merger: combined the best of each version into the final one" });
+			msg.used = used;
+			return p;
+		}
+	} catch (e) {
+		if (e.name === "AbortError" || e.status === 401) throw e;
+	}
+	msg.used = used;
+	return ok[0].p;
+}
+async function runApp(text, atts, pick) {
+	const msgs = current.msgs;
+	const prev = pick.edit ? [...msgs].reverse().find((m) => m.kind === "app" && m.data) : null;
+	const msg = { role: "assistant", kind: "app", text: "", streaming: true, status: prev ? "Editing the project" : "Writing the code", data: null, used: [], spec: null };
+	current.msgs.push(msg);
+	updateLast();
+	const have = prev ? Object.entries(prev.data.files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 70000) : "";
+	const source = (atts.find((a) => a.kind === "text")?.data || "").slice(0, 20000);
+	const rules = "You are an expert engineer working in a browser sandbox with a live preview.\n" +
+		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no CDN links, no external fonts, images or network requests (the preview is offline). Use emoji, CSS and canvas/SVG for visuals.\n" +
+		"- Complete and working on the first run: no placeholders, no TODOs. Polished, responsive, good-looking UI with clear states and keyboard support where it makes sense.\n" +
+		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
+		"- Don't store anything the app can't lose (no localStorage needed).\n" +
+		"OUTPUT FORMAT, exactly, nothing before or after:\n=== FILE: index.html ===\n(full file)\n=== FILE: style.css ===\n(full file)\n=== NOTES ===\n(2-4 short plain sentences: what you built or changed and how to use it)\n" +
+		"Write each file COMPLETE. No markdown fences around files.";
+	const ask = prev
+		? "The project right now:\n\n" + have + "\n\nThe user asks: " + text + "\n\nApply the change. Output only the files you changed or created, each complete (a file you don't output stays as it is). To delete a file output a line: === DELETE: path ===. Then the NOTES section."
+		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : "");
+	const cands = teamFor("code", new Set());
+	let parsed = null, lastErr;
+	// plenty of balance and the quality setting at Best: every top lab works on a new build together
+	let left = 0;
+	if (!prev && settings.maxBuild !== false && settings.tier === "best" && spendLevel() !== "over" && (left = (await walletLeft()) || 0) >= MAX_BUILD_AT && await confirmMax(left)) {
+		try { parsed = await maxBuild(text, rules, ask, source, msg); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; }
+	}
+	for (const m of parsed ? [] : cands.slice(0, 3)) {
+		msg.used = [{ name: shortName(m), desc: "Code: " + (prev ? "edited the project" : "wrote the project") }];
+		try {
+			const out = await stream(m.id, [sys(rules), { role: "user", content: ask }], (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, {}, msg);
+			parsed = parseFiles(out);
+			if (Object.keys(parsed.files).length) break;
+			parsed = null;
+			lastErr = new Error("The model didn't return any files.");
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401) throw e;
+			lastErr = e;
+			if (e.status === 429) await sleep(1200);
+		}
+	}
+	if (!parsed) throw lastErr || new Error("No model could build that.");
+	const files = Object.assign({}, prev ? prev.data.files : {}, parsed.files);
+	parsed.del.forEach((p) => delete files[p]);
+	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
+	msg.tab = "preview";
+	msg.text = parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.");
+}
 async function runStudy(text, atts, pick) {
+	if (pick.kind === "sim") return runSim(text, atts, pick);
 	const { kind, qty, dur } = pick;
 	const source = (atts.find((a) => a.kind === "text")?.data || "").slice(0, 40000);
-	const topic = text || atts[0]?.name || "this material";
+	const topic = pick.topic || text || atts[0]?.name || "this material";
 	const m = best(kind === "podcast" ? "write" : "quick");
-	const msg = { role: "assistant", kind, text: "", streaming: true, chips: [routeChip(m, null, STUDY[kind].label)], data: null };
+	const msg = { role: "assistant", kind, text: "", streaming: true, status: "Making your " + STUDY[kind].label.toLowerCase(), chips: [routeChip(m, null, STUDY[kind].label)], data: null, used: [{ name: shortName(m), desc: STUDY[kind].label + ": wrote the content" }] };
 	current.msgs.push(msg);
 	updateLast();
 	const ctx = source ? "\n\nUse this material:\n" + source : "";
@@ -1154,28 +1675,6 @@ async function runStudy(text, atts, pick) {
 	});
 	msg.data = parseJSON(out);
 	msg.text = "**" + (kind === "podcast" && msg.data.title || topic) + "**";
-}
-// Choose the format first; resolves null if closed
-function pickStudy() {
-	return new Promise((res) => {
-		const st = { kind: store.get("studyKind", "flashcards"), qty: 10, dur: "5 min" };
-		if (!STUDY[st.kind]) st.kind = "flashcards";
-		const draw = () => {
-			const opts = st.kind === "podcast" ? Object.keys(PODCAST) : STUDY[st.kind].qty;
-			const cur = st.kind === "podcast" ? st.dur : st.qty;
-			openModal('<h2>Study</h2><p class="sub">How do you want to learn it?</p><div class="seg">' +
-				Object.entries(STUDY).map(([k, t]) => '<button data-sk="' + k + '"' + (st.kind === k ? ' class="on"' : "") + "><b>" + t.label + "</b><span>" + t.help + "</span></button>").join("") +
-				'</div><div class="field" style="margin-top:18px"><label>' + (st.kind === "podcast" ? "Length" : "How many") + '</label><div class="pills">' +
-				opts.map((v) => '<button data-sv="' + v + '"' + (String(cur) === String(v) ? ' class="on"' : "") + ">" + v + "</button>").join("") +
-				'</div></div><div class="row" style="justify-content:flex-end"><button class="btn" id="stCancel">Cancel</button><button class="btn dark" id="stGo">Create</button></div>');
-			modalClose = () => res(null);
-			$$("[data-sk]").forEach((b) => b.onclick = () => { st.kind = b.dataset.sk; if (STUDY[st.kind].qty && !STUDY[st.kind].qty.includes(st.qty)) st.qty = STUDY[st.kind].qty[1]; draw(); });
-			$$("[data-sv]").forEach((b) => b.onclick = () => { if (st.kind === "podcast") st.dur = b.dataset.sv; else st.qty = Number(b.dataset.sv); draw(); });
-			$("#stGo").onclick = () => { store.set("studyKind", st.kind); modalClose = null; closeModal(); res(st); };
-			$("#stCancel").onclick = closeModal;
-		};
-		draw();
-	});
 }
 function renderStudy(m, i) {
 	const box = $('[data-study="' + i + '"]');
@@ -1223,6 +1722,38 @@ function renderStudy(m, i) {
 			save();
 			renderStudy(m, i);
 		});
+	} else if (m.kind === "app") {
+		const files = m.data.files || {}, names = Object.keys(files);
+		const tab = m.tab && (m.tab === "preview" || files[m.tab] != null) ? m.tab : "preview";
+		const csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
+		const page = appDoc(files);
+		const doc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + csp) : "<!doctype html>" + csp + page;
+		box.innerHTML = '<div class="app-tabs"><button class="app-tab' + (tab === "preview" ? " on" : "") + '" data-apptab="preview">Preview</button>' +
+			names.map((n) => '<button class="app-tab' + (tab === n ? " on" : "") + '" data-apptab="' + esc(n) + '">' + esc(n) + "</button>").join("") + "</div>" +
+			(tab === "preview" ? '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts" title="Preview"></iframe></div>' : '<pre class="app-code"><code></code></pre>') +
+			'<div class="row" style="margin:8px 0 4px;gap:8px">' + (tab === "preview" ? '<button class="btn" data-appfull>Full screen</button><button class="btn" data-appreset>Restart</button><button class="btn" data-appdl>Download page</button>' : '<button class="btn" data-appcopy>Copy file</button><button class="btn" data-appdlfile>Download file</button>') + "</div>";
+		$$("[data-apptab]", box).forEach((b) => b.onclick = () => { m.tab = b.dataset.apptab; save(); renderStudy(m, i); });
+		if (tab === "preview") {
+			const f = $("iframe", box);
+			f.srcdoc = doc;
+			$("[data-appfull]", box).onclick = () => f.requestFullscreen && f.requestFullscreen();
+			$("[data-appreset]", box).onclick = () => { f.srcdoc = ""; f.srcdoc = doc; };
+			$("[data-appdl]", box).onclick = () => download((m.data.title || "app").replace(/[^\w -]+/g, "").slice(0, 40) + ".html", page);
+		} else {
+			$("code", box).textContent = files[tab];
+			$("[data-appcopy]", box).onclick = () => { navigator.clipboard.writeText(files[tab]); toast("Copied"); };
+			$("[data-appdlfile]", box).onclick = () => download(tab.split("/").pop(), files[tab]);
+		}
+	} else if (m.kind === "sim") {
+		const csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
+		const h = m.data.html;
+		const doc = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + csp) : "<!doctype html>" + csp + h;
+		box.innerHTML = '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts" title="Simulation"></iframe></div><div class="row" style="margin:8px 0 4px;gap:8px"><button class="btn" data-simfull>Full screen</button><button class="btn" data-simreset>Restart</button><button class="btn" data-simdl>Download</button></div>';
+		const f = $("iframe", box);
+		f.srcdoc = doc;
+		$("[data-simfull]", box).onclick = () => f.requestFullscreen && f.requestFullscreen();
+		$("[data-simreset]", box).onclick = () => { f.srcdoc = ""; f.srcdoc = doc; };
+		$("[data-simdl]", box).onclick = () => download((m.data.title || "simulation").replace(/[^\w -]+/g, "").slice(0, 40) + ".html", m.data.html);
 	} else if (m.kind === "podcast") {
 		const lines = m.data.lines || [];
 		box.innerHTML = '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-play>' + (speech.playing === m ? "Stop" : "Play episode") + '</button><button class="btn" data-dl>Download script</button></div><div class="md">' + lines.map((l) => "<p><b>" + esc(l.who) + ":</b> " + esc(l.text) + "</p>").join("") + "</div>";
@@ -1324,6 +1855,8 @@ function openSettings() {
 		'<div class="field"><label>OpenRouter API key</label><div class="row"><input class="inp" id="keyInput" type="password" placeholder="sk-or-v1-…" value="' + esc(settings.key) + '"><button class="btn dark" id="saveKey">Save</button></div><div class="help">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Free models work with a $0 balance.</div><div class="status" id="keyStatus"></div></div>' +
 		'<div class="field"><label>Quality</label><div class="seg">' + Object.entries(TIERS).map(([k, t]) => '<button data-tier="' + k + '"' + (settings.tier === k ? ' class="on"' : "") + "><b>" + t.label + "</b><span>" + t.help + "</span></button>").join("") + '</div><div class="help">Best always uses each lab\'s top model. Lower settings step down to cheaper models from the same labs.</div></div>' +
 		'<div class="field" style="margin-top:14px"><label>Who handles what</label><div class="routes">' + tasks.map((t) => '<div class="rt"><span>' + TASK_INFO[t].label + '</span><select data-override="' + t + '">' + opts(t) + "</select></div>").join("") + '</div><div class="help">Auto uses the current flagship of the lab that is best at each kind of task. Pick a model to pin it.</div></div>' +
+		'<div class="field"><label>Daily spend alert</label><div class="row"><input class="inp" id="capIn" type="number" min="1" step="1" value="' + spendCap() + '" style="max-width:110px"><span class="help" style="margin:0 0 0 10px">dollars. The bar at the top fills toward it and turns red.</span></div></div>' +
+		'<div class="field"><label>Big builds</label><label class="chk"><input type="checkbox" id="maxBuildChk"' + (settings.maxBuild !== false ? " checked" : "") + '> Use the best models together when my balance is $' + MAX_BUILD_AT + ' or more</label><div class="help">For a new app or game, the top labs each build a version and the strongest coder merges the best parts. Costs more per build; every answer still shows what it cost.</div></div>' +
 		'<div class="field"><label>Replies</label><select class="inp" id="langSel">' + LANGS.map(([k, n]) => '<option value="' + k + '"' + (settings.lang === k ? " selected" : "") + ">" + esc(n) + "</option>").join("") + '</select><div class="pills" style="margin-top:10px">' + Object.entries(TONES).map(([k, [n]]) => '<button data-tone="' + k + '"' + (settings.tone === k ? ' class="on"' : "") + ">" + esc(n) + "</button>").join("") + '</div><div class="help">The language and tone of every answer, in every mode.</div></div>' +
 		'<div class="row" style="justify-content:space-between;margin-top:8px"><button class="btn" id="refreshModels">Refresh model list</button><button class="btn" id="exportChats">Export chats</button><button class="btn" id="closeSettings">Done</button></div>');
 	$("#saveKey").onclick = async () => {
@@ -1343,6 +1876,8 @@ function openSettings() {
 	};
 	$$("[data-tier]").forEach((b) => b.onclick = () => { settings.tier = b.dataset.tier; saveSettings(); updateRoute(); openSettings(); });
 	$("#langSel").onchange = (e) => { settings.lang = e.target.value; saveSettings(); };
+	$("#maxBuildChk").onchange = (e) => { settings.maxBuild = e.target.checked; saveSettings(); };
+	$("#capIn").onchange = (e) => { settings.spendCap = Math.max(1, Number(e.target.value) || 5); saveSettings(); drawSpend(); };
 	$$("[data-tone]").forEach((b) => b.onclick = () => { settings.tone = b.dataset.tone; saveSettings(); $$("[data-tone]").forEach((x) => x.classList.toggle("on", x === b)); });
 	$$("[data-override]").forEach((s) => s.onchange = () => { settings.overrides[s.dataset.override] = s.value || undefined; saveSettings(); updateRoute(); });
 	$("#refreshModels").onclick = async () => { await loadCatalog(true); toast(catalog.length + " models loaded"); openSettings(); };
@@ -1371,14 +1906,10 @@ function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add
 
 // ---------------------------------------------------------------- wiring
 function autosize() { const t = $("#input"); t.style.height = "auto"; t.style.height = Math.min(220, t.scrollHeight) + "px"; setBusy(!!busy); }
-function setMode(m) {
-	mode = m;
-	$$(".mode").forEach((b) => b.classList.toggle("active", b.dataset.mode === m));
-	const a = $(".mode.active"), pill = $("#modePill");
-	pill.style.width = a.offsetWidth + "px";
-	pill.style.transform = "translateX(" + (a.offsetLeft - 3) + "px)";
-	const narrow = innerWidth < 600;
-	$("#input").placeholder = m === "council" ? (narrow ? "Ask the council" : "Ask the council. Three labs answer, one writes the verdict.") : m === "build" ? (narrow ? "What should it make?" : "Describe what to make. It's brainstormed, planned, built and reviewed.") : m === "study" ? (narrow ? "A topic to learn" : "A topic to learn, or attach your notes") : (narrow ? "Ask anything" : "Ask anything. Andromeda picks the best model for it.");
+function setMode() {
+	mode = "auto";
+	drawSpend();
+	$("#input").placeholder = innerWidth < 600 ? "Ask anything" : "Ask anything, or ask for flashcards, a simulation or an app to build";
 	if (!current || !current.msgs.length) renderWelcome();
 	updateRoute();
 }
@@ -1391,7 +1922,6 @@ document.addEventListener("click", (e) => {
 	if (t.hasAttribute("data-go-home")) { e.preventDefault(); showApp(false); return; }
 	if (t.hasAttribute("data-theme-toggle")) { toggleTheme(); return; }
 	if (t.dataset.tierTab) { landingTier = t.dataset.tierTab; renderLanding(); return; }
-	if (t.dataset.mode) setMode(t.dataset.mode);
 	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { current = convos.find((c) => c.id === t.dataset.id); pinned = true; render(); stick(); openSidebar(false); }
 	else if (t.dataset.del) { convos = convos.filter((c) => c.id !== t.dataset.del); if (current?.id === t.dataset.del) current = null; save(); render(); }
 	else if (t.dataset.sug) { $("#input").value = t.dataset.sug; autosize(); updateRoute(); send(); }
@@ -1399,6 +1929,21 @@ document.addEventListener("click", (e) => {
 	else if (t.dataset.unattach != null) { attachments.splice(Number(t.dataset.unattach), 1); renderAttached(); updateRoute(); }
 	else if (t.dataset.copy != null) { navigator.clipboard.writeText(t.closest(".code").querySelector("code").innerText); toast("Copied"); }
 	else if (t.dataset.preview != null) { const src = t.closest(".code").querySelector("code").innerText; openModal('<h2>Preview</h2><p class="sub">Running in a sandbox.</p><iframe class="preview-frame" sandbox="allow-scripts allow-forms" id="pv"></iframe><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="closeSettings">Close</button></div>'); $("#pv").srcdoc = src; $("#closeSettings").onclick = closeModal; }
+	else if (t.id === "spendChip") { toast("Spent today: $" + SPEND.usd.toFixed(2) + " of your $" + spendCap().toFixed(2) + " alert"); }
+	else if (t.dataset.models != null) {
+		const m = current.msgs[+t.dataset.models], cards = t.parentElement.querySelector(".ucards");
+		m.showModels = !m.showModels;
+		if (cards) cards.hidden = !m.showModels;
+		t.textContent = m.showModels ? "Hide models used" : "Show models used";
+		save();
+	}
+	else if (t.dataset.offer != null) {
+		const i = +t.dataset.i, m = current.msgs[i], topic = m.offerTopic || "this", k = t.dataset.offer;
+		m.offer = null;
+		t.closest(".msg").outerHTML = renderMsg(m, i);
+		save();
+		send({ sim: "Make a simulation of " + topic, flashcards: "Make 10 flashcards on " + topic, quiz: "Quiz me on " + topic, podcast: "Make a 5 minute podcast about " + topic }[k]);
+	}
 	else if (t.dataset.copymsg != null) { navigator.clipboard.writeText(current.msgs[t.dataset.copymsg].text); toast("Copied"); }
 	else if (t.dataset.speak != null) { speech.say(current.msgs[t.dataset.speak].text); }
 	else if (t.dataset.regen != null) { const last = current.msgs.pop(); const u = current.msgs.pop(); if (u) { attachments = u.atts || []; send(u.text); } else if (last) current.msgs.push(last); }
@@ -1501,7 +2046,6 @@ function renderLanding() {
 	if (catalog.length) {
 		const flagships = Object.keys(LABS).map((t) => withTier("best", () => best(t))).filter((m) => m && m.created);
 		const newest = flagships.sort((a, b) => b.created - a.created)[0];
-		if (newest) $("#newestModel").textContent = shortName(newest) + " and whatever ships next";
 	}
 }
 
