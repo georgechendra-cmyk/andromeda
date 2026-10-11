@@ -203,6 +203,52 @@ section.block { padding: 110px 0 0; }
 .msg.user > div { max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; }
 .msg.user .bubble { background: var(--bg3); border-radius: 18px; padding: 10px 16px; white-space: pre-wrap; word-wrap: break-word; }
 .msg.user .att { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 6px; }
+/* ---- credits: account, pricing, admin */
+.modal.wide { width: min(1080px, 100%); }
+.cur { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 4px 0 22px; }
+.cur button { height: 30px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line2); font-size: 12.5px; color: var(--muted); font-family: var(--mono); transition: background .2s, color .2s, border-color .2s; }
+.cur button.on { background: var(--ink); color: var(--onink); border-color: var(--ink); }
+.plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.plan { position: relative; border: 1px solid var(--line2); border-radius: 18px; padding: 18px 16px 16px; background: var(--bg); display: flex; flex-direction: column; transition: border-color .2s, transform .2s; }
+.plan:hover { border-color: var(--faint); }
+.plan.popular { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.plan .tag { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--onink); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 3px 9px; border-radius: 99px; }
+.plan .pname { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.plan .price { font-size: 30px; font-weight: 600; letter-spacing: -.03em; margin: 6px 0 0; line-height: 1.1; }
+.plan .once { font-size: 12.5px; color: var(--faint); margin: 2px 0 14px; }
+.tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-bottom: 14px; }
+.tile { border: 1px solid var(--line); border-radius: 11px; padding: 8px 6px; text-align: center; background: var(--bg2); }
+.tile b { display: block; font-size: 17px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.tile span { display: block; font-size: 11px; color: var(--faint); margin-top: 1px; }
+.tile.full { grid-column: 1 / -1; }
+.feat { list-style: none; padding: 0; margin: 0 0 16px; display: grid; align-content: start; gap: 7px; font-size: 13px; color: var(--muted); flex: 1; }
+.feat li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.35; }
+.feat li::before { content: ""; flex: none; width: 13px; height: 13px; margin-top: 2px; border-radius: 50%; background: var(--ink); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'/%3E%3C/svg%3E") center / 13px no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z'/%3E%3C/svg%3E") center / 13px no-repeat; }
+.plan .btn { width: 100%; justify-content: center; height: 40px; }
+.plan .btn[disabled] { opacity: .45; cursor: default; }
+.paybox { margin-top: 14px; border: 1px solid var(--line); background: var(--bg2); border-radius: 14px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.paybox b { color: var(--text); font-weight: 500; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips span { border: 1px solid var(--line2); border-radius: 7px; padding: 3px 8px; font-size: 12px; color: var(--text); background: var(--bg); }
+.notice { margin: 0 0 16px; border: 1px dashed var(--line2); border-radius: 12px; padding: 10px 12px; font-size: 13px; color: var(--muted); text-align: center; }
+.qa { margin-top: 22px; }
+.qa h3 { font-size: 15px; font-weight: 600; margin: 0 0 8px; }
+.qa details { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; margin-bottom: 6px; background: var(--bg); }
+.qa summary { cursor: pointer; padding: 11px 0; font-size: 14px; font-weight: 500; list-style: none; }
+.qa summary::-webkit-details-marker { display: none; }
+.qa details p { margin: 0 0 12px; font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+.qris { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: start; }
+.qris img { width: 100%; border-radius: 14px; border: 1px solid var(--line2); background: #fff; }
+.qris .amt { font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+.acct-bal { font-size: 34px; font-weight: 600; letter-spacing: -.03em; }
+.ptable { width: 100%; border-collapse: collapse; font-size: 13px; }
+.ptable td, .ptable th { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ptable th { font-weight: 500; color: var(--faint); font-size: 12px; }
+.badge-s { font-size: 11px; padding: 2px 7px; border-radius: 99px; border: 1px solid var(--line2); }
+.badge-s.approved { color: var(--ok); border-color: var(--ok); }
+.badge-s.rejected { color: #e5484d; border-color: #e5484d; }
+@media (max-width: 900px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .plans { grid-template-columns: 1fr; } .qris { grid-template-columns: 1fr; } }
 .spendbar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 80; pointer-events: none; opacity: 0; transition: opacity .3s; }
 body.in-app .spendbar { opacity: 1; }
 .spendbar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .6s var(--ease), background .4s; }
@@ -578,7 +624,8 @@ body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg
 		<button class="new-chat" id="newChat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New chat<kbd>⌘K</kbd></button>
 		<div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search chats"></div>
 		<div class="convos" id="convos"></div>
-		<div class="sb-foot">
+		<div class="sb-foot" style="flex-wrap:wrap">
+			<button class="sb-btn" id="acctBtn" data-open-account style="flex-basis:100%"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span id="acctLabel">Credits</span></button>
 			<button class="sb-btn" id="openSettings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings<span class="key-dot" id="keyDot"></span></button>
 			<button class="sb-btn" id="themeBtn" style="flex:0 0 auto" title="Light / dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
 		</div>
@@ -632,6 +679,9 @@ const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const API = "https://openrouter.ai/api/v1";
+// The credits server (server/worker.js). Paste its address here once it's live, e.g.
+// "https://andromeda-credits.yourname.workers.dev". Empty = credits are off and everyone uses their own key.
+const DEFAULT_SERVER = "";
 
 // ---------------------------------------------------------------- storage
 const store = {
@@ -642,6 +692,14 @@ const settings = Object.assign({ key: "", tier: "best", overrides: {}, theme: "s
 const saveSettings = () => store.set("settings", settings);
 let convos = store.get("convos", []);
 let current = null;
+let SERVER = String(store.get("server", "") || DEFAULT_SERVER).replace(/\/+$/, "");
+let account = store.get("account", null); // { token, email } once signed in to Andromeda credits
+let me = null; // { id, email, credits, payments }
+let pricing = null; // the server's packs and prices
+// paying with Andromeda credits (the server's key) rather than the user's own OpenRouter key
+function creditsMode() { return !!(SERVER && account && account.token && settings.payWith !== "key"); }
+function connected() { return creditsMode() || !!settings.key; }
+function chatURL() { return creditsMode() ? SERVER + "/api/chat/completions" : API + "/chat/completions"; }
 // what this browser has spent through OpenRouter today, and how close that is to the alert level
 const SPEND = (() => {
 	const d = new Date().toISOString().slice(0, 10), v = store.get("spend", null);
@@ -801,7 +859,8 @@ const FREE = {
 	vision: [/inkling(?!-small)/, /gemma/],
 	quick: [/inkling-small/, /gemma/, /lightning/, /inkling/],
 };
-const FAST = /flash|luna|haiku|mini|fast/;
+// "mini" only as its own word: geMINI is not a small model
+const FAST = /flash|luna|haiku|(^|[-/])mini\b|fast/;
 // SKUs of a model rather than models (batch pricing, speed tiers, tool-tuned variants) and things that aren't chat models
 const SKIP = /(:batch|:extended|:thinking|:beta|customtools|-prime\b|contributor|multi-agent|safety|guard|embed|tts|audio|transcri|realtime|image|-exp\b|deep-research|lite|latest)/;
 const TIERS = {
@@ -850,6 +909,9 @@ function flagship(lab, task, fast) {
 	if (fast) pool = pool.filter((m) => FAST.test(m.id));
 	if (!pool.length) return null;
 	if (fast) {
+		// the newest fast model, but never a preview when a released one exists
+		const steady = pool.filter((m) => !/preview|experimental|-exp\b|\bbeta\b|\balpha\b/.test(m.id));
+		if (steady.length) pool = steady;
 		const newest = Math.max(...pool.map((m) => m.created));
 		return pool.filter((m) => m.created > newest - 200 * 86400).sort((a, b) => gen(b) - gen(a) || b.created - a.created)[0];
 	}
@@ -883,11 +945,12 @@ const shortName = (m) => (m.name || m.id).replace(/\s*\(.*?\)\s*/g, "").trim();
 
 // ---------------------------------------------------------------- OpenRouter calls
 function headers() {
+	if (creditsMode()) return { "Authorization": "Bearer " + account.token, "Content-Type": "application/json" };
 	return { "Authorization": "Bearer " + settings.key, "Content-Type": "application/json", "HTTP-Referer": location.origin || "https://andromeda.local", "X-Title": "Andromeda" };
 }
 // Stream a chat completion; calls onText(fullTextSoFar). Resolves with the full text.
 async function stream(model, messages, onText, signal, extra = {}, acc = null) {
-	const r = await fetch(API + "/chat/completions", { method: "POST", headers: headers(), signal, body: JSON.stringify({ model, messages, stream: true, ...extra }) });
+	const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify({ model, messages, stream: true, ...extra }) });
 	if (!r.ok) {
 		let msg = r.statusText;
 		try { const j = await r.json(); msg = j.error?.message || msg; } catch {}
@@ -909,7 +972,7 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 			let j;
 			try { j = JSON.parse(data); } catch { continue; }
 			if (j.error) throw new Error(j.error.message || "The model stopped with an error");
-			if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) acc.cost = (acc.cost || 0) + c; addSpend(c); }
+			if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) { acc.cost = (acc.cost || 0) + c; acc.unit = creditsMode() ? "credits" : "usd"; } addSpend(c); }
 			const d = j.choices?.[0]?.delta?.content;
 			if (d) { text += d; onText(text); }
 		}
@@ -923,10 +986,10 @@ function fail(message, status) {
 	return e;
 }
 async function once(model, messages, extra = {}, acc = null) {
-	const r = await fetch(API + "/chat/completions", { method: "POST", headers: headers(), body: JSON.stringify({ model, messages, ...extra }) });
+	const r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify({ model, messages, ...extra }) });
 	const j = await r.json();
 	if (!r.ok || j.error) throw fail(j.error?.message || r.statusText, r.ok ? j.error?.code : r.status);
-	if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) acc.cost = (acc.cost || 0) + c; addSpend(c); }
+	if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) { acc.cost = (acc.cost || 0) + c; acc.unit = creditsMode() ? "credits" : "usd"; } addSpend(c); }
 	return j.choices?.[0]?.message?.content || "";
 }
 async function checkKey() {
@@ -1106,7 +1169,7 @@ function renderMsg(m, i) {
 	}
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		return '<div class="msg" data-i="' + i + '">' + usedHtml(m, i) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" || m.kind === "build" ? "" : body) +
-		(!m.streaming && m.text ? '<div class="actions"><button class="act" data-copymsg="' + i + '">Copy</button><button class="act" data-speak="' + i + '">Read aloud</button>' + (i === current.msgs.length - 1 ? '<button class="act" data-regen>Regenerate</button>' : "") + (m.cost ? '<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>" : "") + "</div>" : "") + "</div>";
+		(!m.streaming && m.text ? '<div class="actions"><button class="act" data-copymsg="' + i + '">Copy</button><button class="act" data-speak="' + i + '">Read aloud</button>' + (i === current.msgs.length - 1 ? '<button class="act" data-regen>Regenerate</button>' : "") + (m.cost ? (m.unit === "credits" ? '<span class="act cost" title="Credits this answer used">' + creditsText(m.cost / creditUsd()) + " cr</span>" : '<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
 // Streaming: the network delivers text in bursts; what's on screen is revealed a few characters every frame
@@ -1167,11 +1230,11 @@ function stick() { if (pinned) { const s = $("#scroller"); s.scrollTop = s.scrol
 function updateRoute() {
 	const text = $("#input").value;
 	const el = $("#route");
-	if (!settings.key) { el.innerHTML = '<span class="chip click" data-open-settings><span class="dot" style="background:var(--warn)"></span>Add your OpenRouter key to start</span>'; return; }
+	if (!connected()) { el.innerHTML = SERVER ? '<span class="chip click" data-open-account><span class="dot" style="background:var(--warn)"></span>Sign in for credits, or add your own key</span>' : '<span class="chip click" data-open-settings><span class="dot" style="background:var(--warn)"></span>Add your OpenRouter key to start</span>'; return; }
 	if (!catalog.length) { el.innerHTML = '<span class="chip">Loading models…</span>'; return; }
 	const intent = studyIntent(text, attachments);
 	el.innerHTML = '<span class="chip"><span class="dot"></span>' + (intent ? esc(STUDY[intent.kind].label) + " · interactive" : "Auto · the right models for each part") + "</span>";
-	$("#topChipText").textContent = settings.key ? catalog.length + " models live" : "Not connected";
+	$("#topChipText").textContent = creditsMode() ? (me ? creditsText(me.credits) + " credits" : "Credits") : settings.key ? catalog.length + " models live" : "Not connected";
 }
 
 // ---------------------------------------------------------------- sending
@@ -1179,7 +1242,7 @@ async function send(textOverride) {
 	const text = (textOverride ?? $("#input").value).trim();
 	if (busy) return;
 	if (!text && !attachments.length) return;
-	if (!settings.key) { openSettings(); return; }
+	if (!connected()) { if (SERVER) openAccount(); else openSettings(); return; }
 	if (!catalog.length) await loadCatalog();
 	if (!current) newConvo();
 	const atts = attachments;
@@ -1209,6 +1272,7 @@ async function send(textOverride) {
 		}
 	}
 	current.msgs.forEach((m) => { m.streaming = false; delete m._shown; });
+	if (creditsMode()) refreshMe();
 	{
 		const lastMsg = current.msgs[current.msgs.length - 1];
 		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.error && !STUDY[lastMsg.kind] && (lastMsg.text || "").length > 300 && LEARNING.test(text) && classify(text, atts) !== "code" && !studyIntent(text, atts)) {
@@ -1224,6 +1288,8 @@ async function send(textOverride) {
 }
 function niceError(e) {
 	const s = String(e.message || e), st = e.status || 0;
+	if (creditsMode() && st === 401) { signOut(true); setTimeout(openAccount, 300); return "Your session ended. Sign in again to use your credits."; }
+	if (creditsMode() && st === 402) { setTimeout(openPricing, 400); return s || "You're out of credits."; }
 	if (st === 401 || /unauthor|invalid.*key|authenticat/i.test(s)) return "OpenRouter didn't accept the key. Check it in Settings.";
 	if (st === 402 || /credit|insufficient/i.test(s)) return "Your OpenRouter balance is too low for this model. Add credit, or pick a lower Quality (Economy or Free) in Settings.";
 	if (st === 429 || /rate.?limit|too many|quota|capacity|overloaded|temporarily/i.test(s)) return "Too many requests right now: the free models are rate limited and every model I tried was busy. Wait a minute and try again, or add a little OpenRouter credit (even $5 lifts the limit a lot).";
@@ -1465,9 +1531,109 @@ async function runSim(text, atts, pick) {
 		}
 	}
 	if (!html) throw lastErr || new Error("No model could build that simulation.");
+	const simRules = "You are fixing an interactive educational simulation: ONE self-contained HTML file, inline CSS and JS, no external resources.\nOUTPUT FORMAT, exactly: === FILE: index.html === then the complete file, then === NOTES === and one line.";
+	html = (await heal({ "index.html": html }, "an interactive simulation of " + topic, msg, simRules))["index.html"] || html;
 	msg.data = { html, title: topic };
-	msg.text = "**" + topic + "**: a simulation you can play with";
+	msg.text = "**" + topic + "**: a simulation you can play with" + testedLine(msg.tested);
 }
+// ---- testing what was built: load it unseen, press everything, collect every error
+const SANDBOX_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
+function probeScript(id) {
+	return "<script>(function(){var id=" + JSON.stringify(id) + ";function send(t,d){try{parent.postMessage({andromedaProbe:id,type:t,data:d},'*')}catch(e){}}" +
+		"window.addEventListener('error',function(e){send('error',(e.message||'Error')+(e.lineno?' (line '+e.lineno+')':''))});" +
+		"window.addEventListener('unhandledrejection',function(e){var r=e.reason;send('error','Unhandled promise rejection: '+(r&&r.message||r))});" +
+		"var ce=console.error;console.error=function(){send('error','console.error: '+[].map.call(arguments,function(x){return x&&x.message||String(x)}).join(' '));return ce.apply(console,arguments)};" +
+		"window.addEventListener('load',function(){setTimeout(function(){try{" +
+		// every button once
+		"[].slice.call(document.querySelectorAll('button,[role=button],input[type=button],input[type=submit],a[href=\"#\"]')).slice(0,25).forEach(function(b){try{b.click()}catch(e){send('error','Clicking \"'+(b.textContent||b.value||'').trim().slice(0,30)+'\": '+e.message)}});" +
+		// the keys games and tools listen for
+		"['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter','Escape'].forEach(function(k){try{var ev={key:k,code:k===' '?'Space':k,bubbles:true};document.dispatchEvent(new KeyboardEvent('keydown',ev));document.dispatchEvent(new KeyboardEvent('keyup',ev))}catch(e){send('error','Pressing '+k+': '+e.message)}});" +
+		// every input, slider and checkbox
+		"[].slice.call(document.querySelectorAll('input:not([type=button]):not([type=submit]),select,textarea')).slice(0,20).forEach(function(i){try{if(i.type==='range'||i.type==='number'){i.value=i.max||'5'}else if(i.type==='checkbox'||i.type==='radio'){i.checked=!i.checked}else if(i.tagName!=='SELECT'){i.value='test'}i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}catch(e){send('error','Changing an input: '+e.message)}});" +
+		"}catch(e){send('error',e.message)}" +
+		"setTimeout(function(){var b=document.body;send('done',{text:b?(b.innerText||'').trim().length:0,els:b?b.getElementsByTagName('*').length:0,canvas:document.getElementsByTagName('canvas').length+document.getElementsByTagName('svg').length})},700)},700)});" +
+		"})()<\/script>";
+}
+// the page as the preview runs it, with the error reporter first so it hears the app's own scripts fail
+function probeDoc(page, id) {
+	const head = SANDBOX_CSP + probeScript(id);
+	return /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html>" + head + page;
+}
+function probeApp(files, ms = 4000) {
+	return new Promise((res) => {
+		const id = Math.random().toString(36).slice(2);
+		const errors = [];
+		let finished = null;
+		const f = document.createElement("iframe");
+		f.setAttribute("sandbox", "allow-scripts");
+		f.setAttribute("aria-hidden", "true");
+		f.style.cssText = "position:fixed;left:-10000px;top:0;width:1024px;height:768px;border:0;visibility:hidden";
+		const done = () => {
+			removeEventListener("message", on);
+			f.remove();
+			clearTimeout(timer);
+			const uniq = [...new Set(errors)].slice(0, 10);
+			const blank = !!finished && finished.els < 3 && !finished.canvas && finished.text < 1;
+			res({ errors: uniq, blank, finished: !!finished });
+		};
+		const on = (e) => {
+			const d = e.data;
+			if (!d || d.andromedaProbe !== id) return;
+			if (d.type === "error") errors.push(String(d.data).slice(0, 300));
+			if (d.type === "done") { finished = d.data; done(); }
+		};
+		addEventListener("message", on);
+		const timer = setTimeout(done, ms);
+		f.srcdoc = probeDoc(appDoc(files), id);
+		document.body.appendChild(f);
+	});
+}
+// up to three rounds: run it, and if anything breaks, the errors go back to a coder; the second round goes to a
+// different lab, so a blind spot in one model is not repeated
+async function heal(files, request, msg, rules) {
+	const fixers = teamFor("code", new Set());
+	let fixed = 0, lastModel = null;
+	for (let round = 1; round <= 3; round++) {
+		msg.status = round === 1 ? "Testing it" : "Testing the fix";
+		updateLast();
+		const t = await probeApp(files);
+		if (!t.errors.length && !t.blank) {
+			msg.tested = { ok: true, fixed, rounds: round - 1 };
+			return files;
+		}
+		const problems = t.errors.length ? t.errors : ["The page loads blank: nothing is drawn or shown."];
+		if (round === 3) {
+			msg.tested = { ok: false, fixed, rounds: 2, problems };
+			return files;
+		}
+		const pick = round === 1 ? fixers[0] : fixers.find((m) => lastModel && provider(m.id) !== provider(lastModel.id)) || fixers[0];
+		if (!pick) { msg.tested = { ok: false, fixed, rounds: round - 1, problems }; return files; }
+		msg.status = "Found " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + ", fixing them (round " + round + ")";
+		updateLast();
+		const have = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 80000);
+		try {
+			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
+				"\n\nIt was loaded in a browser and used (every button clicked, arrow keys and space pressed, every input changed). These problems came up:\n- " + problems.join("\n- ") +
+				"\n\nFind the cause of each one and fix it properly, without removing features. Output only the files you change, each complete, then the NOTES section with one line on what was wrong." }], msg);
+			const p = parseFiles(r.out);
+			if (!Object.keys(p.files).length) continue;
+			Object.assign(files, p.files);
+			p.del.forEach((x) => delete files[x]);
+			fixed += problems.length;
+			lastModel = r.model;
+			if (!msg.used.some((u) => u.name === shortName(r.model) && /Debugger/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Debugger: ran it, found what broke, and fixed it" });
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401) throw e;
+		}
+	}
+	return files;
+}
+function testedLine(t) {
+	if (!t) return "";
+	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean.*" : "\n\n*Tested in the browser: it runs clean.*";
+	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
+}
+
 // ---- the coder: a small multi-file project, written by the strongest coding model, run in a sandbox, edited by asking
 function appIntent(text, atts) {
 	const t = (text || "").trim();
@@ -1518,6 +1684,7 @@ function appDoc(files) {
 const WALLET = { at: 0, left: null };
 const MAX_BUILD_AT = 15; // dollars of balance
 async function walletLeft() {
+	if (creditsMode()) { await refreshMe(); return me ? me.credits * creditUsd() : 0; }
 	if (Date.now() - WALLET.at < 300000) return WALLET.left;
 	let left = null;
 	try {
@@ -1646,11 +1813,12 @@ async function runApp(text, atts, pick) {
 		}
 	}
 	if (!parsed) throw lastErr || new Error("No model could build that.");
-	const files = Object.assign({}, prev ? prev.data.files : {}, parsed.files);
+	let files = Object.assign({}, prev ? prev.data.files : {}, parsed.files);
 	parsed.del.forEach((p) => delete files[p]);
+	files = await heal(files, text, msg, rules);
 	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
 	msg.tab = "preview";
-	msg.text = parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.");
+	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested);
 }
 async function runStudy(text, atts, pick) {
 	if (pick.kind === "sim") return runSim(text, atts, pick);
@@ -1841,7 +2009,7 @@ function renderAttached() {
 }
 
 // ---------------------------------------------------------------- settings
-function openModal(html) { $("#modal").innerHTML = html; $("#overlay").classList.add("show"); }
+function openModal(html, cls) { const m = $("#modal"); m.className = "modal" + (cls ? " " + cls : ""); m.innerHTML = html; $("#overlay").classList.add("show"); }
 let modalClose = null;
 function closeModal() { $("#overlay").classList.remove("show"); const f = modalClose; modalClose = null; if (f) f(); }
 function openSettings() {
@@ -1884,7 +2052,244 @@ function openSettings() {
 	$("#exportChats").onclick = () => download("andromeda-chats.json", JSON.stringify(store.get("convos", []), null, 2));
 	$("#closeSettings").onclick = closeModal;
 }
-function refreshKeyDot() { $("#keyDot").classList.toggle("ok", !!settings.key); }
+// ---------------------------------------------------------------- credits: account, pricing, admin
+const creditUsd = () => (pricing && pricing.creditUsd) || 0.01;
+function creditsText(n) {
+	const v = Number(n) || 0;
+	return Math.abs(v) >= 100 ? Math.floor(v).toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+}
+async function api(path, opts = {}) {
+	const r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", ...(account && account.token ? { Authorization: "Bearer " + account.token } : {}), ...(opts.headers || {}) } });
+	let j = {};
+	try { j = await r.json(); } catch {}
+	if (!r.ok) throw fail((j.error && j.error.message) || r.statusText, r.status);
+	return j;
+}
+async function refreshMe() {
+	if (!SERVER || !account) return null;
+	try { me = await api("/api/me"); }
+	catch (e) { if (e.status === 401) signOut(true); }
+	drawAccount();
+	updateRoute();
+	return me;
+}
+async function loadPricing() {
+	if (pricing || !SERVER) return pricing;
+	try { pricing = await api("/api/pricing"); } catch {}
+	return pricing;
+}
+function signOut(quiet) {
+	if (account && !quiet) api("/api/logout", { method: "POST" }).catch(() => {});
+	account = null;
+	me = null;
+	store.set("account", null);
+	drawAccount();
+	updateRoute();
+}
+function drawAccount() {
+	const b = $("#acctBtn"), l = $("#acctLabel");
+	if (!b) return;
+	b.style.display = SERVER ? "" : "none";
+	l.textContent = !account ? "Sign in · Credits" : creditsMode() ? (me ? creditsText(me.credits) + " credits" : "Credits") : "Own key · Credits";
+}
+
+function openAccount() {
+	if (!SERVER) { openPricing(); return; }
+	if (!account) {
+		let mode = "in";
+		const draw = () => {
+			openModal("<h2>" + (mode === "in" ? "Sign in" : "Create your account") + '</h2><p class="sub">Your account holds your Andromeda credits, so you can use the best models without an API key of your own.</p>' +
+				'<div class="field"><label>Email</label><input class="inp" id="acEmail" type="email" autocomplete="email"></div>' +
+				'<div class="field"><label>Password</label><input class="inp" id="acPass" type="password" autocomplete="' + (mode === "in" ? "current-password" : "new-password") + '"' + (mode === "up" ? ' placeholder="At least 8 characters"' : "") + '><div class="status" id="acStatus"></div></div>' +
+				'<div class="row" style="justify-content:space-between"><button class="btn" id="acSwitch">' + (mode === "in" ? "New here? Create an account" : "I have an account") + '</button><button class="btn dark" id="acGo">' + (mode === "in" ? "Sign in" : "Create account") + "</button></div>" +
+				'<p class="help" style="margin-top:16px;font-size:12.5px;color:var(--faint)">Prefer your own OpenRouter key? <a href="#" id="acOwn">Use it in Settings</a>; that stays free.</p>');
+			$("#acSwitch").onclick = () => { mode = mode === "in" ? "up" : "in"; draw(); };
+			$("#acOwn").onclick = (e) => { e.preventDefault(); openSettings(); };
+			const go = async () => {
+				const st = $("#acStatus");
+				st.className = "status";
+				st.textContent = mode === "in" ? "Signing in…" : "Creating your account…";
+				try {
+					const j = await api(mode === "in" ? "/api/login" : "/api/signup", { method: "POST", body: JSON.stringify({ email: $("#acEmail").value, password: $("#acPass").value }) });
+					account = { token: j.token, email: j.me.email };
+					store.set("account", account);
+					me = j.me;
+					settings.payWith = "credits";
+					saveSettings();
+					drawAccount();
+					refreshKeyDot();
+					updateRoute();
+					if (me.credits > 0) openAccount(); else openPricing();
+				} catch (e) { st.className = "status bad"; st.textContent = e.message; }
+			};
+			$("#acGo").onclick = go;
+			$("#acPass").onkeydown = (e) => { if (e.key === "Enter") go(); };
+		};
+		draw();
+		return;
+	}
+	const draw = () => {
+		const pays = (me && me.payments) || [];
+		openModal('<h2>Your credits</h2><p class="sub">' + esc(account.email) + '</p>' +
+			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:18px"><div><div class="acct-bal">' + (me ? creditsText(me.credits) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">credits</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>Buy credits</button></div></div>' +
+			'<div class="field"><label>Pay with</label><div class="seg" style="grid-template-columns:repeat(2,minmax(0,1fr))"><button data-pay="credits"' + (settings.payWith !== "key" ? ' class="on"' : "") + '><b>Andromeda credits</b><span>No API key needed</span></button><button data-pay="key"' + (settings.payWith === "key" ? ' class="on"' : "") + '><b>My own OpenRouter key</b><span>' + (settings.key ? "Pay OpenRouter directly" : "Add one in Settings first") + "</span></button></div></div>" +
+			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>Pack</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(p.pack || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + creditsText(p.credits) + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status) + "</span></td></tr>").join("") + "</table></div>" : "") +
+			'<div class="row" style="justify-content:space-between;margin-top:6px"><button class="btn" id="acOut">Sign out</button><button class="btn" id="acDone">Done</button></div>');
+		$("#acRefresh").onclick = async () => { await refreshMe(); draw(); };
+		$("#acOut").onclick = () => { signOut(); closeModal(); };
+		$("#acDone").onclick = closeModal;
+		$$("[data-pay]").forEach((b) => b.onclick = () => {
+			if (b.dataset.pay === "key" && !settings.key) { openSettings(); return; }
+			settings.payWith = b.dataset.pay;
+			saveSettings();
+			refreshKeyDot();
+			updateRoute();
+			draw();
+		});
+	};
+	draw();
+	refreshMe().then(() => { if ($("#acRefresh")) draw(); });
+}
+
+function money(amount, cur) {
+	try { return new Intl.NumberFormat(cur === "IDR" ? "id-ID" : undefined, { style: "currency", currency: cur || "USD", maximumFractionDigits: cur === "IDR" ? 0 : 2 }).format(amount || 0); }
+	catch { return (cur || "") + " " + amount; }
+}
+const DEFAULT_PRICING = {
+	creditUsd: 0.01, open: false, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
+	packs: [
+		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
+		{ id: "plus", name: "Plus", credits: 1000, bonus: 100, popular: true, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
+		{ id: "pro", name: "Pro", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+	],
+};
+let payCur = store.get("payCur", "") || (/^id\b/i.test(navigator.language || "") || /Jakarta|Makassar|Jayapura|Pontianak/.test(Intl.DateTimeFormat().resolvedOptions().timeZone || "") ? "IDR" : "USD");
+async function openPricing() {
+	await loadPricing();
+	const P = pricing || DEFAULT_PRICING;
+	if (!P.currencies.includes(payCur)) payCur = P.currencies[0];
+	const live = !!(SERVER && pricing && pricing.open);
+	const idr = payCur === "IDR";
+	const card = (p) => {
+		const total = p.credits + (p.bonus || 0);
+		const price = p.prices[payCur];
+		const can = live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[p.id]));
+		return '<div class="plan' + (p.popular ? " popular" : "") + '">' + (p.popular ? '<span class="tag">Most popular</span>' : "") +
+			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">one-time · no subscription</div>' +
+			'<div class="tiles"><div class="tile full"><b>' + creditsText(total) + "</b><span>credits" + (p.bonus ? " · incl. +" + creditsText(p.bonus) + " bonus" : "") + '</span></div><div class="tile"><b>≈' + creditsText(Math.round(total / 1.5)) + '</b><span>answers</span></div><div class="tile"><b>≈' + creditsText(Math.max(1, Math.round(total / 150))) + "</b><span>apps built</span></div></div>" +
+			'<ul class="feat"><li>Every model, the best one picked for each task</li><li>Flashcards, quizzes, podcasts and simulations</li><li>Apps and games built and run in the browser</li>' + (p.bonus ? "<li>" + Math.round((p.bonus / p.credits) * 100) + "% more credits for the same price per credit</li>" : "<li>Try everything with no commitment</li>") + "</ul>" +
+			'<button class="btn' + (p.popular ? " dark" : "") + '" data-buy="' + esc(p.id) + '"' + (can ? "" : " disabled") + ">" + (!live ? "Coming soon" : !can ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card or PayPal") + "</button></div>";
+	};
+	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">with your own OpenRouter key</div>' +
+		'<div class="tiles"><div class="tile full"><b>∞</b><span>pay OpenRouter directly, at cost</span></div></div>' +
+		'<ul class="feat"><li>Everything in Andromeda</li><li>Free models cost nothing</li><li>Your key stays in this browser</li><li>You manage your own OpenRouter balance</li></ul>' +
+		'<button class="btn" data-open-settings>' + (settings.key ? "Using my own key" : "Use my own key") + "</button></div>";
+	const methods = idr ? ["QRIS", "GoPay", "DANA", "OVO", "ShopeePay", "Bank apps"] : ["Visa", "Mastercard", "Apple Pay", "PayPal"];
+	openModal('<div style="text-align:center"><h2>Credits</h2><p class="sub" style="margin-bottom:14px">Pay once, use the best models. No API key, no subscription.</p></div>' +
+		'<div class="cur">' + P.currencies.map((c) => '<button data-cur="' + c + '"' + (c === payCur ? ' class="on"' : "") + ">" + c + "</button>").join("") + "</div>" +
+		(live ? "" : '<div class="notice">' + (SERVER ? "Credits aren't on sale yet." : "Credits are coming soon.") + " You can use Andromeda today for free with your own OpenRouter key.</div>") +
+		'<div class="plans">' + free + P.packs.map(card).join("") + "</div>" +
+		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Credits are added as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". Credits arrive automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
+		'<div class="qa"><h3>Questions</h3>' +
+		"<details><summary>What is a credit?</summary><p>1 credit is about one everyday answer. Long answers and the top models use more: a full app build with the best models can use a few hundred. Every answer shows exactly how many credits it used, and the bar at the top shows your spending for the day.</p></details>" +
+		"<details><summary>Which models do I get?</summary><p>All of them. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
+		"<details><summary>Do credits expire?</summary><p>No. Credits stay on your account until you use them.</p></details>" +
+		"<details><summary>Can I use my own key instead?</summary><p>Yes, any time, and it stays free: add your OpenRouter key in Settings and switch Pay with to your own key in your account.</p></details>" +
+		"<details><summary>My payment hasn't shown up</summary><p>QRIS payments are confirmed by hand, usually within a few hours. Card payments arrive within a minute. If anything goes wrong" + (P.support ? ", contact " + esc(P.support) : ", contact us") + " and we'll sort it out.</p></details></div>" +
+		'<div class="row" style="justify-content:flex-end;margin-top:14px">' + (SERVER && !account ? '<button class="btn" data-open-account>Sign in</button>' : "") + '<button class="btn" id="prClose">Close</button></div>', "wide");
+	$("#prClose").onclick = closeModal;
+	$$("[data-cur]").forEach((b) => b.onclick = () => { payCur = b.dataset.cur; store.set("payCur", payCur); openPricing(); });
+	$$("[data-buy]").forEach((b) => b.onclick = () => buy(P.packs.find((p) => p.id === b.dataset.buy), P));
+}
+function buy(pack, P) {
+	if (!pack) return;
+	if (!account) { toast("Create an account first, so the credits have somewhere to go"); openAccount(); return; }
+	if (payCur === "IDR") { openQris(pack, P); return; }
+	const link = P.checkout.links[pack.id];
+	const u = new URL(link);
+	u.searchParams.set("checkout[custom][user_id]", me ? me.id : "");
+	if (account.email) u.searchParams.set("checkout[email]", account.email);
+	window.open(u.toString(), "_blank", "noopener");
+	toast("Complete the payment in the new tab. Your credits appear here automatically.");
+}
+function openQris(pack, P) {
+	const total = pack.credits + (pack.bonus || 0);
+	openModal("<h2>Pay with QRIS</h2><p class=\"sub\">" + esc(pack.name) + " · " + creditsText(total) + " credits</p>" +
+		'<div class="qris"><img src="' + esc(P.qris.image) + '" alt="QRIS code"><div><div class="help" style="font-size:12.5px;color:var(--faint)">Amount, exactly</div><div class="amt">' + money(pack.prices.IDR, "IDR") + "</div>" +
+		(P.qris.name ? '<p style="font-size:13.5px;color:var(--muted);margin:6px 0 14px">to <b style="color:var(--text)">' + esc(P.qris.name) + "</b></p>" : "<p></p>") +
+		'<ol style="font-size:13.5px;color:var(--muted);padding-left:18px;line-height:1.6;margin:0 0 14px"><li>Open any e-wallet or bank app and scan the code.</li><li>Pay the exact amount above.</li><li>Write the name your payment came from below and press I\'ve paid.</li></ol>' +
+		'<div class="field"><label>Name on the payment</label><input class="inp" id="qrRef" placeholder="e.g. Budi Santoso (GoPay)"><div class="status" id="qrStatus"></div></div>' +
+		'<div class="row" style="justify-content:flex-end"><button class="btn" data-open-pricing>Back</button><button class="btn dark" id="qrPaid">I\'ve paid</button></div></div></div>', "");
+	$("#qrPaid").onclick = async () => {
+		const st = $("#qrStatus");
+		st.className = "status";
+		st.textContent = "Sending…";
+		try {
+			await api("/api/payments/qris", { method: "POST", body: JSON.stringify({ pack: pack.id, reference: $("#qrRef").value }) });
+			openModal("<h2>Thanks, that's in</h2><p class=\"sub\">Your " + creditsText(total) + " credits are added as soon as the payment is confirmed, usually within a few hours. You'll see them in your account.</p><div class=\"row\" style=\"justify-content:flex-end\"><button class=\"btn dark\" data-open-account>See my account</button></div>");
+			refreshMe();
+		} catch (e) { st.className = "status bad"; st.textContent = e.message; }
+	};
+}
+
+// the owner's page: /#admin, with the ADMIN_TOKEN set on the server. The password is kept for this tab only.
+async function openAdmin() {
+	if (!SERVER) { openModal('<h2>Admin</h2><p class="sub">The credits server isn\'t connected yet. Paste its address into DEFAULT_SERVER at the top of the script (see server/README.md).</p>'); return; }
+	let tok = "";
+	try { tok = sessionStorage.getItem("andromeda.admin") || ""; } catch {}
+	const ask = (msg) => {
+		openModal('<h2>Admin</h2><p class="sub">' + (msg || "The admin password you set on the server.") + '</p><div class="field"><input class="inp" id="adTok" type="password"></div><div class="row" style="justify-content:flex-end"><button class="btn dark" id="adGo">Open</button></div>');
+		$("#adGo").onclick = () => { try { sessionStorage.setItem("andromeda.admin", $("#adTok").value); } catch {} openAdmin(); };
+	};
+	if (!tok) { ask(); return; }
+	const call = async (path, opts = {}) => {
+		const r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", "X-Admin-Token": tok } });
+		const j = await r.json().catch(() => ({}));
+		if (!r.ok) throw fail((j.error && j.error.message) || r.statusText, r.status);
+		return j;
+	};
+	let o;
+	try { o = await call("/api/admin/overview"); }
+	catch (e) { try { sessionStorage.removeItem("andromeda.admin"); } catch {} ask(e.status === 401 ? "That password didn't work." : e.message); return; }
+	const c = o.config;
+	const when = (t) => (t ? new Date(t).toLocaleString() : "");
+	const totals = o.totals.map((t) => money(t.amount, t.currency) + " (" + t.n + ")").join(" · ") || "nothing yet";
+	const spent = o.spent || {};
+	openModal('<h2>Admin</h2><p class="sub">Sold: ' + totals + " · AI cost so far $" + (Number(spent.cost) || 0).toFixed(2) + " for " + creditsText((spent.charged_mc || 0) / 1000) + " credits used (" + (spent.n || 0) + " answers)</p>" +
+		'<div class="field"><label>Waiting for confirmation (' + o.pending.length + ")</label>" + (o.pending.length ? '<table class="ptable"><tr><th>When</th><th>Who</th><th>Paid</th><th>Name on payment</th><th>Credits</th><th></th></tr>' + o.pending.map((p) => "<tr><td>" + when(p.created_at) + "</td><td>" + esc(p.email) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + esc(p.note || "") + "</td><td>" + creditsText(p.credits_mc / 1000) + '</td><td class="row"><button class="btn dark" data-ok="' + p.id + '">Approve</button><button class="btn" data-no="' + p.id + '">Reject</button></td></tr>').join("") + "</table>" : '<div class="help">Nothing waiting. Check your e-wallet for a payment before approving one.</div>') + "</div>" +
+		'<div class="field"><label>Sales</label><label class="chk"><input type="checkbox" id="adOpen"' + (c.open ? " checked" : "") + "> Credits are on sale</label></div>" +
+		'<div class="field"><label>QRIS image address</label><input class="inp" id="adQris" placeholder="e.g. qris.png (upload it next to index.html)" value="' + esc((c.qris && c.qris.image) || "") + '"></div>' +
+		'<div class="field"><label>Name shown on QRIS</label><input class="inp" id="adQrisName" value="' + esc((c.qris && c.qris.name) || "") + '"></div>' +
+		'<div class="field"><label>Card checkout links (one per pack)</label>' + c.packs.map((p) => '<div class="row" style="margin-bottom:6px"><span style="width:80px;font-size:13px">' + esc(p.name) + '</span><input class="inp" data-link="' + p.id + '" placeholder="https://…lemonsqueezy.com/checkout/buy/…" value="' + esc((c.checkout.links || {})[p.id] || "") + '"><input class="inp" style="max-width:130px" data-variant="' + p.id + '" placeholder="variant id" value="' + esc(p.lemonVariant || "") + '"></div>').join("") + "</div>" +
+		'<div class="field"><label>Mark-up on OpenRouter cost</label><div class="row"><span style="font-size:13px">cheap ×</span><input class="inp" id="adM1" type="number" step="0.1" value="' + c.multipliers.cheap + '"><span style="font-size:13px">mid ×</span><input class="inp" id="adM2" type="number" step="0.1" value="' + c.multipliers.mid + '"><span style="font-size:13px">top ×</span><input class="inp" id="adM3" type="number" step="0.1" value="' + c.multipliers.top + '"></div><div class="help">Cheap means under $' + c.bands.cheapBelow + ", top means $" + c.bands.topFrom + " or more per million output tokens.</div></div>" +
+		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
+		'<div class="field"><label>Packs and prices (advanced)</label><textarea class="inp" id="adPacks" style="height:150px;padding:10px;font-family:var(--mono);font-size:12px">' + esc(JSON.stringify(c.packs.map(({ lemonVariant, ...p }) => p), null, 1)) + '</textarea><div class="status" id="adStatus"></div></div>' +
+		'<div class="field"><label>Give or take credits by hand</label><div class="row"><input class="inp" id="adEmail" placeholder="email"><input class="inp" id="adCredits" type="number" placeholder="credits (- to take)" style="max-width:150px"><button class="btn" id="adGive">Apply</button></div></div>' +
+		'<div class="field"><label>Accounts (' + o.users.length + ')</label><table class="ptable"><tr><th>Email</th><th>Credits</th><th>Joined</th></tr>' + o.users.slice(0, 30).map((u) => "<tr><td>" + esc(u.email) + "</td><td>" + creditsText(u.balance_mc / 1000) + "</td><td>" + when(u.created_at) + "</td></tr>").join("") + "</table></div>" +
+		'<div class="row" style="justify-content:space-between"><button class="btn" id="adLock">Lock admin</button><div class="row"><button class="btn" id="adClose">Close</button><button class="btn dark" id="adSave">Save settings</button></div></div>', "wide");
+	$$("[data-ok]").forEach((b) => b.onclick = async () => { await call("/api/admin/payments/" + b.dataset.ok + "/approve", { method: "POST" }); toast("Approved: the credits are on their account"); openAdmin(); });
+	$$("[data-no]").forEach((b) => b.onclick = async () => { await call("/api/admin/payments/" + b.dataset.no + "/reject", { method: "POST" }); toast("Rejected"); openAdmin(); });
+	$("#adGive").onclick = async () => {
+		try { await call("/api/admin/credits", { method: "POST", body: JSON.stringify({ email: $("#adEmail").value, credits: Number($("#adCredits").value), note: "by hand" }) }); toast("Done"); openAdmin(); }
+		catch (e) { toast(e.message); }
+	};
+	$("#adSave").onclick = async () => {
+		const st = $("#adStatus");
+		let packs;
+		try { packs = JSON.parse($("#adPacks").value); } catch { st.className = "status bad"; st.textContent = "The packs text isn't valid JSON."; return; }
+		packs = packs.map((p) => ({ ...p, lemonVariant: ($("[data-variant=\"" + p.id + "\"]") || {}).value || "" }));
+		const links = {};
+		$$("[data-link]").forEach((i) => { if (i.value.trim()) links[i.dataset.link] = i.value.trim(); });
+		const next = { ...c, open: $("#adOpen").checked, qris: { image: $("#adQris").value.trim(), name: $("#adQrisName").value.trim() }, checkout: { ...c.checkout, links },
+			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top }, support: $("#adSupport").value.trim(), packs };
+		try { await call("/api/admin/config", { method: "PUT", body: JSON.stringify(next) }); pricing = null; toast("Saved"); openAdmin(); }
+		catch (e) { st.className = "status bad"; st.textContent = e.message; }
+	};
+	$("#adLock").onclick = () => { try { sessionStorage.removeItem("andromeda.admin"); } catch {} closeModal(); };
+	$("#adClose").onclick = closeModal;
+}
+
+function refreshKeyDot() { $("#keyDot").classList.toggle("ok", connected()); drawAccount(); }
 function applyTheme() {
 	if (settings.theme === "light") document.documentElement.setAttribute("data-theme", "light");
 	else document.documentElement.removeAttribute("data-theme");
@@ -1916,7 +2321,7 @@ function setMode() {
 function openSidebar(open) { $("#sidebar").classList.toggle("open", open); $("#scrim").classList.toggle("show", open); }
 
 document.addEventListener("click", (e) => {
-	const t = e.target.closest("button, a[data-go-home], .convo, .member, .step .sh, [data-open-settings], [data-pick]");
+	const t = e.target.closest("button, a[data-go-home], .convo, .member, .step .sh, [data-open-settings], [data-open-account], [data-open-pricing], [data-pick]");
 	if (!t) { if (e.target === $("#overlay")) closeModal(); return; }
 	if (t.hasAttribute("data-open-app")) { showApp(true); return; }
 	if (t.hasAttribute("data-go-home")) { e.preventDefault(); showApp(false); return; }
@@ -1950,6 +2355,8 @@ document.addEventListener("click", (e) => {
 	else if (t.classList.contains("member")) { const m = current.msgs[t.closest(".msg").dataset.i].members[t.dataset.member]; openModal("<h2>" + esc(m.name) + '</h2><p class="sub">This model\'s own answer, before the synthesis.</p><div class="md">' + md(m.text || m.error || "") + '</div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="closeSettings">Close</button></div>'); $("#closeSettings").onclick = closeModal; }
 	else if (t.closest(".step") && t.classList.contains("sh")) { const s = current.msgs[t.closest(".msg").dataset.i].steps[t.closest(".step").dataset.step]; s.open = !s.open; t.closest(".step").classList.toggle("open", s.open); }
 	else if (t.hasAttribute("data-open-settings")) openSettings();
+	else if (t.hasAttribute("data-open-account")) openAccount();
+	else if (t.hasAttribute("data-open-pricing")) openPricing();
 	else if (t.dataset.pick) openSettings();
 });
 $("#newChat").onclick = $("#newChatTop").onclick = () => { current = null; render(); $("#input").focus(); openSidebar(false); };
@@ -1984,7 +2391,7 @@ function showApp(on) {
 		window.scrollTo(0, 0);
 		render();
 		setMode(mode);
-		if (!settings.key) setTimeout(openSettings, 350);
+		if (!connected()) setTimeout(SERVER ? openAccount : openSettings, 350);
 		else setTimeout(() => $("#input").focus(), 50);
 	} else {
 		history.replaceState(null, "", location.pathname + location.search);
@@ -2102,7 +2509,13 @@ addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", scrollY 
 const revealer = new IntersectionObserver((es) => es.forEach((en) => { if (en.isIntersecting) { en.target.classList.add("in"); revealer.unobserve(en.target); } }), { threshold: 0.1 });
 $$(".reveal").forEach((el) => revealer.observe(el));
 document.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && document.body.classList.contains("in-app")) { e.preventDefault(); $("#newChat").click(); } });
-addEventListener("hashchange", () => { const want = location.hash === "#app"; if (want !== document.body.classList.contains("in-app")) showApp(want); });
+addEventListener("hashchange", () => {
+	if (location.hash === "#admin") { showApp(true); openAdmin(); return; }
+	if (location.hash === "#pricing") { showApp(true); openPricing(); return; }
+	const want = location.hash === "#app";
+	if (want !== document.body.classList.contains("in-app")) showApp(want);
+});
+addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
 
 // ---------------------------------------------------------------- boot
 (async function boot() {
@@ -2110,7 +2523,7 @@ addEventListener("hashchange", () => { const want = location.hash === "#app"; if
 	refreshKeyDot();
 	convos = convos.filter((c) => c.msgs.length);
 	// someone already set up goes straight to the app; anyone new sees what it is first
-	const inApp = location.hash === "#app" || (!!settings.key && !location.hash);
+	const inApp = location.hash === "#app" || location.hash === "#admin" || location.hash === "#pricing" || (connected() && !location.hash);
 	document.body.classList.toggle("in-app", inApp);
 	render();
 	setMode("auto");
@@ -2119,7 +2532,10 @@ addEventListener("hashchange", () => { const want = location.hash === "#app"; if
 	await loadCatalog();
 	updateRoute();
 	renderLanding();
-	if (inApp && !settings.key) setTimeout(openSettings, 600);
+	if (SERVER && account) await refreshMe();
+	if (location.hash === "#admin") openAdmin();
+	else if (location.hash === "#pricing") openPricing();
+	else if (inApp && !connected()) setTimeout(SERVER ? openAccount : openSettings, 600);
 })();
 </script>
 </body>

@@ -1,0 +1,19 @@
+name = "andromeda-credits"
+main = "worker.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+# the site allowed to call this server (your GitHub Pages address)
+ALLOWED_ORIGINS = "https://georgechendra-cmyk.github.io"
+SITE_URL = "https://georgechendra-cmyk.github.io/andromeda/"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "andromeda"
+database_id = "REPLACE_AFTER_CREATE"
+
+# Secrets are NOT written here. Set them once with:
+#   npx wrangler secret put OPENROUTER_KEY
+#   npx wrangler secret put ADMIN_TOKEN
+#   npx wrangler secret put PEPPER
+#   npx wrangler secret put LEMON_SECRET   (only when card payments are set up)
