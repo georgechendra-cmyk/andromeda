@@ -1,0 +1,1582 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Andromeda — the right model for every message</title>
+<meta name="description" content="Andromeda reads what you ask and routes it to the model that's best at it. One OpenRouter key, every model, no subscription.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+/* ============ tokens: dark by default (a product, not a brochure); light on request ============ */
+:root {
+	--bg: #08090a; --bg2: #0f1011; --bg3: #17181a; --bg4: #1f2023; --line: #222326; --line2: #303135;
+	--text: #ededec; --muted: #9b9c9e; --faint: #626366; --ink: #f2f2f1; --onink: #0a0a0a;
+	--ok: #4ade80; --err: #f87171; --warn: #fbbf24; --c-str: #a5d6b4; --c-num: #e3b77a; --c-kw: #f2f2f1;
+	--glow: rgba(255,255,255,.06); --dot: 255,255,255;
+	--r: 12px; --r-lg: 20px; --shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 20px 50px rgba(0,0,0,.45);
+	--ease: cubic-bezier(.2,.7,.2,1); --sb: 272px;
+	--sans: Geist, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+	--mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	color-scheme: dark;
+}
+:root[data-theme="light"] {
+	--bg: #ffffff; --bg2: #f7f7f6; --bg3: #efefed; --bg4: #e7e7e4; --line: #e6e6e3; --line2: #d4d4d0;
+	--text: #0b0b0b; --muted: #5f6063; --faint: #9a9b9e; --ink: #0b0b0b; --onink: #ffffff;
+	--ok: #15803d; --err: #b42318; --warn: #a16207; --c-str: #2f6b4a; --c-num: #8a5a1c; --c-kw: #0b0b0b;
+	--glow: rgba(0,0,0,.04); --dot: 10,10,10;
+	--shadow: 0 1px 2px rgba(0,0,0,.05), 0 16px 40px rgba(0,0,0,.08);
+	color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.6 var(--sans); -webkit-font-smoothing: antialiased; }
+body.in-app { height: 100dvh; overflow: hidden; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+input, textarea, select { font: inherit; color: inherit; }
+a { color: inherit; }
+::selection { background: var(--ink); color: var(--onink); }
+.mono { font-family: var(--mono); }
+.mark { width: 22px; height: 22px; flex: none; }
+
+/* ============================== the site ============================== */
+.site { position: relative; min-height: 100dvh; overflow: hidden; }
+body.in-app .site { display: none; }
+body:not(.in-app) .app { display: none; }
+#sky { position: absolute; left: 0; top: 0; width: 100%; height: 980px; pointer-events: none; opacity: .9; mask-image: linear-gradient(#000 55%, transparent); }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; position: relative; }
+.nav { position: sticky; top: 0; z-index: 20; backdrop-filter: saturate(140%) blur(14px); background: color-mix(in srgb, var(--bg) 72%, transparent); border-bottom: 1px solid transparent; transition: border-color .25s; }
+.nav.scrolled { border-bottom-color: var(--line); }
+.nav .wrap { display: flex; align-items: center; gap: 28px; height: 64px; }
+.logo { display: inline-flex; align-items: center; gap: 9px; font-weight: 600; letter-spacing: -.01em; font-size: 16px; text-decoration: none; }
+.nav-links { display: flex; gap: 22px; font-size: 14px; color: var(--muted); }
+.nav-links a { text-decoration: none; transition: color .15s; }
+.nav-links a:hover { color: var(--text); }
+.nav .sp { flex: 1; }
+.b { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 16px; border-radius: 10px; font-size: 14px; font-weight: 500; text-decoration: none; transition: transform .2s var(--ease), background .2s, border-color .2s, opacity .2s; white-space: nowrap; }
+.b.pri { background: var(--ink); color: var(--onink); }
+.b.pri:hover { opacity: .9; transform: translateY(-1px); }
+.b.sec { border: 1px solid var(--line2); color: var(--text); }
+.b.sec:hover { border-color: var(--faint); transform: translateY(-1px); }
+.b.ghost { color: var(--muted); padding: 0 10px; }
+.b.ghost:hover { color: var(--text); }
+.b.lg { height: 46px; padding: 0 22px; font-size: 15px; border-radius: 12px; }
+
+.hero { padding: 108px 0 56px; text-align: center; }
+.pill { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 12px 0 6px; border: 1px solid var(--line2); border-radius: 999px; font-size: 13px; color: var(--muted); background: color-mix(in srgb, var(--bg2) 70%, transparent); }
+.pill .tag { font-family: var(--mono); font-size: 11px; padding: 2px 7px; border-radius: 999px; background: var(--ink); color: var(--onink); }
+.hero h1 { font-size: clamp(42px, 7.2vw, 84px); line-height: .98; letter-spacing: -.045em; font-weight: 600; margin: 26px auto 22px; max-width: 900px; }
+.hero h1 .dim { color: var(--faint); }
+.hero p.lead { font-size: clamp(16px, 1.6vw, 19px); color: var(--muted); max-width: 640px; margin: 0 auto 34px; line-height: 1.55; }
+.ctas { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.fine { margin-top: 16px; font-size: 13px; color: var(--faint); }
+
+/* the routing demo */
+.demo { margin: 64px auto 0; max-width: 760px; border: 1px solid var(--line); border-radius: 18px; background: color-mix(in srgb, var(--bg2) 88%, transparent); box-shadow: var(--shadow); text-align: left; overflow: hidden; }
+.demo-h { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--faint); font-family: var(--mono); }
+.demo-h i { width: 9px; height: 9px; border-radius: 50%; background: var(--bg4); display: inline-block; }
+.demo-h .sp { flex: 1; }
+.demo-b { padding: 22px 22px 18px; }
+.demo-q { display: flex; gap: 12px; align-items: flex-start; font-size: 17px; min-height: 54px; }
+.demo-q .you { flex: none; width: 26px; height: 26px; border-radius: 8px; background: var(--bg4); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; color: var(--muted); }
+.demo-q .typed::after { content: ""; display: inline-block; width: 2px; height: 1.1em; margin-left: 2px; vertical-align: -3px; background: var(--text); animation: blink 1s steps(1) infinite; }
+.demo-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line2); font-size: 13.5px; color: var(--muted); min-height: 46px; }
+.demo-r .arrow { font-family: var(--mono); color: var(--faint); }
+.demo-r .model { display: inline-flex; align-items: center; gap: 8px; padding: 5px 11px; border-radius: 999px; background: var(--ink); color: var(--onink); font-weight: 500; animation: pop .45s var(--ease) both; }
+.demo-r .why { color: var(--faint); animation: pop .45s .08s var(--ease) both; }
+@keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+.demo-tasks { display: flex; gap: 6px; flex-wrap: wrap; padding: 12px 22px 16px; border-top: 1px solid var(--line); }
+.demo-tasks span { font-size: 12px; font-family: var(--mono); color: var(--faint); padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); transition: color .25s, border-color .25s, background .25s; }
+.demo-tasks span.on { color: var(--text); border-color: var(--line2); background: var(--bg3); }
+
+.logos { display: flex; gap: 34px; justify-content: center; flex-wrap: wrap; margin: 52px 0 0; color: var(--faint); font-size: 13px; font-family: var(--mono); letter-spacing: .02em; }
+
+section.block { padding: 110px 0 0; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px; }
+.block h2 { font-size: clamp(30px, 4.2vw, 48px); line-height: 1.04; letter-spacing: -.035em; font-weight: 600; margin: 0 0 14px; max-width: 760px; }
+.block p.sub2 { color: var(--muted); font-size: 17px; max-width: 620px; margin: 0 0 40px; }
+
+.grid4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--line); border-radius: 16px; background: var(--bg2); padding: 22px; transition: border-color .2s, transform .3s var(--ease); position: relative; overflow: hidden; }
+.card:hover { border-color: var(--line2); transform: translateY(-3px); }
+.card .ic { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line2); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; color: var(--text); }
+.card h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
+.card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.55; }
+.card .flow { margin-top: 16px; font-family: var(--mono); font-size: 11.5px; color: var(--faint); line-height: 1.8; }
+
+.table { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--bg2); }
+.tr { display: grid; grid-template-columns: 1.1fr 1.6fr 1fr .8fr; gap: 12px; align-items: center; padding: 14px 20px; border-top: 1px solid var(--line); font-size: 14.5px; }
+.tr:first-child { border-top: 0; }
+.tr.th { font-family: var(--mono); font-size: 11.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--faint); padding: 11px 20px; background: var(--bg); }
+.tr .task { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+.tr .task i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+.tr .mdl { font-weight: 500; }
+.tr .lab, .tr .price { color: var(--muted); font-family: var(--mono); font-size: 13px; }
+.tr .why2 { display: block; color: var(--faint); font-size: 12.5px; font-weight: 400; margin-top: 2px; }
+.live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); margin-left: 12px; font-family: var(--mono); }
+.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); animation: ping 2s infinite; }
+@keyframes ping { 70% { box-shadow: 0 0 0 7px transparent; } }
+.tiers { display: flex; gap: 6px; margin: 0 0 16px; flex-wrap: wrap; }
+.tiers button { height: 32px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; color: var(--muted); transition: all .2s; }
+.tiers button.on { background: var(--ink); color: var(--onink); border-color: var(--ink); }
+
+.steps3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; counter-reset: s; }
+.steps3 .card { padding-top: 26px; }
+.steps3 .card::before { counter-increment: s; content: "0" counter(s); font-family: var(--mono); font-size: 12px; color: var(--faint); display: block; margin-bottom: 16px; }
+
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.big { padding: 30px; }
+.big h3 { font-size: 22px; letter-spacing: -.02em; margin-bottom: 10px; }
+.kv { margin-top: 18px; display: grid; gap: 8px; font-size: 14px; }
+.kv div { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.kv b { color: var(--text); font-weight: 500; font-family: var(--mono); font-size: 13px; }
+
+.faq { max-width: 760px; }
+.faq details { border-top: 1px solid var(--line); padding: 18px 0; }
+.faq details:last-child { border-bottom: 1px solid var(--line); }
+.faq summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 16px; font-size: 16px; font-weight: 500; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; font-family: var(--mono); color: var(--faint); transition: transform .25s var(--ease); }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq details p { color: var(--muted); margin: 10px 0 0; max-width: 680px; }
+
+.cta-end { margin: 120px 0 0; padding: 70px 30px; border: 1px solid var(--line); border-radius: 24px; text-align: center; background: radial-gradient(120% 140% at 50% 0%, var(--bg3), var(--bg2) 60%); }
+.cta-end h2 { margin: 0 auto 14px; }
+.foot { margin-top: 90px; border-top: 1px solid var(--line); }
+.foot .wrap { display: flex; align-items: center; gap: 16px; height: 76px; color: var(--faint); font-size: 13px; flex-wrap: wrap; }
+.foot .sp { flex: 1; }
+.foot a { text-decoration: none; } .foot a:hover { color: var(--text); }
+.reveal { opacity: 0; transform: translateY(14px); transition: opacity .7s var(--ease), transform .7s var(--ease); }
+.reveal.in { opacity: 1; transform: none; }
+
+/* ============================== the app ============================== */
+.app { display: grid; grid-template-columns: var(--sb) 1fr; grid-template-rows: minmax(0, 1fr); height: 100dvh; }
+.sidebar { border-right: 1px solid var(--line); background: var(--bg2); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 16px 16px 10px; }
+.brand-name { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+.brand .home { margin-left: auto; font-size: 12px; color: var(--faint); text-decoration: none; padding: 4px 8px; border-radius: 7px; }
+.brand .home:hover { color: var(--text); background: var(--bg3); }
+.new-chat { margin: 6px 12px 10px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line2); font-weight: 500; font-size: 14px; transition: background .2s, border-color .2s; }
+.new-chat:hover { background: var(--bg3); }
+.new-chat kbd { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--faint); }
+.search { margin: 0 12px 6px; position: relative; }
+.search input { width: 100%; height: 34px; border-radius: 9px; border: 1px solid transparent; background: var(--bg3); padding: 0 12px 0 32px; outline: none; font-size: 13.5px; transition: border-color .2s; }
+.search input:focus { border-color: var(--line2); }
+.search svg { position: absolute; left: 11px; top: 10px; opacity: .45; }
+.convos { flex: 1; overflow-y: auto; padding: 4px 8px 8px; }
+.convo-group { font-size: 11.5px; color: var(--faint); padding: 14px 10px 6px; font-weight: 500; }
+.convo { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 8px; cursor: pointer; color: var(--muted); transition: background .15s, color .15s; }
+.convo:hover { background: var(--bg3); color: var(--text); }
+.convo.active { background: var(--bg4); color: var(--text); }
+.convo .t { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.convo .x { opacity: 0; padding: 2px 4px; border-radius: 6px; color: var(--faint); transition: opacity .15s; }
+.convo:hover .x { opacity: 1; }
+.convo .x:hover { color: var(--err); }
+.sb-foot { border-top: 1px solid var(--line); padding: 8px; display: flex; gap: 4px; }
+.sb-btn { flex: 1; display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 9px; color: var(--muted); font-size: 14px; transition: background .15s, color .15s; }
+.sb-btn:hover { background: var(--bg3); color: var(--text); }
+.key-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); margin-left: auto; }
+.key-dot.ok { background: var(--ok); }
+
+.topbar { height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 16px; border-bottom: 1px solid transparent; transition: border-color .2s; }
+.topbar.scrolled { border-bottom-color: var(--line); }
+.menu-btn { display: none; width: 36px; height: 36px; border-radius: 9px; align-items: center; justify-content: center; color: var(--muted); }
+.menu-btn:hover { background: var(--bg3); color: var(--text); }
+.modes { position: relative; display: inline-flex; background: var(--bg2); border: 1px solid var(--line); border-radius: 11px; padding: 3px; }
+.mode { position: relative; z-index: 1; padding: 5px 13px; border-radius: 8px; font-size: 13.5px; color: var(--muted); transition: color .25s; white-space: nowrap; }
+.mode.active { color: var(--text); }
+.mode-pill { position: absolute; top: 3px; bottom: 3px; left: 3px; border-radius: 8px; background: var(--bg4); transition: transform .35s var(--ease), width .35s var(--ease); }
+.topbar .spacer { flex: 1; }
+.chip { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg2); font-size: 12.5px; color: var(--muted); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.chip b { color: var(--text); font-weight: 500; }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); flex: none; }
+.chip.click { cursor: pointer; transition: border-color .2s; }
+.chip.click:hover { border-color: var(--line2); }
+
+.scroller { flex: 1; min-height: 0; overflow-y: auto; }
+.thread { max-width: 760px; margin: 0 auto; padding: 22px 22px 190px; }
+.msg { margin: 0 0 28px; animation: rise .4s var(--ease) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.msg.user { display: flex; justify-content: flex-end; }
+.msg.user > div { max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; }
+.msg.user .bubble { background: var(--bg3); border-radius: 18px; padding: 10px 16px; white-space: pre-wrap; word-wrap: break-word; }
+.msg.user .att { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 6px; }
+.meta { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+.md { word-wrap: break-word; line-height: 1.7; }
+.md > *:first-child { margin-top: 0; }
+.md p { margin: 0 0 14px; }
+.md h1, .md h2, .md h3 { font-weight: 600; letter-spacing: -.02em; line-height: 1.25; margin: 26px 0 10px; }
+.md h1 { font-size: 24px; } .md h2 { font-size: 20px; } .md h3 { font-size: 17px; }
+.md ul, .md ol { padding-left: 22px; margin: 0 0 14px; }
+.md li { margin: 4px 0; }
+.md a { color: var(--text); text-underline-offset: 3px; }
+.md blockquote { margin: 0 0 14px; padding: 2px 0 2px 14px; border-left: 2px solid var(--line2); color: var(--muted); }
+.md code { font-family: var(--mono); font-size: 13px; background: var(--bg3); padding: 1px 5px; border-radius: 5px; }
+.md table { border-collapse: collapse; margin: 0 0 14px; font-size: 14px; width: 100%; display: block; overflow-x: auto; }
+.md th, .md td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; }
+.md th { background: var(--bg2); font-weight: 500; }
+.code { margin: 0 0 16px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg2); }
+.code-h { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 14px; border-bottom: 1px solid var(--line); font-size: 12px; color: var(--muted); font-family: var(--mono); }
+.code-h .sp { flex: 1; }
+.code-h button { padding: 3px 9px; border-radius: 7px; font-family: var(--sans); font-size: 12px; color: var(--muted); }
+.code-h button:hover { background: var(--bg3); color: var(--text); }
+.code pre { margin: 0; padding: 14px 16px; overflow-x: auto; font-size: 13px; line-height: 1.6; font-family: var(--mono); }
+.code pre code { background: none; padding: 0; font-family: var(--mono); }
+.hljs { background: transparent !important; color: var(--text); }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-name, .hljs-section { color: var(--c-kw); font-weight: 600; }
+.hljs-tag, .hljs-punctuation, .hljs-operator { color: var(--muted); }
+.hljs-string, .hljs-attr, .hljs-attribute, .hljs-template-variable, .hljs-regexp, .hljs-addition, .hljs-symbol { color: var(--c-str); }
+.hljs-number, .hljs-literal, .hljs-variable, .hljs-type, .hljs-selector-class, .hljs-selector-id, .hljs-params { color: var(--c-num); }
+.hljs-title, .hljs-title.function_, .hljs-title.class_ { color: var(--text); font-weight: 500; }
+.hljs-comment, .hljs-quote, .hljs-meta { color: var(--faint); font-style: italic; }
+.hljs-deletion { color: var(--err); }
+.modal a { color: var(--text); text-underline-offset: 3px; }
+.caret::after { content: ""; display: inline-block; width: 7px; height: 15px; margin-left: 2px; background: var(--text); vertical-align: -2px; animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+.actions { display: flex; gap: 2px; margin-top: 6px; opacity: 0; transition: opacity .2s; }
+.msg:hover .actions { opacity: 1; }
+.act { padding: 5px 8px; border-radius: 7px; font-size: 12.5px; color: var(--faint); display: inline-flex; align-items: center; gap: 5px; }
+.act:hover { background: var(--bg3); color: var(--text); }
+.err { color: var(--err); font-size: 14px; border: 1px solid color-mix(in srgb, var(--err) 30%, transparent); border-radius: 12px; padding: 10px 14px; background: color-mix(in srgb, var(--err) 6%, transparent); }
+
+.members { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 4px 0 16px; }
+.member { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; background: var(--bg2); cursor: pointer; transition: border-color .2s, transform .25s var(--ease); min-width: 0; }
+.member:hover { border-color: var(--line2); transform: translateY(-2px); }
+.member .mh { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.member .mh b { color: var(--text); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member .mt { font-size: 12.5px; color: var(--muted); max-height: 78px; overflow: hidden; mask-image: linear-gradient(#000 55%, transparent); }
+.member .st { margin-left: auto; font-size: 11px; color: var(--faint); font-family: var(--mono); }
+.member.done .st { color: var(--ok); }
+.steps { border-left: 1px solid var(--line2); margin: 4px 0 18px 8px; padding-left: 18px; }
+.step { position: relative; margin-bottom: 14px; }
+.step::before { content: ""; position: absolute; left: -23px; top: 6px; width: 9px; height: 9px; border-radius: 50%; background: var(--bg); border: 1px solid var(--line2); transition: background .3s; }
+.step.run::before { background: var(--faint); animation: pulse 1.2s infinite; }
+.step.done::before { background: var(--ink); border-color: var(--ink); }
+@keyframes pulse { 50% { opacity: .35; } }
+.step .sh { font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.step .sh b { color: var(--text); font-weight: 500; }
+.step .sh span { font-family: var(--mono); font-size: 12px; color: var(--faint); }
+.step .sb { margin-top: 6px; font-size: 14px; display: none; }
+.step.open .sb { display: block; }
+
+.cards { display: grid; gap: 14px; }
+.flash { perspective: 1000px; height: 210px; cursor: pointer; }
+.flash-in { position: relative; height: 100%; transition: transform .6s var(--ease); transform-style: preserve-3d; }
+.flash.flip .flash-in { transform: rotateY(180deg); }
+.flash-f, .flash-b { position: absolute; inset: 0; backface-visibility: hidden; border: 1px solid var(--line); border-radius: 16px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 24px; background: var(--bg2); }
+.flash-f { font-size: 21px; font-weight: 500; letter-spacing: -.01em; line-height: 1.35; }
+.flash-b { transform: rotateY(180deg); background: var(--bg3); }
+.fc-nav { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 13px; }
+.q { border: 1px solid var(--line); border-radius: 14px; padding: 16px; background: var(--bg2); }
+.q h4 { margin: 0 0 12px; font-weight: 500; }
+.opt { display: block; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 9px 13px; margin-bottom: 8px; transition: border-color .2s, background .2s; }
+.opt:hover { border-color: var(--line2); }
+.opt.right { border-color: var(--ok); background: color-mix(in srgb, var(--ok) 9%, transparent); }
+.opt.wrong { border-color: var(--err); background: color-mix(in srgb, var(--err) 8%, transparent); }
+.why { font-size: 13.5px; color: var(--muted); margin-top: 6px; }
+.btn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--line2); background: transparent; font-size: 14px; transition: border-color .2s, background .2s; }
+.btn:hover { background: var(--bg3); }
+.btn.dark { background: var(--ink); color: var(--onink); border-color: var(--ink); }
+.btn.dark:hover { opacity: .9; }
+
+/* empty chat: the composer in the middle, like it should be */
+.welcome { max-width: 760px; margin: 0 auto; padding: 17vh 22px 80px; }
+.welcome h1 { font-size: clamp(28px, 3.6vw, 38px); letter-spacing: -.035em; font-weight: 600; line-height: 1.1; margin: 0 0 8px; text-align: center; animation: rise .5s var(--ease) both; }
+.welcome p.lead { color: var(--muted); font-size: 15px; max-width: 560px; margin: 0 auto 26px; text-align: center; animation: rise .5s .05s var(--ease) both; }
+.welcome .slot { animation: rise .5s .1s var(--ease) both; }
+.welcome .slot .composer { box-shadow: var(--shadow); }
+.sugs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 16px; animation: rise .5s .15s var(--ease) both; }
+.sug { text-align: left; border: 1px solid var(--line); border-radius: 12px; padding: 11px 14px; background: transparent; transition: border-color .2s, background .2s; display: flex; gap: 10px; align-items: baseline; }
+.sug:hover { border-color: var(--line2); background: var(--bg2); }
+.sug .k { font-family: var(--mono); font-size: 11px; color: var(--faint); flex: none; min-width: 74px; }
+.sug .v { font-size: 13.5px; color: var(--muted); }
+.sug:hover .v { color: var(--text); }
+.how { margin-top: 30px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; color: var(--faint); font-size: 13px; animation: rise .5s .2s var(--ease) both; }
+.how b { display: block; color: var(--muted); font-weight: 500; margin-bottom: 2px; }
+
+.composer-wrap { position: absolute; left: 0; right: 0; bottom: 0; padding: 0 22px calc(18px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 40%); pointer-events: none; }
+.composer-wrap.hide { display: none; }
+.composer { pointer-events: auto; max-width: 760px; margin: 0 auto; border: 1px solid var(--line2); border-radius: var(--r-lg); background: var(--bg2); transition: border-color .2s, box-shadow .3s; }
+.composer:focus-within { border-color: var(--faint); }
+.route { display: flex; align-items: center; gap: 8px; padding: 10px 14px 0; min-height: 30px; flex-wrap: wrap; }
+.route .chip { animation: rise .3s var(--ease) both; }
+.attached { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 14px 0; }
+.attached:empty { display: none; }
+.att-pill { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 3px 6px 3px 8px; font-size: 12.5px; color: var(--muted); max-width: 220px; background: var(--bg); }
+.att-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.att-pill img { width: 22px; height: 22px; object-fit: cover; border-radius: 5px; }
+.att-pill button { padding: 0 4px; color: var(--faint); }
+textarea#input { display: block; width: 100%; border: 0; outline: none; resize: none; background: transparent; padding: 10px 16px 6px; max-height: 220px; min-height: 26px; line-height: 1.55; font-size: 15.5px; }
+textarea#input::placeholder { color: var(--faint); }
+.bar { display: flex; align-items: center; gap: 2px; padding: 6px 8px 8px 10px; }
+.icon { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); transition: background .15s, color .15s; }
+.icon:hover { background: var(--bg3); color: var(--text); }
+.icon.on { color: var(--onink); background: var(--ink); }
+.bar .sp { flex: 1; }
+.hint { font-size: 12px; color: var(--faint); padding-right: 8px; font-family: var(--mono); }
+.send { width: 34px; height: 34px; border-radius: 9px; background: var(--ink); color: var(--onink); display: inline-flex; align-items: center; justify-content: center; transition: transform .2s var(--ease), opacity .2s; }
+.send:disabled { opacity: .2; cursor: default; }
+.send:not(:disabled):hover { transform: translateY(-1px); }
+
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.55); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 50; opacity: 0; pointer-events: none; transition: opacity .25s; padding: 16px; }
+:root[data-theme="light"] .overlay { background: rgba(10,10,10,.25); }
+.overlay.show { opacity: 1; pointer-events: auto; }
+.modal { width: min(640px, 100%); max-height: min(86dvh, 820px); overflow-y: auto; background: var(--bg2); border: 1px solid var(--line2); border-radius: 20px; box-shadow: 0 40px 100px rgba(0,0,0,.5); padding: 26px; transform: translateY(10px) scale(.985); transition: transform .35s var(--ease); }
+.overlay.show .modal { transform: none; }
+.modal h2 { font-weight: 600; letter-spacing: -.025em; font-size: 22px; margin: 0 0 4px; }
+.modal .sub { color: var(--muted); margin: 0 0 22px; font-size: 14px; }
+.field { margin-bottom: 20px; }
+.field label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 7px; }
+.field .help { font-size: 12.5px; color: var(--faint); margin-top: 7px; }
+.inp { width: 100%; height: 40px; border: 1px solid var(--line2); border-radius: 10px; padding: 0 12px; background: var(--bg); outline: none; transition: border-color .2s; }
+.inp:focus { border-color: var(--faint); }
+.row { display: flex; gap: 8px; align-items: center; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--line); }
+.toggle .tl { font-size: 14px; } .toggle .td { font-size: 12.5px; color: var(--muted); }
+.sw { width: 38px; height: 22px; border-radius: 99px; background: var(--line2); position: relative; flex: none; transition: background .25s; }
+.sw::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--bg); transition: transform .3s var(--ease); }
+.sw.on { background: var(--ink); } .sw.on::after { transform: translateX(16px); }
+.routes { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.rt { display: grid; grid-template-columns: 120px 1fr; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); font-size: 13.5px; }
+.rt:first-child { border-top: 0; }
+.rt select { width: 100%; height: 34px; border: 1px solid var(--line2); border-radius: 8px; background: var(--bg); padding: 0 8px; font-size: 13px; }
+.status { font-size: 13px; margin-top: 8px; }
+.seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.seg button { text-align: left; border: 1px solid var(--line2); border-radius: 11px; padding: 10px 11px; transition: border-color .2s, background .2s; }
+.seg button:hover { background: var(--bg3); }
+.seg button.on { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.seg b { display: block; font-weight: 500; font-size: 14px; }
+.seg span { display: block; color: var(--muted); font-size: 12px; line-height: 1.35; margin-top: 2px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pills button { height: 32px; padding: 0 13px; border: 1px solid var(--line2); border-radius: 99px; font-size: 13px; transition: background .2s, color .2s, border-color .2s; }
+.pills button:hover { background: var(--bg3); }
+.pills button.on { background: var(--ink); color: var(--onink); border-color: var(--ink); }
+select.inp { appearance: auto; }
+textarea.inp.ans { height: auto; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+.graded { font-size: 14px; margin-bottom: 6px; }
+.graded b { font-weight: 600; margin-right: 4px; }
+.thinking { font-size: 14px; color: transparent; background: linear-gradient(90deg, var(--faint) 0%, var(--text) 50%, var(--faint) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; animation: shimmer 1.6s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.act.cost { cursor: default; margin-left: auto; font-variant-numeric: tabular-nums; font-family: var(--mono); }
+.act.cost:hover { background: none; color: var(--faint); }
+.status.ok { color: var(--ok); } .status.bad { color: var(--err); }
+.preview-frame { width: 100%; height: 70dvh; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--onink); padding: 10px 16px; border-radius: 10px; font-size: 14px; opacity: 0; transition: opacity .25s, transform .35s var(--ease); z-index: 60; pointer-events: none; }
+.toast.show { opacity: 1; transform: translateX(-50%); }
+
+/* ============================== motion: small, quick, everywhere ============================== */
+/* press: everything you can click gives a little under your finger */
+.b, .btn, .icon, .send, .sug, .mode, .new-chat, .sb-btn, .seg button, .pills button, .tiers button, .chip.click, .act, .code-h button, .opt, .member, .convo, .menu-btn {
+	transition: transform .16s var(--ease), background-color .2s, border-color .2s, color .2s, opacity .2s, box-shadow .25s;
+}
+.b:active, .btn:active, .icon:active, .sug:active, .mode:active, .new-chat:active, .sb-btn:active, .seg button:active, .pills button:active, .tiers button:active, .chip.click:active, .act:active, .code-h button:active, .menu-btn:active { transform: scale(.96); }
+.send:not(:disabled):active { transform: scale(.92); }
+.opt:active, .member:active, .card:active { transform: scale(.99); }
+.convo:hover { transform: translateX(2px); }
+.convo:active { transform: translateX(2px) scale(.98); }
+.b.pri:hover, .btn.dark:hover { box-shadow: 0 6px 20px color-mix(in srgb, var(--ink) 18%, transparent); }
+/* the send button wakes up when there's something to send */
+.send:not(:disabled) { animation: wake .3s var(--ease); }
+@keyframes wake { from { transform: scale(.85); opacity: .4; } to { transform: none; opacity: 1; } }
+/* keyboard focus is always visible */
+:focus-visible { outline: 2px solid var(--faint); outline-offset: 2px; border-radius: 8px; }
+textarea:focus-visible, input:focus-visible { outline: none; }
+/* site ↔ app, and theme changes, ease in instead of snapping */
+.site, .app { animation: fade .4s var(--ease) both; }
+@keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+body, .sidebar, .composer, .card, .modal, .nav, .demo, .table, .chip, .sug, .msg.user .bubble, .code { transition-property: background-color, border-color, color, transform, box-shadow, opacity; transition-duration: .3s; transition-timing-function: var(--ease); }
+/* nav links underline from the left */
+.nav-links a { position: relative; }
+.nav-links a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -5px; height: 1px; background: currentColor; transform: scaleX(0); transform-origin: left; transition: transform .25s var(--ease); }
+.nav-links a:hover::after { transform: scaleX(1); }
+/* FAQ answers slide in; the chat list and suggestions arrive one after another */
+.faq details[open] p { animation: rise .3s var(--ease) both; }
+.sug:nth-child(2) { animation-delay: .04s; } .sug:nth-child(3) { animation-delay: .08s; } .sug:nth-child(4) { animation-delay: .12s; }
+.sug { animation: rise .45s var(--ease) both; }
+.convo { animation: rise .3s var(--ease) both; }
+.tr { transition: background-color .2s; }
+.tr:not(.th):hover { background: var(--bg3); }
+.card .ic { transition: transform .3s var(--ease), border-color .2s; }
+.card:hover .ic { transform: translateY(-2px); border-color: var(--faint); }
+.toast.show { animation: pop .3s var(--ease); }
+
+/* ============================== small screens ============================== */
+.scrim { display: none; }
+@media (max-width: 960px) {
+	.grid4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.nav-links { display: none; }
+}
+@media (max-width: 860px) {
+	.app { grid-template-columns: 1fr; }
+	.sidebar { position: fixed; z-index: 40; top: 0; bottom: 0; left: 0; width: min(86vw, 320px); transform: translateX(-102%); transition: transform .4s var(--ease); box-shadow: var(--shadow); padding-top: env(safe-area-inset-top); }
+	.sidebar.open { transform: none; }
+	.scrim { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 39; opacity: 0; pointer-events: none; transition: opacity .3s; }
+	.scrim.show { opacity: 1; pointer-events: auto; }
+	.menu-btn { display: inline-flex; }
+	.topbar { padding: 0 10px; padding-top: env(safe-area-inset-top); height: calc(54px + env(safe-area-inset-top)); }
+	.mode { padding: 5px 9px; font-size: 13px; }
+	#topChip { display: none; }
+	.thread, .welcome { padding-left: 16px; padding-right: 16px; }
+	.welcome { padding-top: 10vh; }
+	.composer-wrap { padding-left: 10px; padding-right: 10px; }
+	.sugs, .how, .steps3, .split { grid-template-columns: 1fr; }
+	.members { grid-template-columns: 1fr; }
+	.seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+	.rt { grid-template-columns: 1fr; gap: 6px; }
+	.modal { padding: 22px 18px; }
+	.msg.user > div { max-width: 92%; }
+	.actions { opacity: 1; }
+	.hint { display: none; }
+	.icon, .send { width: 40px; height: 40px; }
+	.wrap { padding: 0 16px; }
+	.hero { padding-top: 72px; }
+	.tr { grid-template-columns: 1fr 1fr; row-gap: 4px; }
+	.tr .lab, .tr.th span:nth-child(3), .tr.th span:nth-child(4) { display: none; }
+	.nav .b.sec { display: none; }
+}
+@media (max-width: 520px) { .grid4 { grid-template-columns: 1fr; } .demo-b { padding: 18px 16px 14px; } .demo-q { font-size: 15.5px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .reveal { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><circle cx="16" cy="16" r="2.6" fill="currentColor"/><ellipse cx="16" cy="16" rx="13" ry="5" fill="none" stroke="currentColor" stroke-width="1.6" transform="rotate(-30 16 16)"/><ellipse cx="16" cy="16" rx="13" ry="5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".4" transform="rotate(30 16 16)"/></symbol></defs></svg>
+
+<!-- ============================== the site ============================== -->
+<div class="site" id="site">
+	<canvas id="sky"></canvas>
+	<header class="nav" id="nav">
+		<div class="wrap">
+			<a class="logo" href="#" data-go-home><svg class="mark"><use href="#logo"/></svg>Andromeda</a>
+			<nav class="nav-links"><a href="#product">Product</a><a href="#models">Models</a><a href="#how">How it works</a><a href="#faq">FAQ</a></nav>
+			<span class="sp"></span>
+			<button class="b ghost" data-theme-toggle title="Light / dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+			<a class="b sec" href="https://github.com/" target="_blank" rel="noopener" id="ghLink">GitHub</a>
+			<button class="b pri" data-open-app>Open app</button>
+		</div>
+	</header>
+
+	<section class="hero">
+		<div class="wrap">
+			<span class="pill"><span class="tag">NEW</span>Routes to <span id="newestModel">every new model the day it ships</span></span>
+			<h1>The right model<br><span class="dim">for every message.</span></h1>
+			<p class="lead">Andromeda reads what you ask and sends it to the model that's best at it: the strongest coder for code, the best reasoner for maths, a live-search model for anything current. One OpenRouter key. No subscription.</p>
+			<div class="ctas"><button class="b pri lg" data-open-app>Start chatting</button><a class="b sec lg" href="#how">How it works</a></div>
+			<div class="fine">Free models work with a $0 balance · your key and chats never leave this browser</div>
+
+			<div class="demo" id="product">
+				<div class="demo-h"><i></i><i></i><i></i><span class="sp"></span>router · live</div>
+				<div class="demo-b">
+					<div class="demo-q"><span class="you">you</span><span class="typed" id="demoQ"></span></div>
+					<div class="demo-r" id="demoR"></div>
+				</div>
+				<div class="demo-tasks" id="demoTasks"></div>
+			</div>
+			<div class="logos"><span>Anthropic</span><span>OpenAI</span><span>Google</span><span>xAI</span><span>Perplexity</span><span>Moonshot</span><span>DeepSeek</span><span>Qwen</span></div>
+		</div>
+	</section>
+
+	<section class="block reveal">
+		<div class="wrap">
+			<div class="eyebrow">Four ways to work</div>
+			<h2>Not one chatbot. A team of the best ones.</h2>
+			<p class="sub2">Every mode uses the strongest model for each step, and shows you which one did what.</p>
+			<div class="grid4">
+				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div><h3>Auto</h3><p>Ask anything. It works out what kind of task it is and picks the model that's best at it.</p><div class="flow">code → Claude<br>maths → GPT<br>news → Sonar</div></div>
+				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="17" r="2.5"/><path d="M8 9.5l2.6 5.5M16 9.5l-2.6 5.5"/></svg></div><h3>Council</h3><p>Three labs answer the same question in parallel. A fourth reads all three and writes the best single answer.</p><div class="flow">3 answers → 1 verdict</div></div>
+				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h16M6 16l4-10 4 10M8 12h4M16 6l2 10"/></svg></div><h3>Build</h3><p>Brainstormed, planned, built and reviewed, each step by a different model, until it's finished.</p><div class="flow">idea → plan → build → review</div></div>
+				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h4"/></svg></div><h3>Study</h3><p>Any topic or your own notes, turned into flashcards, a quiz, open questions or a two-voice podcast.</p><div class="flow">notes → cards · quiz · podcast</div></div>
+			</div>
+		</div>
+	</section>
+
+	<section class="block reveal" id="models">
+		<div class="wrap">
+			<div class="eyebrow">Who handles what <span class="live"><i></i>live from OpenRouter</span></div>
+			<h2>Today's best model for each kind of task.</h2>
+			<p class="sub2">Read live from OpenRouter's catalog, so when a lab ships something better, Andromeda uses it that day. Pin your own picks any time.</p>
+			<div class="tiers" id="tierTabs"></div>
+			<div class="table" id="modelTable"><div class="tr th"><span>Task</span><span>Model</span><span>Lab</span><span>$ / M out</span></div><div class="tr"><span class="task">Loading the catalog…</span></div></div>
+		</div>
+	</section>
+
+	<section class="block reveal" id="how">
+		<div class="wrap">
+			<div class="eyebrow">How it works</div>
+			<h2>Three steps. Then you just ask.</h2>
+			<p class="sub2">No account, no server, nothing to install. It's one page that talks to OpenRouter from your browser.</p>
+			<div class="steps3">
+				<div class="card"><h3>Paste an OpenRouter key</h3><p>One key gives you every model from every lab. Free models work with a $0 balance; paid ones bill per token at OpenRouter's prices.</p></div>
+				<div class="card"><h3>Ask, attach, or talk</h3><p>Type, drop in files and images, dictate, or switch on talk mode for a hands-free conversation.</p></div>
+				<div class="card"><h3>See where it went</h3><p>Every answer shows which model wrote it, why it was picked, and what it cost. Override the choice whenever you like.</p></div>
+			</div>
+			<div class="split" style="margin-top:12px">
+				<div class="card big"><h3>Private by design</h3><p>Your key lives in this browser's storage and is only ever sent to openrouter.ai. Chats stay on your device and export to a file whenever you want.</p><div class="kv"><div>Servers of ours<b>none</b></div><div>Where your key goes<b>openrouter.ai</b></div><div>Where chats live<b>this browser</b></div></div></div>
+				<div class="card big"><h3>Pay for what you use</h3><p>No subscription. Pick a quality level and Andromeda stays inside it, from each lab's flagship down to entirely free models.</p><div class="kv"><div>Best<b>each lab's top model</b></div><div>Balanced<b>≤ $20 / M tokens</b></div><div>Economy<b>≤ $5 / M tokens</b></div><div>Free<b>$0</b></div></div></div>
+			</div>
+		</div>
+	</section>
+
+	<section class="block reveal" id="faq">
+		<div class="wrap faq">
+			<div class="eyebrow">FAQ</div>
+			<h2>Questions</h2>
+			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher. Andromeda keeps track so you don't have to.</p></details>
+			<details><summary>How does it decide where a message goes?</summary><p>Instantly and without an extra model call: it reads what you wrote and what you attached (code, maths, a question about today, an image) and picks the current flagship of the lab that's strongest at that kind of task, within your price setting.</p></details>
+			<details><summary>What does it cost?</summary><p>Andromeda is free. You pay OpenRouter per token for paid models, and every answer shows its cost. Choose Free to use only $0 models.</p></details>
+			<details><summary>Is my data safe?</summary><p>There's no Andromeda server. Your key is stored in your browser and sent only to openrouter.ai with each request. Your chats stay in this browser.</p></details>
+			<details><summary>Can I choose the model myself?</summary><p>Yes. In Settings you can pin any model for any kind of task, or switch the whole thing to a cheaper tier.</p></details>
+		</div>
+	</section>
+
+	<div class="wrap reveal">
+		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">The best model for it is already picked.</p><button class="b pri lg" data-open-app>Open Andromeda</button></div>
+	</div>
+	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><span>MIT licensed · runs entirely in your browser</span><a href="https://openrouter.ai" target="_blank" rel="noopener">OpenRouter</a></div></footer>
+</div>
+
+<!-- ============================== the app ============================== -->
+<div class="app">
+	<aside class="sidebar" id="sidebar">
+		<div class="brand">
+			<svg class="mark"><use href="#logo"/></svg>
+			<span class="brand-name">Andromeda</span>
+			<a class="home" href="#" data-go-home>Home</a>
+		</div>
+		<button class="new-chat" id="newChat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New chat<kbd>⌘K</kbd></button>
+		<div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search chats"></div>
+		<div class="convos" id="convos"></div>
+		<div class="sb-foot">
+			<button class="sb-btn" id="openSettings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings<span class="key-dot" id="keyDot"></span></button>
+			<button class="sb-btn" id="themeBtn" style="flex:0 0 auto" title="Light / dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+		</div>
+	</aside>
+	<div class="scrim" id="scrim"></div>
+
+	<main class="main">
+		<header class="topbar" id="topbar">
+			<button class="menu-btn" id="menuBtn" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
+			<div class="modes" id="modes">
+				<span class="mode-pill" id="modePill"></span>
+				<button class="mode active" data-mode="auto">Auto</button>
+				<button class="mode" data-mode="council">Council</button>
+				<button class="mode" data-mode="build">Build</button>
+				<button class="mode" data-mode="study">Study</button>
+			</div>
+			<div class="spacer"></div>
+			<span class="chip" id="topChip"><span class="dot"></span><span id="topChipText">Not connected</span></span>
+			<button class="menu-btn" id="newChatTop" aria-label="New chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+		</header>
+
+		<div class="scroller" id="scroller">
+			<div id="view"></div>
+		</div>
+
+		<div class="composer-wrap" id="dock">
+			<div class="composer" id="composer">
+				<div class="route" id="route"></div>
+				<div class="attached" id="attached"></div>
+				<textarea id="input" rows="1" placeholder="Ask anything. Andromeda picks the best model for it."></textarea>
+				<div class="bar">
+					<button class="icon" id="attachBtn" title="Attach files or images"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
+					<button class="icon" id="micBtn" title="Dictate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+					<button class="icon" id="talkBtn" title="Talk mode: hands-free conversation"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/></svg></button>
+					<span class="sp"></span>
+					<span class="hint">↵ send · ⇧↵ new line</span>
+					<button class="send" id="sendBtn" disabled aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+				</div>
+			</div>
+		</div>
+		<input type="file" id="fileInput" multiple hidden>
+	</main>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+// =====================================================================================
+// Andromeda: one OpenRouter key, every model; each request routed to the model best at it.
+// Everything runs in your browser. Your key is kept in localStorage and only sent to openrouter.ai.
+// =====================================================================================
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const API = "https://openrouter.ai/api/v1";
+
+// ---------------------------------------------------------------- storage
+const store = {
+	get(k, d) { try { const v = localStorage.getItem("andromeda." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+	set(k, v) { try { localStorage.setItem("andromeda." + k, JSON.stringify(v)); } catch (e) { toast("Storage is full: delete a few old chats"); } },
+};
+const settings = Object.assign({ key: "", tier: "best", overrides: {}, theme: "system", synth: "", lang: "auto", tone: "default" }, store.get("settings", {}));
+const saveSettings = () => store.set("settings", settings);
+let convos = store.get("convos", []);
+let current = null;
+let mode = "auto";
+let busy = null; // AbortController while answering
+let attachments = [];
+
+// ---------------------------------------------------------------- the model catalog
+// Read live from OpenRouter (public endpoint), cached for 6 hours, so new models are picked up on their own.
+let catalog = [];
+async function loadCatalog(force) {
+	const cached = store.get("catalog", null);
+	if (!force && cached && Date.now() - cached.at < 6 * 3600e3 && cached.models.length) { catalog = cached.models; return catalog; }
+	try {
+		const r = await fetch(API + "/models");
+		const j = await r.json();
+		const list = Array.isArray(j) ? j : j.data || [];
+		catalog = list.map((m) => ({
+			id: m.id,
+			name: (m.name || m.display_name || m.id).replace(/^[^:]+:\s*/, ""),
+			created: m.created || Date.parse(m.created_at || 0) / 1000 || 0,
+			ctx: m.context_length || m.max_input_tokens || 0,
+			pin: Number(m.pricing?.prompt || 0) * 1e6,
+			pout: Number(m.pricing?.completion || 0) * 1e6,
+			input: m.architecture?.input_modalities || (m.capabilities?.image_input ? ["text", "image"] : ["text"]),
+			output: m.architecture?.output_modalities || ["text"],
+		})).filter((m) => m.id && m.output.includes("text"));
+		store.set("catalog", { at: Date.now(), models: catalog });
+	} catch (e) {
+		catalog = cached?.models || [];
+	}
+	return catalog;
+}
+
+// ---------------------------------------------------------------- routing
+// What kind of request is this? Cheap and instant (no extra model call).
+const TASK_INFO = {
+	code: { label: "Code", why: "strongest at writing and fixing code" },
+	reasoning: { label: "Reasoning", why: "best at maths, logic and step-by-step problems" },
+	brainstorm: { label: "Brainstorm", why: "most original ideas" },
+	write: { label: "Writing", why: "best prose and editing" },
+	research: { label: "Research", why: "searches the live web and cites sources" },
+	vision: { label: "Vision", why: "best at reading images" },
+	quick: { label: "Quick", why: "fast and cheap for everyday questions" },
+};
+function classify(text, atts = []) {
+	const t = (text || "").toLowerCase();
+	if (atts.some((a) => a.kind === "image")) return "vision";
+	if (/```|\b(code|bug|error|exception|stack ?trace|function|class|refactor|typescript|javascript|python|java\b|rust|golang|sql|regex|api|compile|html|css|react|vue|component|script|implement|debug|unit test)\b/.test(t) || atts.some((a) => /\.(js|ts|py|java|rs|go|c|cpp|cs|rb|php|html|css|sql|json|ya?ml|sh)$/i.test(a.name))) return "code";
+	if (/\b(prove|proof|solve|equation|integral|derivative|probability|calculate|theorem|logic puzzle|riddle|optimi[sz]e|how many)\b|\d\s*[+\-*/^=]\s*\d/.test(t)) return "reasoning";
+	if (/\b(latest|news|today|this week|current(ly)?|right now|20[2-3]\d|sources?|cite|look up|search|market size|statistics|price of|who won|what happened)\b/.test(t)) return "research";
+	if (/\b(ideas?|brainstorm|names? for|slogans?|startup|concepts?|creative|imagine|what if|pitch|tagline|themes? for)\b/.test(t)) return "brainstorm";
+	if (/\b(write|rewrite|essay|email|letter|blog|article|story|poem|lyrics|tone|edit|proofread|summari[sz]e|caption|cover letter|translate)\b/.test(t)) return "write";
+	return t.length > 600 ? "write" : "quick";
+}
+// Which labs do each kind of task best, in order. From each lab Andromeda takes its current flagship, worked out
+// from the live catalog (the newest model of the lab's top-priced line), so a new release is used the day it ships,
+// and a lower Quality setting simply steps down each lab's line-up (Fable → Opus → Sonnet) as the price cap tightens.
+const LABS = {
+	code: ["anthropic", "openai", "google", "moonshotai", "x-ai", "z-ai", "qwen", "deepseek"],
+	reasoning: ["openai", "google", "anthropic", "x-ai", "deepseek", "qwen", "moonshotai"],
+	brainstorm: ["anthropic", "openai", "x-ai", "google", "moonshotai"],
+	write: ["anthropic", "openai", "google", "moonshotai", "x-ai"],
+	research: ["perplexity", "google", "openai", "x-ai"],
+	vision: ["google", "openai", "anthropic", "qwen"],
+	quick: ["google", "openai", "anthropic", "x-ai"],
+};
+// What the free models are good at. They come and go, so anything unlisted falls back to the biggest free model.
+const FREE = {
+	code: [/poolside\/laguna-s/, /code/, /nemotron-\d.*ultra/, /inkling(?!-small)/],
+	reasoning: [/nemotron-\d.*ultra/, /inkling(?!-small)/, /deepseek/, /nemotron/],
+	brainstorm: [/inkling(?!-small)/, /nemotron-\d.*ultra/, /gemma/],
+	write: [/inkling(?!-small)/, /nemotron-\d.*ultra/, /gemma/],
+	research: [/inkling(?!-small)/, /nemotron-\d.*ultra/],
+	vision: [/inkling(?!-small)/, /gemma/],
+	quick: [/inkling-small/, /gemma/, /lightning/, /inkling/],
+};
+const FAST = /flash|luna|haiku|mini|fast/;
+// SKUs of a model rather than models (batch pricing, speed tiers, tool-tuned variants) and things that aren't chat models
+const SKIP = /(:batch|:extended|:thinking|:beta|customtools|-prime\b|contributor|multi-agent|safety|guard|embed|tts|audio|transcri|realtime|image|-exp\b|deep-research|lite|latest)/;
+const TIERS = {
+	best: { label: "Best", cap: 0, help: "Each lab's top model" },
+	balanced: { label: "Balanced", cap: 20, help: "Up to $20 / M tokens" },
+	economy: { label: "Economy", cap: 5, help: "Up to $5 / M tokens" },
+	free: { label: "Free", cap: 0, help: "$0 · slower, smaller" },
+};
+function usable(m, task) {
+	if (SKIP.test(m.id) || m.id.startsWith("openrouter/") || !m.output.every((o) => o === "text")) return false;
+	if (task !== "research" && /search/.test(m.id)) return false;
+	if (/^openai\/.*-pro$/.test(m.id)) return false; // OpenAI's -pro SKUs think for minutes per answer
+	if ((settings.tier === "free") !== m.id.endsWith(":free")) return false;
+	const cap = TIERS[settings.tier]?.cap || 0;
+	if (cap && m.pout > cap) return false;
+	if (task === "vision" && !m.input.includes("image")) return false;
+	return true;
+}
+const provider = (id) => id.split("/")[0];
+const line = (id) => id.replace(/:.*$/, "").replace(/\d+(\.\d+)*/g, "#");
+const size = (m) => Number((m.id.match(/(\d+)b\b/) || [])[1] || 0);
+// the model's generation: GPT-6.1 → 6, Claude Opus 5.5 → 5, Kimi K3 → 3 (parameter counts and dates aren't versions)
+function gen(m) {
+	for (const x of m.id.split("/")[1].matchAll(/(\d+)(?:\.\d+)?(?![\d.]*b\b)/g)) if (+x[1] < 100) return +x[1];
+	return 0;
+}
+// A lab's best model for this task right now (or its newest fast one)
+function flagship(lab, task, fast) {
+	let pool = catalog.filter((m) => provider(m.id) === lab && usable(m, task));
+	// "-pro" that's only a costlier mode of the same model at the same price
+	pool = pool.filter((m) => !(/-pro$/.test(m.id) && pool.some((x) => x.id === m.id.slice(0, -4) && x.pout === m.pout)));
+	if (fast) pool = pool.filter((m) => FAST.test(m.id));
+	if (!pool.length) return null;
+	const newest = Math.max(...pool.map((m) => m.created));
+	pool = pool.filter((m) => m.created > newest - 200 * 86400);
+	if (fast) return pool.sort((a, b) => gen(b) - gen(a) || b.created - a.created)[0];
+	// the newest generation that already has a top-end model in it (not just a small one released first)
+	const top = Math.max(...pool.map((m) => m.pout));
+	const g = Math.max(...pool.filter((m) => m.pout >= top * 0.4).map(gen));
+	pool = pool.filter((m) => gen(m) >= g);
+	const lines = {};
+	for (const m of pool) { const l = line(m.id); if (!lines[l] || m.created > lines[l].created) lines[l] = m; }
+	return Object.values(lines).sort((a, b) => b.pout - a.pout || b.created - a.created || a.id.length - b.id.length)[0];
+}
+// The candidates for a task, best first, one per lab
+function rank(task) {
+	const out = [];
+	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
+	add(catalog.find((m) => m.id === settings.overrides[task]));
+	if (settings.tier === "free") {
+		const pool = catalog.filter((m) => usable(m, task)).sort((a, b) => size(b) - size(a) || b.created - a.created);
+		for (const re of FREE[task] || FREE.quick) add(pool.find((m) => re.test(m.id)));
+		pool.forEach(add);
+		return out.slice(0, 6);
+	}
+	for (const lab of LABS[task] || LABS.quick) add(flagship(lab, task, task === "quick"));
+	if (out.length < 2) catalog.filter((m) => usable(m, task)).sort((a, b) => b.created - a.created).slice(0, 3).forEach(add);
+	return out;
+}
+const best = (task) => rank(task)[0] || { id: "openrouter/auto", name: "OpenRouter Auto", pout: 0 };
+// N strong models from different labs (for the council)
+function panel(task, n) {
+	const seen = new Set(), out = [];
+	for (const m of [...rank(task), ...rank("reasoning"), ...rank("write")]) {
+		if (seen.has(provider(m.id))) continue;
+		seen.add(provider(m.id));
+		out.push(m);
+		if (out.length === n) break;
+	}
+	return out;
+}
+const shortName = (m) => (m.name || m.id).replace(/\s*\(.*?\)\s*/g, "").trim();
+
+// ---------------------------------------------------------------- OpenRouter calls
+function headers() {
+	return { "Authorization": "Bearer " + settings.key, "Content-Type": "application/json", "HTTP-Referer": location.origin || "https://andromeda.local", "X-Title": "Andromeda" };
+}
+// Stream a chat completion; calls onText(fullTextSoFar). Resolves with the full text.
+async function stream(model, messages, onText, signal, extra = {}, acc = null) {
+	const r = await fetch(API + "/chat/completions", { method: "POST", headers: headers(), signal, body: JSON.stringify({ model, messages, stream: true, ...extra }) });
+	if (!r.ok) {
+		let msg = r.statusText;
+		try { const j = await r.json(); msg = j.error?.message || msg; } catch {}
+		throw fail(msg, r.status);
+	}
+	const reader = r.body.getReader(), dec = new TextDecoder();
+	let buf = "", text = "";
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		buf += dec.decode(value, { stream: true });
+		let i;
+		while ((i = buf.indexOf("\n")) >= 0) {
+			const line = buf.slice(0, i).trim();
+			buf = buf.slice(i + 1);
+			if (!line || line.startsWith(":") || !line.startsWith("data:")) continue;
+			const data = line.slice(5).trim();
+			if (data === "[DONE]") return text;
+			let j;
+			try { j = JSON.parse(data); } catch { continue; }
+			if (j.error) throw new Error(j.error.message || "The model stopped with an error");
+			if (j.usage && acc) acc.cost = (acc.cost || 0) + (Number(j.usage.cost) || 0);
+			const d = j.choices?.[0]?.delta?.content;
+			if (d) { text += d; onText(text); }
+		}
+	}
+	return text;
+}
+function fail(message, status) {
+	const e = new Error(message);
+	e.status = Number(status) || 0;
+	return e;
+}
+async function once(model, messages, extra = {}, acc = null) {
+	const r = await fetch(API + "/chat/completions", { method: "POST", headers: headers(), body: JSON.stringify({ model, messages, ...extra }) });
+	const j = await r.json();
+	if (!r.ok || j.error) throw fail(j.error?.message || r.statusText, r.ok ? j.error?.code : r.status);
+	if (j.usage && acc) acc.cost = (acc.cost || 0) + (Number(j.usage.cost) || 0);
+	return j.choices?.[0]?.message?.content || "";
+}
+async function checkKey() {
+	const r = await fetch(API + "/key", { headers: headers() });
+	const j = await r.json();
+	if (!r.ok) throw fail(j.error?.message || "That key didn't work", r.status);
+	return j.data || j;
+}
+function parseJSON(t) {
+	const m = t.match(/```(?:json)?\s*([\s\S]*?)```/);
+	const s = (m ? m[1] : t).trim();
+	try { return JSON.parse(s); } catch {}
+	const a = s.indexOf("{"), b = s.lastIndexOf("}");
+	return JSON.parse(s.slice(a, b + 1));
+}
+
+// ---------------------------------------------------------------- conversations
+function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), msgs: [] }; convos.unshift(current); render(); }
+function save() {
+	if (current && !convos.includes(current)) convos.unshift(current);
+	convos = convos.filter((c) => c.msgs.length || c === current);
+	// keep storage small: drop image data from older chats
+	const slim = convos.map((c) => ({ ...c, msgs: c.msgs.map((m) => ({ ...m, atts: (m.atts || []).map((a) => ({ name: a.name, kind: a.kind })) })) }));
+	store.set("convos", slim);
+}
+function history() {
+	// what the model sees: the whole chat, with attachments folded into the user turns
+	return current.msgs.filter((m) => !m.error && (m.role === "user" || m.text)).map((m) => {
+		if (m.role !== "user" || !m.atts?.length) return { role: m.role, content: m.text || "" };
+		const parts = [{ type: "text", text: m.text || "" }];
+		for (const a of m.atts) {
+			if (a.kind === "image" && a.data) parts.push({ type: "image_url", image_url: { url: a.data } });
+			else if (a.kind === "text" && a.data) parts[0].text += "\n\n--- " + a.name + " ---\n" + a.data.slice(0, 60000);
+		}
+		return { role: "user", content: parts };
+	});
+}
+const LANGS = [
+	["auto", "Match my language", ""], ["en", "English", "Respond in English."], ["es", "Español", "Respond entirely in Spanish."],
+	["fr", "Français", "Respond entirely in French."], ["de", "Deutsch", "Respond entirely in German."], ["ar", "العربية", "Respond entirely in Arabic."],
+	["zh", "中文", "Respond entirely in Chinese."], ["ja", "日本語", "Respond entirely in Japanese."], ["id", "Bahasa Indonesia", "Respond entirely in Bahasa Indonesia."],
+];
+const TONES = {
+	default: ["Default", ""],
+	casual: ["Casual", "Tone: casual, friendly and conversational. Use contractions, like talking to a friend."],
+	formal: ["Formal", "Tone: formal and professional, with proper grammar and precise vocabulary."],
+	polite: ["Polite", "Tone: very polite and courteous; warm, considerate and respectful."],
+	brutal: ["Brutal", "Tone: brutally honest and direct. No sugarcoating; cut to the point."],
+	genz: ["Gen Z", "Tone: heavy Gen Z slang throughout (no cap, fr fr, lowkey, it's giving, slay) with a few emojis."],
+	genalpha: ["Gen α", "Tone: Gen Alpha slang (skibidi, sigma, rizz, W/L, based) with a few emojis."],
+};
+const langLine = () => (LANGS.find((l) => l[0] === settings.lang) || LANGS[0])[2];
+function sys(extra) {
+	const base = "You are Andromeda, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable.";
+	return { role: "system", content: [extra || base, langLine(), (TONES[settings.tone] || TONES.default)[1]].filter(Boolean).join("\n\n") };
+}
+
+// ---------------------------------------------------------------- rendering
+marked.setOptions({ gfm: true, breaks: false });
+function md(text) {
+	const html = DOMPurify.sanitize(marked.parse(text || ""));
+	const box = document.createElement("div");
+	box.innerHTML = html;
+	box.querySelectorAll("pre > code").forEach((code) => {
+		const lang = (code.className.match(/language-([\w-]+)/) || [])[1] || "";
+		try { if (lang && hljs.getLanguage(lang)) hljs.highlightElement(code); else hljs.highlightElement(code); } catch {}
+		const pre = code.parentElement, wrap = document.createElement("div");
+		wrap.className = "code";
+		wrap.innerHTML = '<div class="code-h"><span>' + esc(lang || "code") + '</span><span class="sp"></span>' + (/^(html|svg|xml)$/.test(lang) ? '<button data-preview>Preview</button>' : "") + '<button data-copy>Copy</button></div>';
+		pre.replaceWith(wrap);
+		wrap.appendChild(pre);
+	});
+	return box.innerHTML;
+}
+function routeChip(m, task, extra) {
+	return '<span class="chip"><span class="dot"></span>' + (extra ? esc(extra) + " · " : "") + "<b>" + esc(shortName(m)) + "</b>" + (task ? " · " + esc(TASK_INFO[task]?.label || task) : "") + "</span>";
+}
+function renderConvoList() {
+	const q = $("#search").value.trim().toLowerCase();
+	const list = convos.filter((c) => c.msgs.length && (!q || c.title.toLowerCase().includes(q) || c.msgs.some((m) => (m.text || "").toLowerCase().includes(q))));
+	const day = 864e5, now = Date.now();
+	const groups = [["Today", (c) => now - c.at < day], ["This week", (c) => now - c.at < 7 * day], ["Earlier", () => true]];
+	let html = "", used = new Set();
+	for (const [label, test] of groups) {
+		const g = list.filter((c) => !used.has(c) && test(c));
+		if (!g.length) continue;
+		g.forEach((c) => used.add(c));
+		html += '<div class="convo-group">' + label + "</div>" + g.map((c) => '<div class="convo' + (c === current ? " active" : "") + '" data-id="' + c.id + '"><span class="t">' + esc(c.title) + '</span><button class="x" data-del="' + c.id + '" title="Delete">✕</button></div>').join("");
+	}
+	$("#convos").innerHTML = html || '<div class="convo-group">No chats yet</div>';
+}
+function renderWelcome() {
+	const sugs = [
+		["Code", "Build a responsive pricing page in HTML and CSS"],
+		["Reasoning", "A bat and a ball cost $1.10. Explain the trap step by step"],
+		["Brainstorm", "Ten startup ideas for students with no money"],
+		["Research", "What happened in AI this week? Cite sources"],
+	];
+	const head = mode === "council" ? "Ask the council." : mode === "build" ? "What should we build?" : mode === "study" ? "What do you want to learn?" : "What can I help with?";
+	const lead = mode === "council" ? "Three labs answer at once. A fourth reads them all and writes the best single answer."
+		: mode === "build" ? "Brainstormed, planned, built and reviewed, each step by the model that's best at it."
+		: mode === "study" ? "A topic or your notes, turned into flashcards, a quiz or a two-voice podcast."
+		: "Each message goes to the model that's best at it. You'll see which one, and why.";
+	// the composer is about to be redrawn round: keep it safe in its dock first
+	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
+	$("#view").innerHTML = '<section class="welcome"><h1>' + head + '</h1><p class="lead">' + lead + '</p><div class="slot" id="slot"></div>' +
+		(mode === "study"
+			? '<div class="sugs">' + ["Photosynthesis", "The French Revolution", "Big-O notation", "Supply and demand"].map((t) => '<button class="sug" data-topic="' + esc(t) + '"><div class="k">Topic</div><div class="v">' + esc(t) + "</div></button>").join("") + "</div>"
+			: '<div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-sug="' + esc(v) + '"><div class="k">' + k + '</div><div class="v">' + esc(v) + "</div></button>").join("") + "</div>") +
+		'<div class="how"><div><b>Routed, not guessed</b>Every answer shows which model wrote it and why.</div><div><b>Always the newest</b>New models are used the day they ship.</div><div><b>Private</b>Your key and chats stay in this browser.</div></div></section>';
+	$("#slot").appendChild($("#composer"));
+	$("#dock").classList.add("hide");
+}
+function renderThread() {
+	if (!current || !current.msgs.length) { renderWelcome(); return; }
+	if ($("#composer").parentElement !== $("#dock")) { $("#dock").appendChild($("#composer")); $("#dock").classList.remove("hide"); }
+	$("#view").innerHTML = '<div class="thread" id="thread">' + current.msgs.map(renderMsg).join("") + "</div>";
+}
+function renderMsg(m, i) {
+	if (m.role === "user") {
+		const atts = (m.atts || []).length ? '<div class="att">' + m.atts.map((a) => '<span class="att-pill">' + (a.kind === "image" && a.data ? '<img src="' + a.data + '" alt="">' : "") + "<span>" + esc(a.name) + "</span></span>").join("") + "</div>" : "";
+		return '<div class="msg user" data-i="' + i + '"><div>' + atts + '<div class="bubble">' + esc(m.text) + "</div></div></div>";
+	}
+	if (m.error) return '<div class="msg" data-i="' + i + '"><div class="err">' + esc(m.error) + "</div></div>";
+	let body = "";
+	if (m.kind === "council") {
+		body += '<div class="members">' + (m.members || []).map((x, k) => '<div class="member' + (x.done ? " done" : "") + '" data-member="' + k + '"><div class="mh"><b>' + esc(x.name) + '</b><span class="st">' + (x.error ? "failed" : x.done ? "done" : "thinking…") + '</span></div><div class="mt">' + esc((x.error || x.text || "").slice(0, 400)) + "</div></div>").join("") + "</div>";
+	}
+	if (m.kind === "build") {
+		body += '<div class="steps">' + (m.steps || []).map((s, k) => '<div class="step ' + (s.done ? "done" : s.running ? "run" : "") + (s.open ? " open" : "") + '" data-step="' + k + '"><div class="sh"><b>' + esc(s.label) + "</b><span>" + esc(s.model || "") + "</span></div>" + '<div class="sb md">' + (s.text ? md(s.text) : "") + "</div></div>").join("") + "</div>";
+	}
+	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
+	const chips = (m.chips || []).join("");
+	return '<div class="msg" data-i="' + i + '"><div class="meta">' + chips + '</div>' + (m.kind === "council" || m.kind === "build" ? body : "") + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(m.text) : m.streaming && !m.kind ? '<span class="thinking">Thinking</span>' : "") + "</div>" + (m.kind === "council" || m.kind === "build" ? "" : body) +
+		(!m.streaming && m.text ? '<div class="actions"><button class="act" data-copymsg="' + i + '">Copy</button><button class="act" data-speak="' + i + '">Read aloud</button>' + (i === current.msgs.length - 1 ? '<button class="act" data-regen>Regenerate</button>' : "") + (m.cost ? '<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>" : "") + "</div>" : "") + "</div>";
+}
+// fast path while streaming: only touch the last message
+function updateLast() {
+	const i = current.msgs.length - 1;
+	const el = $('.msg[data-i="' + i + '"]');
+	if (!el) { renderThread(); return; }
+	el.outerHTML = renderMsg(current.msgs[i], i);
+	const st = current.msgs[i];
+	if (st.kind && $('[data-study="' + i + '"]')) renderStudy(st, i);
+	stick();
+}
+function render() {
+	renderConvoList();
+	renderThread();
+	current?.msgs.forEach((m, i) => STUDY[m.kind] && renderStudy(m, i));
+	updateRoute();
+}
+let pinned = true;
+function stick() { if (pinned) { const s = $("#scroller"); s.scrollTop = s.scrollHeight; } }
+
+// ---------------------------------------------------------------- the composer's routing preview
+function updateRoute() {
+	const text = $("#input").value;
+	const el = $("#route");
+	if (!settings.key) { el.innerHTML = '<span class="chip click" data-open-settings><span class="dot" style="background:var(--warn)"></span>Add your OpenRouter key to start</span>'; return; }
+	if (!catalog.length) { el.innerHTML = '<span class="chip">Loading models…</span>'; return; }
+	const task = mode === "study" ? "quick" : classify(text, attachments);
+	if (mode === "council") el.innerHTML = '<span class="chip"><span class="dot"></span>Council · ' + panel(task, 3).map((m) => "<b>" + esc(shortName(m)) + "</b>").join(" + ") + "</span>";
+	else if (mode === "build") el.innerHTML = '<span class="chip"><span class="dot"></span>Brainstorm → Plan → Build → Review</span>';
+	else if (mode === "study") el.innerHTML = '<span class="chip"><span class="dot"></span>Study · type a topic, or attach notes</span>';
+	else {
+		const m = best(task);
+		el.innerHTML = '<span class="chip click" data-pick="' + task + '" title="' + esc(TASK_INFO[task].why) + '"><span class="dot"></span>' + esc(TASK_INFO[task].label) + " → <b>" + esc(shortName(m)) + "</b></span>";
+	}
+	$("#topChipText").textContent = settings.key ? catalog.length + " models live" : "Not connected";
+}
+
+// ---------------------------------------------------------------- sending
+async function send(textOverride) {
+	const text = (textOverride ?? $("#input").value).trim();
+	if (busy) return;
+	if (!text && !attachments.length) return;
+	if (!settings.key) { openSettings(); return; }
+	let study = null;
+	if (mode === "study" && !(study = await pickStudy())) return;
+	if (!catalog.length) await loadCatalog();
+	if (!current) newConvo();
+	const atts = attachments;
+	attachments = [];
+	renderAttached();
+	$("#input").value = "";
+	autosize();
+	current.msgs.push({ role: "user", text, atts });
+	if (current.title === "New chat") current.title = text.slice(0, 48) || atts[0]?.name || "New chat";
+	current.at = Date.now();
+	pinned = true;
+	render();
+	busy = new AbortController();
+	setBusy(true);
+	try {
+		if (mode === "council") await runCouncil(text, atts);
+		else if (mode === "build") await runBuild(text, atts);
+		else if (mode === "study") await runStudy(text, atts, study);
+		else await runAuto(text, atts);
+	} catch (e) {
+		const last = current.msgs[current.msgs.length - 1];
+		if (e.name === "AbortError") { if (last.role !== "user") { last.streaming = false; last.text = (last.text || "") + "\n\n*Stopped.*"; } }
+		else {
+			if (last.role === "assistant" && !last.text && !last.kind) current.msgs.pop();
+			current.msgs.push({ role: "assistant", error: niceError(e) });
+		}
+	}
+	current.msgs.forEach((m) => (m.streaming = false));
+	busy = null;
+	setBusy(false);
+	save();
+	render();
+	if (talk.on) talk.after();
+}
+function niceError(e) {
+	const s = String(e.message || e), st = e.status || 0;
+	if (st === 401 || /unauthor|invalid.*key|authenticat/i.test(s)) return "OpenRouter didn't accept the key. Check it in Settings.";
+	if (st === 402 || /credit|insufficient/i.test(s)) return "Your OpenRouter balance is too low for this model. Add credit, or pick a lower Quality (Economy or Free) in Settings.";
+	if (st === 429 || /rate.?limit/i.test(s)) return "Rate limited by the provider. Try again in a moment, or another model.";
+	return "Something went wrong: " + s;
+}
+function setBusy(on) {
+	const b = $("#sendBtn");
+	b.disabled = !on && !$("#input").value.trim() && !attachments.length;
+	b.innerHTML = on ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>' : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+	b.setAttribute("aria-label", on ? "Stop" : "Send");
+}
+
+async function runAuto(text, atts) {
+	const task = classify(text, atts);
+	const cands = rank(task);
+	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
+	current.msgs.push(msg);
+	const hist = [sys(), ...history()];
+	// try the best model; if it fails before saying anything, the next one in line takes over
+	let lastErr;
+	for (const m of cands.length ? cands.slice(0, 3) : [best(task)]) {
+		msg.chips = [routeChip(m, task)];
+		msg.model = m.id;
+		updateLast();
+		try {
+			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, {}, msg);
+			return;
+		} catch (e) {
+			if (e.name === "AbortError" || msg.text || e.status === 401) throw e;
+			lastErr = e;
+		}
+	}
+	throw lastErr || new Error("No model answered");
+}
+
+async function runCouncil(text, atts) {
+	const task = classify(text, atts);
+	const members = panel(task, 3);
+	const judge = settings.synth && catalog.find((m) => m.id === settings.synth) || best("reasoning");
+	const msg = { role: "assistant", kind: "council", text: "", streaming: true, chips: ['<span class="chip"><span class="dot"></span>Council · ' + esc(TASK_INFO[task].label) + "</span>"], members: members.map((m) => ({ id: m.id, name: shortName(m), text: "", done: false })) };
+	current.msgs.push(msg);
+	updateLast();
+	const hist = [sys(), ...history()];
+	await Promise.all(members.map(async (m, k) => {
+		try {
+			await stream(m.id, hist, (t) => { msg.members[k].text = t; updateLast(); }, busy.signal, {}, msg);
+		} catch (e) {
+			if (e.name === "AbortError") throw e;
+			msg.members[k].error = niceError(e);
+		}
+		msg.members[k].done = true;
+		updateLast();
+	}));
+	const answers = msg.members.filter((x) => x.text).map((x) => "### Answer from " + x.name + "\n" + x.text).join("\n\n");
+	if (!answers) throw new Error("None of the council answered");
+	msg.chips.push(routeChip(judge, null, "Synthesized by"));
+	const ask = [
+		sys("You combine several expert answers into the single best answer. Keep the strongest ideas, correct anything wrong, resolve disagreements explicitly when they matter, and remove repetition. Write it as one clean answer to the user, in Markdown. Don't mention the other answers unless the disagreement itself is useful."),
+		{ role: "user", content: "The user's request:\n" + text + "\n\n" + answers },
+	];
+	await stream(judge.id, ask, (t) => { msg.text = t; updateLast(); }, busy.signal, {}, msg);
+}
+
+async function runBuild(text, atts) {
+	const kind = classify(text, atts) === "code" ? "code" : "write";
+	const plan = [
+		{ label: "Brainstorm", task: "brainstorm", prompt: (r) => "Request:\n" + r + "\n\nGive 3 to 5 genuinely different approaches. For each: the idea in one line, why it could be great, the main risk. End with which one you'd pick." },
+		{ label: "Plan", task: "reasoning", prompt: (r, prev) => "Request:\n" + r + "\n\nApproaches proposed:\n" + prev[0] + "\n\nChoose the best approach (or combine) and write a concrete, numbered plan: structure, key decisions, edge cases, and what 'done' looks like." },
+		{ label: "Build", task: kind, prompt: (r, prev) => "Request:\n" + r + "\n\nPlan to follow:\n" + prev[1] + "\n\nCarry out the plan completely. Produce the finished deliverable" + (kind === "code" ? ": complete, runnable code with no placeholders." : ".") },
+		{ label: "Review", task: "reasoning", prompt: (r, prev) => "Request:\n" + r + "\n\nDraft:\n" + prev[2] + "\n\nReview this draft hard: fix every bug, gap and weak spot you find, then output the improved FINAL version in full. After it, add a short 'What I changed' list." },
+	];
+	const other = (task, not) => rank(task).find((x) => provider(x.id) !== provider(not.id)) || best(task);
+	const ideas = best("brainstorm"), planner = other("reasoning", ideas), builder = best(kind), reviewer = other("reasoning", builder);
+	const steps = plan.map((s, k) => {
+		const m = [ideas, planner, builder, reviewer][k];
+		return { ...s, model: shortName(m), id: m.id, text: "", done: false, running: false, open: false };
+	});
+	const msg = { role: "assistant", kind: "build", text: "", streaming: true, chips: ['<span class="chip"><span class="dot"></span>Build · ' + steps.map((s) => esc(s.model)).join(" → ") + "</span>"], steps };
+	current.msgs.push(msg);
+	updateLast();
+	const outs = [];
+	for (const s of steps) {
+		s.running = true;
+		s.open = true;
+		updateLast();
+		const out = await stream(s.id, [sys(), { role: "user", content: s.prompt(text + (atts.length ? "\n\n(Attached: " + atts.map((a) => a.name).join(", ") + ")" : ""), outs) }], (t) => { s.text = t; updateLast(); }, busy.signal, {}, msg);
+		outs.push(out);
+		s.running = false;
+		s.done = true;
+		s.open = false;
+		updateLast();
+	}
+	msg.text = outs[3] || outs[2] || "";
+}
+
+// ---------------------------------------------------------------- study
+const STUDY = {
+	flashcards: { label: "Flashcards", help: "Flip through key ideas", qty: [5, 10, 15, 20] },
+	quiz: { label: "Multiple choice", help: "Pick the right option", qty: [3, 5, 8, 10] },
+	open: { label: "Q&A quiz", help: "Type answers, get graded", qty: [3, 5, 8, 10] },
+	podcast: { label: "Podcast", help: "Two hosts explain it aloud" },
+};
+const PODCAST = { "2 min": 280, "5 min": 700, "10 min": 1400, "20 min": 2800, "30 min": 4200, "45 min": 6300, "1 hour": 8400 };
+async function runStudy(text, atts, pick) {
+	const { kind, qty, dur } = pick;
+	const source = (atts.find((a) => a.kind === "text")?.data || "").slice(0, 40000);
+	const topic = text || atts[0]?.name || "this material";
+	const m = best(kind === "podcast" ? "write" : "quick");
+	const msg = { role: "assistant", kind, text: "", streaming: true, chips: [routeChip(m, null, STUDY[kind].label)], data: null };
+	current.msgs.push(msg);
+	updateLast();
+	const ctx = source ? "\n\nUse this material:\n" + source : "";
+	const lang = langLine() ? "\n\n" + langLine() + " Keep the JSON keys in English." : "";
+	let prompt;
+	if (kind === "flashcards") prompt = "Make " + qty + ' flashcards about "' + topic + '". Return ONLY JSON: {"cards":[{"front":"short question or term","back":"clear answer, 1-3 sentences"}]}';
+	else if (kind === "quiz") prompt = "Write a " + qty + '-question multiple-choice quiz about "' + topic + '", from easy to hard. Return ONLY JSON: {"questions":[{"q":"...","options":["A","B","C","D"],"answer":0,"why":"one-sentence explanation"}]}';
+	else if (kind === "open") prompt = "Write " + qty + ' open-ended questions about "' + topic + '", from easy to hard. Return ONLY JSON: {"questions":[{"q":"...","a":"the ideal answer, 2-4 sentences"}]}';
+	else prompt = "Write a podcast episode of about " + PODCAST[dur] + " words (" + dur + ' read aloud) explaining "' + topic + '" as a conversation between two hosts, Ava and Leo. Natural, curious, no filler. Return ONLY JSON: {"title":"...","lines":[{"who":"Ava","text":"..."},{"who":"Leo","text":"..."}]}';
+	prompt += ctx + lang;
+	const out = await stream(m.id, [{ role: "user", content: prompt }], () => {}, busy.signal, { response_format: { type: "json_object" } }, msg).catch(async (e) => {
+		if (e.name === "AbortError") throw e;
+		return once(m.id, [{ role: "user", content: prompt }], {}, msg);
+	});
+	msg.data = parseJSON(out);
+	msg.text = "**" + (kind === "podcast" && msg.data.title || topic) + "**";
+}
+// Choose the format first; resolves null if closed
+function pickStudy() {
+	return new Promise((res) => {
+		const st = { kind: store.get("studyKind", "flashcards"), qty: 10, dur: "5 min" };
+		if (!STUDY[st.kind]) st.kind = "flashcards";
+		const draw = () => {
+			const opts = st.kind === "podcast" ? Object.keys(PODCAST) : STUDY[st.kind].qty;
+			const cur = st.kind === "podcast" ? st.dur : st.qty;
+			openModal('<h2>Study</h2><p class="sub">How do you want to learn it?</p><div class="seg">' +
+				Object.entries(STUDY).map(([k, t]) => '<button data-sk="' + k + '"' + (st.kind === k ? ' class="on"' : "") + "><b>" + t.label + "</b><span>" + t.help + "</span></button>").join("") +
+				'</div><div class="field" style="margin-top:18px"><label>' + (st.kind === "podcast" ? "Length" : "How many") + '</label><div class="pills">' +
+				opts.map((v) => '<button data-sv="' + v + '"' + (String(cur) === String(v) ? ' class="on"' : "") + ">" + v + "</button>").join("") +
+				'</div></div><div class="row" style="justify-content:flex-end"><button class="btn" id="stCancel">Cancel</button><button class="btn dark" id="stGo">Create</button></div>');
+			modalClose = () => res(null);
+			$$("[data-sk]").forEach((b) => b.onclick = () => { st.kind = b.dataset.sk; if (STUDY[st.kind].qty && !STUDY[st.kind].qty.includes(st.qty)) st.qty = STUDY[st.kind].qty[1]; draw(); });
+			$$("[data-sv]").forEach((b) => b.onclick = () => { if (st.kind === "podcast") st.dur = b.dataset.sv; else st.qty = Number(b.dataset.sv); draw(); });
+			$("#stGo").onclick = () => { store.set("studyKind", st.kind); modalClose = null; closeModal(); res(st); };
+			$("#stCancel").onclick = closeModal;
+		};
+		draw();
+	});
+}
+function renderStudy(m, i) {
+	const box = $('[data-study="' + i + '"]');
+	if (!box || !m.data) return;
+	if (m.kind === "flashcards") {
+		const cards = m.data.cards || [];
+		let k = m.fc || 0;
+		box.innerHTML = '<div class="cards"><div class="flash" id="fc' + i + '"><div class="flash-in"><div class="flash-f">' + esc(cards[k]?.front || "") + '</div><div class="flash-b">' + esc(cards[k]?.back || "") + '</div></div></div><div class="fc-nav"><button class="btn" data-fc="-1">Previous</button><span>' + (k + 1) + " / " + cards.length + ' · tap the card to flip</span><button class="btn" data-fc="1">Next</button></div></div>';
+		$("#fc" + i).onclick = (e) => e.currentTarget.classList.toggle("flip");
+		$$("[data-fc]", box).forEach((b) => b.onclick = () => { m.fc = (k + Number(b.dataset.fc) + cards.length) % cards.length; renderStudy(m, i); });
+	} else if (m.kind === "quiz") {
+		const qs = m.data.questions || [];
+		m.picked = m.picked || {};
+		const score = Object.entries(m.picked).filter(([q, a]) => qs[q]?.answer === a).length;
+		box.innerHTML = '<div class="cards">' + qs.map((q, n) => '<div class="q"><h4>' + (n + 1) + ". " + esc(q.q) + "</h4>" + q.options.map((o, a) => {
+			const p = m.picked[n];
+			const cls = p == null ? "" : a === q.answer ? " right" : a === p ? " wrong" : "";
+			return '<button class="opt' + cls + '" data-q="' + n + '" data-a="' + a + '"' + (p != null ? " disabled" : "") + ">" + esc(o) + "</button>";
+		}).join("") + (m.picked[n] != null ? '<div class="why">' + esc(q.why || "") + "</div>" : "") + "</div>").join("") +
+			'<div class="fc-nav"><span>Score: ' + score + " / " + Object.keys(m.picked).length + " answered of " + qs.length + "</span></div></div>";
+		$$(".opt", box).forEach((b) => b.onclick = () => { m.picked[b.dataset.q] = Number(b.dataset.a); save(); renderStudy(m, i); });
+	} else if (m.kind === "open") {
+		const qs = m.data.questions || [];
+		m.answers = m.answers || {};
+		const graded = Object.values(m.answers).filter((a) => a.score != null);
+		box.innerHTML = '<div class="cards">' + qs.map((q, n) => {
+			const a = m.answers[n] || {};
+			return '<div class="q"><h4>' + (n + 1) + ". " + esc(q.q) + "</h4>" + (a.score != null
+				? '<div class="graded"><b>' + a.score + "/10</b> " + esc(a.feedback || "") + '</div><div class="why"><b>Ideal answer:</b> ' + esc(q.a || "") + "</div>"
+				: '<textarea class="inp ans" data-ans="' + n + '" rows="3" placeholder="Your answer">' + esc(a.text || "") + '</textarea><div class="row" style="margin-top:8px"><button class="btn dark" data-grade="' + n + '"' + (a.grading ? " disabled" : "") + ">" + (a.grading ? "Grading…" : "Check") + '</button><button class="btn" data-reveal="' + n + '">Show answer</button></div>') + "</div>";
+		}).join("") + (graded.length ? '<div class="fc-nav"><span>Average ' + (graded.reduce((t, a) => t + a.score, 0) / graded.length).toFixed(1) + " / 10 · " + graded.length + " of " + qs.length + " answered</span></div>" : "") + "</div>";
+		$$("[data-ans]", box).forEach((t) => t.oninput = () => { (m.answers[t.dataset.ans] ||= {}).text = t.value; });
+		$$("[data-reveal]", box).forEach((b) => b.onclick = () => { m.answers[b.dataset.reveal] = { score: 0, feedback: "Revealed without answering." }; save(); renderStudy(m, i); });
+		$$("[data-grade]", box).forEach((b) => b.onclick = async () => {
+			const n = b.dataset.grade, a = (m.answers[n] ||= {}), q = qs[n];
+			if (!a.text?.trim()) { toast("Write an answer first"); return; }
+			a.grading = true;
+			renderStudy(m, i);
+			try {
+				const g = parseJSON(await once(best("quick").id, [{ role: "user", content: "Grade a student's answer.\nQuestion: " + q.q + "\nIdeal answer: " + q.a + "\nStudent's answer: " + a.text + '\n\nBe fair: reward correct ideas in other words. Return ONLY JSON: {"score": 0-10, "feedback": "one or two sentences, speaking to the student"}' + (langLine() ? "\n" + langLine() : "") }], {}, m));
+				a.score = Math.max(0, Math.min(10, Math.round(Number(g.score) || 0)));
+				a.feedback = g.feedback || "";
+			} catch (e) { toast(niceError(e)); }
+			a.grading = false;
+			save();
+			renderStudy(m, i);
+		});
+	} else if (m.kind === "podcast") {
+		const lines = m.data.lines || [];
+		box.innerHTML = '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-play>' + (speech.playing === m ? "Stop" : "Play episode") + '</button><button class="btn" data-dl>Download script</button></div><div class="md">' + lines.map((l) => "<p><b>" + esc(l.who) + ":</b> " + esc(l.text) + "</p>").join("") + "</div>";
+		$("[data-play]", box).onclick = () => (speech.playing === m ? speech.stop() : speech.podcast(m, () => renderStudy(m, i)), renderStudy(m, i));
+		$("[data-dl]", box).onclick = () => download((m.data.title || "podcast") + ".txt", lines.map((l) => l.who + ": " + l.text).join("\n\n"));
+	}
+}
+
+// ---------------------------------------------------------------- voice
+const speech = {
+	playing: null,
+	voices() { return speechSynthesis.getVoices().filter((v) => /^en/i.test(v.lang)); },
+	say(text, onend) {
+		speechSynthesis.cancel();
+		const u = new SpeechSynthesisUtterance(text.replace(/[#*_`>|]/g, "").slice(0, 4000));
+		const v = this.voices()[0];
+		if (v) u.voice = v;
+		u.rate = 1.03;
+		u.onend = onend || null;
+		speechSynthesis.speak(u);
+	},
+	podcast(m, done) {
+		speechSynthesis.cancel();
+		this.playing = m;
+		const vs = this.voices();
+		(m.data.lines || []).forEach((l, n) => {
+			const u = new SpeechSynthesisUtterance(l.text);
+			u.voice = vs[(l.who === "Leo" ? 1 : 0) % Math.max(1, vs.length)] || null;
+			u.pitch = l.who === "Leo" ? .9 : 1.08;
+			if (n === m.data.lines.length - 1) u.onend = () => { this.playing = null; done && done(); };
+			speechSynthesis.speak(u);
+		});
+	},
+	stop() { speechSynthesis.cancel(); this.playing = null; },
+};
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+function listen(onFinal) {
+	if (!SR) { toast("Voice input isn't supported in this browser"); return null; }
+	const r = new SR();
+	r.lang = navigator.language || "en-US";
+	r.interimResults = true;
+	r.continuous = false;
+	let final = "";
+	r.onresult = (e) => {
+		let interim = "";
+		for (const res of e.results) (res.isFinal ? (final = res[0].transcript) : (interim += res[0].transcript));
+		$("#input").value = final || interim;
+		autosize();
+		updateRoute();
+	};
+	r.onend = () => onFinal && onFinal(final.trim());
+	r.start();
+	return r;
+}
+const talk = {
+	on: false, rec: null,
+	toggle() {
+		this.on = !this.on;
+		$("#talkBtn").classList.toggle("on", this.on);
+		toast(this.on ? "Talk mode on: just speak" : "Talk mode off");
+		if (this.on) this.next(); else { this.rec?.stop(); speech.stop(); }
+	},
+	next() { if (!this.on) return; this.rec = listen((t) => { if (this.on && t) send(t); else if (this.on) setTimeout(() => this.next(), 300); }); },
+	after() {
+		const last = current?.msgs[current.msgs.length - 1];
+		if (last?.text) speech.say(last.text, () => this.next()); else this.next();
+	},
+};
+
+// ---------------------------------------------------------------- attachments
+async function addFiles(files) {
+	for (const f of files) {
+		if (f.size > 20 * 1024 * 1024) { toast(f.name + " is over 20 MB"); continue; }
+		if (f.type.startsWith("image/")) attachments.push({ name: f.name, kind: "image", data: await readAs(f, "url") });
+		else if (/pdf$/i.test(f.type)) toast("PDFs aren't read yet: paste the text or attach a .txt");
+		else attachments.push({ name: f.name, kind: "text", data: await readAs(f, "text") });
+	}
+	renderAttached();
+	updateRoute();
+}
+function readAs(f, how) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; how === "url" ? r.readAsDataURL(f) : r.readAsText(f); }); }
+function renderAttached() {
+	$("#attached").innerHTML = attachments.map((a, k) => '<span class="att-pill">' + (a.kind === "image" ? '<img src="' + a.data + '" alt="">' : "") + "<span>" + esc(a.name) + '</span><button data-unattach="' + k + '">✕</button></span>').join("");
+	setBusy(!!busy);
+}
+
+// ---------------------------------------------------------------- settings
+function openModal(html) { $("#modal").innerHTML = html; $("#overlay").classList.add("show"); }
+let modalClose = null;
+function closeModal() { $("#overlay").classList.remove("show"); const f = modalClose; modalClose = null; if (f) f(); }
+function openSettings() {
+	const tasks = Object.keys(TASK_INFO);
+	const opts = (task) => {
+		const auto = rank(task)[0];
+		const list = catalog.filter((m) => usable(m, task)).sort((a, b) => a.name.localeCompare(b.name));
+		return '<option value="">Auto' + (auto ? " (" + esc(shortName(auto)) + ")" : "") + "</option>" + list.map((m) => '<option value="' + esc(m.id) + '"' + (settings.overrides[task] === m.id ? " selected" : "") + ">" + esc(m.name) + "</option>").join("");
+	};
+	openModal('<h2>Settings</h2><p class="sub">One OpenRouter key gives Andromeda every model. It stays in this browser and is only ever sent to openrouter.ai.</p>' +
+		'<div class="field"><label>OpenRouter API key</label><div class="row"><input class="inp" id="keyInput" type="password" placeholder="sk-or-v1-…" value="' + esc(settings.key) + '"><button class="btn dark" id="saveKey">Save</button></div><div class="help">Get one at <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a>. Free models work with a $0 balance.</div><div class="status" id="keyStatus"></div></div>' +
+		'<div class="field"><label>Quality</label><div class="seg">' + Object.entries(TIERS).map(([k, t]) => '<button data-tier="' + k + '"' + (settings.tier === k ? ' class="on"' : "") + "><b>" + t.label + "</b><span>" + t.help + "</span></button>").join("") + '</div><div class="help">Best always uses each lab\'s top model. Lower settings step down to cheaper models from the same labs.</div></div>' +
+		'<div class="field" style="margin-top:14px"><label>Who handles what</label><div class="routes">' + tasks.map((t) => '<div class="rt"><span>' + TASK_INFO[t].label + '</span><select data-override="' + t + '">' + opts(t) + "</select></div>").join("") + '</div><div class="help">Auto uses the current flagship of the lab that is best at each kind of task. Pick a model to pin it.</div></div>' +
+		'<div class="field"><label>Replies</label><select class="inp" id="langSel">' + LANGS.map(([k, n]) => '<option value="' + k + '"' + (settings.lang === k ? " selected" : "") + ">" + esc(n) + "</option>").join("") + '</select><div class="pills" style="margin-top:10px">' + Object.entries(TONES).map(([k, [n]]) => '<button data-tone="' + k + '"' + (settings.tone === k ? ' class="on"' : "") + ">" + esc(n) + "</button>").join("") + '</div><div class="help">The language and tone of every answer, in every mode.</div></div>' +
+		'<div class="row" style="justify-content:space-between;margin-top:8px"><button class="btn" id="refreshModels">Refresh model list</button><button class="btn" id="exportChats">Export chats</button><button class="btn" id="closeSettings">Done</button></div>');
+	$("#saveKey").onclick = async () => {
+		settings.key = $("#keyInput").value.trim();
+		saveSettings();
+		const st = $("#keyStatus");
+		st.className = "status";
+		st.textContent = "Checking…";
+		try {
+			const k = await checkKey();
+			st.className = "status ok";
+			st.textContent = "Connected" + (k.limit != null ? " · limit $" + k.limit : "") + (k.usage != null ? " · used $" + Number(k.usage).toFixed(2) : "");
+			await loadCatalog();
+		} catch (e) { st.className = "status bad"; st.textContent = niceError(e); }
+		refreshKeyDot();
+		updateRoute();
+	};
+	$$("[data-tier]").forEach((b) => b.onclick = () => { settings.tier = b.dataset.tier; saveSettings(); updateRoute(); openSettings(); });
+	$("#langSel").onchange = (e) => { settings.lang = e.target.value; saveSettings(); };
+	$$("[data-tone]").forEach((b) => b.onclick = () => { settings.tone = b.dataset.tone; saveSettings(); $$("[data-tone]").forEach((x) => x.classList.toggle("on", x === b)); });
+	$$("[data-override]").forEach((s) => s.onchange = () => { settings.overrides[s.dataset.override] = s.value || undefined; saveSettings(); updateRoute(); });
+	$("#refreshModels").onclick = async () => { await loadCatalog(true); toast(catalog.length + " models loaded"); openSettings(); };
+	$("#exportChats").onclick = () => download("andromeda-chats.json", JSON.stringify(store.get("convos", []), null, 2));
+	$("#closeSettings").onclick = closeModal;
+}
+function refreshKeyDot() { $("#keyDot").classList.toggle("ok", !!settings.key); }
+function applyTheme() {
+	if (settings.theme === "light") document.documentElement.setAttribute("data-theme", "light");
+	else document.documentElement.removeAttribute("data-theme");
+}
+function toggleTheme() {
+	settings.theme = settings.theme === "light" ? "dark" : "light";
+	saveSettings();
+	applyTheme();
+}
+function download(name, text) {
+	const a = document.createElement("a");
+	a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+	a.download = name;
+	a.click();
+	setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+let toastT;
+function toast(t) { const el = $("#toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 2400); }
+
+// ---------------------------------------------------------------- wiring
+function autosize() { const t = $("#input"); t.style.height = "auto"; t.style.height = Math.min(220, t.scrollHeight) + "px"; setBusy(!!busy); }
+function setMode(m) {
+	mode = m;
+	$$(".mode").forEach((b) => b.classList.toggle("active", b.dataset.mode === m));
+	const a = $(".mode.active"), pill = $("#modePill");
+	pill.style.width = a.offsetWidth + "px";
+	pill.style.transform = "translateX(" + (a.offsetLeft - 3) + "px)";
+	const narrow = innerWidth < 600;
+	$("#input").placeholder = m === "council" ? (narrow ? "Ask the council" : "Ask the council. Three labs answer, one writes the verdict.") : m === "build" ? (narrow ? "What should it make?" : "Describe what to make. It's brainstormed, planned, built and reviewed.") : m === "study" ? (narrow ? "A topic to learn" : "A topic to learn, or attach your notes") : (narrow ? "Ask anything" : "Ask anything. Andromeda picks the best model for it.");
+	if (!current || !current.msgs.length) renderWelcome();
+	updateRoute();
+}
+function openSidebar(open) { $("#sidebar").classList.toggle("open", open); $("#scrim").classList.toggle("show", open); }
+
+document.addEventListener("click", (e) => {
+	const t = e.target.closest("button, a[data-go-home], .convo, .member, .step .sh, [data-open-settings], [data-pick]");
+	if (!t) { if (e.target === $("#overlay")) closeModal(); return; }
+	if (t.hasAttribute("data-open-app")) { showApp(true); return; }
+	if (t.hasAttribute("data-go-home")) { e.preventDefault(); showApp(false); return; }
+	if (t.hasAttribute("data-theme-toggle")) { toggleTheme(); return; }
+	if (t.dataset.tierTab) { landingTier = t.dataset.tierTab; renderLanding(); return; }
+	if (t.dataset.mode) setMode(t.dataset.mode);
+	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { current = convos.find((c) => c.id === t.dataset.id); pinned = true; render(); stick(); openSidebar(false); }
+	else if (t.dataset.del) { convos = convos.filter((c) => c.id !== t.dataset.del); if (current?.id === t.dataset.del) current = null; save(); render(); }
+	else if (t.dataset.sug) { $("#input").value = t.dataset.sug; autosize(); updateRoute(); send(); }
+	else if (t.dataset.topic) { send(t.dataset.topic); }
+	else if (t.dataset.unattach != null) { attachments.splice(Number(t.dataset.unattach), 1); renderAttached(); updateRoute(); }
+	else if (t.dataset.copy != null) { navigator.clipboard.writeText(t.closest(".code").querySelector("code").innerText); toast("Copied"); }
+	else if (t.dataset.preview != null) { const src = t.closest(".code").querySelector("code").innerText; openModal('<h2>Preview</h2><p class="sub">Running in a sandbox.</p><iframe class="preview-frame" sandbox="allow-scripts allow-forms" id="pv"></iframe><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="closeSettings">Close</button></div>'); $("#pv").srcdoc = src; $("#closeSettings").onclick = closeModal; }
+	else if (t.dataset.copymsg != null) { navigator.clipboard.writeText(current.msgs[t.dataset.copymsg].text); toast("Copied"); }
+	else if (t.dataset.speak != null) { speech.say(current.msgs[t.dataset.speak].text); }
+	else if (t.dataset.regen != null) { const last = current.msgs.pop(); const u = current.msgs.pop(); if (u) { attachments = u.atts || []; send(u.text); } else if (last) current.msgs.push(last); }
+	else if (t.classList.contains("member")) { const m = current.msgs[t.closest(".msg").dataset.i].members[t.dataset.member]; openModal("<h2>" + esc(m.name) + '</h2><p class="sub">This model\'s own answer, before the synthesis.</p><div class="md">' + md(m.text || m.error || "") + '</div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="closeSettings">Close</button></div>'); $("#closeSettings").onclick = closeModal; }
+	else if (t.closest(".step") && t.classList.contains("sh")) { const s = current.msgs[t.closest(".msg").dataset.i].steps[t.closest(".step").dataset.step]; s.open = !s.open; t.closest(".step").classList.toggle("open", s.open); }
+	else if (t.hasAttribute("data-open-settings")) openSettings();
+	else if (t.dataset.pick) openSettings();
+});
+$("#newChat").onclick = $("#newChatTop").onclick = () => { current = null; render(); $("#input").focus(); openSidebar(false); };
+$("#openSettings").onclick = openSettings;
+$("#themeBtn").onclick = toggleTheme;
+$("#menuBtn").onclick = () => openSidebar(true);
+$("#scrim").onclick = () => openSidebar(false);
+$("#search").oninput = renderConvoList;
+$("#attachBtn").onclick = () => $("#fileInput").click();
+$("#fileInput").onchange = (e) => { addFiles([...e.target.files]); e.target.value = ""; };
+$("#micBtn").onclick = () => { const b = $("#micBtn"); b.classList.add("on"); listen(() => b.classList.remove("on")); };
+$("#talkBtn").onclick = () => talk.toggle();
+$("#sendBtn").onclick = () => (busy ? busy.abort() : send());
+$("#input").addEventListener("input", () => { autosize(); updateRoute(); });
+$("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
+$("#scroller").addEventListener("scroll", (e) => {
+	const s = e.target;
+	pinned = s.scrollHeight - s.scrollTop - s.clientHeight < 80;
+	$("#topbar").classList.toggle("scrolled", s.scrollTop > 4);
+});
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfer.files.length) addFiles([...e.dataTransfer.files]); });
+document.addEventListener("paste", (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) addFiles(fs); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
+window.addEventListener("resize", () => setMode(mode));
+
+// ---------------------------------------------------------------- the site
+function showApp(on) {
+	document.body.classList.toggle("in-app", on);
+	if (on) {
+		history.replaceState(null, "", "#app");
+		window.scrollTo(0, 0);
+		render();
+		setMode(mode);
+		if (!settings.key) setTimeout(openSettings, 350);
+		else setTimeout(() => $("#input").focus(), 50);
+	} else {
+		history.replaceState(null, "", location.pathname + location.search);
+		window.scrollTo(0, 0);
+		startSky();
+		runDemo();
+	}
+}
+
+const DEMO = [
+	["Fix the race condition in this Go worker pool", "code"],
+	["Is 2^61 − 1 prime? Walk me through it", "reasoning"],
+	["What did the Fed decide this week? Cite sources", "research"],
+	["Rewrite my cover letter so it actually sounds like me", "write"],
+	["Twelve names for a coffee brand on Mars", "brainstorm"],
+	["What's wrong in this screenshot of my error?", "vision"],
+	["How long do I boil an egg for?", "quick"],
+];
+const DEMO_FALLBACK = { code: "Claude", reasoning: "GPT", research: "Sonar Pro", write: "Claude", brainstorm: "Claude", vision: "Gemini", quick: "Gemini Flash" };
+let landingTier = settings.tier || "best";
+function withTier(tier, fn) { const keep = settings.tier; settings.tier = tier; try { return fn(); } finally { settings.tier = keep; } }
+function modelFor(task) {
+	if (!catalog.length) return { name: DEMO_FALLBACK[task], lab: "" };
+	const m = withTier(landingTier, () => best(task));
+	return { name: shortName(m), lab: provider(m.id), pout: m.pout };
+}
+let demoI = 0, demoTimer;
+function demoTasks(active) { $("#demoTasks").innerHTML = Object.keys(TASK_INFO).map((t) => "<span" + (t === active ? ' class="on"' : "") + ">" + TASK_INFO[t].label.toLowerCase() + "</span>").join(""); }
+function runDemo() {
+	clearTimeout(demoTimer);
+	if (document.body.classList.contains("in-app")) return;
+	const [q, task] = DEMO[demoI++ % DEMO.length];
+	const el = $("#demoQ"), r = $("#demoR");
+	r.innerHTML = "";
+	demoTasks(null);
+	const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+	let k = reduce ? q.length : 0;
+	const done = () => {
+		const m = modelFor(task);
+		demoTasks(task);
+		r.innerHTML = '<span class="arrow">→ ' + esc(TASK_INFO[task].label.toLowerCase()) + '</span><span class="model"><svg width="12" height="12"><use href="#logo"/></svg>' + esc(m.name) + '</span><span class="why">' + esc(TASK_INFO[task].why) + (m.lab ? " · " + esc(m.lab) : "") + "</span>";
+		demoTimer = setTimeout(runDemo, 2800);
+	};
+	const type = () => {
+		el.textContent = q.slice(0, k);
+		if (k++ < q.length) { demoTimer = setTimeout(type, 16 + Math.random() * 34); return; }
+		demoTimer = setTimeout(done, 380);
+	};
+	type();
+}
+function renderLanding() {
+	$("#tierTabs").innerHTML = Object.entries(TIERS).map(([k, t]) => '<button data-tier-tab="' + k + '"' + (landingTier === k ? ' class="on"' : "") + ">" + t.label + "</button>").join("");
+	const rows = Object.keys(TASK_INFO).map((t) => {
+		const m = catalog.length ? withTier(landingTier, () => best(t)) : null;
+		const price = !m ? "" : m.pout ? "$" + (m.pout >= 10 ? m.pout.toFixed(0) : m.pout.toFixed(2)) : "free";
+		return '<div class="tr"><span class="task"><i></i>' + TASK_INFO[t].label + '</span><span class="mdl">' + (m ? esc(shortName(m)) : "—") + '<span class="why2">' + esc(TASK_INFO[t].why) + '</span></span><span class="lab">' + (m ? esc(provider(m.id)) : "") + '</span><span class="price">' + price + "</span></div>";
+	}).join("");
+	$("#modelTable").innerHTML = '<div class="tr th"><span>Task</span><span>Model</span><span>Lab</span><span>$ / M out</span></div>' + rows;
+	if (catalog.length) {
+		const flagships = Object.keys(LABS).map((t) => withTier("best", () => best(t))).filter((m) => m && m.created);
+		const newest = flagships.sort((a, b) => b.created - a.created)[0];
+		if (newest) $("#newestModel").textContent = shortName(newest) + " and whatever ships next";
+	}
+}
+
+// a slow two-armed spiral of points: the Andromeda galaxy, in the page's own ink
+let skyRaf = 0, skyStars = null;
+function startSky() {
+	const c = $("#sky");
+	if (!c) return;
+	const ctx = c.getContext("2d");
+	const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+	if (!skyStars) {
+		const n = innerWidth < 700 ? 900 : 2000;
+		skyStars = [];
+		for (let i = 0; i < n; i++) {
+			const field = Math.random() < 0.18;
+			const r = field ? 0 : Math.pow(Math.random(), 1.7);
+			skyStars.push({ field, fx: Math.random(), fy: Math.random(), r, ang: (i % 2) * Math.PI + r * 5.4 + (Math.random() - 0.5) * (1 - r * 0.55), z: Math.random(), s: field ? 0.6 + Math.random() * 0.9 : 0.5 + Math.random() * 1.3 });
+		}
+	}
+	const size = () => { const d = Math.min(2, devicePixelRatio || 1); c.width = c.clientWidth * d; c.height = c.clientHeight * d; ctx.setTransform(d, 0, 0, d, 0, 0); };
+	size();
+	if (!startSky.bound) { addEventListener("resize", size); startSky.bound = true; }
+	cancelAnimationFrame(skyRaf);
+	const t0 = performance.now();
+	const frame = (now) => {
+		if (document.body.classList.contains("in-app")) return;
+		const w = c.clientWidth, h = c.clientHeight;
+		ctx.clearRect(0, 0, w, h);
+		const rgb = getComputedStyle(document.documentElement).getPropertyValue("--dot").trim() || "255,255,255";
+		const cx = w / 2, cy = h * 0.6, R = Math.min(w * 0.66, 900), rot = reduce ? 0 : (now - t0) / 140000, tilt = 0.36, spin = -0.42;
+		for (const st of skyStars) {
+			if (st.field) {
+				ctx.fillStyle = "rgba(" + rgb + "," + (0.12 + st.z * 0.3).toFixed(3) + ")";
+				ctx.fillRect(st.fx * w, st.fy * h, st.s, st.s);
+				continue;
+			}
+			const a = st.ang + rot * (1.5 - st.r);
+			const x = Math.cos(a) * st.r * R, y = Math.sin(a) * st.r * R * tilt;
+			const xr = x * Math.cos(spin) - y * Math.sin(spin), yr = x * Math.sin(spin) + y * Math.cos(spin);
+			const al = Math.max(0.06, 0.75 - st.r * 0.62) * (0.45 + st.z * 0.55);
+			ctx.fillStyle = "rgba(" + rgb + "," + al.toFixed(3) + ")";
+			ctx.fillRect(cx + xr, cy + yr, st.s, st.s);
+		}
+		const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.2);
+		g.addColorStop(0, "rgba(" + rgb + ",0.11)");
+		g.addColorStop(1, "rgba(" + rgb + ",0)");
+		ctx.fillStyle = g;
+		ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+		if (!reduce) skyRaf = requestAnimationFrame(frame);
+	};
+	skyRaf = requestAnimationFrame(frame);
+}
+addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", scrollY > 8), { passive: true });
+const revealer = new IntersectionObserver((es) => es.forEach((en) => { if (en.isIntersecting) { en.target.classList.add("in"); revealer.unobserve(en.target); } }), { threshold: 0.1 });
+$$(".reveal").forEach((el) => revealer.observe(el));
+document.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && document.body.classList.contains("in-app")) { e.preventDefault(); $("#newChat").click(); } });
+addEventListener("hashchange", () => { const want = location.hash === "#app"; if (want !== document.body.classList.contains("in-app")) showApp(want); });
+
+// ---------------------------------------------------------------- boot
+(async function boot() {
+	applyTheme();
+	refreshKeyDot();
+	convos = convos.filter((c) => c.msgs.length);
+	// someone already set up goes straight to the app; anyone new sees what it is first
+	const inApp = location.hash === "#app" || (!!settings.key && !location.hash);
+	document.body.classList.toggle("in-app", inApp);
+	render();
+	setMode("auto");
+	if (!inApp) { startSky(); runDemo(); }
+	renderLanding();
+	await loadCatalog();
+	updateRoute();
+	renderLanding();
+	if (inApp && !settings.key) setTimeout(openSettings, 600);
+})();
+</script>
+</body>
+</html>
