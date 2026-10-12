@@ -5,7 +5,9 @@ CREATE TABLE IF NOT EXISTS users (
 	id TEXT PRIMARY KEY,
 	email TEXT UNIQUE NOT NULL,
 	pass TEXT NOT NULL,
-	balance_mc INTEGER NOT NULL DEFAULT 0, -- thousandths of a credit
+	balance_mc INTEGER NOT NULL DEFAULT 0, -- thousandths of a credit (bought)
+	free_mc INTEGER NOT NULL DEFAULT 0, -- the free credits left this session
+	free_reset_at INTEGER NOT NULL DEFAULT 0, -- when they're full again (0 = full, the clock hasn't started)
 	created_at INTEGER NOT NULL
 );
 
@@ -36,6 +38,17 @@ CREATE TABLE IF NOT EXISTS usage (
 	model TEXT,
 	cost_usd REAL, -- what OpenRouter charged
 	charged_mc INTEGER, -- what the user paid, in thousandths of a credit
+	created_at INTEGER NOT NULL
+);
+
+-- videos take minutes: what was held for each, settled once when it finishes
+CREATE TABLE IF NOT EXISTS jobs (
+	id TEXT PRIMARY KEY, -- OpenRouter's job id
+	user_id TEXT NOT NULL,
+	model TEXT,
+	reserve_mc INTEGER NOT NULL,
+	from_free INTEGER NOT NULL DEFAULT 0, -- how much of what was held were free credits
+	settled INTEGER NOT NULL DEFAULT 0,
 	created_at INTEGER NOT NULL
 );
 

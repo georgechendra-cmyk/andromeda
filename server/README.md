@@ -78,7 +78,25 @@ In the admin page you can change, any time:
 - **Mark-up** on OpenRouter's cost: cheap models ×3.5, mid ×2.5, top models ×2 by default.
 - **Packs and prices** in each currency. Use round local prices, not exchange-rate conversions.
 
-1 credit = $0.01 at your prices. Every answer shows the user how many credits it used.
+1 credit = $0.01 at your prices. Users only ever see credits: never tokens, never money per answer.
+
+**Free credits.** Everyone with an account gets 32 free credits (about Rp5,000 at Starter prices). They're used before
+bought credits, and once someone starts using them they're all back 24 hours later. Change both in the admin page (0
+turns them off). When the free ones run out, people are told when more come back, or they buy credits.
+
+**Videos, images, voice and music** (the studio) are marked up ×2 (`media` in the mark-ups). A video holds its worst
+case when it starts and is charged its real cost when it finishes; a failed one costs nothing. A 15-20 second ad costs
+about $0.70 at OpenRouter on Quick, $1 on Standard, $2.50 on Cinematic and $7 on Max (offered only to someone with a big
+balance). People see the cost of each in credits before anything is made.
+
+If you set the server up before free credits existed, add the new columns once, then deploy the worker again:
+
+```
+npx wrangler d1 execute andromeda --remote --command "ALTER TABLE users ADD COLUMN free_mc INTEGER NOT NULL DEFAULT 0"
+npx wrangler d1 execute andromeda --remote --command "ALTER TABLE users ADD COLUMN free_reset_at INTEGER NOT NULL DEFAULT 0"
+npx wrangler d1 execute andromeda --remote --file schema.sql
+npx wrangler deploy
+```
 
 ## Topping up OpenRouter without a credit card
 

@@ -10,7 +10,7 @@ SITE_URL = "https://georgechendra-cmyk.github.io/andromeda/"
 [[d1_databases]]
 binding = "DB"
 database_name = "andromeda"
-database_id = "REPLACE_AFTER_CREATE"
+database_id = "06f2a301-f884-4f49-a715-6175ce84c399"
 
 # Secrets are NOT written here. Set them once with:
 #   npx wrangler secret put OPENROUTER_KEY
