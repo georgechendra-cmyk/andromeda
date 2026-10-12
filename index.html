@@ -154,6 +154,20 @@ section.block { padding: 110px 0 0; }
 .reveal.in { opacity: 1; transform: none; }
 
 /* ============================== the app ============================== */
+.bgwrap { position: fixed; inset: 0; z-index: 0; pointer-events: none; display: none; }
+body.in-app.has-bg .bgwrap { display: block; }
+.bgwrap img, .bgwrap video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bgwrap .tint { position: absolute; inset: 0; z-index: 1; background: var(--bg); opacity: var(--tint, .72); }
+body.has-bg .app { position: relative; z-index: 1; }
+body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.bggrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.bgsw { position: relative; height: 62px; border-radius: 10px; overflow: hidden; border: 2px solid var(--line); background: var(--bg3); display: flex; align-items: flex-end; padding: 0; }
+.bgsw img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bgsw span { position: relative; width: 100%; font-size: 11.5px; font-weight: 500; padding: 3px 6px; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.65)); text-align: left; }
+.bgsw:not(:has(img)) span { color: var(--text); background: none; }
+.bgsw.on { border-color: var(--ink); }
+.bgtint { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.bgtint input { width: 140px; }
 .app { display: grid; grid-template-columns: var(--sb) 1fr; grid-template-rows: minmax(0, 1fr); height: 100dvh; }
 .sidebar { border-right: 1px solid var(--line); background: var(--bg2); display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
@@ -719,6 +733,7 @@ audio.player { background: transparent; }
 </div>
 
 <!-- ============================== the app ============================== -->
+<div class="bgwrap" id="bgwrap" aria-hidden="true"><div class="tint"></div></div>
 <div class="app">
 	<aside class="sidebar" id="sidebar">
 		<div class="brand">
@@ -786,7 +801,7 @@ const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(
 const API = "https://openrouter.ai/api/v1";
 // The credits server (server/worker.js). Paste its address here once it's live, e.g.
 // "https://andromeda-credits.yourname.workers.dev". Andromeda runs through it: nothing works until it's set.
-const DEFAULT_SERVER = "";
+const DEFAULT_SERVER = "https://andromeda-credits.georgechendra.workers.dev";
 
 // ---------------------------------------------------------------- storage
 const store = {
@@ -1101,7 +1116,8 @@ const TONES = {
 const langLine = () => (LANGS.find((l) => l[0] === settings.lang) || LANGS[0])[2];
 function sys(extra) {
 	const base = "You are Andromeda, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable.";
-	return { role: "system", content: [extra || base, langLine(), (TONES[settings.tone] || TONES.default)[1]].filter(Boolean).join("\n\n") };
+	const safe = settings.safelock !== false ? "Safelock is on: keep every answer suitable for all ages, and politely decline sexual, graphic or hateful content." : "";
+	return { role: "system", content: [extra || base, langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
 }
 
 // ---------------------------------------------------------------- rendering
@@ -4167,14 +4183,75 @@ function renderAttached() {
 function openModal(html, cls) { const m = $("#modal"); m.className = "modal" + (cls ? " " + cls : ""); m.innerHTML = html; $("#overlay").classList.add("show"); }
 let modalClose = null;
 function closeModal() { $("#overlay").classList.remove("show"); const f = modalClose; modalClose = null; if (f) f(); }
+// backgrounds behind the app (the ones Andromeda v7 had), or your own picture or video
+const BACKGROUNDS = {
+	aurora: ["Aurora", "https://images.unsplash.com/photo-1531366936337-7c912a4589a7"],
+	galaxy: ["Galaxy", "https://images.unsplash.com/photo-1462331940025-496dfbfc7564"],
+	ocean: ["Ocean", "https://images.unsplash.com/photo-1505118380757-91f5f5632de0"],
+	forest: ["Forest", "https://images.unsplash.com/photo-1448375240586-882707db888b"],
+	mountain: ["Mountains", "https://images.unsplash.com/photo-1506905925346-21bda4d32df4"],
+	tokyo: ["Tokyo", "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf"],
+	desert: ["Desert", "https://images.unsplash.com/photo-1509316785289-025f5b846b35"],
+	city: ["City", "https://images.unsplash.com/photo-1477959858617-67f85cf4f1df"],
+};
+let bgUrl = null;
+async function applyBg() {
+	const w = $("#bgwrap");
+	if (!w) return;
+	w.querySelectorAll("img, video").forEach((x) => x.remove());
+	if (bgUrl) { URL.revokeObjectURL(bgUrl); bgUrl = null; }
+	let src = null, video = false;
+	if (settings.bg === "mine") {
+		const blob = await vault.get("bg-mine");
+		if (blob) { src = bgUrl = URL.createObjectURL(blob); video = /^video\//.test(blob.type); }
+	} else if (BACKGROUNDS[settings.bg]) src = BACKGROUNDS[settings.bg][1] + "?w=1920&q=80&auto=format";
+	document.body.classList.toggle("has-bg", !!src);
+	w.style.setProperty("--tint", String((settings.bgTint ?? 72) / 100));
+	if (!src) return;
+	const el = document.createElement(video ? "video" : "img");
+	if (video) { el.autoplay = true; el.loop = true; el.muted = true; el.playsInline = true; }
+	el.alt = "";
+	el.src = src;
+	w.prepend(el);
+}
 function openSettings() {
-	openModal('<h2>Settings</h2><p class="sub">How Andromeda answers you. Your chats stay in this browser.</p>' +
+	const bg = settings.bg || "none";
+	const sw = (k, label, thumb) => '<button class="bgsw' + (bg === k ? " on" : "") + '" data-bg="' + k + '" title="' + esc(label) + '">' + (thumb ? '<img src="' + thumb + '" alt="" loading="lazy">' : "") + "<span>" + esc(label) + "</span></button>";
+	openModal('<h2>Settings</h2><p class="sub">How Andromeda looks and answers you. Your chats stay in this browser.</p>' +
+		'<div class="field"><label>Theme</label><div class="pills">' + [["system", "System"], ["dark", "Dark"], ["light", "Light"]].map(([k, n]) => '<button data-theme-pick="' + k + '"' + ((settings.theme || "system") === k ? ' class="on"' : "") + ">" + n + "</button>").join("") + "</div></div>" +
+		'<div class="field"><label>Background</label><div class="bggrid">' + sw("none", "None", "") + Object.entries(BACKGROUNDS).map(([k, [n, u]]) => sw(k, n, u + "?w=240&h=150&fit=crop&q=60&auto=format")).join("") +
+		sw("mine", "Your own", "") + '</div><div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" id="bgMine">Use my picture or video</button>' +
+		'<label class="bgtint">Overlay <input type="range" id="bgTint" min="0" max="95" value="' + (settings.bgTint ?? 72) + '"> <span id="bgTintV">' + (settings.bgTint ?? 72) + "%</span></label></div>" +
+		'<input type="file" id="bgFile" accept="image/*,video/*" hidden><div class="help">The overlay keeps text readable over the picture: more is calmer, less shows the picture more.</div></div>' +
 		'<div class="field"><label>Replies</label><select class="inp" id="langSel">' + LANGS.map(([k, n]) => '<option value="' + k + '"' + (settings.lang === k ? " selected" : "") + ">" + esc(n) + "</option>").join("") + '</select><div class="pills" style="margin-top:10px">' + Object.entries(TONES).map(([k, [n]]) => '<button data-tone="' + k + '"' + (settings.tone === k ? ' class="on"' : "") + ">" + esc(n) + "</button>").join("") + '</div><div class="help">The language and tone of every answer, in every mode.</div></div>' +
+		'<div class="field"><label>Safety</label><label class="chk"><input type="checkbox" id="safeChk"' + (settings.safelock !== false ? " checked" : "") + '> Safelock: keep every answer suitable for everyone</label><div class="help">Filters sexual, graphic and hateful content in answers, pictures and videos.</div></div>' +
 		'<div class="field"><label>Big builds</label><label class="chk"><input type="checkbox" id="maxBuildChk"' + (settings.maxBuild !== false ? " checked" : "") + '> Ask to use the top models together when I have ' + creditsText(MAX_BUILD_AT / creditUsd()) + ' credits or more</label><div class="help">For a new app or game, the top labs each build a version and the strongest coder merges the best parts. It uses more credits.</div></div>' +
-		'<div class="row" style="justify-content:space-between;margin-top:8px"><button class="btn" id="exportChats">Export chats</button><button class="btn" id="closeSettings">Done</button></div>');
+		'<div class="row" style="justify-content:space-between;margin-top:8px">' + (creditsMode() ? '<button class="btn" data-open-account>Credits and account</button>' : "") + '<button class="btn" id="exportChats">Export chats</button><button class="btn dark" id="closeSettings">Done</button></div>', "wide");
+	$$("[data-theme-pick]").forEach((x) => x.onclick = () => { settings.theme = x.dataset.themePick; saveSettings(); applyTheme(); $$("[data-theme-pick]").forEach((y) => y.classList.toggle("on", y === x)); });
+	$$("[data-bg]").forEach((x) => x.onclick = async () => {
+		if (x.dataset.bg === "mine" && !(await vault.get("bg-mine"))) { $("#bgFile").click(); return; }
+		settings.bg = x.dataset.bg;
+		saveSettings();
+		applyBg();
+		$$("[data-bg]").forEach((y) => y.classList.toggle("on", y === x));
+	});
+	$("#bgMine").onclick = () => $("#bgFile").click();
+	$("#bgFile").onchange = async (e) => {
+		const f = e.target.files[0];
+		if (!f) return;
+		if (f.size > 80e6) { toast("That file is over 80 MB"); return; }
+		await vault.set("bg-mine", f);
+		settings.bg = "mine";
+		saveSettings();
+		applyBg();
+		$$("[data-bg]").forEach((y) => y.classList.toggle("on", y.dataset.bg === "mine"));
+	};
+	$("#bgTint").oninput = (e) => { settings.bgTint = +e.target.value; $("#bgTintV").textContent = e.target.value + "%"; $("#bgwrap").style.setProperty("--tint", String(settings.bgTint / 100)); };
+	$("#bgTint").onchange = saveSettings;
 	$("#langSel").onchange = (e) => { settings.lang = e.target.value; saveSettings(); };
+	$("#safeChk").onchange = (e) => { settings.safelock = e.target.checked; saveSettings(); };
 	$("#maxBuildChk").onchange = (e) => { settings.maxBuild = e.target.checked; saveSettings(); };
-	$$("[data-tone]").forEach((b) => b.onclick = () => { settings.tone = b.dataset.tone; saveSettings(); $$("[data-tone]").forEach((x) => x.classList.toggle("on", x === b)); });
+	$$("[data-tone]").forEach((x) => x.onclick = () => { settings.tone = x.dataset.tone; saveSettings(); $$("[data-tone]").forEach((y) => y.classList.toggle("on", y === x)); });
 	$("#exportChats").onclick = () => download("andromeda-chats.json", JSON.stringify(store.get("convos", []), null, 2));
 	$("#closeSettings").onclick = closeModal;
 }
@@ -4407,7 +4484,8 @@ async function openAdmin() {
 
 function refreshKeyDot() { $("#keyDot").classList.toggle("ok", connected()); drawAccount(); }
 function applyTheme() {
-	if (settings.theme === "light") document.documentElement.setAttribute("data-theme", "light");
+	const light = settings.theme === "light" || (settings.theme === "system" || !settings.theme) && window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches;
+	if (light) document.documentElement.setAttribute("data-theme", "light");
 	else document.documentElement.removeAttribute("data-theme");
 }
 function toggleTheme() {
@@ -4635,6 +4713,8 @@ addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
 // ---------------------------------------------------------------- boot
 (async function boot() {
 	applyTheme();
+	applyBg();
+	if (window.matchMedia) matchMedia("(prefers-color-scheme: light)").addEventListener("change", applyTheme);
 	refreshKeyDot();
 	convos = convos.filter((c) => c.msgs.length);
 	// someone already set up goes straight to the app; anyone new sees what it is first
