@@ -106,7 +106,8 @@ if (-not (Test-Path (Join-Path $tmp ".git"))) {
 	Write-Host "Couldn't reach the GitHub repo. Upload andromeda\index.html to it yourself; everything else is done." -ForegroundColor Yellow
 } else {
 	Copy-Item $page (Join-Path $tmp "index.html") -Force
-	git -C $tmp add index.html
+	Copy-Item (Join-Path (Split-Path $PSScriptRoot -Parent) "README.md") (Join-Path $tmp "README.md") -Force
+	git -C $tmp add index.html README.md
 	git -C $tmp -c user.name="Andromeda setup" -c user.email="setup@andromeda.invalid" commit -m "Connect the credits server" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" 2>&1 | Out-Null
 	git -C $tmp push 2>&1 | Out-Host
 	if ($LASTEXITCODE -eq 0) { Write-Host "Uploaded. GitHub takes about a minute to show it." } else { Write-Host "The upload didn't go through. Upload andromeda\index.html to GitHub yourself; everything else is done." -ForegroundColor Yellow }

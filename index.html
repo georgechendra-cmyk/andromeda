@@ -946,13 +946,19 @@ function gen(m) {
 	for (const x of m.id.split("/")[1].matchAll(/(\d+)(?:\.\d+)?(?![\d.]*b\b)/g)) if (+x[1] < 100) return +x[1];
 	return 0;
 }
+// the full version: Claude Opus 5.5 → 5.5 (so it beats Opus 5, which costs more), GPT-6.1 Sol → 6.1, Kimi K3 → 3
+function ver(m) {
+	for (const x of m.id.split("/")[1].matchAll(/(\d+(?:\.\d+)?)(?![\d.]*b\b)/g)) if (+x[1] < 100) return +x[1];
+	return 0;
+}
 // A lab's best model for this task: its strongest proven line (not whatever was released last), at its latest stable
 // version. Previews, experiments and small variants are skipped, so a brand-new lesser model never beats a proven one.
 const UNPROVEN = /preview|experimental|-exp\b|\bbeta\b|\balpha\b|[-/](nano|mini|lite)\b|-[0-9]+b\b|:free$/;
 // each lab's own top line, strongest first
 const TOP_LINES = {
 	anthropic: [/opus/, /sonnet/],
-	openai: [/^openai\/gpt-[\d.]+$/, /^openai\/o\d/, /^openai\/gpt-[\d.]+-(?!mini|nano)/],
+	// GPT-6 comes named (Sol is the flagship; Astra is a premium tier at five times the price, like Anthropic's Fable)
+	openai: [/^openai\/gpt-[\d.]+(-(sol|terra))?$/, /^openai\/o\d/, /^openai\/gpt-[\d.]+-(?!mini|nano)/],
 	google: [/gemini-[\d.]+-pro/, /pro/],
 	"x-ai": [/grok-[\d.]+$/, /grok/],
 	deepseek: [/reason|r1/, /v\d|chat/],
@@ -976,10 +982,16 @@ function flagship(lab, task, fast) {
 	}
 	const solid = pool.filter((m) => !UNPROVEN.test(m.id));
 	const use = solid.length ? solid : pool;
-	const byBest = (x, y) => gen(y) - gen(x) || y.pout - x.pout || y.created - x.created;
+	// the newest version of the line; price only between two of the same version
+	const byBest = (x, y) => ver(y) - ver(x) || y.pout - x.pout || y.created - x.created;
 	for (const re of TOP_LINES[lab] || []) {
 		const hit = use.filter((m) => re.test(m.id));
-		if (hit.length) return hit.sort(byBest)[0];
+		if (!hit.length) continue;
+		const pick = hit.sort(byBest)[0];
+		// a lab that only offers its new generation as a preview (Gemini 3.1 Pro): one a whole version newer and
+		// months younger than the last release beats it
+		const ahead = pool.filter((m) => re.test(m.id) && /preview/.test(m.id) && !/[-/](nano|mini|lite)\b/.test(m.id) && ver(m) >= ver(pick) + 0.5 && m.created - pick.created > 120 * 86400).sort(byBest)[0];
+		return ahead || pick;
 	}
 	// a lab with no named line here: its highest-priced stable model (what a lab charges tracks what it thinks it can do)
 	return use.sort((a, b) => b.pout - a.pout || gen(b) - gen(a) || b.created - a.created)[0];
