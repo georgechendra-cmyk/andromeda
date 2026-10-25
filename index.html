@@ -1289,6 +1289,20 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 .mdl-top { font-size: 11px; color: var(--brand); padding: 1px 8px; border-radius: 999px; background: var(--brand-soft); }
 .pop .mi.more b { color: var(--muted); }
 .shot figcaption .btn { height: 28px; padding: 0 10px; font-size: 12.5px; }
+
+/* ---- tasks */
+.tk-new { display: grid; gap: 8px; padding: 14px; border: 1px solid var(--glass-line); border-radius: 16px; background: var(--glass); margin-bottom: 18px; }
+.tk-new textarea { min-height: 64px; }
+.tk-when { flex-wrap: wrap; gap: 8px; }
+.tk-when select, .tk-when input[type="time"] { width: auto; min-width: 120px; height: 38px; }
+.tk-when .chk { margin-right: auto; }
+.tk-h { font-size: 12px; font-weight: 600; color: var(--faint); margin: 4px 0 8px; }
+.tk { display: flex; align-items: center; gap: 8px; padding: 12px 4px; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.tk.off { opacity: .6; }
+.tk-t { flex: 1; min-width: 200px; display: grid; gap: 2px; }
+.tk-t b { font-weight: 500; }
+.tk-t small { color: var(--faint); font-size: 12.5px; }
+.tk .btn { height: 32px; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -1422,6 +1436,7 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 			<button class="nav-i new" id="newChat" title="New chat (Ctrl+K)"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
 			<label class="nav-i nav-search" title="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" class="lbl" placeholder="Search chats" aria-label="Search chats"></label>
 			<button class="nav-i" id="libNav" title="Library: everything Andromeda made for you"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span class="lbl">Library</span></button>
+			<button class="nav-i" id="tasksNav" title="Tasks: things Andromeda does by itself on a schedule"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Tasks</span></button>
 			<button class="nav-i" id="codeNav" title="Andromeda Code: build or change a project"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
 			<button class="nav-i" id="appsNav" title="Connect apps: your computer, Blender, Figma, files and more"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
 		</nav>
@@ -2216,6 +2231,7 @@ const WAYS = {
 	podcast: "a two-host podcast that talks a topic through aloud",
 	docx: "a Word document to download",
 	pdf: "a PDF to download",
+	task: "a scheduled task: something Andromeda does by itself on a schedule, even with this page closed, like a daily news brief, a weekly summary, a reminder at a time, or a check every hour. Choose it whenever the request is about doing something later or repeatedly",
 	compare: "compare AIs: the strongest models of several different labs each answer on their own, shown side by side, then the strongest combines them into one answer. For questions where being right really matters, where views differ, or when the user wants several opinions or asks to compare AIs",
 	research: "deep research: many searches and sources read and cross-checked, then a long, structured report with citations (for big questions where being thorough matters more than speed)",
 	pptx: "a PowerPoint deck to download",
@@ -2331,7 +2347,7 @@ async function conduct(text, atts, tried, only) {
 		+ (tried && tried.length ? "\nAlready tried, and it failed:\n" + tried.map((t) => "- " + t.way + ": " + t.error).join("\n") + "\nChoose a different way, or the same way only if that error clearly won't happen again.\n" : "")
 		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\"}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions.\n\nThe request:\n" + text.slice(0, 4000);
 	const signal = AbortSignal.any && AbortSignal.timeout ? AbortSignal.any([busy.signal, AbortSignal.timeout(20000)]) : busy.signal;
 	let j;
@@ -2357,7 +2373,7 @@ async function conduct(text, atts, tried, only) {
 		const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
 		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), weights, check: j.check === true, language: lang };
 	}
-	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), profile };
+	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile };
 }
 // the way it chose, done by the part of Andromeda that does it
 async function runWay(plan, text, atts) {
@@ -2391,6 +2407,7 @@ async function runWay(plan, text, atts) {
 	}
 	if (w === "app") return runApp(text, atts, { edit: plan.edit });
 	if (w === "compare") return runCompare(text, atts);
+	if (w === "task") return runTaskWay(plan, text);
 	if (w === "act" || w === "apps") return runAct(text, atts);
 	if (w === "research") {
 		if (!SKILLS_ON.includes("research")) SKILLS_ON.unshift("research");
@@ -8229,6 +8246,100 @@ document.addEventListener("keydown", (e) => {
 	items[to].focus();
 });
 
+// ---------------------------------------------------------------- tasks: done by itself, on a schedule, on the server
+const EVERY_NAMES = { once: "Once", hour: "Every hour", day: "Every day", weekdays: "Weekdays", week: "Every week" };
+const DOWS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const hhmm = (min) => String(Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0");
+function whenText(t) {
+	const at = hhmm(t.minute || 0);
+	return t.every === "hour" ? "Every hour at :" + at.slice(3) : t.every === "week" ? "Every " + DOWS[t.dow || 0] + " at " + at : t.every === "weekdays" ? "Weekdays at " + at : t.every === "once" ? "Once, at " + at : "Every day at " + at;
+}
+// the models for a task: Andromeda's own measured pick for what it asks, best first
+function taskModels(prompt) {
+	try { return rank(classify(prompt, [])).slice(0, 3).map((m) => m.id); } catch { return []; }
+}
+async function makeTask(t) {
+	const j = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...t, tz: -new Date().getTimezoneOffset(), models: t.models || taskModels(t.prompt) }) });
+	try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch {}
+	return j.task;
+}
+// the conductor chose it: the task is set up, and said back plainly
+async function runTaskWay(plan, text) {
+	if (!creditsMode() || !account) throw Object.assign(new Error("Sign in to set up tasks: they run on Andromeda's server, even with this page closed."), { plain: true });
+	const s = plan.schedule || {};
+	const task = await makeTask({ prompt: String(s.todo || text).slice(0, 4000), title: String(s.todo || text).slice(0, 80), every: s.every, time: s.time, dow: s.dow, web: true });
+	current.msgs.push({ role: "assistant", text: "Done. **" + whenText(task) + "** I'll: " + task.prompt + "\n\nEach answer goes to your **Tasks** chat, even if this page is closed. You can change or stop it in **Tasks** in the sidebar." });
+	syncTasks();
+}
+// what ran while you were away: into the Tasks chat
+let TASK_SYNC = 0;
+async function syncTasks(quiet) {
+	if (!creditsMode() || !account || Date.now() - TASK_SYNC < 4000) return null;
+	TASK_SYNC = Date.now();
+	let j;
+	try { j = await api("/api/tasks"); } catch { return null; }
+	const fresh = (j.runs || []).filter((r) => !r.seen).reverse();
+	if (fresh.length) {
+		let c = convos.find((x) => x.id === "tasks");
+		if (!c) { c = { id: "tasks", title: "Tasks", at: Date.now(), msgs: [] }; convos.unshift(c); }
+		for (const r of fresh) {
+			const t = (j.tasks || []).find((x) => x.id === r.task_id);
+			c.msgs.push({ role: "user", text: "Task: " + (t ? t.title : "a task") + " (" + new Date(r.created_at).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) + ")" });
+			c.msgs.push(r.text ? { role: "assistant", text: r.text, model: r.model || undefined } : { role: "assistant", error: "This run didn't work: " + (r.error || "no answer came back") });
+		}
+		c.at = Date.now();
+		save();
+		render();
+		api("/api/tasks/seen", { method: "POST", body: JSON.stringify({ ids: fresh.map((r) => r.id) }) }).catch(() => {});
+		if (!quiet) toast(fresh.length === 1 ? "A task ran: it's in your Tasks chat" : fresh.length + " tasks ran: they're in your Tasks chat");
+		try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Andromeda", { body: (fresh[fresh.length - 1].text || "A task ran").replace(/[#*_`>]/g, "").slice(0, 140), icon: "icons/icon-192.png" }); } catch {}
+	}
+	return j;
+}
+setInterval(() => syncTasks(), 5 * 60e3);
+addEventListener("focus", () => syncTasks());
+async function openTasks() {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	openModal('<h2>Tasks</h2><p class="sub">Things Andromeda does by itself on a schedule, even with this page closed. Each run uses your credits like a message, and its answer waits in your Tasks chat.</p>' +
+		'<div class="tk-new"><textarea class="inp" id="tkPrompt" rows="2" maxlength="4000" placeholder="e.g. The AI news that matters today, in five bullets with links"></textarea><div class="row tk-when"><select class="inp" id="tkEvery">' + Object.entries(EVERY_NAMES).map(([k, n]) => '<option value="' + k + '"' + (k === "day" ? " selected" : "") + ">" + n + "</option>").join("") + '</select><select class="inp" id="tkDow" hidden>' + DOWS.map((d, k) => '<option value="' + k + '"' + (k === 1 ? " selected" : "") + ">" + d + "</option>").join("") + '</select><input class="inp" type="time" id="tkTime" value="07:00" aria-label="At"><label class="chk"><input type="checkbox" id="tkWeb" checked> Search the web first</label><button class="btn dark" id="tkMake">Make the task</button></div><div class="status" id="tkStatus"></div></div>' +
+		'<div id="tkList"><div class="help">Loading…</div></div>', "wide");
+	$("#tkEvery").onchange = () => { $("#tkDow").hidden = $("#tkEvery").value !== "week"; };
+	$("#tkMake").onclick = async () => {
+		const prompt = $("#tkPrompt").value.trim();
+		if (!prompt) { $("#tkPrompt").focus(); return; }
+		$("#tkMake").disabled = true;
+		try {
+			await makeTask({ prompt, every: $("#tkEvery").value, time: $("#tkTime").value, dow: +$("#tkDow").value, web: $("#tkWeb").checked });
+			$("#tkPrompt").value = "";
+			$("#tkStatus").className = "status ok";
+			$("#tkStatus").textContent = "Made. It runs by itself from now on.";
+			drawTasks();
+		} catch (e) { $("#tkStatus").className = "status bad"; $("#tkStatus").textContent = e.message; }
+		$("#tkMake").disabled = false;
+	};
+	drawTasks();
+}
+async function drawTasks() {
+	TASK_SYNC = 0;
+	const j = await syncTasks(true);
+	const box = $("#tkList");
+	if (!box) return;
+	if (!j) { box.innerHTML = '<div class="help">Tasks couldn\'t load just now.</div>'; return; }
+	const tasks = j.tasks || [];
+	box.innerHTML = tasks.length ? '<div class="tk-h">Your tasks</div>' + tasks.map((t) => '<div class="tk' + (t.active ? "" : " off") + '"><div class="tk-t"><b>' + esc(t.title) + "</b><small>" + esc(whenText(t)) + (t.web ? " · searches the web" : "") + (t.active ? " · next " + esc(new Date(t.next_at).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })) : " · paused") + '</small></div><button class="btn" data-tkrun="' + t.id + '">Run now</button><button class="btn" data-tkpause="' + t.id + '">' + (t.active ? "Pause" : "Resume") + '</button><button class="btn" data-tkdel="' + t.id + '">Delete</button></div>').join("") : '<div class="help">No tasks yet. Try: "Every weekday at 7, the AI news that matters" (you can also just ask for it in a chat).</div>';
+	$$("[data-tkrun]", box).forEach((b) => b.onclick = async () => {
+		b.disabled = true; b.textContent = "Running…";
+		try { await api("/api/tasks/" + b.dataset.tkrun + "/run", { method: "POST" }); TASK_SYNC = 0; await syncTasks(); b.textContent = "Done: see your Tasks chat"; }
+		catch (e) { b.textContent = "Run now"; b.disabled = false; toast(e.message); }
+	});
+	$$("[data-tkpause]", box).forEach((b) => b.onclick = async () => {
+		const t = tasks.find((x) => x.id === b.dataset.tkpause);
+		try { await api("/api/tasks", { method: "POST", body: JSON.stringify({ id: t.id, prompt: t.prompt, title: t.title, every: t.every, time: hhmm(t.minute || 0), dow: t.dow, tz: t.tz, web: t.web, active: !t.active }) }); drawTasks(); } catch (e) { toast(e.message); }
+	});
+	$$("[data-tkdel]", box).forEach((b) => b.onclick = async () => { try { await api("/api/tasks/" + b.dataset.tkdel, { method: "DELETE" }); drawTasks(); } catch (e) { toast(e.message); } });
+}
+$("#tasksNav").onclick = () => { openSidebar(false); openTasks(); };
+
 // ---------------------------------------------------------------- the site
 function showApp(on) {
 	if (document.body.classList.contains("in-share")) closeShared();
@@ -8415,6 +8526,7 @@ addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
 	updateRoute();
 	renderLanding();
 	if (SERVER && account) await refreshMe();
+	syncTasks();
 	if (location.hash === "#admin") openAdmin();
 	else if (location.hash === "#pricing") openPricing();
 	else if (inApp && !connected()) setTimeout(SERVER ? openAccount : openSettings, 600);

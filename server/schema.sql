@@ -68,6 +68,37 @@ CREATE TABLE IF NOT EXISTS shares (
 );
 CREATE INDEX IF NOT EXISTS shares_user ON shares (user_id, created_at);
 
+-- scheduled tasks: something to do by itself (a daily news brief, a weekly reminder), and what each run answered
+CREATE TABLE IF NOT EXISTS tasks (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	title TEXT,
+	prompt TEXT NOT NULL,
+	every TEXT NOT NULL, -- once | hour | day | weekdays | week
+	minute INTEGER NOT NULL DEFAULT 0, -- of the day, in the person's own time
+	dow INTEGER NOT NULL DEFAULT 0, -- 0 Sunday .. 6 Saturday, for "week"
+	tz INTEGER NOT NULL DEFAULT 0, -- the person's offset from UTC in minutes (UTC+7 = 420)
+	web INTEGER NOT NULL DEFAULT 1,
+	models TEXT, -- the models Andromeda picked for it, best first (JSON)
+	active INTEGER NOT NULL DEFAULT 1,
+	next_at INTEGER NOT NULL,
+	last_at INTEGER,
+	created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS tasks_due ON tasks (active, next_at);
+CREATE INDEX IF NOT EXISTS tasks_user ON tasks (user_id);
+CREATE TABLE IF NOT EXISTS task_runs (
+	id TEXT PRIMARY KEY,
+	task_id TEXT NOT NULL,
+	user_id TEXT NOT NULL,
+	text TEXT,
+	error TEXT,
+	model TEXT,
+	created_at INTEGER NOT NULL,
+	seen INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS task_runs_user ON task_runs (user_id, created_at);
+
 CREATE TABLE IF NOT EXISTS config (
 	k TEXT PRIMARY KEY,
 	v TEXT NOT NULL

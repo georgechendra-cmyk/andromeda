@@ -12,6 +12,10 @@ binding = "DB"
 database_name = "andromeda"
 database_id = "06f2a301-f884-4f49-a715-6175ce84c399"
 
+# scheduled tasks: every 10 minutes the ones that are due run
+[triggers]
+crons = ["*/10 * * * *"]
+
 # Secrets are NOT written here. Set them once with:
 #   npx wrangler secret put ADMIN_TOKEN
 #   npx wrangler secret put PEPPER

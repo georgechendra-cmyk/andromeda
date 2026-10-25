@@ -56,6 +56,10 @@ export default {
 			return res;
 		}
 	},
+	// every few minutes: the scheduled tasks that are due run (see "tasks")
+	async scheduled(event, env, ctx) {
+		ctx.waitUntil(runDueTasks(env, ctx));
+	},
 };
 
 async function route(req, env, ctx, url) {
@@ -75,6 +79,12 @@ async function route(req, env, ctx, url) {
 	const user = await authUser(req, env);
 	if (p === "/api/shares" && m === "POST") return shareMake(req, env, user);
 	if (sh && m === "DELETE") return shareDel(env, user, sh[1]);
+	if (p === "/api/tasks" && m === "GET") return taskList(env, user);
+	if (p === "/api/tasks" && m === "POST") return taskSave(req, env, user);
+	if (p === "/api/tasks/seen" && m === "POST") return taskSeen(req, env, user);
+	let tk;
+	if ((tk = p.match(/^\/api\/tasks\/([a-f0-9]{24})$/)) && m === "DELETE") return taskDel(env, user, tk[1]);
+	if ((tk = p.match(/^\/api\/tasks\/([a-f0-9]{24})\/run$/)) && m === "POST") return taskRunNow(env, ctx, user, tk[1]);
 	if (p === "/api/logout" && m === "POST") {
 		await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256hex(bearer(req))).run();
 		return json({ ok: true });
@@ -1784,6 +1794,117 @@ async function shareGet(env, sid) {
 async function shareDel(env, user, sid) {
 	await env.DB.prepare("DELETE FROM shares WHERE id = ? AND user_id = ?").bind(sid, user.id).run();
 	return json({ ok: true });
+}
+
+// ------------------------------------------------------------------ tasks
+// Something to do by itself on a schedule (like ChatGPT's tasks): "every weekday at 7, the AI news that matters". Each run
+// is an ordinary request made for the person (their credits, the models Andromeda picked for it, a live web search),
+// and its answer waits for them in the app.
+const EVERY = ["once", "hour", "day", "weekdays", "week"];
+function nextRun(t, after) {
+	const off = (Number(t.tz) || 0) * 60e3, local = after + off, day = 864e5;
+	const m = Math.max(0, Math.min(1439, Number(t.minute) || 0)) * 60e3;
+	if (t.every === "hour") {
+		const h = 3600e3;
+		let n = Math.floor(local / h) * h + (m % h);
+		if (n <= local) n += h;
+		return n - off;
+	}
+	let n = Math.floor(local / day) * day + m;
+	for (let k = 0; k < 9; k++, n += day) {
+		const dow = new Date(n).getUTCDay();
+		if (n > local && (t.every === "day" || t.every === "once" || (t.every === "weekdays" && dow >= 1 && dow <= 5) || (t.every === "week" && dow === Number(t.dow)))) return n - off;
+	}
+	return after + day;
+}
+const taskOut = (t) => ({ id: t.id, title: t.title, prompt: t.prompt, every: t.every, minute: t.minute, dow: t.dow, tz: t.tz, web: !!t.web, next_at: t.next_at, last_at: t.last_at, active: !!t.active });
+async function taskList(env, user) {
+	const tasks = (await env.DB.prepare("SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()).results || [];
+	const runs = (await env.DB.prepare("SELECT id, task_id, text, error, model, created_at, seen FROM task_runs WHERE user_id = ? ORDER BY created_at DESC LIMIT 40").bind(user.id).all()).results || [];
+	return json({ tasks: tasks.map(taskOut), runs });
+}
+async function taskSave(req, env, user) {
+	const b = await body(req);
+	const prompt = String(b.prompt || "").trim().slice(0, 4000);
+	if (!prompt) throw fail(400, "Say what the task should do.");
+	const every = EVERY.includes(b.every) ? b.every : "day";
+	const [hh, mm] = String(b.time || "08:00").split(":").map(Number);
+	const t = {
+		title: String(b.title || prompt).replace(/\s+/g, " ").trim().slice(0, 80), prompt, every,
+		minute: Math.max(0, Math.min(1439, (hh || 0) * 60 + (mm || 0))), dow: Math.max(0, Math.min(6, Number(b.dow) || 0)),
+		tz: Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 0))), web: b.web === false ? 0 : 1,
+		models: JSON.stringify((Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 4)),
+		active: b.active === false ? 0 : 1,
+	};
+	t.next_at = nextRun(t, now());
+	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
+		const r = await env.DB.prepare("UPDATE tasks SET title = ?, prompt = ?, every = ?, minute = ?, dow = ?, tz = ?, web = ?, models = ?, active = ?, next_at = ? WHERE id = ? AND user_id = ?")
+			.bind(t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.web, t.models, t.active, t.next_at, b.id, user.id).run();
+		if (r.meta && r.meta.changes) return json({ task: taskOut({ ...t, id: b.id }) });
+	}
+	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM tasks WHERE user_id = ?").bind(user.id).first();
+	if (n && n.n >= 20) throw fail(429, "You have 20 tasks already: delete one to add another.");
+	const tid = id();
+	await env.DB.prepare("INSERT INTO tasks (id, user_id, title, prompt, every, minute, dow, tz, web, models, active, next_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		.bind(tid, user.id, t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.web, t.models, t.active, t.next_at, now()).run();
+	return json({ task: taskOut({ ...t, id: tid }) });
+}
+async function taskDel(env, user, tid) {
+	await env.DB.batch([
+		env.DB.prepare("DELETE FROM tasks WHERE id = ? AND user_id = ?").bind(tid, user.id),
+		env.DB.prepare("DELETE FROM task_runs WHERE task_id = ? AND user_id = ?").bind(tid, user.id),
+	]);
+	return json({ ok: true });
+}
+async function taskSeen(req, env, user) {
+	const b = await body(req);
+	const ids = (Array.isArray(b.ids) ? b.ids : []).filter((x) => /^[a-f0-9]{24}$/.test(String(x))).slice(0, 100);
+	if (ids.length) await env.DB.batch(ids.map((x) => env.DB.prepare("UPDATE task_runs SET seen = 1 WHERE id = ? AND user_id = ?").bind(x, user.id)));
+	return json({ ok: true });
+}
+async function taskRunNow(env, ctx, user, tid) {
+	const t = await env.DB.prepare("SELECT * FROM tasks WHERE id = ? AND user_id = ?").bind(tid, user.id).first();
+	if (!t) throw fail(404, "That task doesn't exist.");
+	const r = await runTask(env, ctx, t);
+	return json({ run: r });
+}
+// one run: the request as the person would send it, the models tried in the order Andromeda picked them
+async function runTask(env, ctx, t) {
+	const user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(t.user_id).first();
+	if (!user) return null;
+	let models = [];
+	try { models = JSON.parse(t.models || "[]"); } catch {}
+	if (!models.length) models = ["anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol", "google/gemini-3.8-flash"];
+	const when = new Date(now() + (Number(t.tz) || 0) * 60e3).toISOString().slice(0, 16).replace("T", " ");
+	const messages = [
+		{ role: "system", content: "You are Andromeda. This is a task the user set up to run by itself on a schedule, and it's running now: " + when + " in their time. Do it completely, as a finished message to them: what matters first, no preamble, and no questions back (they aren't here to answer). Use Markdown." },
+		{ role: "user", content: t.prompt },
+	];
+	let text = "", error = "", used = "";
+	for (const model of models) {
+		try {
+			const res = await chat(new Request("https://andromeda.internal/api/chat/completions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, messages, ...(t.web ? { plugins: [{ id: "web", max_results: 6, query: t.prompt.slice(0, 300) }] } : {}) }) }), env, ctx, user);
+			const j = await res.json().catch(() => ({}));
+			text = String(j.choices?.[0]?.message?.content || "");
+			if (text) { used = model; break; }
+			error = j.error?.message || "No answer came back.";
+		} catch (e) {
+			error = e.message || String(e);
+			if (e.status === 402) break;
+		}
+	}
+	const rid = id(), at = now();
+	await env.DB.prepare("INSERT INTO task_runs (id, task_id, user_id, text, error, model, created_at, seen) VALUES (?, ?, ?, ?, ?, ?, ?, 0)").bind(rid, t.id, t.user_id, text || null, text ? null : error, used || null, at).run();
+	return { id: rid, task_id: t.id, text, error: text ? "" : error, model: used, created_at: at };
+}
+async function runDueTasks(env, ctx) {
+	const due = (await env.DB.prepare("SELECT * FROM tasks WHERE active = 1 AND next_at <= ? ORDER BY next_at LIMIT 25").bind(now()).all()).results || [];
+	for (const t of due) {
+		// moved on before it runs, so a slow or failing run never runs twice
+		const next = t.every === "once" ? 0 : nextRun(t, now());
+		await env.DB.prepare("UPDATE tasks SET last_at = ?, next_at = ?, active = ? WHERE id = ?").bind(now(), next || t.next_at, next ? 1 : 0, t.id).run();
+		try { await runTask(env, ctx, t); } catch {}
+	}
 }
 
 // ------------------------------------------------------------------ payments
