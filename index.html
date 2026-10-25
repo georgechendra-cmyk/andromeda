@@ -1232,6 +1232,15 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 .pop .st-pill:hover { color: var(--text); }
 .pop .st-pill.on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, transparent); background: var(--brand-soft); }
 #regenPop { position: fixed; top: 0; right: auto; z-index: 60; width: 250px; max-height: min(70vh, 460px); overflow-y: auto; background: var(--bg2); backdrop-filter: none; }
+
+/* ---- compare AIs */
+.cmp { margin: 4px 0 8px; }
+.cmp summary { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border: 1px solid var(--line2); border-radius: 999px; font-size: 13px; color: var(--muted); list-style: none; }
+.cmp summary::-webkit-details-marker { display: none; }
+.cmp summary:hover { color: var(--text); }
+.cmp[open] summary { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); background: var(--brand-soft); }
+.cmp .members { margin-top: 10px; }
+.member .mt { max-height: 132px; }
 </style>
 </head>
 <body>
@@ -1426,6 +1435,7 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 				<div class="pop up" id="plusPop" role="menu" hidden>
 					<button class="mi" role="menuitem" id="attachBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg><span><b>Add photos &amp; files</b></span></button>
 					<hr>
+					<button class="mi" role="menuitem" data-tool="compare"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 9.5l2.6 6M16 9.5l-2.6 6"/></svg><span><b>Compare AIs</b><small>The best models from several labs answer, then the best of each is combined</small></span></button>
 					<button class="mi" role="menuitem" data-tool="research"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span><b>Deep research</b><small>Searches widely, reads the sources, writes a cited report</small></span></button>
 					<button class="mi" role="menuitem" data-tool="image"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 15 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/></svg><span><b>Create an image</b><small>Photos, art, posters, logos, or change one you attach</small></span></button>
 					<button class="mi" role="menuitem" data-tool="video"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg><span><b>Make a video</b><small>Ads and short films, with voice and music</small></span></button>
@@ -2151,6 +2161,7 @@ const WAYS = {
 	podcast: "a two-host podcast that talks a topic through aloud",
 	docx: "a Word document to download",
 	pdf: "a PDF to download",
+	compare: "compare AIs: the strongest models of several different labs each answer on their own, shown side by side, then the strongest combines them into one answer. For questions where being right really matters, where views differ, or when the user wants several opinions or asks to compare AIs",
 	research: "deep research: many searches and sources read and cross-checked, then a long, structured report with citations (for big questions where being thorough matters more than speed)",
 	pptx: "a PowerPoint deck to download",
 	xlsx: "an Excel spreadsheet to download",
@@ -2186,6 +2197,7 @@ const TOOLS = {
 	app: { label: "App or game", ways: ["app", "sim"], ph: "What should I build?" },
 	study: { label: "Study", ways: ["flashcards", "quiz", "open", "mindmap", "podcast"], ph: "A topic, or attach your notes" },
 	doc: { label: "Document", ways: FILE_WAYS, ph: "What should the document, deck or spreadsheet be?" },
+	compare: { label: "Compare AIs", ways: ["compare"], ph: "Ask, and see how the best AIs each answer" },
 	act: { label: "Tools and computer", ways: ["act"], ph: "What should I do? I can run code, search, and work in your apps" },
 };
 let TOOL = null;
@@ -2323,6 +2335,7 @@ async function runWay(plan, text, atts) {
 		return runAgent(text, atts);
 	}
 	if (w === "app") return runApp(text, atts, { edit: plan.edit });
+	if (w === "compare") return runCompare(text, atts);
 	if (w === "act" || w === "apps") return runAct(text, atts);
 	if (w === "research") {
 		if (!SKILLS_ON.includes("research")) SKILLS_ON.unshift("research");
@@ -2875,6 +2888,12 @@ function thinkHtml(m) {
 	const live = m.streaming && !m.text, secs = m.thoughtMs ? Math.max(1, Math.round(m.thoughtMs / 1000)) : 0;
 	return '<details class="think"' + (live ? " open" : "") + "><summary>" + (live ? '<span class="thinking">Thinking</span>' : "Thought" + (secs ? " for " + secs + "s" : "")) + '</summary><div class="think-b">' + esc(live ? m.think.slice(-1500) : m.think.slice(0, 20000)) + "</div></details>";
 }
+function councilHtml(m, body) {
+	const n = (m.members || []).length;
+	if (!n) return "";
+	if (m.streaming && !m.text) return body;
+	return '<details class="cmp"><summary>Compare the ' + n + " answers</summary>" + body + "</details>";
+}
 let SEEN = { id: null, n: 0 };
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function renderThread() {
@@ -2958,7 +2977,7 @@ function renderMsg(m, i) {
 	}
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
-		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? "" : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
+		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? councilHtml(m, body) : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
 		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
@@ -7984,6 +8003,40 @@ $("#regenPop").addEventListener("click", (e) => {
 	ONCE = b.dataset.rgpin ? { pin: b.dataset.rgpin } : how && how[2] ? { note: how[2] } : null;
 	editAt(i, current.msgs[i].text);
 });
+
+// ---------------------------------------------------------------- compare AIs
+async function runCompare(text, atts) {
+	const kind = PROFILE ? PROFILE.kind : classify(text, atts);
+	// the strongest model of each of the three labs that measure best at this work
+	const team = [], labs = new Set();
+	for (const m of [...rank(kind), ...rank("reasoning"), ...rank("write"), ...rank("quick")]) {
+		if (!m || labs.has(provider(m.id))) continue;
+		labs.add(provider(m.id));
+		team.push(m);
+		if (team.length >= 3) break;
+	}
+	if (team.length < 2) return runSmart(text, atts);
+	const msg = { role: "assistant", kind: "council", text: "", streaming: true, status: "Asking " + team.length + " models", members: team.map((m) => ({ name: shortName(m), id: m.id, text: "" })) };
+	current.msgs.push(msg);
+	updateLast();
+	const hist = [sys(), ...chatHistory()];
+	await Promise.all(team.map(async (m, k) => {
+		const x = msg.members[k];
+		try { await stream(m.id, hist, (t) => { x.text = t; updateLast(); }, busy.signal, effortExtra(m.id), msg); x.done = true; }
+		catch (e) { if (e.name === "AbortError") throw e; x.error = niceError(e); }
+		updateLast();
+	}));
+	const good = msg.members.filter((x) => x.done && x.text);
+	if (!good.length) throw new Error("None of the models could answer just now");
+	if (good.length === 1) { msg.text = good[0].text; msg.streaming = false; return; }
+	// the strongest at putting answers together writes the one answer
+	const judge = bestFor("assemble")[0] || team[0];
+	msg.judge = shortName(judge);
+	msg.status = "Combining the best of each";
+	updateLast();
+	const prompt = "Several expert AI models answered the same request on their own. Write the single best answer: keep what's correct and strongest in each, fix anything wrong, and where they genuinely disagree, say so briefly and say which view holds up best and why. Don't mention the models or that there were several answers unless they disagreed.\n\nThe request:\n" + text + "\n\n" + good.map((x, n) => "Answer " + (n + 1) + ":\n" + x.text).join("\n\n---\n\n");
+	await stream(judge.id, [sys(), ...chatHistory().slice(0, -1), { role: "user", content: prompt }], (t) => { msg.text = t; updateLast(); }, busy.signal, effortExtra(judge.id), msg);
+}
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
