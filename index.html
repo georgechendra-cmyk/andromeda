@@ -1106,6 +1106,64 @@ body.art-dragging .app { transition: none; }
 .art-card.on .art-go { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
 /* the chat is narrower beside the panel: no room for the mark out in the margin */
 body.art-open .msg > .av { display: none; }
+
+/* ---- projects in the sidebar, the project page, the library */
+.sp-i { display: flex; align-items: center; gap: 9px; width: 100%; padding: 7px 10px; border-radius: 10px; color: var(--text); text-align: left; font-size: 14px; }
+.sp-i svg { flex: none; color: var(--muted); }
+.sp-i .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-i:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.sp-i.active { background: color-mix(in srgb, var(--text) 9%, transparent); }
+.sp-i.active svg { color: var(--brand); }
+.sp-new, .sp-new svg { color: var(--muted); }
+.crumb { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 4px 0 10px; border-radius: 10px; font-size: 14px; color: var(--muted); white-space: nowrap; max-width: 30%; }
+.crumb span { overflow: hidden; text-overflow: ellipsis; }
+.crumb::after { content: "/"; margin-left: 4px; color: var(--faint); }
+.crumb:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+.crumb[hidden] { display: none; }
+.space-pg { max-width: 820px; margin: 0 auto; padding: 9vh 22px 80px; animation: rise .6s var(--ease) both; }
+.sp-top { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+.sp-top h1 { flex: 1; min-width: 0; margin: 0; font-family: var(--serif); font-weight: 400; font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -.015em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-ic { flex: none; width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); }
+.sp-top .btn { height: 34px; font-size: 13px; }
+.space-pg .slot .composer { box-shadow: var(--lift); }
+.space-pg .pop.up { top: calc(100% + 8px); bottom: auto; max-height: min(54vh, 480px); }
+.sp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+.sp-card { border: 1px solid var(--glass-line); border-radius: 18px; background: var(--glass); padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.sp-ch { display: grid; gap: 2px; }
+.sp-ch b { font-weight: 600; font-size: 14.5px; }
+.sp-ch small { font-size: 12.5px; color: var(--faint); line-height: 1.4; }
+.sp-card textarea { flex: 1; min-height: 120px; resize: vertical; }
+.sp-card .btn { align-self: flex-start; gap: 6px; height: 34px; font-size: 13px; }
+.sp-files { display: grid; gap: 6px; max-height: 220px; overflow: auto; }
+.sp-file { display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 7px; border: 1px solid var(--line); border-radius: 11px; font-size: 13.5px; min-width: 0; }
+.sp-file > span:nth-child(2) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-file small { flex: none; color: var(--faint); font-size: 12px; }
+.sp-file .fs-badge { padding: 5px 5px; font-size: 9.5px; flex: none; }
+.fs-txt { background: #5b6170; }
+.sp-file .x { flex: none; padding: 2px 6px; border-radius: 6px; color: var(--faint); }
+.sp-file .x:hover { color: var(--err); background: color-mix(in srgb, var(--err) 8%, transparent); }
+.sp-chats { margin-top: 22px; }
+.sp-chats .convo { padding: 10px 12px; border-bottom: 1px solid var(--line); border-radius: 0; }
+.sp-chats .convo:hover { border-radius: 10px; }
+.sp-when { flex: none; color: var(--faint); font-size: 12.5px; }
+.caps-skills { border-top: 1px solid var(--line); padding-top: 4px; }
+.caps-skills summary { cursor: pointer; padding: 10px 0; font-size: 14px; color: var(--muted); list-style: none; }
+.caps-skills summary::-webkit-details-marker { display: none; }
+.caps-skills summary::after { content: " ›"; color: var(--faint); }
+.caps-skills[open] summary::after { content: " ⌄"; }
+.lib-kinds { margin-bottom: 16px; }
+.lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.lib-it { display: flex; flex-direction: column; gap: 3px; text-align: left; min-width: 0; padding: 0; border-radius: 14px; transition: transform .2s var(--ease); }
+.lib-it:hover { transform: translateY(-2px); }
+.lib-th { position: relative; display: grid; place-items: center; aspect-ratio: 4 / 3; margin-bottom: 6px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: color-mix(in srgb, var(--brand) 7%, var(--bg3)); color: var(--brand); }
+.lib-th img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lib-play { position: absolute; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: rgba(0,0,0,.55); color: #fff; }
+.lib-play svg { fill: currentColor; }
+.lib-it b { font-weight: 500; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lib-it small { font-size: 12px; color: var(--faint); }
+.pop [hidden] { display: none !important; }
+@media (max-width: 860px) { .sp-grid { grid-template-columns: 1fr; } .space-pg { padding-top: 5vh; padding-left: 16px; padding-right: 16px; } .sp-top .btn { display: none; } }
+@media (min-width: 861px) { body.sb-closed .sp-i, body.sb-closed .convo-group { display: none; } }
 </style>
 </head>
 <body>
@@ -1214,6 +1272,7 @@ body.art-open .msg > .av { display: none; }
 		<nav class="sb-nav" aria-label="Andromeda">
 			<button class="nav-i new" id="newChat" title="New chat (Ctrl+K)"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
 			<label class="nav-i nav-search" title="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" class="lbl" placeholder="Search chats" aria-label="Search chats"></label>
+			<button class="nav-i" id="libNav" title="Library: everything Andromeda made for you"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span class="lbl">Library</span></button>
 			<button class="nav-i" id="codeNav" title="Andromeda Code: build or change a project"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
 			<button class="nav-i" id="appsNav" title="Connect apps: your computer, Blender, Figma, files and more"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
 		</nav>
@@ -1237,7 +1296,7 @@ body.art-open .msg > .av { display: none; }
 	<main class="main">
 		<header class="topbar" id="topbar">
 			<button class="menu-btn" id="menuBtn" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
-			<button class="ttl" id="chatTitle" aria-haspopup="menu" aria-controls="chatPop" title="Rename, export or delete this chat"></button>
+			<button class="crumb" id="crumb" hidden title="Open this project"></button><button class="ttl" id="chatTitle" aria-haspopup="menu" aria-controls="chatPop" title="Rename, export or delete this chat"></button>
 			<div class="spacer"></div>
 			<span class="chip" id="topChip"><span class="dot"></span><span id="topChipText">Not connected</span></span>
 			<button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
@@ -2033,6 +2092,33 @@ const TOOLS = {
 let TOOL = null;
 // what is open in the panel beside the chat (its code is further down)
 let ART = null;
+// Projects: chats that share instructions and files (like Claude's and ChatGPT's). The list is kept with the settings;
+// each project's files (read to text) in the vault
+const spaces = () => store.get("spaces", []);
+const saveSpaces = (list) => store.set("spaces", list);
+const spaceOf = (id) => (id && spaces().find((s) => s.id === id)) || null;
+const SPACE_FILES = new Map();
+let SPACE_VIEW = null;
+async function loadSpace(id) {
+	if (!id) return [];
+	if (!SPACE_FILES.has(id)) SPACE_FILES.set(id, (await vault.get("space-files:" + id)) || []);
+	return SPACE_FILES.get(id);
+}
+// Capabilities: everything Andromeda can do, all on; each can be switched off in Settings
+const CAPS = {
+	web: ["Search the web and read pages", "Live search, and links opened, when an answer needs today's information"],
+	code: ["Run code", "Python and JavaScript right here: calculations, your files, charts, checking its own work"],
+	research: ["Deep research", "Many searches and sources, cross-checked, written up as a cited report"],
+	create: ["Pictures, video, music and voice", "Each made by the model that's best at it"],
+	docs: ["Documents", "Word, PDF, PowerPoint and Excel files to download"],
+	study: ["Study sets", "Flashcards, quizzes, mind maps, podcasts and simulations"],
+	panel: ["Open what's made beside the chat", "Apps, games and pages open in a panel next to the conversation"],
+	computer: ["Your computer and connected apps", "Through the connector, asking you before anything changes"],
+};
+const capOn = (k) => !(settings.off || {})[k];
+const skillOn = (k) => !(settings.offSkills || {})[k];
+// the ways a request can go that are switched on
+const wayOn = (k) => !(k === "research" && !capOn("research")) && !(STUDIO_WAYS.includes(k) && !capOn("create")) && !(FILE_WAYS.includes(k) && !capOn("docs")) && !(STUDY_WAYS.includes(k) && !capOn("study"));
 let PROFILE_TEXT = null, PLAN_NOTE = "";
 // what was made just before (so "make it calmer" changes that one)
 function lastMade() {
@@ -2054,11 +2140,12 @@ async function conduct(text, atts, tried, only) {
 	let ways = Object.entries(WAYS).filter(([k]) => studio || !STUDIO_WAYS.includes(k));
 	// the user's own connected apps (Blender, Figma, their files...), with what each can do
 	if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
-	const apps = liveApps(), pc = apps.some((s) => s.name === "computer"), others = apps.filter((s) => s.name !== "computer");
+	const apps = capOn("computer") ? liveApps() : [], pc = apps.some((s) => s.name === "computer"), others = apps.filter((s) => s.name !== "computer");
 	ways.push(["act", "do it for real, step by step with tools, like an engineer at a computer: run Python or JavaScript to calculate, analyse or test, search the web and read pages, check its own work"
 		+ (pc ? "; on the user's own computer: run commands and programs, build and test their projects, install things, read, write and organise their files, look at the screen" : "")
 		+ (others.length ? "; in the user's connected apps: " + others.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ") : "")
 		+ ". Choose it whenever the request needs something done or checked rather than only said"]);
+	ways = ways.filter(([k]) => wayOn(k));
 	// a tool the person picked themselves: one of its ways (when this server can do it)
 	if (only && only.length) { const f = ways.filter(([k]) => only.includes(k)); if (f.length) ways = f; else only = null; }
 	const imgs = atts.filter((a) => a.kind === "image").length, files = atts.filter((a) => a.kind !== "image").map((a) => a.name);
@@ -2067,11 +2154,12 @@ async function conduct(text, atts, tried, only) {
 		+ "The ways Andromeda can deliver:\n" + ways.map(([k, d]) => k + ": " + d).join("\n")
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ (only ? "\nThe person picked this themselves from Andromeda's tools: deliver it that way.\n" : "")
+		+ (spaceOf(current && current.space) ? "\nThis chat is in the user's project \"" + spaceOf(current.space).name + "\"" + (String(spaceOf(current.space).about || "").trim() ? ", whose instructions say: " + spaceOf(current.space).about.slice(0, 600) : "") + ((SPACE_FILES.get(current.space) || []).length ? ". Its files: " + SPACE_FILES.get(current.space).map((f) => f.name).join(", ").slice(0, 300) : "") + ".\n" : "")
 		+ (made ? "\nThe thing made just before this was: " + made + ". If the request changes that, choose its way again with \"edit\": true.\n" : "")
 		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
 		+ (tried && tried.length ? "\nAlready tried, and it failed:\n" + tried.map((t) => "- " + t.way + ": " + t.error).join("\n") + "\nChoose a different way, or the same way only if that error clearly won't happen again.\n" : "")
-		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
+		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
 		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\"}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions.\n\nThe request:\n" + text.slice(0, 4000);
@@ -2099,7 +2187,7 @@ async function conduct(text, atts, tried, only) {
 		const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
 		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), weights, check: j.check === true, language: lang };
 	}
-	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k]).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), profile };
+	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), profile };
 }
 // the way it chose, done by the part of Andromeda that does it
 async function runWay(plan, text, atts) {
@@ -2243,7 +2331,7 @@ function parseJSON(t) {
 }
 
 // ---------------------------------------------------------------- conversations
-function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), msgs: [] }; convos.unshift(current); render(); }
+function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), msgs: [], ...(spaceOf(SPACE_VIEW) ? { space: SPACE_VIEW } : {}) }; convos.unshift(current); render(); }
 function save() {
 	if (current && !convos.includes(current)) convos.unshift(current);
 	convos = convos.filter((c) => c.msgs.length || c === current);
@@ -2348,7 +2436,13 @@ function sys(extra) {
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
 	const plan = !extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "";
-	return { role: "system", content: [extra || base, plan, skillLine(), mine, memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
+	return { role: "system", content: [extra || base, plan, skillLine(), mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
+}
+function spaceLine() {
+	const sp = current && spaceOf(current.space);
+	if (!sp) return "";
+	const text = (SPACE_FILES.get(sp.id) || []).map((f) => "--- " + f.name + " ---\n" + f.data).join("\n\n").slice(0, 150000);
+	return "This chat is in the user's project \"" + sp.name + "\"." + (String(sp.about || "").trim() ? "\nThe project's instructions (follow them in everything here):\n" + sp.about.slice(0, 4000) : "") + (text ? "\nThe project's files (your knowledge for this project; use them, and say which one when you rely on it):\n" + text : "");
 }
 
 // ---------------------------------------------------------------- rendering
@@ -2614,9 +2708,11 @@ async function drawDiagrams(root) {
 function routeChip(m, task, extra) {
 	return '<span class="chip"><span class="dot"></span>' + (extra ? esc(extra) + " · " : "") + "<b>" + esc(shortName(m)) + "</b>" + (task ? " · " + esc(TASK_INFO[task]?.label || task) : "") + "</span>";
 }
+const FOLDER_D = '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>';
 function renderConvoList() {
 	const q = $("#search").value.trim().toLowerCase();
-	const list = convos.filter((c) => c.msgs.length && (!q || c.title.toLowerCase().includes(q) || c.msgs.some((m) => (m.text || "").toLowerCase().includes(q))));
+	// a project's chats are in the project (a search finds them anywhere)
+	const list = convos.filter((c) => c.msgs.length && (q || !spaceOf(c.space)) && (!q || c.title.toLowerCase().includes(q) || c.msgs.some((m) => (m.text || "").toLowerCase().includes(q))));
 	const day = 864e5, now = Date.now();
 	const groups = [["Today", (c) => now - c.at < day], ["This week", (c) => now - c.at < 7 * day], ["Earlier", () => true]];
 	let html = "", used = new Set();
@@ -2626,7 +2722,10 @@ function renderConvoList() {
 		g.forEach((c) => used.add(c));
 		html += '<div class="convo-group">' + label + "</div>" + g.map((c) => '<div class="convo' + (c === current ? " active" : "") + '" data-id="' + c.id + '"><span class="t">' + esc(c.title) + '</span><button class="x" data-del="' + c.id + '" title="Delete">✕</button></div>').join("");
 	}
-	$("#convos").innerHTML = html || '<div class="convo-group">No chats yet</div>';
+	const sp = spaces().filter((s) => !q || s.name.toLowerCase().includes(q)), here = SPACE_VIEW || (current && current.msgs.length && current.space);
+	const projects = q && !sp.length ? "" : '<div class="convo-group">Projects</div>' + (q ? "" : '<button class="sp-i sp-new" data-spacenew>' + svgOf(FOLDER_D + '<path d="M12 10.5v5M9.5 13h5"/>', 17) + '<span class="t">New project</span></button>') +
+		sp.map((s) => '<button class="sp-i' + (here === s.id ? " active" : "") + '" data-space="' + esc(s.id) + '">' + svgOf(FOLDER_D, 17) + '<span class="t">' + esc(s.name) + "</span></button>").join("");
+	$("#convos").innerHTML = projects + (html || '<div class="convo-group">No chats yet</div>');
 }
 // what to try, by kind of thing: a row of topics, four ideas under the chosen one
 const ico = (d) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg>";
@@ -2661,7 +2760,7 @@ const actBtn = (attr, v, label, d) => '<button class="act ic" data-' + attr + '=
 let SEEN = { id: null, n: 0 };
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function renderThread() {
-	if (!current || !current.msgs.length) { renderWelcome(); return; }
+	if (!current || !current.msgs.length) { if (spaceOf(SPACE_VIEW)) renderSpace(); else renderWelcome(); return; }
 	const box = $("#composer"), leaving = box.parentElement !== $("#dock");
 	const was = leaving ? box.getBoundingClientRect() : null;
 	if (leaving) { $("#dock").appendChild(box); $("#dock").classList.remove("hide"); }
@@ -2799,6 +2898,9 @@ function render() {
 	updateRoute();
 	$("#chatMenuBtn").hidden = !(current && current.msgs.length);
 	$("#chatTitle").textContent = current && current.msgs.length ? current.title : "";
+	const inSpace = current && current.msgs.length && spaceOf(current.space);
+	$("#crumb").hidden = !inSpace;
+	$("#crumb").innerHTML = inSpace ? svgOf(FOLDER_D, 15) + "<span>" + esc(inSpace.name) + "</span>" : "";
 	if (!current || !current.msgs.length) $("#jumpBtn").hidden = true;
 }
 // one message drawn again where it is (editing it, or its versions), the rest of the chat left as it is
@@ -2826,7 +2928,7 @@ function updateRoute() {
 	el.innerHTML = proj + (noticed >= 3 ? '<span class="chip click" data-selffix><span class="dot" style="background:var(--warn)"></span>' + noticed + " problems noticed · let Andromeda fix itself</span>" : "");
 	// (a phone gets the short version: the long one was cut off mid-sentence)
 	const narrow = innerWidth < 560;
-	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
+	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : !(current && current.msgs.length) && spaceOf(SPACE_VIEW) ? "Start a chat in " + spaceOf(SPACE_VIEW).name : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
 	$("#topChipText").textContent = creditsMode() ? (me ? creditsText(me.credits) + " credits" : "Credits") : "Sign in";
 }
 
@@ -2866,7 +2968,7 @@ async function useTools(text, atts) {
 	WEB = false;
 	TOOLS_USED = [];
 	PROFILE = null;
-	if (!creditsMode() || !text) return;
+	if (!creditsMode() || !text || !capOn("web")) return;
 	const media = mediaIntent(text, atts), kind = classify(text, atts);
 	WEB = !media && (kind === "research" || FRESH.test(text));
 	const urls = [...new Set((text.match(URL_RE) || []).map((u) => u.replace(/[.,;:!?]+$/, "")))].filter((u) => !REPO_URL.test(u)).slice(0, 3);
@@ -3561,8 +3663,9 @@ async function compact(messages, keep = 14) {
 	messages.splice(head, cut - head, { role: "user", content: "(Earlier in this job, summed up to make room:)\n" + (sum || flat.slice(-20000)) });
 }
 async function runAct(text, atts, resume) {
-	const servers = liveApps();
-	const map = new Map(), tools = [...BUILT_IN];
+	const servers = capOn("computer") ? liveApps() : [];
+	const toolOn = (n) => (/^run_/.test(n) ? capOn("code") : /^(web_search|fetch_url)$/.test(n) ? capOn("web") : n === "remember" ? settings.memory !== false : true);
+	const map = new Map(), tools = BUILT_IN.filter((t) => toolOn(t.function.name));
 	for (const s of servers) for (const t of s.tools) {
 		const name = (s.name + "__" + t.name).replace(/[^\w-]/g, "_").slice(0, 64);
 		map.set(name, { s, t });
@@ -3901,6 +4004,7 @@ async function send(textOverride, fork) {
 	if (!catalog.length) await loadCatalog();
 	if (!ARENA) await loadArena();
 	if (!current) newConvo();
+	if (current.space) await loadSpace(current.space);
 	const tool = TOOL && TOOLS[TOOL] ? TOOL : null;
 	setTool(null);
 	const atts = attachments;
@@ -5010,7 +5114,7 @@ function renderStudy(m, i) {
 		// a card here; the thing itself opens in the panel beside the chat
 		box.innerHTML = artCard(m, i);
 		// the newest thing made opens by itself, once, where there's room for it
-		if (m.artShown == null && i === current.msgs.length - 1 && !m.streaming) { m.artShown = true; save(); if (innerWidth > 860) openArt(artFor(i)); }
+		if (m.artShown == null && i === current.msgs.length - 1 && !m.streaming) { m.artShown = true; save(); if (innerWidth > 860 && capOn("panel")) openArt(artFor(i)); }
 	} else if (m.kind === "podcast") {
 		const lines = m.data.lines || [];
 		box.innerHTML = '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-play>' + (speech.playing === m ? "Stop" : "Play episode") + '</button><button class="btn" data-dl>Download script</button></div><div class="md">' + lines.map((l) => "<p><b>" + esc(l.who) + ":</b> " + esc(l.text) + "</p>").join("") + "</div>";
@@ -6653,6 +6757,11 @@ function openSettings() {
 	const bg = settings.bg || "none";
 	const sw = (k, label, thumb) => '<button class="bgsw' + (bg === k ? " on" : "") + '" data-bg="' + k + '" title="' + esc(label) + '">' + (thumb ? '<img src="' + thumb + '" alt="" loading="lazy">' : "") + "<span>" + esc(label) + "</span></button>";
 	openModal('<h2>Settings</h2><p class="sub">How Andromeda looks and answers you. Your chats stay in this browser.</p>' +
+		'<div class="field"><label>Capabilities</label><div class="help" style="margin:0 0 4px">Everything Andromeda can do is on, so it can use whatever a request needs. Switch off what you don\'t want it to use.</div>' +
+			Object.entries(CAPS).map(([k, [n, d]]) => '<div class="toggle"><div><div class="tl">' + esc(n) + '</div><div class="td">' + esc(d) + '</div></div><button class="sw' + (capOn(k) ? " on" : "") + '" data-cap="' + k + '" aria-label="' + esc(n) + '"></button></div>').join("") +
+			'<div class="toggle"><div><div class="tl">Memory</div><div class="td">Remembers lasting things about you and your work across chats</div></div><button class="sw' + (settings.memory !== false ? " on" : "") + '" data-cap="memory" aria-label="Memory"></button></div>' +
+			'<details class="caps-skills"><summary>Expert skills · ' + Object.keys(SKILLBOOK).filter(skillOn).length + " of " + Object.keys(SKILLBOOK).length + ' on</summary><div class="help" style="margin:6px 0 2px">How the best people do each kind of work. Andromeda picks the ones a request needs, and every model working on it follows them.</div>' +
+			Object.entries(SKILLBOOK).map(([k, [when]]) => '<div class="toggle"><div><div class="tl">' + esc(k[0].toUpperCase() + k.slice(1)) + '</div><div class="td">' + esc(when[0].toUpperCase() + when.slice(1)) + '</div></div><button class="sw' + (skillOn(k) ? " on" : "") + '" data-skill="' + k + '" aria-label="' + esc(k) + '"></button></div>').join("") + "</details></div>" +
 		'<div class="field"><label>Memory</label><button class="btn" data-open-memory>What Andromeda remembers</button><div class="help">Lasting things about you and your work, kept across chats in this browser.</div></div>' +
 		'<div class="field"><label>Theme</label><div class="pills">' + [["system", "System"], ["dark", "Dark"], ["light", "Light"]].map(([k, n]) => '<button data-theme-pick="' + k + '"' + ((settings.theme || "system") === k ? ' class="on"' : "") + ">" + n + "</button>").join("") + "</div></div>" +
 		'<div class="field"><label>Background</label><div class="bggrid">' + sw("none", "None", "") + Object.entries(BACKGROUNDS).map(([k, [n, u]]) => sw(k, n, u + "?w=240&h=150&fit=crop&q=60&auto=format")).join("") +
@@ -6693,7 +6802,23 @@ function openSettings() {
 	$("#langSel").onchange = (e) => { settings.lang = e.target.value; saveSettings(); };
 	$("#safeChk").onchange = (e) => { settings.safelock = e.target.checked; saveSettings(); };
 	$("#aboutBox").oninput = (e) => { settings.about = e.target.value; saveSettings(); };
-	$("#nameBox").oninput = (e) => { settings.name = e.target.value.trim(); saveSettings(); drawAccount(); if (!current || !current.msgs.length) renderWelcome(); };
+	$$("[data-cap]").forEach((b) => b.onclick = () => {
+		const k = b.dataset.cap;
+		if (k === "memory") settings.memory = settings.memory === false;
+		else { settings.off = { ...(settings.off || {}) }; if (capOn(k)) settings.off[k] = true; else delete settings.off[k]; }
+		saveSettings();
+		b.classList.toggle("on", k === "memory" ? settings.memory !== false : capOn(k));
+	});
+	$$("[data-skill]").forEach((b) => b.onclick = () => {
+		const k = b.dataset.skill;
+		settings.offSkills = { ...(settings.offSkills || {}) };
+		if (skillOn(k)) settings.offSkills[k] = true; else delete settings.offSkills[k];
+		saveSettings();
+		b.classList.toggle("on", skillOn(k));
+		const s = b.closest("details").querySelector("summary");
+		if (s) s.textContent = "Expert skills · " + Object.keys(SKILLBOOK).filter(skillOn).length + " of " + Object.keys(SKILLBOOK).length + " on";
+	});
+	$("#nameBox").oninput = (e) => { settings.name = e.target.value.trim(); saveSettings(); drawAccount(); if (!current || !current.msgs.length) renderThread(); };
 	$("#styleBox").oninput = (e) => { settings.style = e.target.value; saveSettings(); };
 	if ($("#installBtn")) $("#installBtn").onclick = async () => { const a = installAsk; if (!a) return; installAsk = null; a.prompt(); try { await a.userChoice; } catch {} closeModal(); };
 	$("#maxBuildChk").onchange = (e) => { settings.maxBuild = e.target.checked; saveSettings(); };
@@ -7029,7 +7154,7 @@ function setMode() {
 	mode = "auto";
 	drawSpend();
 	$("#input").placeholder = innerWidth < 600 ? "Ask anything" : "Ask anything, or ask for flashcards, a simulation or an app to build";
-	if (!current || !current.msgs.length) renderWelcome();
+	if (!current || !current.msgs.length) renderThread();
 	updateRoute();
 }
 function openSidebar(open) { $("#sidebar").classList.toggle("open", open); $("#scrim").classList.toggle("show", open); }
@@ -7040,7 +7165,7 @@ document.addEventListener("click", (e) => {
 	if (t.hasAttribute("data-open-app")) { showApp(true); return; }
 	if (t.hasAttribute("data-go-home")) { e.preventDefault(); showApp(false); return; }
 	if (t.hasAttribute("data-theme-toggle")) { toggleTheme(); return; }
-	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { current = convos.find((c) => c.id === t.dataset.id); EDITING = -1; pinned = true; render(); stick(); openSidebar(false); }
+	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { current = convos.find((c) => c.id === t.dataset.id); SPACE_VIEW = (current && current.space) || null; EDITING = -1; pinned = true; render(); stick(); openSidebar(false); }
 	else if (t.dataset.del) { convos = convos.filter((c) => c.id !== t.dataset.del); if (current?.id === t.dataset.del) { current = null; EDITING = -1; } save(); render(); }
 	else if (t.dataset.sug) { $("#input").value = t.dataset.sug; autosize(); updateRoute(); send(); }
 	else if (t.dataset.cat) {
@@ -7115,7 +7240,7 @@ document.addEventListener("click", (e) => {
 	else if (t.hasAttribute("data-open-pricing")) openPricing();
 	else if (t.dataset.pick) openSettings();
 });
-$("#newChat").onclick = $("#newChatTop").onclick = () => { current = null; EDITING = -1; render(); $("#input").focus(); openSidebar(false); };
+$("#newChat").onclick = $("#newChatTop").onclick = () => { current = null; SPACE_VIEW = null; EDITING = -1; render(); $("#input").focus(); openSidebar(false); };
 // ---------------------------------------------------------------- the open chat: export, print, rename, delete
 function closeChatMenu() { $("#chatPop").hidden = true; $("#chatMenuBtn").setAttribute("aria-expanded", "false"); }
 $("#chatMenuBtn").onclick = (e) => {
@@ -7228,7 +7353,7 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape") $$(".pop:n
 $("#plusBtn").onclick = () => togglePop("plusPop");
 $("#chatTitle").onclick = (e) => { e.stopPropagation(); $("#chatMenuBtn").click(); };
 $("#acctBtn").onclick = () => (account ? togglePop("acctPop") : openAccount());
-$("#signOutBtn").onclick = () => { signOut(); toast("Signed out"); if (!current || !current.msgs.length) renderWelcome(); };
+$("#signOutBtn").onclick = () => { signOut(); toast("Signed out"); if (!current || !current.msgs.length) renderThread(); };
 // in the folded sidebar, search opens it first
 $(".nav-search").addEventListener("click", () => { if (document.body.classList.contains("sb-closed") && innerWidth > 860) { foldSidebar(false); setTimeout(() => $("#search").focus(), 260); } });
 // a tool: shown in the box until the message goes (click it to take it off)
@@ -7396,6 +7521,137 @@ $("#artDrag").addEventListener("pointerdown", (e) => {
 	addEventListener("pointerup", up);
 });
 { const w = store.get("artw", ""); if (/^\d+px$/.test(w)) document.documentElement.style.setProperty("--artw", w); }
+
+// ---------------------------------------------------------------- a project: its instructions, its files, its chats, and the box to start one
+const ago = (t) => { const s = (Date.now() - t) / 1000; return s < 3600 ? Math.max(1, Math.round(s / 60)) + "m" : s < 86400 ? Math.round(s / 3600) + "h" : Math.round(s / 86400) + "d"; };
+function renderSpace() {
+	const sp = spaceOf(SPACE_VIEW);
+	if (!sp) { renderWelcome(); return; }
+	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
+	const chats = convos.filter((c) => c.space === sp.id && c.msgs.length).sort((a, b) => b.at - a.at);
+	$("#view").innerHTML = '<section class="space-pg"><div class="sp-top"><span class="sp-ic">' + svgOf(FOLDER_D, 22) + "</span><h1>" + esc(sp.name) + '</h1><button class="btn" data-spaceedit>Rename</button><button class="btn" data-spacedel>Delete</button></div>' +
+		'<div class="slot" id="slot"></div>' +
+		'<div class="sp-grid"><div class="sp-card"><div class="sp-ch"><b>Instructions</b><small>Andromeda follows these in every chat in this project</small></div><textarea class="inp" id="spAbout" rows="5" maxlength="4000" placeholder="e.g. I\'m writing my thesis on coral reef recovery. Use APA citations, keep answers short, and ask before assuming data.">' + esc(sp.about || "") + "</textarea></div>" +
+		'<div class="sp-card"><div class="sp-ch"><b>Files</b><small>Andromeda knows these in every chat here: PDFs, Word, Excel, slides, text and code</small></div><div class="sp-files" id="spFiles"></div><button class="btn" id="spAdd">' + svgOf('<path d="M12 5v14M5 12h14"/>', 16) + 'Add files</button><input type="file" id="spFile" multiple hidden></div></div>' +
+		'<div class="sp-chats"><div class="convo-group">Chats in this project</div>' + (chats.length ? chats.map((c) => '<div class="convo" data-id="' + c.id + '"><span class="t">' + esc(c.title) + '</span><span class="sp-when">' + ago(c.at) + "</span></div>").join("") : '<div class="help">None yet: start one above.</div>') + "</div></section>";
+	$("#slot").appendChild($("#composer"));
+	$("#dock").classList.add("hide");
+	$("#input").placeholder = "Start a chat in " + sp.name;
+	$("#spAbout").oninput = (e) => { const l = spaces(), s = l.find((x) => x.id === sp.id); if (s) { s.about = e.target.value; saveSpaces(l); } };
+	$("#spAdd").onclick = () => $("#spFile").click();
+	$("#spFile").onchange = async (e) => { const f = [...e.target.files]; e.target.value = ""; await addSpaceFiles(sp.id, f); };
+	loadSpace(sp.id).then(() => drawSpaceFiles(sp.id));
+}
+function drawSpaceFiles(id) {
+	const box = $("#spFiles");
+	if (!box || SPACE_VIEW !== id) return;
+	const files = SPACE_FILES.get(id) || [];
+	box.innerHTML = files.length ? files.map((f, n) => {
+		const ext = (f.name.split(".").pop() || "").toLowerCase();
+		return '<div class="sp-file"><span class="fs-badge fs-' + (["pdf", "docx", "xlsx", "pptx"].includes(ext) ? ext : "txt") + '">' + esc(ext.slice(0, 4).toUpperCase() || "TXT") + "</span><span>" + esc(f.name) + "</span><small>" + Math.max(1, Math.round((f.data || "").length / 1000)) + 'k characters</small><button class="x" data-spfdel="' + n + '" title="Remove" aria-label="Remove ' + esc(f.name) + '">✕</button></div>';
+	}).join("") : '<div class="help">No files yet.</div>';
+	$$("[data-spfdel]", box).forEach((b) => b.onclick = async () => { const l = (SPACE_FILES.get(id) || []).slice(); l.splice(+b.dataset.spfdel, 1); SPACE_FILES.set(id, l); await vault.set("space-files:" + id, l); drawSpaceFiles(id); });
+}
+async function addSpaceFiles(id, files) {
+	const list = (await loadSpace(id)).slice();
+	let total = list.reduce((t, f) => t + (f.data || "").length, 0);
+	for (const f of files) {
+		if (/^(image|video|audio)\//.test(f.type) || /\.(png|jpe?g|gif|webp|avif|mp[34]|mov|wav|zip|exe)$/i.test(f.name)) { toast(f.name + ": a project keeps documents, text and code"); continue; }
+		if (f.size > 40 * 1024 * 1024) { toast(f.name + " is over 40 MB"); continue; }
+		let text = "";
+		try { text = String(await readDocument(f)); } catch (e) { toast("Couldn't read " + f.name); continue; }
+		if (total + text.length > 800000) { toast("This project's files are full: remove one to add more"); break; }
+		total += text.length;
+		list.push({ name: f.name, data: text.slice(0, 400000), at: Date.now() });
+	}
+	SPACE_FILES.set(id, list);
+	await vault.set("space-files:" + id, list);
+	drawSpaceFiles(id);
+}
+function openSpace(id) { SPACE_VIEW = id; current = null; EDITING = -1; render(); openSidebar(false); setTimeout(() => $("#input").focus(), 50); }
+function newSpace() {
+	openModal('<h2>New project</h2><p class="sub">Chats in a project share its instructions and files, so Andromeda always has the background.</p><div class="field"><label for="spName">Name</label><input class="inp" id="spName" maxlength="60" placeholder="e.g. Thesis, Bean There café, My Minecraft mod"></div><div class="field"><label for="spAbout0">Instructions (you can add them later)</label><textarea class="inp" id="spAbout0" rows="3" maxlength="4000" placeholder="What should Andromeda know, or always do, in this project?"></textarea></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="spNo">Cancel</button><button class="btn dark" id="spGo">Make the project</button></div>');
+	const go = () => {
+		const name = $("#spName").value.trim();
+		if (!name) { $("#spName").focus(); return; }
+		const s = { id: uid(), name: name.slice(0, 60), about: $("#spAbout0").value.trim(), at: Date.now() };
+		saveSpaces([s, ...spaces()]);
+		SPACE_FILES.set(s.id, []);
+		closeModal();
+		openSpace(s.id);
+	};
+	$("#spName").focus();
+	$("#spName").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); go(); } };
+	$("#spGo").onclick = go;
+	$("#spNo").onclick = closeModal;
+}
+document.addEventListener("click", (e) => {
+	const t = e.target.closest("[data-space], [data-spacenew], [data-spaceedit], [data-spacedel], #crumb");
+	if (!t) return;
+	if (t.id === "crumb") { if (current && current.space) openSpace(current.space); }
+	else if (t.hasAttribute("data-spacenew")) newSpace();
+	else if (t.dataset.space) openSpace(t.dataset.space);
+	else if (t.hasAttribute("data-spaceedit")) {
+		const sp = spaceOf(SPACE_VIEW);
+		if (!sp) return;
+		openModal('<h2>Rename the project</h2><input class="inp" id="spRen" maxlength="60" value="' + esc(sp.name) + '"><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="srNo">Cancel</button><button class="btn dark" id="srGo">Save</button></div>');
+		const ok = () => { const v = $("#spRen").value.trim(); if (v) { const l = spaces(), s = l.find((x) => x.id === sp.id); s.name = v.slice(0, 60); saveSpaces(l); } closeModal(); render(); };
+		$("#spRen").select();
+		$("#spRen").onkeydown = (ev) => { if (ev.key === "Enter") { ev.preventDefault(); ok(); } };
+		$("#srGo").onclick = ok;
+		$("#srNo").onclick = closeModal;
+	} else if (t.hasAttribute("data-spacedel")) {
+		const sp = spaceOf(SPACE_VIEW);
+		if (!sp) return;
+		openModal('<h2>Delete “' + esc(sp.name) + '”?</h2><p class="sub">Its instructions and files are deleted. Its chats stay, in your chat list.</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="sdNo">Cancel</button><button class="btn dark" id="sdGo">Delete the project</button></div>');
+		$("#sdGo").onclick = () => { saveSpaces(spaces().filter((s) => s.id !== sp.id)); vault.set("space-files:" + sp.id, null); SPACE_FILES.delete(sp.id); SPACE_VIEW = null; closeModal(); render(); toast("Project deleted"); };
+		$("#sdNo").onclick = closeModal;
+	}
+});
+// ---------------------------------------------------------------- the library: everything Andromeda made, from every chat
+const LIB_KINDS = [["all", "All"], ["image", "Pictures"], ["video", "Videos"], ["audio", "Audio"], ["app", "Apps"], ["doc", "Documents"]];
+function libraryItems() {
+	const out = [];
+	for (const c of convos) c.msgs.forEach((m, i) => {
+		if (m.role !== "assistant" || !m.data) return;
+		const d = m.data;
+		if (m.kind === "studio") {
+			if (d.kind === "image") (d.images || []).forEach((k) => out.push({ type: "image", key: k, c, i, title: (d.spec && d.spec.title) || c.title }));
+			else if (d.kind === "music" || d.kind === "voice") { if (d.audio) out.push({ type: "audio", key: d.audio, c, i, title: c.title, sub: d.kind === "music" ? "Music" : "Voiceover" }); }
+			else if (d.final) out.push({ type: "video", key: d.final, thumb: ((d.scenes || []).find((s) => s.frame) || {}).frame, c, i, title: (d.plan && d.plan.title) || c.title });
+		} else if (m.kind === "app" || m.kind === "sim") out.push({ type: "app", c, i, title: d.title || c.title, sub: m.kind === "sim" ? "Simulation" : "App" });
+		else if (m.kind === "file") out.push({ type: "doc", c, i, title: (d.spec && d.spec.title) || c.title, fmt: d.fmt });
+	});
+	return out.sort((a, b) => b.c.at - a.c.at);
+}
+async function openLibrary(kind = "all") {
+	const all = libraryItems(), items = kind === "all" ? all : all.filter((x) => x.type === kind);
+	openModal('<h2>Library</h2><p class="sub">Everything Andromeda made for you, from every chat on this device.</p><div class="pills lib-kinds">' + LIB_KINDS.map(([k, n]) => '<button data-libkind="' + k + '"' + (k === kind ? ' class="on"' : "") + ">" + n + "</button>").join("") + '</div><div class="lib-grid" id="libGrid">' +
+		(items.length ? items.map((x, n) => '<button class="lib-it lib-' + x.type + '" data-libgo="' + n + '"><span class="lib-th" id="libTh' + n + '">' + (x.type === "doc" ? '<span class="fs-badge fs-' + esc(x.fmt || "pdf") + '">' + esc((x.fmt || "file").toUpperCase()) + "</span>" : x.type === "app" ? svgOf(ART_ICONS[x.sub === "Simulation" ? "sim" : "app"], 26) : x.type === "audio" ? svgOf('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>', 26) : "") + "</span><b>" + esc(x.title) + "</b><small>" + esc(x.sub || ({ image: "Picture", video: "Video", doc: "Document" })[x.type] || "") + " · " + ago(x.c.at) + "</small></button>").join("")
+			: '<div class="help" style="grid-column:1/-1;padding:30px 0;text-align:center">' + (all.length ? "Nothing of this kind yet." : "Nothing made yet. Pictures, videos, songs, apps and documents Andromeda makes for you collect here.") + "</div>") + "</div>", "wide");
+	$$("[data-libkind]").forEach((b) => b.onclick = () => openLibrary(b.dataset.libkind));
+	$$("[data-libgo]").forEach((b) => b.onclick = () => {
+		const x = items[+b.dataset.libgo];
+		closeModal();
+		current = x.c;
+		SPACE_VIEW = current.space || null;
+		EDITING = -1;
+		render();
+		openSidebar(false);
+		setTimeout(() => { const el = $('.msg[data-i="' + x.i + '"]'); if (el) el.scrollIntoView({ block: "center", behavior: "smooth" }); if (x.type === "app") openArt(artFor(x.i)); }, 60);
+	});
+	// the pictures themselves, from this device
+	items.forEach(async (x, n) => {
+		if (x.type !== "image" && x.type !== "video") return;
+		const u = await vault.url(x.type === "image" ? x.key : x.thumb);
+		const th = $("#libTh" + n);
+		if (th && u) th.innerHTML = '<img src="' + u + '" alt="" loading="lazy">' + (x.type === "video" ? '<i class="lib-play">' + svgOf('<path d="M8 5v14l11-7z"/>', 18) + "</i>" : "");
+	});
+}
+$("#libNav").onclick = () => { openSidebar(false); openLibrary(); };
+// tools that are switched off aren't in the + menu
+const TOOL_CAP = { research: "research", image: "create", video: "create", music: "create", study: "study", doc: "docs" };
+$("#plusBtn").addEventListener("click", () => $$("[data-tool]").forEach((b) => { const k = TOOL_CAP[b.dataset.tool]; b.hidden = !!k && !capOn(k); }), true);
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
