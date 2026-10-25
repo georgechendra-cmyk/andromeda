@@ -1751,9 +1751,30 @@ const WAYS = {
 	podcast: "a two-host podcast that talks a topic through aloud",
 	docx: "a Word document to download",
 	pdf: "a PDF to download",
+	research: "deep research: many searches and sources read and cross-checked, then a long, structured report with citations (for big questions where being thorough matters more than speed)",
 	pptx: "a PowerPoint deck to download",
 	xlsx: "an Excel spreadsheet to download",
 };
+// ---------------------------------------------------------------- skills: how the best do each kind of work
+// Expert playbooks, all switched on: for every request Andromeda picks the ones that fit (the way Claude's skills
+// work), and every model doing the work follows them.
+const SKILLBOOK = {
+	design: ["building anything visual people use: sites, apps, games, dashboards, slides", "Design like a top product designer: a clear visual hierarchy, generous spacing on a consistent scale, one typeface family with two or three weights, a restrained palette with one accent, real content (never lorem ipsum), smooth 150-300ms transitions, hover, focus, empty and loading states, responsive down to 360px, accessible contrast and labels. It must look finished and premium, never like a template."],
+	data: ["analysing data, files, spreadsheets or statistics, and making charts", "Work like a data scientist: load the data with pandas and look at it first (shape, columns, types, missing values) before concluding anything; compute with code, never by eye; check results a second way; make clear charts (labelled axes with units, a title, readable fonts); state assumptions, caveats and the exact numbers."],
+	research: ["questions needing current, sourced or thorough answers, and research reports", "Research like an analyst: break the question into sub-questions; search several times with different phrasings; read the actual sources, not just snippets; prefer primary and recent sources; cross-check facts across sources; note disagreements and dates; cite every claim inline as [n](url). End with a clear answer and what's still uncertain."],
+	code: ["writing, fixing, reviewing or explaining code", "Engineer like a senior developer: read the existing code and follow its style; make the smallest correct change; handle errors and edge cases; never leave placeholders or TODOs; when code can be run, run it and test it; say briefly what changed and why."],
+	debug: ["something broken, failing or giving errors", "Debug systematically: reproduce it, read the exact error and stack trace, form a hypothesis, test it with the smallest experiment, fix the root cause (not the symptom), and check the fix by running it again."],
+	math: ["maths, calculations, proofs, physics, money and statistics", "Do maths carefully: set the problem up explicitly, work step by step, check units, verify the answer another way (substitute it back, estimate, or compute it with Python), and give the exact result and a sensible rounding."],
+	writing: ["writing, editing or rewriting text: essays, emails, posts, stories, scripts, lyrics", "Write like a great editor: know the reader and the goal, lead with the point, short clear sentences, concrete specifics over generalities, the right tone for the audience, no filler or cliches. For creative work: vivid sensory detail and a distinct voice."],
+	tutor: ["learning, homework, studying, explaining a concept", "Teach like a great tutor: start from what they know, give the simple intuition first and then the precise version, with a worked example; check understanding with a question; for homework, guide them to the answer unless they ask for it outright."],
+	docs: ["documents, reports, slides or spreadsheets to download", "Make documents like a professional: a clear structure with headings, a summary first for anything long, consistent formatting, real data in tables, one idea per slide with a strong title, no filler."],
+	business: ["business, strategy, marketing, startups, pricing and plans", "Advise like a sharp operator: concrete and quantitative (numbers, costs, timelines), options with their trade-offs, one clear recommendation, and the next three actions."],
+	care: ["medical, health, fitness, nutrition, legal or financial questions with real stakes", "Be careful and precise: accurate, current, evidence-based information; say what depends on the person; flag warning signs and risks plainly; say when a professional must be involved, without refusing to help."],
+	travel: ["trips, itineraries and local recommendations", "Plan like a local expert: realistic timing and travel between places, opening days, costs in local currency, booking tips, and alternatives for weather or budget."],
+	games: ["games, mods, Minecraft, game design or game servers", "Build games like a seasoned game developer: tight core loop and controls first, clear feedback (sound, motion, numbers), difficulty that ramps, and for mods and plugins the exact loader/version APIs (look up current docs)."],
+};
+let SKILLS_ON = [];
+const skillLine = () => (SKILLS_ON.length ? "Expert playbooks for this request (follow them):\n" + SKILLS_ON.filter((k) => SKILLBOOK[k]).map((k) => "- " + SKILLBOOK[k][1]).join("\n") : "");
 const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
 let PROFILE_TEXT = null, PLAN_NOTE = "";
 // what was made just before (so "make it calmer" changes that one)
@@ -1790,8 +1811,9 @@ async function conduct(text, atts, tried) {
 		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
 		+ (tried && tried.length ? "\nAlready tried, and it failed:\n" + tried.map((t) => "- " + t.way + ": " + t.error).join("\n") + "\nChoose a different way, or the same way only if that error clearly won't happen again.\n" : "")
+		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\"}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\"}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions.\n\nThe request:\n" + text.slice(0, 4000);
 	const signal = AbortSignal.any && AbortSignal.timeout ? AbortSignal.any([busy.signal, AbortSignal.timeout(20000)]) : busy.signal;
 	let j;
@@ -1817,7 +1839,7 @@ async function conduct(text, atts, tried) {
 		const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
 		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), weights, check: j.check === true, language: lang };
 	}
-	return { way, edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), profile };
+	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k]).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), profile };
 }
 // the way it chose, done by the part of Andromeda that does it
 async function runWay(plan, text, atts) {
@@ -1851,6 +1873,11 @@ async function runWay(plan, text, atts) {
 	}
 	if (w === "app") return runApp(text, atts, { edit: plan.edit });
 	if (w === "act" || w === "apps") return runAct(text, atts);
+	if (w === "research") {
+		if (!SKILLS_ON.includes("research")) SKILLS_ON.unshift("research");
+		PLAN_NOTE = (PLAN_NOTE ? PLAN_NOTE + " " : "") + "Research it thoroughly (at least 8 searches and 6 sources actually read), then write it up as a structured report: a short summary first, sections with headings, tables where they help, every claim cited inline as [n](url), and a sources list at the end.";
+		return runAct(text, atts);
+	}
 	return runSmart(text, atts);
 }
 // No leaderboard measures voices or music yet: Andromeda picks itself, from what's live right now, for this request
@@ -2061,7 +2088,7 @@ function sys(extra) {
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
 	const plan = !extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "";
-	return { role: "system", content: [extra || base, plan, mine, memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
+	return { role: "system", content: [extra || base, plan, skillLine(), mine, memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
 }
 
 // ---------------------------------------------------------------- rendering
@@ -3157,16 +3184,61 @@ function openMemory() {
 const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 let pyWorker = null;
 const codeWorker = (src) => new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
-const PY_SRC = "importScripts('" + PYODIDE + "pyodide.js'); let py; self.onmessage = async (e) => { let out = ''; try { if (!py) py = await loadPyodide({ indexURL: '" + PYODIDE + "' }); py.setStdout({ batched: (s) => (out += s + '\\n') }); py.setStderr({ batched: (s) => (out += s + '\\n') }); try { await py.loadPackagesFromImports(e.data); } catch {} const r = await py.runPythonAsync(e.data); self.postMessage({ out, result: r === undefined || r === null ? null : String(r) }); } catch (err) { self.postMessage({ out, error: String(err && err.message || err) }); } };";
+// the Python worker: the user's files in its folder, matplotlib charts sent back as pictures
+function pyWorkerMain(base) {
+	let py;
+	self.onmessage = async (e) => {
+		const { code, files } = e.data;
+		let out = "";
+		try {
+			if (!py) py = await loadPyodide({ indexURL: base });
+			py.setStdout({ batched: (s) => (out += s + "\n") });
+			py.setStderr({ batched: (s) => (out += s + "\n") });
+			try { py.FS.mkdir("/data"); } catch {}
+			for (const f of files || []) {
+				const bytes = f.b64 ? Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0)) : new TextEncoder().encode(f.text || "");
+				py.FS.writeFile("/data/" + String(f.name).replace(/[\\/]/g, "_"), bytes);
+			}
+			await py.runPythonAsync("import os\nos.chdir('/data')\nos.environ['MPLBACKEND'] = 'AGG'");
+			try { await py.loadPackagesFromImports(code); } catch {}
+			// anything else it needs comes from PyPI (pure-Python packages): pandas opens spreadsheets through openpyxl,
+			// which code never imports by name; a missing module is installed and the code run again
+			const pip = async (name) => { await py.loadPackage("micropip"); await py.pyimport("micropip").install(name); };
+			if (/read_excel|ExcelWriter|to_excel|openpyxl/.test(code)) { try { await pip("openpyxl"); } catch {} }
+			await py.runPythonAsync("import warnings\nwarnings.filterwarnings('ignore', category=DeprecationWarning)");
+			let r;
+			try { r = await py.runPythonAsync(code); }
+			catch (err) {
+				const miss = String(err && err.message || err).match(/No module named '([\w.-]+)'/);
+				if (!miss) throw err;
+				out += "(installing " + miss[1].split(".")[0] + ")\n";
+				await pip(miss[1].split(".")[0]);
+				r = await py.runPythonAsync(code);
+			}
+			const figs = await py.runPythonAsync("import sys\n_f = []\nif 'matplotlib.pyplot' in sys.modules:\n    import io, base64\n    import matplotlib.pyplot as _plt\n    for _n in _plt.get_fignums():\n        _b = io.BytesIO()\n        _plt.figure(_n).savefig(_b, format='png', dpi=110, bbox_inches='tight')\n        _f.append(base64.b64encode(_b.getvalue()).decode())\n    _plt.close('all')\n_f");
+			self.postMessage({ out, result: r === undefined || r === null ? null : String(r), figs: figs && figs.toJs ? figs.toJs() : [] });
+		} catch (err) {
+			self.postMessage({ out, error: String((err && err.message) || err) });
+		}
+	};
+}
+const PY_SRC = "importScripts('" + PYODIDE + "pyodide.js');\n(" + pyWorkerMain.toString() + ")('" + PYODIDE + "');";
+// what code can open: every file attached in this chat (the real file when it's still here, its text otherwise)
+function codeFiles() {
+	const out = new Map();
+	for (const m of current ? current.msgs : []) for (const a of m.atts || []) if (a.kind === "text") out.set(a.name, CODE_FILES.has(a.name) ? { name: a.name, b64: CODE_FILES.get(a.name) } : { name: a.name, text: a.data });
+	for (const a of attachments || []) if (a.kind === "text" && !out.has(a.name)) out.set(a.name, CODE_FILES.has(a.name) ? { name: a.name, b64: CODE_FILES.get(a.name) } : { name: a.name, text: a.data });
+	return [...out.values()];
+}
 const JS_SRC = "self.onmessage = async (e) => { const out = []; const log = (...a) => out.push(a.map((x) => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch { return String(x); } }).join(' ')); self.console = { log, info: log, warn: log, error: log, table: log }; try { const r = await (0, eval)('(async () => {\\n' + e.data + '\\n})()'); self.postMessage(out.join('\\n') + (r !== undefined ? '\\n-> ' + (typeof r === 'string' ? r : JSON.stringify(r)) : '')); } catch (err) { self.postMessage(out.join('\\n') + '\\nError: ' + (err && err.stack || err)); } };";
-function runPython(code, ms = 180000) {
+function runPython(code, files = [], ms = 300000) {
 	if (!pyWorker) pyWorker = codeWorker(PY_SRC);
 	const w = pyWorker;
 	return new Promise((done) => {
-		const t = setTimeout(() => { w.terminate(); pyWorker = null; done("It ran longer than " + ms / 1000 + " seconds and was stopped."); }, ms);
-		w.onmessage = (e) => { clearTimeout(t); const d = e.data || {}; done(((d.out || "") + (d.error ? "\nError: " + d.error : d.result != null ? "\n-> " + d.result : "")).trim() || "(it ran, and printed nothing)"); };
-		w.onerror = (e) => { clearTimeout(t); w.terminate(); pyWorker = null; done("Python couldn't start here: " + (e.message || "the runtime didn't load")); };
-		w.postMessage(String(code));
+		const t = setTimeout(() => { w.terminate(); pyWorker = null; done({ text: "It ran longer than " + ms / 1000 + " seconds and was stopped.", figs: [] }); }, ms);
+		w.onmessage = (e) => { clearTimeout(t); const d = e.data || {}; done({ text: ((d.out || "") + (d.error ? "\nError: " + d.error : d.result != null ? "\n-> " + d.result : "")).trim() || "(it ran, and printed nothing)", figs: d.figs || [] }); };
+		w.onerror = (e) => { clearTimeout(t); w.terminate(); pyWorker = null; done({ text: "Python couldn't start here: " + (e.message || "the runtime didn't load"), figs: [] }); };
+		w.postMessage({ code: String(code), files });
 	});
 }
 function runJs(code, ms = 60000) {
@@ -3184,7 +3256,7 @@ function runJs(code, ms = 60000) {
 // with files and apps there. It asks before anything that changes something on the computer. Long jobs keep going
 // (older steps are summed up to make room) and are saved as they go, so a job cut off can carry on.
 const BUILT_IN = [
-	["run_python", "Run Python code right here in the browser (numpy, pandas, sympy, matplotlib and more load on import) to calculate, analyse data or test an idea. print() what you want to see.", { code: { type: "string" } }, ["code"]],
+	["run_python", "Run Python code right here in the browser (numpy, pandas, scipy, sympy, matplotlib, scikit-learn and more load on import) to calculate, analyse data or test an idea. The user's attached files are in the current folder. print() what you want to see; matplotlib charts are shown to the user (and to you) automatically.", { code: { type: "string" } }, ["code"]],
 	["run_javascript", "Run JavaScript right here (in a worker, no page). console.log() what you want to see; return a value to see it too.", { code: { type: "string" } }, ["code"]],
 	["web_search", "Search the web for current information. Returns titles, links and the relevant text.", { query: { type: "string" } }, ["query"]],
 	["fetch_url", "Read a web page (or a raw file) as text.", { url: { type: "string" } }, ["url"]],
@@ -3240,7 +3312,10 @@ async function runAct(text, atts, resume) {
 	else {
 		const where = (servers.some((s) => s.name === "computer") ? " You're connected to the user's computer (" + (navigator.userAgent.includes("Windows") ? "Windows, PowerShell" : "bash") + "): you can run commands and programs, keep long ones running, and read, write, edit and search files there." : "")
 			+ (servers.some((s) => s.name !== "computer") ? " You also have the user's connected apps: " + servers.filter((s) => s.name !== "computer").map((s) => s.name).join(", ") + "." : "");
+		const files = codeFiles();
 		const system = "You are Andromeda, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
+			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + "." : "")
+			+ (skillLine() ? "\n\n" + skillLine() : "")
 			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
 			+ (PLAN_NOTE ? "\n\nWhat Andromeda decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
 		const hist = chatHistory(), last = hist[hist.length - 1];
@@ -3274,7 +3349,12 @@ async function runAct(text, atts, resume) {
 				const fn = c.function?.name || "";
 				let out;
 				try {
-					if (fn === "run_python") { log("Ran Python", String(args.code).split("\n")[0]); out = await runPython(args.code); }
+					if (fn === "run_python") {
+						log("Ran Python", String(args.code).split("\n").find((l) => l.trim() && !/^(import|from) /.test(l)) || "");
+						const r = await runPython(args.code, codeFiles());
+						out = r.text + (r.figs.length ? "\n(" + r.figs.length + " chart" + (r.figs.length > 1 ? "s" : "") + ", shown to the user and to you next)" : "");
+						for (const b64 of r.figs) { pics.push("data:image/png;base64," + b64); msg.data.shots.push(await vault.put(b64Blob(b64, "image/png"))); }
+					}
 					else if (fn === "run_javascript") { log("Ran JavaScript", String(args.code).split("\n")[0]); out = await runJs(args.code); }
 					else if (fn === "web_search") {
 						log("Searched the web", args.query);
@@ -3576,6 +3656,8 @@ async function send(textOverride, fork) {
 		PROFILE = plan ? plan.profile : null;
 		PROFILE_TEXT = plan ? text : null;
 		PLAN_NOTE = plan ? plan.how : "";
+		SKILLS_ON = plan ? plan.skills.slice() : [];
+		for (const k of SKILLS_ON) noteTool("Skill: " + k, "Followed the " + k + " playbook (" + SKILLBOOK[k][0] + ")");
 		if (plan) {
 			const tried = [];
 			for (let round = 0; ; round++) {
@@ -3595,6 +3677,7 @@ async function send(textOverride, fork) {
 					plan = next;
 					PROFILE = plan.profile;
 					PLAN_NOTE = plan.how;
+					SKILLS_ON = plan.skills.slice();
 				}
 			}
 		} else {
@@ -6221,12 +6304,51 @@ const talk = {
 };
 
 // ---------------------------------------------------------------- attachments
+// What's attached is read the way Claude and ChatGPT read it: PDFs page by page, Word documents, every sheet of a
+// spreadsheet, every slide of a deck, and anything that's text. The file itself is kept for this session too, so
+// code Andromeda runs (pandas, matplotlib...) can open the real thing.
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/";
+const CODE_FILES = new Map();
+async function readDocument(f) {
+	const ext = (f.name.split(".").pop() || "").toLowerCase(), buf = await f.arrayBuffer();
+	if (ext === "pdf" || /pdf$/i.test(f.type)) {
+		const lib = await import(PDFJS + "pdf.min.mjs");
+		lib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.mjs";
+		const doc = await lib.getDocument({ data: new Uint8Array(buf) }).promise, pages = [];
+		for (let p = 1; p <= Math.min(doc.numPages, 600); p++) {
+			const c = await (await doc.getPage(p)).getTextContent();
+			pages.push("[page " + p + "]\n" + c.items.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join(""));
+		}
+		const text = pages.join("\n\n");
+		return text.replace(/\[page \d+\]\s*/g, "").trim() ? text : "(This PDF is scanned pictures with no text layer: " + doc.numPages + " pages.)";
+	}
+	if (/^(xlsx|xlsm|xls|ods|numbers)$/.test(ext)) {
+		await loadFileLib("xlsx");
+		const wb = XLSX.read(buf, { type: "array" });
+		return wb.SheetNames.map((s) => "=== sheet: " + s + " ===\n" + XLSX.utils.sheet_to_csv(wb.Sheets[s])).join("\n\n");
+	}
+	if (ext === "docx" || ext === "pptx") {
+		await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+		const zip = await JSZip.loadAsync(buf);
+		const plain = (x) => x.replace(/<\/w:p>|<\/a:p>/g, "\n").replace(/<w:tab\/>/g, "\t").replace(/<[^>]+>/g, "").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+		if (ext === "docx") return plain(await zip.file("word/document.xml").async("string"));
+		const slides = Object.keys(zip.files).filter((x) => /^ppt\/slides\/slide\d+\.xml$/.test(x)).sort((a, b) => parseInt(a.replace(/\D/g, "")) - parseInt(b.replace(/\D/g, "")));
+		return (await Promise.all(slides.map(async (x, k) => "[slide " + (k + 1) + "]\n" + plain(await zip.file(x).async("string"))))).join("\n\n");
+	}
+	return new TextDecoder().decode(buf);
+}
 async function addFiles(files) {
 	for (const f of files) {
-		if (f.size > 20 * 1024 * 1024) { toast(f.name + " is over 20 MB"); continue; }
-		if (f.type.startsWith("image/")) attachments.push({ name: f.name, kind: "image", data: await readAs(f, "url") });
-		else if (/pdf$/i.test(f.type)) toast("PDFs aren't read yet: paste the text or attach a .txt");
-		else attachments.push({ name: f.name, kind: "text", data: await readAs(f, "text") });
+		if (f.size > 40 * 1024 * 1024) { toast(f.name + " is over 40 MB"); continue; }
+		if (f.type.startsWith("image/")) { attachments.push({ name: f.name, kind: "image", data: await readAs(f, "url") }); continue; }
+		try {
+			const text = await readDocument(f);
+			// the real file, for code to open (this session only: kept out of the saved chat)
+			if (f.size <= 25 * 1024 * 1024) CODE_FILES.set(f.name, (await readAs(f, "url")).split(",")[1]);
+			attachments.push({ name: f.name, kind: "text", data: text.slice(0, 2000000) });
+		} catch (e) {
+			toast("Couldn't read " + f.name + ": " + (e.message || e));
+		}
 	}
 	renderAttached();
 	updateRoute();
