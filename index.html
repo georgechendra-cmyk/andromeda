@@ -1277,6 +1277,18 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 .v-said { max-width: 560px; min-height: 2.8em; font-size: 15.5px; line-height: 1.55; color: var(--muted); text-align: center; }
 .v-btns { display: flex; gap: 10px; }
 .v-btns .btn { height: 42px; padding: 0 20px; border-radius: 999px; }
+
+/* ---- every model, searchable */
+.mdl-list { margin-top: 12px; max-height: min(56vh, 520px); overflow-y: auto; display: grid; gap: 2px; }
+.mdl-lab { padding: 12px 4px 4px; font-size: 12px; font-weight: 600; color: var(--faint); letter-spacing: .02em; }
+.mdl { display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; align-items: center; padding: 8px 10px; border-radius: 10px; text-align: left; }
+.mdl:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.mdl.on { background: var(--brand-soft); }
+.mdl b { font-weight: 500; font-size: 14px; }
+.mdl small { grid-column: 1 / -1; font: 11.5px var(--mono); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdl-top { font-size: 11px; color: var(--brand); padding: 1px 8px; border-radius: 999px; background: var(--brand-soft); }
+.pop .mi.more b { color: var(--muted); }
+.shot figcaption .btn { height: 28px; padding: 0 10px; font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -6714,7 +6726,16 @@ async function renderStudio(m, i, box) {
 	if (!d) { box.innerHTML = ""; return; }
 	if (d.kind === "image") {
 		const urls = await Promise.all((d.images || []).map((k) => vault.url(k)));
-		box.innerHTML = '<div class="shots imgs">' + urls.map((u, n) => (u ? '<figure class="shot"><img src="' + u + '" alt=""><figcaption><button class="btn" data-imgdl="' + n + '">Download</button></figcaption></figure>' : '<figure class="shot gone">Image not on this device</figure>')).join("") + "</div>";
+		box.innerHTML = '<div class="shots imgs">' + urls.map((u, n) => (u ? '<figure class="shot"><img src="' + u + '" alt=""><figcaption><button class="btn" data-imgedit="' + n + '">Edit</button><button class="btn" data-imgdl="' + n + '">Download</button></figcaption></figure>' : '<figure class="shot gone">Image not on this device</figure>')).join("") + "</div>";
+		$$("[data-imgedit]", box).forEach((b) => b.onclick = async () => {
+			const blob = await vault.get(d.images[b.dataset.imgedit]);
+			if (!blob) { toast("That picture isn't on this device any more"); return; }
+			attachments.push({ name: ((d.spec && d.spec.title) || "picture").replace(/[^\w -]+/g, "").slice(0, 40) + ".png", kind: "image", data: await blobToData(blob) });
+			renderAttached();
+			setTool("image");
+			$("#input").placeholder = "Say what to change in the picture";
+			$("#input").focus();
+		});
 		$$("[data-imgdl]", box).forEach((b) => b.onclick = async () => { const blob = await vault.get(d.images[b.dataset.imgdl]); if (blob) saveBlob(blob, (d.spec?.title || "image").replace(/[^\w -]+/g, "").slice(0, 40) + "." + (blob.type.split("/")[1] || "png").replace("svg+xml", "svg")); });
 		return;
 	}
@@ -7634,10 +7655,11 @@ function drawModeMenu() {
 	const tone = TONES[settings.tone] ? settings.tone : "default";
 	$("#modePop").innerHTML = '<div class="sec">Andromeda decides</div>' + Object.entries(SPEEDS).map(([k, [n, d, ic]]) => item(!pin && s === k, 'data-speed="' + k + '"', svgOf(ic), n, d)).join("") +
 		'<hr><div class="sec">How it writes</div><div class="st-pills">' + Object.entries(TONES).map(([k, [n]]) => '<button class="st-pill' + (k === tone ? " on" : "") + '" role="menuitemradio" aria-checked="' + (k === tone) + '" data-stylepick="' + k + '">' + esc(n) + "</button>").join("") + "</div>" +
-		(pinned || tops.length ? '<hr><div class="sec">Or use one model for everything</div>' + [pinned, ...tops].filter(Boolean).map((m) => item(m.id === pin, 'data-pin="' + esc(m.id) + '"', '<span class="lab">' + esc((LAB_NAMES[provider(m.id)] || provider(m.id))[0].toUpperCase()) + "</span>", shortName(m), LAB_NAMES[provider(m.id)] || provider(m.id))).join("") : "");
+		(pinned || tops.length ? '<hr><div class="sec">Or use one model for everything</div>' + [pinned, ...tops].filter(Boolean).map((m) => item(m.id === pin, 'data-pin="' + esc(m.id) + '"', '<span class="lab">' + esc((LAB_NAMES[provider(m.id)] || provider(m.id))[0].toUpperCase()) + "</span>", shortName(m), LAB_NAMES[provider(m.id)] || provider(m.id))).join("") + '<button class="mi more" data-allmodels>' + svgOf('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>') + "<span><b>More models</b><small>Every model Andromeda can use, to search</small></span></button>" : "");
 }
 $("#modeBtn").onclick = () => { if ($("#modePop").hidden) drawModeMenu(); togglePop("modePop"); };
 $("#modePop").addEventListener("click", (e) => {
+	if (e.target.closest("[data-allmodels]")) { openModels(); return; }
 	const st = e.target.closest("[data-stylepick]");
 	if (st) { settings.tone = st.dataset.stylepick; saveSettings(); drawMode(); toast("Style: " + TONES[settings.tone][0]); return; }
 	const b = e.target.closest("[data-speed], [data-pin]");
@@ -8167,6 +8189,45 @@ $("#vOrb").onclick = () => {
 	if (st === "speaking") { speech.stop(); setTimeout(() => talk.next(), 200); }
 	else if (st === "thinking" && busy) busy.abort();
 };
+
+function openModels() {
+	const list = uniqM(catalog.filter((m) => usable(m, "quick"))).sort((a, b) => (LAB_NAMES[provider(a.id)] || provider(a.id)).localeCompare(LAB_NAMES[provider(b.id)] || provider(b.id)) || b.created - a.created);
+	const rated = new Set();
+	try { for (const t of ["quick", "code", "reasoning", "write"]) rank(t).slice(0, 8).forEach((m) => rated.add(m.id)); } catch {}
+	openModal('<h2>Choose a model</h2><p class="sub">Andromeda decides by default. Pick one here and it answers everything until you switch back to Auto in the menu.</p><input class="inp" id="mdlQ" placeholder="Search ' + list.length + ' models: claude, gpt, gemini, deepseek…" autocomplete="off"><div class="mdl-list" id="mdlList"></div>', "wide");
+	const draw = () => {
+		const q = $("#mdlQ").value.trim().toLowerCase(), hits = list.filter((m) => !q || (m.id + " " + m.name + " " + (LAB_NAMES[provider(m.id)] || "")).toLowerCase().includes(q));
+		let lab = "";
+		$("#mdlList").innerHTML = hits.length ? hits.slice(0, 300).map((m) => {
+			const l = LAB_NAMES[provider(m.id)] || provider(m.id), head = l !== lab ? '<div class="mdl-lab">' + esc(l) + "</div>" : "";
+			lab = l;
+			return head + '<button class="mdl' + (settings.pin === m.id ? " on" : "") + '" data-mdl="' + esc(m.id) + '"><b>' + esc(shortName(m)) + "</b>" + (rated.has(m.id) ? '<span class="mdl-top">top rated</span>' : "") + "<small>" + esc(m.id) + (m.input.includes("image") ? " · reads pictures" : "") + "</small></button>";
+		}).join("") : '<div class="help">No model by that name.</div>';
+	};
+	draw();
+	$("#mdlQ").oninput = draw;
+	$("#mdlQ").focus();
+	$("#mdlList").onclick = (e) => {
+		const b = e.target.closest("[data-mdl]");
+		if (!b) return;
+		settings.pin = b.dataset.mdl;
+		saveSettings();
+		drawMode();
+		closeModal();
+		toast(shortName(catalog.find((x) => x.id === settings.pin) || { id: settings.pin }) + " answers everything until you switch back to Auto");
+	};
+}
+// ---------------------------------------------------------------- menus from the keyboard: arrows move, Home and End jump
+document.addEventListener("keydown", (e) => {
+	const p = e.target.closest && e.target.closest(".pop:not([hidden])");
+	if (!p || !/^(ArrowDown|ArrowUp|Home|End)$/.test(e.key)) return;
+	const items = [...p.querySelectorAll("button:not([hidden]):not([disabled])")];
+	if (!items.length) return;
+	e.preventDefault();
+	const k = items.indexOf(e.target);
+	const to = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : (k + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+	items[to].focus();
+});
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
