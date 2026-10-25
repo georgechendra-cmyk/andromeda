@@ -1241,6 +1241,20 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 .cmp[open] summary { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); background: var(--brand-soft); }
 .cmp .members { margin-top: 10px; }
 .member .mt { max-height: 132px; }
+
+/* ---- code that ran, under its code */
+.code-out { border-top: 1px solid var(--glass-line); padding: 10px 14px 12px; background: color-mix(in srgb, var(--text) 2%, transparent); animation: rise .3s var(--ease) both; }
+.code-out .co-h { font: 11px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--faint); margin-bottom: 6px; }
+.code-out pre { margin: 0; padding: 0; font: 12.5px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 360px; overflow: auto; }
+.code-out pre.bad { color: var(--err); }
+.code-out img { display: block; max-width: 100%; margin-top: 10px; border-radius: 10px; background: #fff; }
+.code-h button[data-run] { color: var(--brand); font-weight: 500; }
+/* ---- dropping files */
+.drop { position: fixed; inset: 0; z-index: 70; display: none; place-items: center; padding: 24px; background: color-mix(in srgb, var(--bg) 55%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); pointer-events: none; }
+body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
+.drop > div { display: grid; justify-items: center; gap: 8px; padding: 40px 56px; border: 2px dashed color-mix(in srgb, var(--brand) 55%, transparent); border-radius: 26px; background: var(--bg2); color: var(--brand); box-shadow: var(--lift); text-align: center; }
+.drop b { font-size: 18px; color: var(--text); font-weight: 600; }
+.drop span { font-size: 13.5px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -1474,6 +1488,7 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 	<div class="thread" id="shThread"></div>
 </div>
 <div class="pop" id="regenPop" role="menu" hidden></div>
+<div class="drop" aria-hidden="true"><div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg><b>Drop files to add them</b><span>Pictures, PDFs, Word, Excel, slides, code: anything</span></div></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="srStatus" aria-live="polite"></div>
@@ -2638,7 +2653,9 @@ function md(text, live) {
 		// a page, a picture or a React component runs right here once the answer's finished (drawPreviews)
 		const pv = live ? "" : pvKind(lang, code.textContent);
 		if (pv) wrap.dataset.pv = pv;
-		wrap.innerHTML = '<div class="code-h"><span>' + esc(diagram ? "diagram" : lang || "code") + '</span><span class="sp"></span>' +
+		// Python and JavaScript can run right here (in a sandboxed worker), their output and charts under them
+		const runnable = !live && !pv && capOn("code") && /^(python3?|py|js|javascript|mjs)$/i.test(lang);
+		wrap.innerHTML = '<div class="code-h"><span>' + esc(diagram ? "diagram" : lang || "code") + '</span><span class="sp"></span>' + (runnable ? '<button data-run title="Run it right here, in this browser">Run</button>' : "") +
 			(pv ? '<button data-pv>Preview</button><button data-pvside title="Open it beside the chat, bigger">Beside</button><button data-pvfull hidden>Full screen</button><button data-pvtab title="Open the preview in a new tab">Open ↗</button>' : "") +
 			(diagram ? '<button data-mmcode hidden>Code</button><button data-mmsvg hidden>Download</button>' : "") + '<button data-copy>Copy</button></div>';
 		pre.replaceWith(wrap);
@@ -4168,7 +4185,9 @@ async function send(textOverride, fork) {
 		// each request picks its models (and how hard they think) afresh
 		EFFORT.clear();
 		// a server with no AI provider connected (or none it can pay): said plainly, not sent as an empty request
-		if (catalog.length && !catalog.some((m) => usable(m, "quick"))) throw Object.assign(new Error("Andromeda can't reach any AI model right now: its server has no AI provider connected. Try again later."), { plain: true });
+		if (catalog.length && !catalog.some((m) => usable(m, "quick"))) throw Object.assign(new Error(isOwner()
+			? "Your server has no AI provider yet. Add your WaveSpeed key: double-click server/SET UP SERVER.bat, or in the server folder run: npx wrangler secret put WAVESPEED_KEY. Then reload this page."
+			: "Andromeda isn't connected to its AI models just now. Try again a little later."), { plain: true });
 		await useTools(text, atts);
 		// Andromeda reads it and decides how to serve it (the strongest fast reader, by measurement)
 		const hold = { role: "assistant", text: "", streaming: true, status: "Working out the best way to do this" };
@@ -8037,6 +8056,36 @@ async function runCompare(text, atts) {
 	const prompt = "Several expert AI models answered the same request on their own. Write the single best answer: keep what's correct and strongest in each, fix anything wrong, and where they genuinely disagree, say so briefly and say which view holds up best and why. Don't mention the models or that there were several answers unless they disagreed.\n\nThe request:\n" + text + "\n\n" + good.map((x, n) => "Answer " + (n + 1) + ":\n" + x.text).join("\n\n---\n\n");
 	await stream(judge.id, [sys(), ...chatHistory().slice(0, -1), { role: "user", content: prompt }], (t) => { msg.text = t; updateLast(); }, busy.signal, effortExtra(judge.id), msg);
 }
+
+document.addEventListener("click", async (e) => {
+	const b = e.target.closest("[data-run]");
+	if (!b || b.disabled) return;
+	const wrap = b.closest(".code"), code = wrap.querySelector("code").textContent, py = /^py/i.test(wrap.dataset.lang || "");
+	let box = wrap.querySelector(".code-out");
+	if (!box) { box = document.createElement("div"); box.className = "code-out"; wrap.appendChild(box); }
+	b.disabled = true;
+	b.textContent = "Running…";
+	box.innerHTML = '<span class="thinking">' + (py ? "Running Python (the first run takes a few seconds to load it)" : "Running") + "</span>";
+	try {
+		if (py) {
+			let files = [];
+			try { files = codeFiles(); } catch {}
+			const r = await runPython(code, files);
+			box.innerHTML = '<div class="co-h">Output</div><pre>' + esc(r.text) + "</pre>" + (r.figs || []).map((f) => '<img src="data:image/png;base64,' + f + '" alt="A chart the code drew">').join("");
+		} else box.innerHTML = '<div class="co-h">Output</div><pre>' + esc(await runJs(code)) + "</pre>";
+	} catch (err) { box.innerHTML = '<div class="co-h">Output</div><pre class="bad">' + esc(err.message || String(err)) + "</pre>"; }
+	b.disabled = false;
+	b.textContent = "Run again";
+});
+// ---------------------------------------------------------------- dragging files over the app: where they'll go
+let dragN = 0;
+addEventListener("dragenter", (e) => {
+	if (!document.body.classList.contains("in-app") || ![...((e.dataTransfer && e.dataTransfer.types) || [])].includes("Files")) return;
+	dragN++;
+	document.body.classList.add("dropping");
+});
+addEventListener("dragleave", () => { if (--dragN <= 0) { dragN = 0; document.body.classList.remove("dropping"); } });
+addEventListener("drop", () => { dragN = 0; document.body.classList.remove("dropping"); });
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
