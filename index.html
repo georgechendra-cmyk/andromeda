@@ -1162,7 +1162,7 @@ body.art-open .msg > .av { display: none; }
 .lib-it b { font-weight: 500; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lib-it small { font-size: 12px; color: var(--faint); }
 .pop [hidden] { display: none !important; }
-@media (max-width: 860px) { .sp-grid { grid-template-columns: 1fr; } .space-pg { padding-top: 5vh; padding-left: 16px; padding-right: 16px; } .sp-top .btn { display: none; } }
+@media (max-width: 860px) { .sp-grid { grid-template-columns: 1fr; } .space-pg { padding-top: 5vh; padding-left: 16px; padding-right: 16px; } .sp-top { gap: 8px; } .sp-top h1 { font-size: 26px; } .sp-top .btn { height: 30px; padding: 0 9px; font-size: 12px; } .sp-ic { width: 38px; height: 38px; } }
 @media (min-width: 861px) { body.sb-closed .sp-i, body.sb-closed .convo-group { display: none; } }
 
 /* ---- the site: editorial, after Anthropic's (the sky behind it stays as it was) */
@@ -1225,6 +1225,13 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 .cv-row { display: flex; gap: 8px; }
 .cv-row .inp { flex: 1; min-width: 0; height: 38px; }
 .cv-row .btn { height: 38px; }
+
+/* ---- styles in the mode menu, and the try-again menu */
+.st-pills { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 8px 8px; }
+.pop .st-pill { display: inline-flex; padding: 5px 11px; border-radius: 999px; border: 1px solid var(--line2); font-size: 12.5px; color: var(--muted); }
+.pop .st-pill:hover { color: var(--text); }
+.pop .st-pill.on { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 45%, transparent); background: var(--brand-soft); }
+#regenPop { position: fixed; top: 0; right: auto; z-index: 60; width: 250px; max-height: min(70vh, 460px); overflow-y: auto; background: var(--bg2); backdrop-filter: none; }
 </style>
 </head>
 <body>
@@ -1456,6 +1463,7 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 	<header class="sh-top"><a class="logo" href="./" title="Andromeda"><svg class="mark"><use href="#logo"/></svg>Andromeda</a><span class="sh-t" id="shTitle"></span><span class="sp"></span><button class="b sec" id="shCont">Continue this chat</button><button class="b pri" data-open-app>Try Andromeda</button></header>
 	<div class="thread" id="shThread"></div>
 </div>
+<div class="pop" id="regenPop" role="menu" hidden></div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="srStatus" aria-live="polite"></div>
@@ -1920,8 +1928,9 @@ function effortExtra(id) {
 function speed() { return settings.speed === "fast" || settings.speed === "max" ? settings.speed : "auto"; }
 // one model the person chose to use for everything, when it can do this task
 function pinModel(task) {
-	if (!settings.pin) return null;
-	const m = catalog.find((x) => x.id === settings.pin);
+	const id = ONCE_PIN || settings.pin;
+	if (!id) return null;
+	const m = catalog.find((x) => x.id === id);
 	return m && usable(m, task || "quick") ? m : null;
 }
 function pinFirst(list, task) { const p = pinModel(task); return p ? [p, ...list.filter((m) => m && m.id !== p.id)] : list; }
@@ -2184,6 +2193,8 @@ let TOOL = null;
 let ART = null;
 // a temporary chat: not kept in the list or the browser, and memory isn't read or added to
 let TEMP = false;
+// for the next answer only: another model, or a note on how to answer (from "try again")
+let ONCE = null, ONCE_PIN = "", ONCE_NOTE = "";
 // Projects: chats that share instructions and files (like Claude's and ChatGPT's). The list is kept with the settings;
 // each project's files (read to text) in the vault
 const spaces = () => store.get("spaces", []);
@@ -2517,6 +2528,9 @@ const LANGS = [
 ];
 const TONES = {
 	default: ["Default", ""],
+	concise: ["Concise", "Style: concise. The shortest complete answer: the point first, no preamble and no recap, bullets where they're clearer than paragraphs."],
+	explanatory: ["Explanatory", "Style: explanatory. Explain thoroughly and clearly: the why behind each step, with examples and analogies, like a patient expert."],
+	learning: ["Learning", "Style: learning. Help the user understand rather than handing over the answer: build the intuition step by step, check their understanding with a question, and let them try the next step themselves."],
 	casual: ["Casual", "Tone: casual, friendly and conversational. Use contractions, like talking to a friend."],
 	formal: ["Formal", "Tone: formal and professional, with proper grammar and precise vocabulary."],
 	polite: ["Polite", "Tone: very polite and courteous; warm, considerate and respectful."],
@@ -2531,7 +2545,7 @@ function sys(extra) {
 	// their custom instructions (Settings): every answer; a build keeps to its own rules
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
-	const plan = !extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "";
+	const plan = (!extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
 	return { role: "system", content: [extra || base, plan, skillLine(), mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
 }
 function spaceLine() {
@@ -2945,7 +2959,7 @@ function renderMsg(m, i) {
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
 		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? "" : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
-		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: a new answer (this one is kept as a version)", ACT_IC.regen) : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
+		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
 // Streaming: the network delivers text in bursts; what's on screen is revealed a few characters every frame
@@ -4115,6 +4129,9 @@ async function send(textOverride, fork) {
 	if (current.space) await loadSpace(current.space);
 	const tool = TOOL && TOOLS[TOOL] ? TOOL : null;
 	setTool(null);
+	ONCE_PIN = (ONCE && ONCE.pin) || "";
+	ONCE_NOTE = (ONCE && ONCE.note) || "";
+	ONCE = null;
 	const atts = attachments;
 	attachments = [];
 	renderAttached();
@@ -4214,6 +4231,7 @@ async function send(textOverride, fork) {
 			lastMsg.offerTopic = offerTopic(text);
 		}
 	}
+	ONCE_PIN = ONCE_NOTE = "";
 	busy = null;
 	setBusy(false);
 	save();
@@ -7321,7 +7339,7 @@ document.addEventListener("click", (e) => {
 	else if (t.dataset.copymsg != null) { navigator.clipboard.writeText(current.msgs[t.dataset.copymsg].text); toast("Copied"); }
 	else if (t.dataset.speak != null) { speech.say(current.msgs[t.dataset.speak].text); }
 	// a new answer to the last message, the one there kept as a version
-	else if (t.dataset.regen != null) { const i = current.msgs.map((x) => x.role).lastIndexOf("user"); if (i >= 0) editAt(i, current.msgs[i].text); }
+	else if (t.dataset.regen != null) { if (t.classList.contains("ic")) openRegen(t); else { const i = current.msgs.map((x) => x.role).lastIndexOf("user"); if (i >= 0) editAt(i, current.msgs[i].text); } }
 	else if (t.dataset.edit != null) {
 		if (busy) { toast("Wait for the answer to finish, or stop it first"); return; }
 		const prev = EDITING;
@@ -7493,8 +7511,9 @@ const svgOf = (d, s = 18) => '<svg width="' + s + '" height="' + s + '" viewBox=
 const TICK = '<svg class="ck" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
 function drawMode() {
 	const p = settings.pin && catalog.find((x) => x.id === settings.pin);
-	$("#modeLabel").textContent = p ? shortName(p) : SPEEDS[speed()][0];
-	$("#modeBtn").classList.toggle("set", !!p || speed() !== "auto");
+	const tone = TONES[settings.tone] && settings.tone !== "default" ? TONES[settings.tone][0] : "";
+	$("#modeLabel").textContent = (p ? shortName(p) : SPEEDS[speed()][0]) + (tone ? " · " + tone : "");
+	$("#modeBtn").classList.toggle("set", !!p || speed() !== "auto" || !!tone);
 }
 function drawModeMenu() {
 	const s = speed(), pin = settings.pin && catalog.some((x) => x.id === settings.pin) ? settings.pin : "";
@@ -7502,11 +7521,15 @@ function drawModeMenu() {
 	try { tops = uniqM(["quick", "code", "reasoning", "write"].flatMap((t) => rank(t).slice(0, 4))).filter((m) => m.id !== pin).slice(0, 8); } catch {}
 	const pinned = pin ? catalog.find((x) => x.id === pin) : null;
 	const item = (on, attr, icon, name, sub) => '<button class="mi' + (on ? " on" : "") + '" role="menuitemradio" aria-checked="' + on + '" ' + attr + ">" + icon + "<span><b>" + esc(name) + "</b><small>" + esc(sub) + "</small></span>" + (on ? TICK : "") + "</button>";
+	const tone = TONES[settings.tone] ? settings.tone : "default";
 	$("#modePop").innerHTML = '<div class="sec">Andromeda decides</div>' + Object.entries(SPEEDS).map(([k, [n, d, ic]]) => item(!pin && s === k, 'data-speed="' + k + '"', svgOf(ic), n, d)).join("") +
+		'<hr><div class="sec">How it writes</div><div class="st-pills">' + Object.entries(TONES).map(([k, [n]]) => '<button class="st-pill' + (k === tone ? " on" : "") + '" role="menuitemradio" aria-checked="' + (k === tone) + '" data-stylepick="' + k + '">' + esc(n) + "</button>").join("") + "</div>" +
 		(pinned || tops.length ? '<hr><div class="sec">Or use one model for everything</div>' + [pinned, ...tops].filter(Boolean).map((m) => item(m.id === pin, 'data-pin="' + esc(m.id) + '"', '<span class="lab">' + esc((LAB_NAMES[provider(m.id)] || provider(m.id))[0].toUpperCase()) + "</span>", shortName(m), LAB_NAMES[provider(m.id)] || provider(m.id))).join("") : "");
 }
 $("#modeBtn").onclick = () => { if ($("#modePop").hidden) drawModeMenu(); togglePop("modePop"); };
 $("#modePop").addEventListener("click", (e) => {
+	const st = e.target.closest("[data-stylepick]");
+	if (st) { settings.tone = st.dataset.stylepick; saveSettings(); drawMode(); toast("Style: " + TONES[settings.tone][0]); return; }
 	const b = e.target.closest("[data-speed], [data-pin]");
 	if (!b) return;
 	if (b.dataset.speed) { settings.speed = b.dataset.speed; settings.pin = ""; }
@@ -7933,6 +7956,34 @@ async function canvasChange(how) {
 	$("#cvSt").textContent = said;
 }
 document.addEventListener("click", (e) => { const b = e.target.closest("[data-canvas]"); if (b) openCanvas(+b.dataset.canvas); });
+
+const REGEN = [
+	["again", "Try again", "", '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'],
+	["short", "Shorter", "Answer much more briefly than before: only what matters most.", '<path d="M4 7h16M4 12h10M4 17h6"/>'],
+	["long", "More detailed", "Answer in much more depth than before: more detail, steps and examples.", '<path d="M4 6h16M4 10h16M4 14h16M4 18h12"/>'],
+	["simple", "Simpler", "Answer more simply than before: plain words, as if to a curious 12-year-old.", '<circle cx="12" cy="12" r="9"/><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>'],
+];
+function openRegen(btn) {
+	const p = $("#regenPop");
+	if (!p.hidden) { p.hidden = true; return; }
+	let models = [];
+	try { models = uniqM(["quick", "code", "reasoning", "write"].flatMap((t) => rank(t).slice(0, 3))).slice(0, 6); } catch {}
+	p.innerHTML = REGEN.map(([k, n, , d]) => '<button class="mi" role="menuitem" data-rg="' + k + '">' + svgOf(d) + "<span><b>" + n + "</b></span></button>").join("") +
+		(models.length ? '<hr><div class="sec">Try again with</div>' + models.map((m) => '<button class="mi" role="menuitem" data-rgpin="' + esc(m.id) + '"><span class="lab">' + esc((LAB_NAMES[provider(m.id)] || provider(m.id))[0].toUpperCase()) + "</span><span><b>" + esc(shortName(m)) + "</b><small>" + esc(LAB_NAMES[provider(m.id)] || provider(m.id)) + "</small></span></button>").join("") : "");
+	p.hidden = false;
+	const r = btn.getBoundingClientRect(), h = p.offsetHeight, w = p.offsetWidth;
+	p.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + "px";
+	p.style.top = (r.bottom + 6 + h < innerHeight ? r.bottom + 6 : Math.max(8, r.top - h - 6)) + "px";
+}
+$("#regenPop").addEventListener("click", (e) => {
+	const b = e.target.closest("[data-rg], [data-rgpin]");
+	if (!b || busy || !current) return;
+	const i = current.msgs.map((x) => x.role).lastIndexOf("user");
+	if (i < 0) return;
+	const how = REGEN.find((x) => x[0] === b.dataset.rg);
+	ONCE = b.dataset.rgpin ? { pin: b.dataset.rgpin } : how && how[2] ? { note: how[2] } : null;
+	editAt(i, current.msgs[i].text);
+});
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
