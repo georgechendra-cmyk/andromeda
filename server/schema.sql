@@ -52,6 +52,12 @@ CREATE TABLE IF NOT EXISTS jobs (
 	created_at INTEGER NOT NULL
 );
 
+-- free credits handed out each day (UTC), every account together, kept under the daily cap
+CREATE TABLE IF NOT EXISTS free_days (
+	day TEXT PRIMARY KEY, -- 2026-10-25
+	mc INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS config (
 	k TEXT PRIMARY KEY,
 	v TEXT NOT NULL

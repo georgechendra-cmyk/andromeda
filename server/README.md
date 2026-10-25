@@ -1,18 +1,49 @@
 # Andromeda credits server
 
-Lets people pay you for credits and use Andromeda with **your** OpenRouter key, without ever seeing it.
+Lets people pay you for credits and use Andromeda with **your** AI keys, without ever seeing them.
 It runs free on Cloudflare (the free plan is enough to start).
 
-Nothing costs you money until someone pays. Your OpenRouter balance can start at **0**: when someone buys,
-you top up OpenRouter with part of what they paid and keep the rest.
+Nothing costs you money until someone pays. Your AI balance can start at **0**: when someone buys,
+you top it up with part of what they paid and keep the rest.
 
 ---
 
+## Where the models come from
+
+Every request goes to the model that scores best on the leaderboards for that exact work, at the thinking effort it
+scored best at. If one way to it says no before answering (it doesn't have that model, your balance is out, it's down),
+the next way is asked, so people only ever see an answer.
+
+- **WaveSpeed** (`WAVESPEED_KEY` alone; its address is built in). Every lab's big models under the same names the site
+  uses (Claude Opus 5.5 and Fable 5.1, GPT-6 Astra, Gemini 3.1 Pro, Grok 4.7; 128 in all) at the labs' own list prices,
+  topped up by card, PayPal or Alipay. Asked before everything else for every model it carries. With it, the studio
+  (pictures, video, voice, music) runs on WaveSpeed too: the server reads each model's own request format from
+  WaveSpeed's list, uploads pictures the browser sends, and has WaveSpeed price every request before it's made.
+0. **A gateway you top up in rupiah** (`GATEWAY_URL` + `GATEWAY_KEY`). Any OpenAI-compatible gateway paid by QRIS (OVO,
+   GoPay, DANA, ShopeePay, bank apps), no card: [Anoman](https://www.anoman.io) (`https://api.anoman.io/v1`, a Jakarta
+   company, GPT, Claude, Gemini, Grok and hundreds more at the labs' prices), RouterKu, ModelRouter, OneAPI. It goes
+   first for every model it carries; the server reads its model list and asks for each by the gateway's own name.
+1. **Cloudflare AI Gateway with Unified Billing** (`CF_ACCOUNT_ID` + `CF_API_TOKEN`). GPT, Claude, Gemini and Grok at
+   the labs' own prices, paid from one prepaid Cloudflare balance. Cloudflare adds 5% when you buy credits. No
+   OpenRouter needed. Claude goes through Anthropic's own format, so its thinking, its own web search and its prompt
+   caching all work (the start of a long conversation is billed at a tenth); GPT answers live questions with OpenAI's
+   own web search.
+2. **OpenRouter** (`OPENROUTER_KEY`, optional). Every other model (DeepSeek, Qwen, Kimi, GLM, Perplexity...), plus the
+   studio: pictures, video, voice and music.
+
+The site only routes to models the server can reach. With Cloudflare alone it picks among OpenAI, Anthropic, Google and
+xAI, which is where the top-rated models are anyway.
+
+**Live web search:** GPT and Claude search the web themselves (each search about a cent), the way the search
+leaderboard rated them. Gemini and Grok do it themselves through OpenRouter; through Cloudflare they get the server's own
+search instead: `TAVILY_KEY` from [tavily.com](https://tavily.com) (1,000 free searches a month, no card needed).
+
 ## Setup, once (about 15 minutes)
 
-You need Node.js installed and a free Cloudflare account.
+Double-click **SET UP SERVER.bat**. It does everything below by itself and asks for each key, and any key can be
+skipped. Run it again any time to add a key or put a new `worker.js` online.
 
-Open a terminal in this `server` folder and run:
+By hand: you need Node.js installed and a free Cloudflare account. Open a terminal in this `server` folder and run:
 
 ```bash
 npx wrangler login
@@ -23,15 +54,28 @@ The second command prints a `database_id`. Paste it into `wrangler.toml` in plac
 
 ```bash
 npx wrangler d1 execute andromeda --remote --file schema.sql
-npx wrangler secret put OPENROUTER_KEY
 npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put PEPPER
+npx wrangler secret put CF_ACCOUNT_ID
+npx wrangler secret put CF_API_TOKEN
+npx wrangler secret put TAVILY_KEY
 npx wrangler deploy
 ```
 
-- **OPENROUTER_KEY**: a key from openrouter.ai/keys. Give it a **credit limit** there, so even a bug can't spend more than that.
 - **ADMIN_TOKEN**: a long password only you know. It opens your admin page.
 - **PEPPER**: any long random text. Type it once and forget it. It makes stored passwords harder to crack.
+- **CF_ACCOUNT_ID**: the Account ID that `npx wrangler whoami` prints.
+- **CF_API_TOKEN**: at dash.cloudflare.com/profile/api-tokens, **Create Token** with the **Workers AI** template
+  (it needs Workers AI Read). Then, in the Cloudflare dashboard under **AI > AI Gateway**, buy credits for Unified
+  Billing. Requests go through once there's a balance, and you can set a spending limit there.
+- **OPENROUTER_KEY** (optional): a key from openrouter.ai/keys. Give it a **credit limit** there, so even a bug can't
+  spend more than that.
+- **WAVESPEED_KEY**: an API key from the WaveSpeed dashboard (wavespeed.ai, signed in, **API Keys**).
+- **GATEWAY_URL** and **GATEWAY_KEY** (the rupiah gateway): its API address (for Anoman, `https://api.anoman.io/v1`)
+  and an API key from its dashboard, after topping up there with QRIS.
+- **GOOGLE_CLIENT_ID** (the "Continue with Google" button): at console.cloud.google.com/apis/credentials, **Create
+  credentials > OAuth client ID > Web application**, with `https://georgechendra-cmyk.github.io` as an authorized
+  JavaScript origin. Copy the Client ID (it ends in `.apps.googleusercontent.com`).
 
 `wrangler deploy` prints your server's address, like `https://andromeda-credits.yourname.workers.dev`.
 
@@ -75,7 +119,7 @@ Card payments then add credits automatically, even while you're asleep.
 
 In the admin page you can change, any time:
 
-- **Mark-up** on OpenRouter's cost: cheap models ×3.5, mid ×2.5, top models ×2 by default.
+- **Mark-up** on the model's list price: cheap models ×3.5, mid ×2.5, top models ×2 by default.
 - **Packs and prices** in each currency. Use round local prices, not exchange-rate conversions.
 
 1 credit = $0.01 at your prices. Users only ever see credits: never tokens, never money per answer.
@@ -98,10 +142,10 @@ npx wrangler d1 execute andromeda --remote --file schema.sql
 npx wrangler deploy
 ```
 
-## Topping up OpenRouter without a credit card
+## Topping up without a credit card
 
-Cloudflare, GitHub, QRIS, PayPal and Lemon Squeezy payouts need no card. Only OpenRouter's top-up does
-(it takes card or crypto). Ways to do it without a credit card:
+Cloudflare asks for a payment method when you buy AI Gateway credits.
+OpenRouter's top-up takes card or crypto. Ways to pay without a credit card:
 
 1. **Virtual debit card**: many Indonesian digital banks (e.g. Jenius, Bank Jago) give a Visa/Mastercard debit
    card inside the app in minutes, linked to your balance. Easiest: every top-up is a couple of taps.
@@ -114,7 +158,8 @@ The rule stays the same: top up only with money a customer has already paid you.
 
 ## Keeping it safe
 
-- Your OpenRouter key only lives in Cloudflare's secrets: never in `index.html`, never on GitHub.
+- Your keys only live in Cloudflare's secrets: never in `index.html`, never on GitHub.
 - A request's worst-case cost is set aside before it's sent, so nobody can spend more than they have, even with many
-  requests at once. A user at 0 is refused before anything reaches OpenRouter.
-- Only top up OpenRouter with money people have already paid you.
+  requests at once. A user at 0 is refused before anything reaches a provider.
+- If your own AI balance runs out, people see "that model can't be reached right now", never "you're out of credits".
+- Only top up with money people have already paid you.

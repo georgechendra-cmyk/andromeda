@@ -23,9 +23,17 @@ With Andromeda you just type. It sends each part of your request to the stronges
 - Name a library in a coding question and it pulls that library's current docs (Context7).
 - Ask about something recent and it searches the web live.
 
+## Andromeda decides
+
+Nothing about a request is decided by rules written in advance. The model that measurably reads requests best reads each one and decides for itself what would serve it: an answer, something built and running in the page, a picture, a film, a song, a document, a study set, work on a code project, work in your connected apps, or its own way for anything nobody thought of. If that way fails, it's told why and chooses again.
+
+## Connect apps
+
+Andromeda can use the same apps and tools Claude can, through MCP: Blender, Figma, Unity, your files, GitHub and thousands more. Double-click **CONNECT APPS.bat** (it needs [Node.js](https://nodejs.org)), paste the pairing code it shows into Andromeda under **Connect apps**, and list your apps in `tools/connections.json` (the same format as Claude Desktop, whose apps are picked up too; see `tools/connections.example.json`). Online MCP servers can be added by address. The connector only listens on your computer and only answers Andromeda with its pairing code.
+
 ## Andromeda Code
 
-Open a folder on your computer or connect a GitHub repo, then ask for a change. Andromeda Code:
+Start a project right here in your browser, open a folder on your computer, or connect a GitHub repo, then ask for a change. Andromeda Code:
 
 - finds and reads the files it needs and edits them precisely;
 - looks up current docs and checks its own work, fixing what it broke;
@@ -35,19 +43,19 @@ In a folder you can undo every change. On GitHub, nothing is committed until you
 
 ## How models are picked
 
-Andromeda reads OpenRouter's live model list every time it starts and never hardcodes a model. For each kind of task it knows which labs lead, and from each lab it takes the newest version of that lab's flagship line. A new release is used the day it ships.
+By measurement, not by guesswork. Every request is first read by a fast model for exactly what it is, as narrowly as it really is ("fixing a NullPointerException in a Fabric 1.21 mixin", not "code"), and weighed as a mix of the skills [LMArena](https://lmarena.ai) measures from millions of real votes:
 
-| Task | Labs, in order | Picked today |
-|---|---|---|
-| Code | Anthropic, OpenAI, Google, Moonshot, xAI… | Claude Opus 5.5 |
-| Reasoning and maths | OpenAI, Google, Anthropic, xAI, DeepSeek… | GPT-6.1 Sol |
-| Brainstorming | Anthropic, OpenAI, xAI, Google… | Claude Opus 5.5 |
-| Writing | Anthropic, OpenAI, Google… | Claude Opus 5.5 |
-| Research and news | Perplexity (live web search), Google… | Sonar Pro Search |
-| Images you send | Google, OpenAI, Anthropic… | Gemini 3.1 Pro |
-| Quick questions | Fast tiers from Google, OpenAI, Anthropic | Gemini 3.8 Flash |
+- **Kinds of work:** coding, maths, creative writing, instruction following, hard problems, expert questions, long requests, long conversations, getting facts right.
+- **Fields:** software, medicine, law, business and finance, science, mathematics, writing and language, entertainment and sports.
+- **Languages:** English, Chinese, Japanese, Korean, Spanish, French, German, Russian, Polish, and every other language.
+- **Beyond chat:** web pages, React apps, a site from a screenshot, reading text in images, diagrams, homework photos, live search, documents, agentic coding.
+- **The studio:** photorealistic pictures, portraits, art, cartoons, text in pictures, image editing, video from a still.
 
-If a model is busy, the next one in line takes over.
+The model that scores highest on that exact mix does the work. No lab is favoured by hand, and a new model counts the day it's rated. Code and anything a second expert could catch mistakes in (proofs, maths, medical, legal or financial facts) is checked by the best model from a different lab and fixed until it passes. For code, Claude writes it unless another model measures clearly better at that particular code.
+
+**The best, run the way it was rated.** Many models are rated more than once, at different thinking efforts ("Claude Opus 5.5 (Max)", "GPT-5.6 Sol (xHigh)"): Andromeda runs each at the effort that scored best, with room to think that long. Each of its own features goes to the model measured best at exactly that: apps and simulations by the web-app boards, a site from a screenshot by the screenshot-to-site board, flashcards and quizzes by expertise and factual accuracy, spreadsheets by maths, decks and documents by writing and instruction following, the video director by creative writing. Live questions are answered with each lab's own web search, the way the search board rates them. The whole conversation is always sent, and Claude rereads it from its cache at a tenth of the price, the only saving that changes nothing in the answer.
+
+The ratings come from `arena.json`, refreshed every day by a GitHub Action (`.github/workflows/arena.yml`, which runs `tools/arena.mjs`). Without it, Andromeda falls back to a built-in list of which labs lead at each kind of task. If a model is busy, the next one in line takes over.
 
 ## Credits
 
@@ -55,7 +63,7 @@ If a model is busy, the next one in line takes over.
 - More can be bought with QRIS (and card, once it's set up).
 - Andromeda only ever shows credits, never token counts.
 
-The site runs through a small credits server on Cloudflare (`server/`) that holds the OpenRouter key, so no one using the site ever needs or sees a key. To set it up, double-click `server/SET UP SERVER.bat`.
+The site runs through a small credits server on Cloudflare (`server/`) that holds the AI keys, so no one using the site ever needs or sees a key. Models are reached through Cloudflare AI Gateway (GPT, Claude, Gemini and Grok at the labs' own prices) or OpenRouter (everything else). To set it up, double-click `server/SET UP SERVER.bat`.
 
 ## License
 

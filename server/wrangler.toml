@@ -13,7 +13,16 @@ database_name = "andromeda"
 database_id = "06f2a301-f884-4f49-a715-6175ce84c399"
 
 # Secrets are NOT written here. Set them once with:
-#   npx wrangler secret put OPENROUTER_KEY
 #   npx wrangler secret put ADMIN_TOKEN
 #   npx wrangler secret put PEPPER
-#   npx wrangler secret put LEMON_SECRET   (only when card payments are set up)
+# and at least one way to reach the models (see README.md):
+#   npx wrangler secret put WAVESPEED_KEY   (WaveSpeed: every lab's big models at their own prices; asked first)
+#   npx wrangler secret put GATEWAY_URL    (a gateway topped up in rupiah by QRIS, OVO included: e.g. https://api.anoman.io/v1)
+#   npx wrangler secret put GATEWAY_KEY     (its API key; it goes first for every model it carries)
+#   npx wrangler secret put CF_ACCOUNT_ID   (Cloudflare AI Gateway Unified Billing: GPT, Claude, Gemini, Grok)
+#   npx wrangler secret put CF_API_TOKEN    (an API token with Workers AI Read; CF_GATEWAY too, to use a named gateway)
+#   npx wrangler secret put OPENROUTER_KEY  (optional: every other model, and pictures, video and voice)
+# optional:
+#   npx wrangler secret put TAVILY_KEY      (live web search for Gemini and Grok through Cloudflare; 1,000 free a month)
+#   npx wrangler secret put LEMON_SECRET    (only when card payments are set up)
+#   npx wrangler secret put GOOGLE_CLIENT_ID (the "Continue with Google" button: an OAuth client ID for the site's address)
