@@ -275,7 +275,8 @@ async function googleSignIn(req, env) {
 		}
 	}
 	const token = await newSession(env, u.id);
-	return json({ token, me: await meOf(env, u), made });
+	// the first name Google has, so the app can greet you by it (kept in your browser, not here)
+	return json({ token, me: await meOf(env, u), made, name: String(g.given_name || g.name || "").slice(0, 40) });
 }
 async function authUser(req, env) {
 	const token = bearer(req);

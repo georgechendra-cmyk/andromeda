@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Andromeda">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -920,6 +920,145 @@ html.morphing::view-transition-new(root) {
 	100% { --i1: 200vmax; --i2: 180vmax; --i3: 180vmax; --i4: 180vmax; --i5: 180vmax; }
 }
 @media (max-width: 860px) { .send { width: 40px; height: 40px; } .welcome { padding-top: 9vh; } .welcome .orbit { width: 62px; height: 62px; margin-bottom: 24px; } .welcome h1 { font-size: 30px; } .welcome p.lead { font-size: 15px; margin-bottom: 24px; } }
+
+/* ============================== the layout, after Claude and ChatGPT ==============================
+   A sidebar with a few places to go and your chats, folding to a rail of icons; a greeting by name in serif; one box with
+   + for files and tools, the mode beside send, and a voice button while there's nothing to send yet. */
+:root { --serif: Newsreader, "Iowan Old Style", "Palatino Linotype", Georgia, serif; --rail: 62px; }
+
+/* ---- the sidebar */
+.brand { height: 58px; padding: 0 10px 0 16px; gap: 9px; }
+.brand-link { display: inline-flex; align-items: center; gap: 9px; min-width: 0; color: var(--text); text-decoration: none; }
+.sb-hide { margin-left: auto; width: 34px; height: 34px; border-radius: 10px; }
+.sb-nav { display: grid; gap: 1px; padding: 2px 8px 8px; }
+.nav-i { display: flex; align-items: center; gap: 11px; width: 100%; height: 38px; padding: 0 10px; border-radius: 10px; font-size: 14px; color: var(--text); text-align: left; white-space: nowrap; cursor: pointer; transition: background-color .15s; }
+.nav-i > svg { flex: none; color: var(--muted); transition: color .15s; }
+.nav-i:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.nav-i:hover > svg { color: var(--text); }
+.nav-i .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav-i kbd { margin-left: auto; font: 11px var(--mono); color: var(--faint); opacity: 0; transition: opacity .2s; }
+.nav-i:hover kbd { opacity: 1; }
+.nav-i.new { font-weight: 500; }
+.nav-i.new .ic { flex: none; width: 24px; height: 24px; margin: 0 -3px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-grad); color: #fff; box-shadow: 0 4px 14px -4px rgba(var(--brand-rgb), .8); transition: transform .3s var(--ease); }
+.nav-i.new:hover .ic { transform: rotate(90deg); }
+.nav-search input { flex: 1; height: 100%; border: 0; outline: 0; background: transparent; padding: 0; font-size: 14px; color: var(--text); }
+.nav-search input::placeholder { color: var(--text); opacity: 1; transition: color .15s; }
+.nav-search:focus-within { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.nav-search:focus-within input::placeholder { color: var(--faint); }
+.convos { padding: 0 8px 8px; }
+.convo-group { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 500; color: var(--faint); padding: 16px 10px 6px; }
+.convo { padding: 7px 10px; border-radius: 10px; color: var(--text); }
+.convo:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.convo.active { background: color-mix(in srgb, var(--text) 9%, transparent); box-shadow: none; }
+.sb-foot { position: relative; display: block; padding: 8px; }
+.acct { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 12px; text-align: left; color: var(--muted); }
+.acct:hover, .acct[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.av-i { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--brand-grad); color: #fff; font-size: 13.5px; font-weight: 600; box-shadow: 0 4px 12px -3px rgba(var(--brand-rgb), .6); }
+.acct .who { flex: 1; min-width: 0; display: grid; line-height: 1.3; }
+.acct .who b { font-weight: 500; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct .who small { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct > svg { flex: none; }
+
+/* ---- menus that pop up: an icon, a name, a line about it */
+.pop.up { top: auto; bottom: calc(100% + 6px); }
+#acctPop { left: 8px; right: 8px; }
+.pop .mi { align-items: flex-start; gap: 11px; padding: 8px 10px; }
+.pop .mi > svg { flex: none; margin-top: 1px; color: var(--muted); }
+.pop .mi > span { display: grid; gap: 1px; min-width: 0; }
+.pop .mi b { font-weight: 500; font-size: 14px; }
+.pop .mi small { font-size: 12.5px; color: var(--faint); line-height: 1.35; }
+.pop .mi.on { background: var(--brand-soft); }
+.pop .mi.on > svg:first-child { color: var(--brand); }
+.pop .mi .ck { margin-left: auto; align-self: center; color: var(--brand); flex: none; }
+.pop .mi .key-dot { align-self: center; }
+.pop .sec { padding: 8px 10px 4px; font-size: 12px; font-weight: 500; color: var(--faint); }
+.pop .pop-h { padding: 8px 10px 6px; font-size: 12.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pop .pop-h:empty { display: none; }
+.pop .lab { flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 6px; display: grid; place-items: center; font: 600 11px var(--sans); color: var(--muted); background: color-mix(in srgb, var(--text) 8%, transparent); }
+#plusPop { left: 8px; right: auto; width: min(340px, calc(100vw - 32px)); max-height: min(64vh, 560px); overflow-y: auto; }
+#modePop { right: 8px; left: auto; width: min(340px, calc(100vw - 32px)); max-height: min(64vh, 560px); overflow-y: auto; }
+/* solid (a blur inside the box's own blur shows the page through), and on the welcome, where the box sits high, they open downwards */
+#plusPop, #modePop, #acctPop, #chatPop { background: var(--bg2); backdrop-filter: none; -webkit-backdrop-filter: none; }
+.welcome .pop.up { top: calc(100% + 8px); bottom: auto; max-height: min(54vh, 480px); }
+.pop { text-align: left; }
+
+/* ---- the top */
+.topbar { height: 54px; gap: 6px; padding: 0 12px; }
+.ttl { display: block; max-width: min(52%, 520px); height: 34px; line-height: 34px; padding: 0 10px; border-radius: 10px; font-size: 14.5px; font-weight: 500; color: var(--text); text-align: left; }
+.ttl:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.ttl:empty { display: none; }
+
+/* ---- the welcome: your name, in serif, by the mark */
+.welcome { padding-top: 21vh; }
+.welcome .greet { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 0 0 30px; font-family: var(--serif); font-weight: 400; font-size: clamp(30px, 3.6vw, 44px); letter-spacing: -.015em; line-height: 1.15; color: var(--text); background: none; -webkit-text-fill-color: currentColor; animation: rise .8s var(--ease) both; }
+.gmark { position: relative; flex: none; width: 46px; height: 46px; }
+.gmark::before { content: ""; position: absolute; inset: -16px; border-radius: 50%; background: radial-gradient(circle, rgba(var(--brand-rgb), .32), transparent 66%); animation: breathe 5s ease-in-out infinite; }
+.gmark svg { position: relative; width: 100%; height: 100%; color: var(--brand); filter: drop-shadow(0 3px 14px rgba(var(--brand-rgb), .55)); animation: spin 40s linear infinite; }
+.gmark i { position: absolute; inset: -7px; border-radius: 50%; border: 1px solid rgba(var(--brand-rgb), .22); animation: orbit 9s linear infinite; }
+.gmark i::after { content: ""; position: absolute; top: -2.5px; left: calc(50% - 2.5px); width: 5px; height: 5px; border-radius: 50%; background: #3cc0f6; box-shadow: 0 0 10px 2px rgba(60,192,246,.7); }
+
+/* ---- the box */
+.composer { border-radius: 26px; }
+textarea#input { padding: 16px 20px 6px; }
+.route:empty { display: none; }
+.bar { gap: 4px; padding: 6px 10px 10px; }
+.icon.plus { border: 1px solid var(--line2); border-radius: 50%; }
+.icon.plus[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.icon.plus svg { transition: transform .3s var(--ease); }
+.icon.plus[aria-expanded="true"] svg { transform: rotate(45deg); }
+.tool-chip { display: inline-flex; align-items: center; gap: 6px; height: 34px; max-width: 50%; padding: 0 9px 0 11px; border-radius: 999px; font-size: 13.5px; font-weight: 500; color: var(--brand); background: var(--brand-soft); border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); animation: pop .3s var(--ease); }
+.tool-chip[hidden] { display: none; }
+.tool-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tool-chip svg { flex: none; width: 16px; height: 16px; }
+.tool-chip .x { width: 14px; height: 14px; opacity: .6; transition: opacity .15s; }
+.tool-chip:hover .x { opacity: 1; }
+.mode-btn { display: inline-flex; align-items: center; gap: 4px; height: 34px; max-width: 40%; padding: 0 8px 0 11px; border-radius: 11px; font-size: 13.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
+.mode-btn span { overflow: hidden; text-overflow: ellipsis; }
+.mode-btn svg { flex: none; }
+.mode-btn:hover, .mode-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
+.mode-btn.set { color: var(--brand); }
+.send.talk { background: var(--ink); color: var(--onink); box-shadow: none; }
+.send.talk:hover { transform: scale(1.05); }
+.send.talk.on { background: var(--brand-grad); color: #fff; animation: talking 1.6s ease-in-out infinite; }
+@keyframes talking { 50% { box-shadow: 0 0 0 7px rgba(var(--brand-rgb), .18); } }
+.composer.empty #sendBtn { display: none; }
+.composer:not(.empty) #talkBtn { display: none; }
+.composer-wrap { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+.composer-wrap::after { content: "Andromeda can make mistakes. Check important info."; display: block; padding-top: 8px; text-align: center; font-size: 12px; color: var(--faint); }
+
+/* ---- the conversation */
+.thread { max-width: 790px; }
+.msg.user .bubble, :root[data-theme="light"] .msg.user .bubble { background: color-mix(in srgb, var(--text) 7%, var(--bg)); border: 0; border-radius: 22px; padding: 10px 18px; box-shadow: none; }
+.md { font-size: 16px; }
+.actions, .uact { gap: 0; }
+.act.ic { width: 32px; height: 32px; padding: 0; justify-content: center; border-radius: 9px; }
+.msg:last-child .actions { opacity: 1; }
+
+/* ---- on a computer: the sidebar folds to a rail of icons */
+@media (min-width: 861px) {
+	.sidebar { position: relative; z-index: 6; }
+	body.sb-closed .app { grid-template-columns: var(--rail) 1fr; }
+	body.sb-closed .sidebar { opacity: 1; visibility: visible; overflow: visible; }
+	body.sb-closed #menuBtn { display: none; }
+	body.sb-closed .sidebar .lbl, body.sb-closed .brand-link, body.sb-closed .convos, body.sb-closed .nav-i kbd, body.sb-closed .acct .who, body.sb-closed .acct > svg { display: none; }
+	body.sb-closed .brand { justify-content: center; padding: 0; }
+	body.sb-closed .sb-hide { margin: 0; }
+	body.sb-closed .sb-nav { justify-items: center; padding: 2px 0 8px; }
+	body.sb-closed .nav-i { width: 40px; padding: 0; justify-content: center; }
+	body.sb-closed .nav-i.new .ic { margin: 0; }
+	body.sb-closed .sb-foot { flex: 1; display: flex; align-items: flex-end; justify-content: center; border-top: 0; }
+	body.sb-closed .acct { width: auto; padding: 4px; border-radius: 50%; }
+	body.sb-closed #acctPop { left: 8px; right: auto; width: 250px; }
+}
+@media (max-width: 860px) {
+	.welcome { padding-top: 15vh; }
+	.welcome .greet { font-size: 30px; gap: 12px; }
+	.gmark { width: 36px; height: 36px; }
+	.mode-btn { padding: 0 6px 0 8px; }
+	.composer-wrap::after { content: "Andromeda can make mistakes."; }
+	.act.ic { width: 36px; height: 36px; }
+}
+@media (max-width: 420px) { .welcome .greet { flex-direction: column; font-size: 28px; } #micBtn { display: none; } }
 </style>
 </head>
 <body>
@@ -1022,18 +1161,28 @@ html.morphing::view-transition-new(root) {
 <div class="app">
 	<aside class="sidebar" id="sidebar">
 		<div class="brand">
-			<svg class="mark"><use href="#logo"/></svg>
-			<span class="brand-name">Andromeda</span>
-			<a class="home" href="#" data-go-home>Home</a>
-			<button class="sb-hide" id="sbHide" title="Hide the sidebar" aria-label="Hide the sidebar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
+			<a class="brand-link" href="#" data-go-home title="Andromeda's home page"><svg class="mark"><use href="#logo"/></svg><span class="brand-name">Andromeda</span></a>
+			<button class="sb-hide" id="sbHide" title="Close the sidebar" aria-label="Close the sidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
 		</div>
-		<button class="new-chat" id="newChat"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>New chat<kbd>⌘K</kbd></button>
-		<div class="search"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search chats"></div>
+		<nav class="sb-nav" aria-label="Andromeda">
+			<button class="nav-i new" id="newChat" title="New chat (Ctrl+K)"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
+			<label class="nav-i nav-search" title="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" class="lbl" placeholder="Search chats" aria-label="Search chats"></label>
+			<button class="nav-i" id="codeNav" title="Andromeda Code: build or change a project"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
+			<button class="nav-i" id="appsNav" title="Connect apps: your computer, Blender, Figma, files and more"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
+		</nav>
 		<div class="convos" id="convos"></div>
-		<div class="sb-foot" style="flex-wrap:wrap">
-			<button class="sb-btn" id="acctBtn" data-open-account style="flex-basis:100%"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span id="acctLabel">Credits</span></button>
-			<button class="sb-btn" id="openSettings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Settings<span class="key-dot" id="keyDot"></span></button>
-			<button class="sb-btn" id="themeBtn" style="flex:0 0 auto" title="Light / dark" aria-label="Switch light or dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+		<div class="sb-foot">
+			<button class="acct" id="acctBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="acctPop"><span class="av-i" id="acctAv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span><span class="who"><b id="acctLabel">Sign in</b><small id="acctSub">Free credits every day</small></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></button>
+			<div class="pop up" id="acctPop" role="menu" hidden>
+				<div class="pop-h" id="acctMail"></div>
+				<button class="mi" role="menuitem" data-open-account><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M14.5 9.2A2.6 2.2 0 0 0 12 7.8c-1.5 0-2.5.8-2.5 2s1 1.7 2.5 2 2.5.8 2.5 2-1 2-2.5 2a2.6 2.2 0 0 1-2.5-1.4M12 6v1.8M12 16.2V18"/></svg><span><b>Credits and account</b></span></button>
+				<button class="mi" role="menuitem" id="openSettings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span><b>Settings</b></span><span class="key-dot" id="keyDot"></span></button>
+				<button class="mi" role="menuitem" data-open-memory><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17l-7-4-7 4z"/></svg><span><b>Memory</b></span></button>
+				<button class="mi" role="menuitem" id="themeBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span><b>Light or dark</b></span></button>
+				<button class="mi" role="menuitem" data-go-home><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span><b>Andromeda's home page</b></span></button>
+				<hr>
+				<button class="mi" role="menuitem" id="signOutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11"/></svg><span><b>Sign out</b></span></button>
+			</div>
 		</div>
 	</aside>
 	<div class="scrim" id="scrim"></div>
@@ -1041,10 +1190,10 @@ html.morphing::view-transition-new(root) {
 	<main class="main">
 		<header class="topbar" id="topbar">
 			<button class="menu-btn" id="menuBtn" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
-			<div class="ttl" id="chatTitle"></div>
+			<button class="ttl" id="chatTitle" aria-haspopup="menu" aria-controls="chatPop" title="Rename, export or delete this chat"></button>
 			<div class="spacer"></div>
 			<span class="chip" id="topChip"><span class="dot"></span><span id="topChipText">Not connected</span></span>
-			<button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
+			<button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
 			<button class="menu-btn" id="newChatTop" aria-label="New chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
 			<div class="pop" id="chatPop" role="menu" hidden>
 				<button role="menuitem" data-chat="copy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>Copy the chat as Markdown</button>
@@ -1062,20 +1211,35 @@ html.morphing::view-transition-new(root) {
 
 		<div class="composer-wrap" id="dock">
 			<button class="jump" id="jumpBtn" aria-label="Jump to the newest message" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
-			<div class="composer" id="composer">
+			<div class="composer empty" id="composer">
 				<div class="route" id="route"></div>
 				<div class="attached" id="attached"></div>
-				<textarea id="input" rows="1" placeholder="Ask anything. Andromeda picks the best model for it." aria-label="Message Andromeda"></textarea>
+				<textarea id="input" rows="1" placeholder="Ask anything, or make anything" aria-label="Message Andromeda"></textarea>
 				<div class="bar">
-					<button class="icon" id="attachBtn" title="Attach files or images" aria-label="Attach files or images"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg></button>
-					<button class="icon" id="projBtn" title="Andromeda Code: build a project right here, or work in a folder or GitHub repo" aria-label="Andromeda Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg></button>
-					<button class="icon" id="appsBtn" title="Connect apps: Blender, Figma, your files and more (MCP)" aria-label="Connect apps"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg></button>
-					<button class="icon" id="micBtn" title="Dictate" aria-label="Dictate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-					<button class="icon" id="talkBtn" title="Talk mode: hands-free conversation" aria-label="Talk mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/></svg></button>
+					<button class="icon plus" id="plusBtn" title="Add files, tools and more" aria-label="Add files, tools and more" aria-haspopup="menu" aria-expanded="false" aria-controls="plusPop"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
+					<button class="tool-chip" id="toolChip" hidden title="Turn this off"></button>
 					<span class="sp"></span>
-					<span class="hint">↵ send · ⇧↵ new line</span>
-					<button class="send" id="sendBtn" disabled aria-label="Send"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+					<button class="mode-btn" id="modeBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modePop" title="How Andromeda works: Auto, Fast, Max, or one model you choose"><span id="modeLabel">Auto</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+					<button class="icon" id="micBtn" title="Dictate" aria-label="Dictate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+					<button class="send talk" id="talkBtn" title="Talk mode: a hands-free conversation" aria-label="Talk mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/></svg></button>
+					<button class="send" id="sendBtn" disabled aria-label="Send"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
 				</div>
+				<div class="pop up" id="plusPop" role="menu" hidden>
+					<button class="mi" role="menuitem" id="attachBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg><span><b>Add photos &amp; files</b></span></button>
+					<hr>
+					<button class="mi" role="menuitem" data-tool="research"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span><b>Deep research</b><small>Searches widely, reads the sources, writes a cited report</small></span></button>
+					<button class="mi" role="menuitem" data-tool="image"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 15 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/></svg><span><b>Create an image</b><small>Photos, art, posters, logos, or change one you attach</small></span></button>
+					<button class="mi" role="menuitem" data-tool="video"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg><span><b>Make a video</b><small>Ads and short films, with voice and music</small></span></button>
+					<button class="mi" role="menuitem" data-tool="music"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg><span><b>Music or a voiceover</b><small>A song, a beat, or your text read aloud</small></span></button>
+					<button class="mi" role="menuitem" data-tool="app"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 11v4M5 13h4"/><circle cx="16" cy="12" r=".6"/><circle cx="18" cy="15" r=".6"/></svg><span><b>Build an app or game</b><small>Running right here, with a live preview</small></span></button>
+					<button class="mi" role="menuitem" data-tool="study"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></svg><span><b>Study</b><small>Flashcards, a quiz, a mind map or a podcast</small></span></button>
+					<button class="mi" role="menuitem" data-tool="doc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span><b>A document</b><small>Word, PDF, slides or a spreadsheet to download</small></span></button>
+					<button class="mi" role="menuitem" data-tool="act"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg><span><b>Use tools and your computer</b><small>Runs code, searches, works in your connected apps</small></span></button>
+					<hr>
+					<button class="mi" role="menuitem" id="projBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span><b>Andromeda Code</b><small>Build or change a whole project</small></span></button>
+					<button class="mi" role="menuitem" id="appsBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span><b>Connect apps</b><small>Your computer, Blender, Figma, files and more</small></span></button>
+				</div>
+				<div class="pop up" id="modePop" role="menu" hidden></div>
 			</div>
 		</div>
 		<input type="file" id="fileInput" multiple hidden>
@@ -1355,7 +1519,7 @@ function flagship(lab, task, fast) {
 // when the leaderboards are loaded, otherwise one per lab in the order above
 function rank(task) {
 	const data = bestFirst(arenaRank(task));
-	if (data.length >= 2) return diversify(data);
+	if (data.length >= 2) return pinFirst(diversify(data), task);
 	const out = [];
 	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
 	for (const lab of SPEC && SPEC.task === task ? SPEC.labs : LABS[task] || LABS.quick) add(flagship(lab, task, false));
@@ -1535,8 +1699,22 @@ function bestFirst(list) {
 // level the model doesn't offer (the catalog lists the ones it does) becomes the nearest it has, the higher of two as near
 const LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 function effortExtra(id) {
-	return effortFor(id, EFFORT.get(id));
+	const f = EFFORT.get(id) || "", s = speed();
+	// Max: as hard as the model can think (only when its levels are known: an unknown one isn't sent a level it may not take)
+	if (s === "max") { const m = catalog.find((x) => x.id === id); return m && Array.isArray(m.efforts) && m.efforts.length ? effortFor(id, "max") : effortFor(id, f); }
+	// Fast: no more than light thinking
+	if (s === "fast") return effortFor(id, f && LEVELS.indexOf(f) > LEVELS.indexOf("low") ? "low" : f);
+	return effortFor(id, f);
 }
+// how Andromeda works: auto (it decides), fast, or max
+function speed() { return settings.speed === "fast" || settings.speed === "max" ? settings.speed : "auto"; }
+// one model the person chose to use for everything, when it can do this task
+function pinModel(task) {
+	if (!settings.pin) return null;
+	const m = catalog.find((x) => x.id === settings.pin);
+	return m && usable(m, task || "quick") ? m : null;
+}
+function pinFirst(list, task) { const p = pinModel(task); return p ? [p, ...list.filter((m) => m && m.id !== p.id)] : list; }
 // the same, for an effort given (a piece's own best, or a light one for planning)
 function effortFor(id, f) {
 	if (!f) return {};
@@ -1580,7 +1758,7 @@ function bestFor(feature) {
 	let data = arenaRank(f.task, blendW(f.w, PROFILE && PROFILE.weights, 0.6));
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
 	data = bestFirst(data);
-	return data.length ? (f.fast ? data.map((x) => x.m) : diversify(data)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
+	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
 function arenaIndex() {
@@ -1674,7 +1852,10 @@ function arenaRank(task, weights) {
 			if (tw) out.push({ m, score: s / tw, effort: f });
 		}
 	}
-	return out.sort((a, b) => b.score - a.score);
+	out.sort((a, b) => b.score - a.score);
+	// Fast: the quickest strong models (the fast ones that score best on this work)
+	if (speed() === "fast") { const quick = out.filter((x) => FAST.test(x.m.id)); if (quick.length) return quick; }
+	return out;
 }
 // best first, but no more than two from one lab near the top, so if a lab is down the next in line is someone else
 function diversify(ranked) {
@@ -1776,6 +1957,19 @@ const SKILLBOOK = {
 let SKILLS_ON = [];
 const skillLine = () => (SKILLS_ON.length ? "Expert playbooks for this request (follow them):\n" + SKILLS_ON.filter((k) => SKILLBOOK[k]).map((k) => "- " + SKILLBOOK[k][1]).join("\n") : "");
 const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
+// The tools in the composer's + menu. Picking one says what kind of thing you want; how it's done, with which models, is
+// still Andromeda's own decision (and if that way fails, it's free to find another)
+const TOOLS = {
+	research: { label: "Deep research", ways: ["research"], ph: "What should I research?" },
+	image: { label: "Image", ways: ["image"], ph: "Describe the image, or attach one to change" },
+	video: { label: "Video", ways: ["video"], ph: "Describe the video: an ad, a short film, a clip" },
+	music: { label: "Music or voice", ways: ["music", "voice"], ph: "Describe the song, or paste text to read aloud" },
+	app: { label: "App or game", ways: ["app", "sim"], ph: "What should I build?" },
+	study: { label: "Study", ways: ["flashcards", "quiz", "open", "mindmap", "podcast"], ph: "A topic, or attach your notes" },
+	doc: { label: "Document", ways: FILE_WAYS, ph: "What should the document, deck or spreadsheet be?" },
+	act: { label: "Tools and computer", ways: ["act"], ph: "What should I do? I can run code, search, and work in your apps" },
+};
+let TOOL = null;
 let PROFILE_TEXT = null, PLAN_NOTE = "";
 // what was made just before (so "make it calmer" changes that one)
 function lastMade() {
@@ -1787,14 +1981,14 @@ function lastMade() {
 	if (prev.kind === "agent") return "project";
 	return STUDY[prev.kind] || prev.kind === "app" ? prev.kind : "answer";
 }
-async function conduct(text, atts, tried) {
+async function conduct(text, atts, tried, only) {
 	const reader = bestFor("reader")[0];
 	if (!reader) return null;
 	const idx = arenaIndex();
 	const skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
 	// what this server can make right now: a studio with nothing to make pictures with isn't offered
 	const studio = !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false;
-	const ways = Object.entries(WAYS).filter(([k]) => studio || !STUDIO_WAYS.includes(k));
+	let ways = Object.entries(WAYS).filter(([k]) => studio || !STUDIO_WAYS.includes(k));
 	// the user's own connected apps (Blender, Figma, their files...), with what each can do
 	if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
 	const apps = liveApps(), pc = apps.some((s) => s.name === "computer"), others = apps.filter((s) => s.name !== "computer");
@@ -1802,11 +1996,14 @@ async function conduct(text, atts, tried) {
 		+ (pc ? "; on the user's own computer: run commands and programs, build and test their projects, install things, read, write and organise their files, look at the screen" : "")
 		+ (others.length ? "; in the user's connected apps: " + others.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ") : "")
 		+ ". Choose it whenever the request needs something done or checked rather than only said"]);
+	// a tool the person picked themselves: one of its ways (when this server can do it)
+	if (only && only.length) { const f = ways.filter(([k]) => only.includes(k)); if (f.length) ways = f; else only = null; }
 	const imgs = atts.filter((a) => a.kind === "image").length, files = atts.filter((a) => a.kind !== "image").map((a) => a.name);
 	const made = lastMade();
 	const prompt = "You are Andromeda's conductor. Andromeda is an AI that makes whatever people ask for, using the best AI model for every part. Read the request and decide for yourself what would truly serve this person, then how Andromeda should do it.\n\n"
 		+ "The ways Andromeda can deliver:\n" + ways.map(([k, d]) => k + ": " + d).join("\n")
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
+		+ (only ? "\nThe person picked this themselves from Andromeda's tools: deliver it that way.\n" : "")
 		+ (made ? "\nThe thing made just before this was: " + made + ". If the request changes that, choose its way again with \"edit\": true.\n" : "")
 		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
@@ -1824,7 +2021,7 @@ async function conduct(text, atts, tried) {
 		if (busy.signal.aborted) throw e;
 		return null;
 	}
-	const way = ways.some(([k]) => k === j.way) ? j.way : "answer";
+	const way = ways.some(([k]) => k === j.way) ? j.way : only ? ways[0][0] : "answer";
 	// what it read the work as: the skills that decide which models do it
 	let profile = null;
 	if (idx) {
@@ -2381,15 +2578,23 @@ const WELCOME = [
 let welcomeCat = "popular";
 const ideasHtml = () => (WELCOME.find((c) => c.id === welcomeCat) || WELCOME[0]).ideas.map((v) => '<button class="idea" data-sug="' + esc(v) + '"><span>' + esc(v) + '</span><svg class="go" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>').join("");
 function renderWelcome() {
-	const hour = new Date().getHours();
-	const head = hour < 5 ? "Up late? What can I help with?" : hour < 12 ? "Good morning. What can I help with?" : hour < 18 ? "What can I help with?" : "Good evening. What can I help with?";
-	const lead = "Ask anything, or ask for anything to be made. Every part of it goes to the AI that's best at it.";
+	const hour = new Date().getHours(), name = callName();
+	const part = hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+	const head = esc(name ? part + ", " + name : hour < 5 ? "Up late? What are we making?" : part + ". What are we making today?");
 	// the composer is about to be redrawn round: keep it safe in its dock first
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
-	$("#view").innerHTML = '<section class="welcome"><div class="orbit" aria-hidden="true"><i></i><i></i><i></i><svg class="wmark"><use href="#logo"/></svg></div><h1>' + head + '</h1><p class="lead">' + lead + '</p><div class="slot" id="slot"></div></section>';
+	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="gmark" aria-hidden="true"><i></i><svg><use href="#logo"/></svg></span><span>' + head + '</span></h1><div class="slot" id="slot"></div></section>';
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 }
+const ACT_IC = {
+	copy: '<path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/><rect x="3" y="8" width="13" height="13" rx="2"/>',
+	speak: '<path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/>',
+	regen: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
+	edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+	go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+};
+const actBtn = (attr, v, label, d) => '<button class="act ic" data-' + attr + '="' + v + '" title="' + esc(label) + '" aria-label="' + esc(label) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg></button>";
 let SEEN = { id: null, n: 0 };
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function renderThread() {
@@ -2461,7 +2666,7 @@ function renderMsg(m, i) {
 		if (EDITING === i) return '<div class="msg user editing" data-i="' + i + '"><div class="edit">' + atts + '<textarea id="editBox" rows="2" aria-label="Edit your message">' + esc(m.text) +
 			'</textarea><div class="row"><button class="btn" data-edit-cancel>Cancel</button><button class="btn dark" data-edit-send="' + i + '">Send</button></div></div></div>';
 		return '<div class="msg user" data-i="' + i + '"><div>' + atts + '<div class="bubble">' + esc(m.text) + "</div>" +
-			'<div class="uact">' + verNav(m, i) + '<button class="act" data-copymsg="' + i + '">Copy</button><button class="act" data-edit="' + i + '" title="Edit and send again (the answer you have is kept as a version)">Edit</button></div></div></div>';
+			'<div class="uact">' + verNav(m, i) + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("edit", i, "Edit and send again (the answer you have is kept as a version)", ACT_IC.edit) + "</div></div></div>";
 	}
 	if (m.error) return '<div class="msg" data-i="' + i + '"><div class="err">' + esc(m.error) + "</div>" + (i === current.msgs.length - 1 && !busy ? '<div class="actions" style="opacity:1"><button class="act" data-regen>Try again</button></div>' : "") + "</div>";
 	let body = "";
@@ -2474,7 +2679,7 @@ function renderMsg(m, i) {
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
 		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? "" : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
-		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + '<button class="act" data-copymsg="' + i + '">Copy</button><button class="act" data-speak="' + i + '">Read aloud</button>' + (i === current.msgs.length - 1 ? (m.cut ? '<button class="act" data-continue title="The answer reached its length limit: carry on from where it stopped">Continue</button>' : "") + '<button class="act" data-regen title="A new answer (this one is kept: ‹ › goes back to it)">Regenerate</button>' : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
+		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: a new answer (this one is kept as a version)", ACT_IC.regen) : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
 // Streaming: the network delivers text in bursts; what's on screen is revealed a few characters every frame
@@ -2550,15 +2755,14 @@ function updateRoute() {
 	const el = $("#route");
 	if (!connected()) { el.innerHTML = '<span class="chip click" data-open-account><span class="dot" style="background:var(--warn)"></span>' + (SERVER ? "Sign in to start · free credits every day" : "Opening soon") + "</span>"; return; }
 	if (!catalog.length) { el.innerHTML = '<span class="chip">Loading models…</span>'; return; }
-	const intent = studyIntent(text, attachments), file = intent || PROJECT ? null : fileIntent(text, attachments), media = intent || file ? null : mediaIntent(text, attachments);
-	const MEDIA_LABEL = { video: "Video · director, image, video, voice and music models", image: "Image · the best image model for it", music: "Music · the best music model", voice: "Voice · the best voice model" };
 	const proj = PROJECT ? '<span class="chip click" data-project title="Change or close the project"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(PROJECT.name) + (PROJECT.asleep ? " · click to reopen" : "") + "</span>" : "";
 	// the owner is told when problems pile up, and one click has Andromeda fix itself
 	const noticed = !PROJECT && isOwner() ? issuesLog().filter((x) => x.at > store.get("selfFixAt", 0)).length : 0;
-	el.innerHTML = proj + (noticed >= 3 ? '<span class="chip click" data-selffix><span class="dot" style="background:var(--warn)"></span>' + noticed + " problems noticed · let Andromeda fix itself</span>" : "") + '<span class="chip"><span class="dot"></span>' + (intent ? esc(STUDY[intent.kind].label) + " · interactive" : file ? "File · " + FILE_INFO[file.fmt].label + (file.edit ? " · changing it" : " · a real file to download") : media ? (media.edit ? "Studio · changing what was made" : MEDIA_LABEL[media.kind]) : PROJECT ? "Code · the strongest coder works in your project" : "Auto · the right models for each part") + "</span>";
+	// (what it will do is Andromeda's own decision when it reads the message: nothing is guessed here)
+	el.innerHTML = proj + (noticed >= 3 ? '<span class="chip click" data-selffix><span class="dot" style="background:var(--warn)"></span>' + noticed + " problems noticed · let Andromeda fix itself</span>" : "");
 	// (a phone gets the short version: the long one was cut off mid-sentence)
 	const narrow = innerWidth < 560;
-	$("#input").placeholder = PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything. Andromeda picks the best model for it.";
+	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
 	$("#topChipText").textContent = creditsMode() ? (me ? creditsText(me.credits) + " credits" : "Credits") : "Sign in";
 }
 
@@ -2980,7 +3184,7 @@ async function readFirst(names) {
 	return null;
 }
 document.addEventListener("click", (e) => { if (e.target.closest("[data-open-memory]")) openMemory(); });
-document.addEventListener("click", (e) => { if (e.target.closest("#appsBtn")) { openAppsModal(); loadApps(true).then(() => { if ($("#apCheck")) openAppsModal(); }); } });
+document.addEventListener("click", (e) => { if (e.target.closest("#appsBtn, #appsNav")) { openAppsModal(); loadApps(true).then(() => { if ($("#apCheck")) openAppsModal(); }); } });
 async function runAgent(text, atts) {
 	const P = PROJECT;
 	const run = { before: new Map() };
@@ -3628,6 +3832,8 @@ async function send(textOverride, fork) {
 	if (!catalog.length) await loadCatalog();
 	if (!ARENA) await loadArena();
 	if (!current) newConvo();
+	const tool = TOOL && TOOLS[TOOL] ? TOOL : null;
+	setTool(null);
 	const atts = attachments;
 	attachments = [];
 	renderAttached();
@@ -3652,12 +3858,17 @@ async function send(textOverride, fork) {
 		current.msgs.push(hold);
 		updateLast();
 		let plan;
-		try { plan = await conduct(text, atts, []); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+		try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+		// it couldn't be asked, but the person said what they want: that way
+		if (!plan && tool) plan = { way: TOOLS[tool].ways[0], skills: [], edit: false, how: "", qty: 0, length: "", topic: "", name: "", profile: null };
 		PROFILE = plan ? plan.profile : null;
 		PROFILE_TEXT = plan ? text : null;
 		PLAN_NOTE = plan ? plan.how : "";
 		SKILLS_ON = plan ? plan.skills.slice() : [];
 		for (const k of SKILLS_ON) noteTool("Skill: " + k, "Followed the " + k + " playbook (" + SKILLBOOK[k][0] + ")");
+		// Max: a second expert checks the work; Fast: straight to the answer
+		if (PROFILE && speed() === "max") PROFILE.check = true;
+		if (PROFILE && speed() === "fast") PROFILE.check = false;
 		if (plan) {
 			const tried = [];
 			for (let round = 0; ; round++) {
@@ -3757,6 +3968,8 @@ function setBusy(on) {
 	b.innerHTML = on ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>' : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
 	b.setAttribute("aria-label", on ? "Stop" : "Send");
 	$("#composer").classList.toggle("working", !!on);
+	// nothing written: the button there starts a spoken conversation instead (it becomes send as soon as there's something)
+	$("#composer").classList.toggle("empty", !on && !$("#input").value.trim() && !attachments.length);
 }
 
 async function runAuto(text, atts) {
@@ -6405,6 +6618,7 @@ function openSettings() {
 		'<label class="bgtint">Overlay <input type="range" id="bgTint" min="0" max="95" value="' + (settings.bgTint ?? 72) + '"> <span id="bgTintV">' + (settings.bgTint ?? 72) + "%</span></label></div>" +
 		'<input type="file" id="bgFile" accept="image/*,video/*" hidden><div class="help">The overlay keeps text readable over the picture: more is calmer, less shows the picture more.</div></div>' +
 		'<div class="field"><label>Replies</label><select class="inp" id="langSel">' + LANGS.map(([k, n]) => '<option value="' + k + '"' + (settings.lang === k ? " selected" : "") + ">" + esc(n) + "</option>").join("") + '</select><div class="pills" style="margin-top:10px">' + Object.entries(TONES).map(([k, [n]]) => '<button data-tone="' + k + '"' + (settings.tone === k ? ' class="on"' : "") + ">" + esc(n) + "</button>").join("") + '</div><div class="help">The language and tone of every answer, in every mode.</div></div>' +
+		'<div class="field"><label for="nameBox">What should Andromeda call you?</label><input class="inp" id="nameBox" maxlength="40" autocomplete="given-name" placeholder="' + esc((account && account.name) || "Your name") + '" value="' + esc(settings.name || "") + '"></div>' +
 		'<div class="field"><label for="aboutBox">Custom instructions</label><textarea class="inp" id="aboutBox" rows="3" maxlength="1500" placeholder="What should Andromeda know about you? e.g. I\'m a student in Jakarta, learning Python and Japanese.">' + esc(settings.about || "") + "</textarea>" +
 		'<textarea class="inp" id="styleBox" rows="3" maxlength="1500" style="margin-top:8px" aria-label="How should Andromeda answer?" placeholder="How should it answer? e.g. Short, examples first, no jargon. Always give the code in full.">' + esc(settings.style || "") + "</textarea>" +
 		'<div class="help">Used in every answer, in every chat, by whichever model answers. Kept in this browser.</div></div>' +
@@ -6437,6 +6651,7 @@ function openSettings() {
 	$("#langSel").onchange = (e) => { settings.lang = e.target.value; saveSettings(); };
 	$("#safeChk").onchange = (e) => { settings.safelock = e.target.checked; saveSettings(); };
 	$("#aboutBox").oninput = (e) => { settings.about = e.target.value; saveSettings(); };
+	$("#nameBox").oninput = (e) => { settings.name = e.target.value.trim(); saveSettings(); drawAccount(); if (!current || !current.msgs.length) renderWelcome(); };
 	$("#styleBox").oninput = (e) => { settings.style = e.target.value; saveSettings(); };
 	if ($("#installBtn")) $("#installBtn").onclick = async () => { const a = installAsk; if (!a) return; installAsk = null; a.prompt(); try { await a.userChoice; } catch {} closeModal(); };
 	$("#maxBuildChk").onchange = (e) => { settings.maxBuild = e.target.checked; saveSettings(); };
@@ -6486,13 +6701,23 @@ function drawAccount() {
 	const b = $("#acctBtn"), l = $("#acctLabel");
 	if (!b) return;
 	b.style.display = SERVER ? "" : "none";
-	l.textContent = !account ? "Sign in" : account.email || "Account";
-	b.dataset.initial = account && account.email ? account.email[0].toUpperCase() : "";
+	const name = callName();
+	l.textContent = !account ? "Sign in" : name || account.email || "Account";
+	$("#acctSub").textContent = !account ? "Free credits every day" : name ? account.email || "" : "Your account";
+	$("#acctMail").textContent = account ? account.email || "" : "";
+	const ini = (name || (account && account.email) || "").trim()[0];
+	if (account && ini) $("#acctAv").textContent = ini.toUpperCase();
+	$("#signOutBtn").hidden = !account;
+}
+// what to call you: what you told it, or your first name from Google
+function callName() {
+	const n = String(settings.name || (account && account.name) || "").trim().split(/\s+/)[0] || "";
+	return n.slice(0, 24);
 }
 
 // signed in (with a password or with Google): kept in this browser, and straight back to asking
 function signedIn(j, made) {
-	account = { token: j.token, email: j.me.email };
+	account = { token: j.token, email: j.me.email, ...(j.name ? { name: String(j.name).slice(0, 40) } : {}) };
 	store.set("account", account);
 	me = j.me;
 	drawAccount();
@@ -6853,7 +7078,7 @@ $("#chatMenuBtn").onclick = (e) => {
 	$("#chatMenuBtn").setAttribute("aria-expanded", String(!p.hidden));
 	if (!p.hidden) p.querySelector("button").focus();
 };
-document.addEventListener("click", (e) => { if (!$("#chatPop").hidden && !e.target.closest("#chatPop, #chatMenuBtn")) closeChatMenu(); }, true);
+document.addEventListener("click", (e) => { if (!$("#chatPop").hidden && !e.target.closest("#chatPop, #chatMenuBtn, #chatTitle")) closeChatMenu(); }, true);
 function chatAction(kind) {
 	closeChatMenu();
 	if (!current || !current.msgs.length) return;
@@ -6911,11 +7136,11 @@ $("#themeBtn").onclick = toggleTheme;
 const foldSidebar = (closed) => { document.body.classList.toggle("sb-closed", closed); store.set("sbClosed", closed); };
 if (store.get("sbClosed", false)) document.body.classList.add("sb-closed");
 $("#menuBtn").onclick = () => (innerWidth > 860 ? foldSidebar(false) : openSidebar(true));
-$("#sbHide").onclick = () => foldSidebar(true);
+$("#sbHide").onclick = () => foldSidebar(!document.body.classList.contains("sb-closed"));
 $("#scrim").onclick = () => openSidebar(false);
 $("#search").oninput = renderConvoList;
 $("#attachBtn").onclick = () => $("#fileInput").click();
-$("#projBtn").onclick = () => openProjectModal();
+$("#projBtn").onclick = $("#codeNav").onclick = () => openProjectModal();
 $("#fileInput").onchange = (e) => { addFiles([...e.target.files]); e.target.value = ""; };
 $("#micBtn").onclick = () => { const b = $("#micBtn"); b.classList.add("on"); listen(() => b.classList.remove("on")); };
 $("#talkBtn").onclick = () => talk.toggle();
@@ -6934,6 +7159,77 @@ document.addEventListener("drop", (e) => { e.preventDefault(); if (e.dataTransfe
 document.addEventListener("paste", (e) => { const fs = [...(e.clipboardData?.files || [])]; if (fs.length) addFiles(fs); });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
 window.addEventListener("resize", () => setMode(mode));
+
+// ---------------------------------------------------------------- menus that pop up (the + menu, the mode, your account, this chat)
+function togglePop(id, open) {
+	const p = $("#" + id), show = open ?? p.hidden;
+	$$(".pop").forEach((x) => { if (x !== p) x.hidden = true; });
+	p.hidden = !show;
+	$$('[aria-controls="' + id + '"]').forEach((b) => b.setAttribute("aria-expanded", String(show)));
+	if (show) { const f = p.querySelector("button"); if (f) f.focus({ preventScroll: true }); }
+}
+// a click anywhere else, or Esc, puts them away; a choice in one does too
+document.addEventListener("click", (e) => {
+	for (const p of $$(".pop:not([hidden])")) {
+		if (p.contains(e.target) ? e.target.closest("button") : !e.target.closest('[aria-controls="' + p.id + '"]')) {
+			p.hidden = true;
+			$$('[aria-controls="' + p.id + '"]').forEach((b) => b.setAttribute("aria-expanded", "false"));
+		}
+	}
+}, true);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $$(".pop:not([hidden])").forEach((p) => { p.hidden = true; const b = $('[aria-controls="' + p.id + '"]'); if (b) b.focus(); }); });
+$("#plusBtn").onclick = () => togglePop("plusPop");
+$("#chatTitle").onclick = (e) => { e.stopPropagation(); $("#chatMenuBtn").click(); };
+$("#acctBtn").onclick = () => (account ? togglePop("acctPop") : openAccount());
+$("#signOutBtn").onclick = () => { signOut(); toast("Signed out"); if (!current || !current.msgs.length) renderWelcome(); };
+// in the folded sidebar, search opens it first
+$(".nav-search").addEventListener("click", () => { if (document.body.classList.contains("sb-closed") && innerWidth > 860) { foldSidebar(false); setTimeout(() => $("#search").focus(), 260); } });
+// a tool: shown in the box until the message goes (click it to take it off)
+function setTool(k) {
+	TOOL = k && TOOLS[k] ? k : null;
+	const chip = $("#toolChip"), src = TOOL && $('[data-tool="' + TOOL + '"] svg');
+	chip.hidden = !TOOL;
+	chip.innerHTML = TOOL ? (src ? src.outerHTML : "") + "<span>" + esc(TOOLS[TOOL].label) + '</span><svg class="x" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>' : "";
+	chip.setAttribute("aria-label", TOOL ? TOOLS[TOOL].label + ": click to turn off" : "");
+	$$("[data-tool]").forEach((b) => b.classList.toggle("on", b.dataset.tool === TOOL));
+	updateRoute();
+}
+$("#plusPop").addEventListener("click", (e) => { const b = e.target.closest("[data-tool]"); if (b) { setTool(TOOL === b.dataset.tool ? null : b.dataset.tool); $("#input").focus(); } });
+$("#toolChip").onclick = () => { setTool(null); $("#input").focus(); };
+// how it works: Auto (it decides), Fast, Max, or one model you choose
+const SPEEDS = {
+	auto: ["Auto", "Decides the best models for every part", '<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7z"/>'],
+	fast: ["Fast", "The quickest strong models, answering straight away", '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>'],
+	max: ["Max", "The strongest models, thinking hardest, with their work checked", '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/>'],
+};
+const LAB_NAMES = { anthropic: "Anthropic", openai: "OpenAI", google: "Google", "x-ai": "xAI", deepseek: "DeepSeek", moonshotai: "Moonshot", qwen: "Qwen", "z-ai": "Z.ai", perplexity: "Perplexity", meta: "Meta", "meta-llama": "Meta", mistralai: "Mistral", minimax: "MiniMax", bytedance: "ByteDance" };
+const svgOf = (d, s = 18) => '<svg width="' + s + '" height="' + s + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg>";
+const TICK = '<svg class="ck" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+function drawMode() {
+	const p = settings.pin && catalog.find((x) => x.id === settings.pin);
+	$("#modeLabel").textContent = p ? shortName(p) : SPEEDS[speed()][0];
+	$("#modeBtn").classList.toggle("set", !!p || speed() !== "auto");
+}
+function drawModeMenu() {
+	const s = speed(), pin = settings.pin && catalog.some((x) => x.id === settings.pin) ? settings.pin : "";
+	let tops = [];
+	try { tops = uniqM(["quick", "code", "reasoning", "write"].flatMap((t) => rank(t).slice(0, 4))).filter((m) => m.id !== pin).slice(0, 8); } catch {}
+	const pinned = pin ? catalog.find((x) => x.id === pin) : null;
+	const item = (on, attr, icon, name, sub) => '<button class="mi' + (on ? " on" : "") + '" role="menuitemradio" aria-checked="' + on + '" ' + attr + ">" + icon + "<span><b>" + esc(name) + "</b><small>" + esc(sub) + "</small></span>" + (on ? TICK : "") + "</button>";
+	$("#modePop").innerHTML = '<div class="sec">Andromeda decides</div>' + Object.entries(SPEEDS).map(([k, [n, d, ic]]) => item(!pin && s === k, 'data-speed="' + k + '"', svgOf(ic), n, d)).join("") +
+		(pinned || tops.length ? '<hr><div class="sec">Or use one model for everything</div>' + [pinned, ...tops].filter(Boolean).map((m) => item(m.id === pin, 'data-pin="' + esc(m.id) + '"', '<span class="lab">' + esc((LAB_NAMES[provider(m.id)] || provider(m.id))[0].toUpperCase()) + "</span>", shortName(m), LAB_NAMES[provider(m.id)] || provider(m.id))).join("") : "");
+}
+$("#modeBtn").onclick = () => { if ($("#modePop").hidden) drawModeMenu(); togglePop("modePop"); };
+$("#modePop").addEventListener("click", (e) => {
+	const b = e.target.closest("[data-speed], [data-pin]");
+	if (!b) return;
+	if (b.dataset.speed) { settings.speed = b.dataset.speed; settings.pin = ""; }
+	else settings.pin = b.dataset.pin;
+	saveSettings();
+	drawMode();
+	toast(settings.pin ? shortName(catalog.find((x) => x.id === settings.pin) || { id: settings.pin }) + " answers everything until you switch back to Auto" : SPEEDS[speed()][0] + ": " + SPEEDS[speed()][1].toLowerCase());
+});
+drawMode();
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
