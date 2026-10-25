@@ -1197,6 +1197,20 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 .shared .thread { padding-bottom: 90px; }
 .sh-note { text-align: center; font-size: 13px; color: var(--faint); margin: 0 0 30px; }
 @media (max-width: 620px) { .sh-t, #shCont { display: none; } }
+
+/* ---- what the model thought, folded above its answer */
+.think { margin: 0 0 12px; }
+.think summary { display: inline-flex; align-items: center; gap: 7px; padding: 3px 0; font-size: 13.5px; color: var(--muted); cursor: pointer; list-style: none; }
+.think summary::-webkit-details-marker { display: none; }
+.think summary::after { content: ""; width: 6px; height: 6px; margin-left: 2px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg); transition: transform .2s var(--ease); }
+.think[open] summary::after { transform: rotate(45deg) translate(-2px, -1px); }
+.think summary:hover { color: var(--text); }
+.think-b { margin-top: 6px; padding: 2px 0 2px 14px; border-left: 2px solid var(--line2); font-size: 13.5px; line-height: 1.6; color: var(--muted); white-space: pre-wrap; max-height: 320px; overflow: auto; animation: rise .3s var(--ease) both; }
+/* ---- a temporary chat */
+#tempBtn[aria-pressed="true"] { color: var(--brand); background: var(--brand-soft); }
+#tempBtn[hidden] { display: none; }
+.welcome.temp .greet { font-style: italic; }
+.temp-note { margin: -14px auto 26px; max-width: 460px; font-size: 14.5px; color: var(--muted); text-align: center; }
 </style>
 </head>
 <body>
@@ -1356,7 +1370,7 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 			<button class="crumb" id="crumb" hidden title="Open this project"></button><button class="ttl" id="chatTitle" aria-haspopup="menu" aria-controls="chatPop" title="Rename, export or delete this chat"></button>
 			<div class="spacer"></div>
 			<span class="chip" id="topChip"><span class="dot"></span><span id="topChipText">Not connected</span></span>
-			<button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
+			<button class="menu-btn always" id="tempBtn" aria-pressed="false" title="Temporary chat: not saved, and Andromeda won't remember it" aria-label="Temporary chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z" stroke-dasharray="3.2 3.2"/></svg></button><button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
 			<button class="menu-btn" id="newChatTop" aria-label="New chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
 			<div class="pop" id="chatPop" role="menu" hidden>
 				<button role="menuitem" data-chat="share"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Share a link</button>
@@ -2154,6 +2168,8 @@ const TOOLS = {
 let TOOL = null;
 // what is open in the panel beside the chat (its code is further down)
 let ART = null;
+// a temporary chat: not kept in the list or the browser, and memory isn't read or added to
+let TEMP = false;
 // Projects: chats that share instructions and files (like Claude's and ChatGPT's). The list is kept with the settings;
 // each project's files (read to text) in the vault
 const spaces = () => store.get("spaces", []);
@@ -2363,8 +2379,12 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 			try { j = JSON.parse(data); } catch { continue; }
 			if (j.error) throw new Error(j.error.message || "The model stopped with an error");
 			if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) { acc.cost = (acc.cost || 0) + c; acc.unit = creditsMode() ? "credits" : "usd"; } addSpend(c); }
-			const d = j.choices?.[0]?.delta?.content;
-			if (d) { text += d; onText(text); }
+			const dl = j.choices?.[0]?.delta || {};
+			// what a thinking model works through before it answers: kept with the answer, shown folded above it
+			const th = dl.reasoning || dl.reasoning_content;
+			if (th && acc && typeof th === "string" && (acc.think || "").length < 40000) { if (!acc.think) acc.thinkAt = Date.now(); acc.think = (acc.think || "") + th; updateLast(); }
+			const d = dl.content;
+			if (d) { if (acc && acc.think && !acc.thoughtMs) acc.thoughtMs = Date.now() - acc.thinkAt; text += d; onText(text); }
 			// it ran into the length limit mid-answer: the message offers to go on
 			if (acc && j.choices?.[0]?.finish_reason === "length") acc.cut = true;
 		}
@@ -2393,13 +2413,13 @@ function parseJSON(t) {
 }
 
 // ---------------------------------------------------------------- conversations
-function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), msgs: [], ...(spaceOf(SPACE_VIEW) ? { space: SPACE_VIEW } : {}) }; convos.unshift(current); render(); }
+function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), msgs: [], ...(spaceOf(SPACE_VIEW) ? { space: SPACE_VIEW } : {}), ...(TEMP ? { temp: true } : {}) }; convos.unshift(current); render(); }
 function save() {
 	if (current && !convos.includes(current)) convos.unshift(current);
 	convos = convos.filter((c) => c.msgs.length || c === current);
 	// keep storage small: drop image data from older chats (the earlier versions of an edited message too)
 	const slimMsg = (m) => ({ ...m, atts: (m.atts || []).map((a) => ({ name: a.name, kind: a.kind })), ...(m.alts ? { alts: m.alts.map((t) => t && t.map(slimMsg)) } : {}) });
-	const slim = convos.map((c) => ({ ...c, msgs: c.msgs.map(slimMsg) }));
+	const slim = convos.filter((c) => !c.temp).map((c) => ({ ...c, msgs: c.msgs.map(slimMsg) }));
 	store.set("convos", slim);
 }
 // ---------------------------------------------------------------- versions: editing a message, regenerating an answer
@@ -2774,7 +2794,7 @@ const FOLDER_D = '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-
 function renderConvoList() {
 	const q = $("#search").value.trim().toLowerCase();
 	// a project's chats are in the project (a search finds them anywhere)
-	const list = convos.filter((c) => c.msgs.length && (q || !spaceOf(c.space)) && (!q || c.title.toLowerCase().includes(q) || c.msgs.some((m) => (m.text || "").toLowerCase().includes(q))));
+	const list = convos.filter((c) => c.msgs.length && !c.temp && (q || !spaceOf(c.space)) && (!q || c.title.toLowerCase().includes(q) || c.msgs.some((m) => (m.text || "").toLowerCase().includes(q))));
 	const day = 864e5, now = Date.now();
 	const groups = [["Today", (c) => now - c.at < day], ["This week", (c) => now - c.at < 7 * day], ["Earlier", () => true]];
 	let html = "", used = new Set();
@@ -2807,6 +2827,7 @@ function renderWelcome() {
 	const head = esc(name ? part + ", " + name : hour < 5 ? "Up late? What are we making?" : part + ". What are we making today?");
 	// the composer is about to be redrawn round: keep it safe in its dock first
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
+	if (TEMP) { $("#view").innerHTML = '<section class="welcome temp"><h1 class="greet"><span>Temporary chat</span></h1><p class="temp-note">It won\'t be saved to your chats, and Andromeda won\'t remember it or use what it remembers.</p><div class="slot" id="slot"></div></section>'; $("#slot").appendChild($("#composer")); $("#dock").classList.add("hide"); return; }
 	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="gmark" aria-hidden="true"><i></i><svg><use href="#logo"/></svg></span><span>' + head + '</span></h1><div class="slot" id="slot"></div></section>';
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
@@ -2819,6 +2840,12 @@ const ACT_IC = {
 	go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
 };
 const actBtn = (attr, v, label, d) => '<button class="act ic" data-' + attr + '="' + v + '" title="' + esc(label) + '" aria-label="' + esc(label) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg></button>";
+// what the model thought: open while it thinks, folded once it answers ("Thought for 6s")
+function thinkHtml(m) {
+	if (!m.think || m.kind) return "";
+	const live = m.streaming && !m.text, secs = m.thoughtMs ? Math.max(1, Math.round(m.thoughtMs / 1000)) : 0;
+	return '<details class="think"' + (live ? " open" : "") + "><summary>" + (live ? '<span class="thinking">Thinking</span>' : "Thought" + (secs ? " for " + secs + "s" : "")) + '</summary><div class="think-b">' + esc(live ? m.think.slice(-1500) : m.think.slice(0, 20000)) + "</div></details>";
+}
 let SEEN = { id: null, n: 0 };
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function renderThread() {
@@ -2902,7 +2929,7 @@ function renderMsg(m, i) {
 	}
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
-		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? "" : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
+		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? "" : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
 		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: a new answer (this one is kept as a version)", ACT_IC.regen) : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
@@ -2923,7 +2950,7 @@ function shownText(m) {
 }
 function structKey(m) {
 	return (m.chips || []).join("") + "|" + (m.members || []).map((x) => [x.name, x.done, !!x.error, (x.text || "").length].join(":")).join(",") + "|" +
-		(m.steps || []).map((x) => [x.done, x.running, x.open, (x.text || "").length].join(":")).join(",") + "|" + !!m.text + !!m.streaming + !!m.showModels + (m.status || "");
+		(m.steps || []).map((x) => [x.done, x.running, x.open, (x.text || "").length].join(":")).join(",") + "|" + !!m.text + !!m.streaming + !!m.showModels + (m.status || "") + "|" + (m.streaming && !m.text ? (m.think || "").length : !!m.think);
 }
 function paintLast() {
 	if (!current || !current.msgs.length) return;
@@ -2953,6 +2980,10 @@ function paintLast() {
 	stick();
 }
 function render() {
+	// a temporary chat is gone once you leave it
+	if (convos.some((c) => c.temp && c !== current)) convos = convos.filter((c) => !c.temp || c === current);
+	$("#tempBtn").hidden = !!(current && current.msgs.length && !current.temp);
+	$("#tempBtn").setAttribute("aria-pressed", String(current && current.msgs.length ? !!current.temp : TEMP));
 	if (ART && (!current || ART.cid !== current.id || (ART.kind === "app" || ART.kind === "sim") && (current.msgs[ART.i] || {}).kind !== ART.kind)) closeArt();
 	renderConvoList();
 	renderThread();
@@ -3587,11 +3618,11 @@ function remember(text) {
 function forgetMemory(id) { store.set("memories", memories().filter((x) => x.id !== id)); }
 const memoryLine = () => {
 	const m = memories();
-	return m.length && settings.memory !== false ? "What you remember about the user and their work, from earlier chats (use it where it helps; don't recite it):\n" + m.slice(-80).map((x) => "- " + x.text).join("\n") : "";
+	return m.length && settings.memory !== false && !(current && current.temp) ? "What you remember about the user and their work, from earlier chats (use it where it helps; don't recite it):\n" + m.slice(-80).map((x) => "- " + x.text).join("\n") : "";
 };
 // after an answer, the reader notes anything worth keeping (quietly, in the background; never blocks the chat)
 async function noteMemories(userText, answer) {
-	if (settings.memory === false || String(userText).split(/\s+/).length < 6) return;
+	if (settings.memory === false || (current && current.temp) || String(userText).split(/\s+/).length < 6) return;
 	const reader = bestFor("reader")[0];
 	if (!reader) return;
 	try {
@@ -7783,6 +7814,20 @@ $("#shCont").onclick = () => {
 	location.hash = "#app";
 	if (!document.body.classList.contains("in-app")) showApp(true);
 	toast("It's yours now: carry on below");
+};
+
+$("#tempBtn").onclick = () => {
+	if (current && current.msgs.length) {
+		// in a temporary chat: switching it off starts a normal one
+		TEMP = false;
+		current = null;
+	} else {
+		TEMP = !TEMP;
+		if (current) current.temp = TEMP;
+	}
+	render();
+	toast(TEMP ? "Temporary chat: not saved, not remembered" : "Chats are saved again");
+	$("#input").focus();
 };
 
 // ---------------------------------------------------------------- the site
