@@ -1211,6 +1211,20 @@ body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !
 #tempBtn[hidden] { display: none; }
 .welcome.temp .greet { font-style: italic; }
 .temp-note { margin: -14px auto 26px; max-width: 460px; font-size: 14.5px; color: var(--muted); text-align: center; }
+
+/* ---- the canvas: writing beside the chat */
+.cv { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg2); }
+.cv-top { display: flex; align-items: center; gap: 10px; padding: 10px 14px 0; }
+.cv-n { margin-left: auto; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.cv-ed { flex: 1; min-height: 0; width: 100%; resize: none; border: 0; outline: 0; padding: 22px clamp(18px, 5cqi, 56px) 30px; background: transparent; color: var(--text); font: 400 17px/1.75 var(--serif); }
+.cv-ed.cv-busy { color: var(--muted); }
+.cv-rd { flex: 1; min-height: 0; overflow: auto; padding: 22px clamp(18px, 5cqi, 56px) 30px; font-size: 16px; }
+.cv-ask { flex: none; display: grid; gap: 8px; padding: 10px 14px 14px; border-top: 1px solid var(--glass-line); background: var(--bg); }
+.cv-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.cv-quick .mu-btn { font-size: 12.5px; }
+.cv-row { display: flex; gap: 8px; }
+.cv-row .inp { flex: 1; min-width: 0; height: 38px; }
+.cv-row .btn { height: 38px; }
 </style>
 </head>
 <body>
@@ -2838,6 +2852,7 @@ const ACT_IC = {
 	regen: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
 	edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
 	go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+	canvas: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 16.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>',
 };
 const actBtn = (attr, v, label, d) => '<button class="act ic" data-' + attr + '="' + v + '" title="' + esc(label) + '" aria-label="' + esc(label) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg></button>";
 // what the model thought: open while it thinks, folded once it answers ("Thought for 6s")
@@ -2930,7 +2945,7 @@ function renderMsg(m, i) {
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
 		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? "" : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
-		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: a new answer (this one is kept as a version)", ACT_IC.regen) : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
+		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: a new answer (this one is kept as a version)", ACT_IC.regen) : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
 // Streaming: the network delivers text in bursts; what's on screen is revealed a few characters every frame
@@ -2984,7 +2999,7 @@ function render() {
 	if (convos.some((c) => c.temp && c !== current)) convos = convos.filter((c) => !c.temp || c === current);
 	$("#tempBtn").hidden = !!(current && current.msgs.length && !current.temp);
 	$("#tempBtn").setAttribute("aria-pressed", String(current && current.msgs.length ? !!current.temp : TEMP));
-	if (ART && (!current || ART.cid !== current.id || (ART.kind === "app" || ART.kind === "sim") && (current.msgs[ART.i] || {}).kind !== ART.kind)) closeArt();
+	if (ART && (!current || ART.cid !== current.id || (ART.kind === "app" || ART.kind === "sim") && (current.msgs[ART.i] || {}).kind !== ART.kind || ART.kind === "doc" && !(current.msgs[ART.i] || {}).text)) closeArt();
 	renderConvoList();
 	renderThread();
 	current?.msgs.forEach((m, i) => STUDY[m.kind] && renderStudy(m, i));
@@ -4190,6 +4205,7 @@ async function send(textOverride, fork) {
 	{
 		const lastMsg = current.msgs[current.msgs.length - 1];
 		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.error && lastMsg.text) noteMemories(text, lastMsg.text);
+		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.kind && !lastMsg.error && (lastMsg.text || "").length > 1500 && SKILLS_ON.includes("writing") && capOn("panel") && innerWidth > 860) lastMsg.autoCanvas = true;
 	}
 	{
 		const lastMsg = current.msgs[current.msgs.length - 1];
@@ -4207,6 +4223,10 @@ async function send(textOverride, fork) {
 		$("#srStatus").textContent = lastMsg && lastMsg.error ? lastMsg.error : "Answer ready";
 	}
 	if (talk.on) talk.after();
+	{
+		const i = current.msgs.length - 1, lastMsg = current.msgs[i];
+		if (lastMsg && lastMsg.autoCanvas) { delete lastMsg.autoCanvas; openCanvas(i); }
+	}
 }
 function niceError(e) {
 	const s = String(e.message || e), st = e.status || 0;
@@ -7560,7 +7580,10 @@ function drawArt() {
 	if (!hasCode) a.view = "preview";
 	$("#artViews").hidden = !hasCode;
 	$$("[data-artview]").forEach((b) => { b.classList.toggle("on", b.dataset.artview === a.view); b.setAttribute("aria-selected", String(b.dataset.artview === a.view)); });
-	$("#artReload").hidden = $("#artFull").hidden = a.view !== "preview";
+	const isDoc = a.kind === "doc";
+	$("#artTab").hidden = isDoc;
+	$("#artReload").hidden = $("#artFull").hidden = isDoc || a.view !== "preview";
+	if (isDoc) { $("#artViews").hidden = true; drawCanvas(); return; }
 	const body = $("#artBody");
 	if (a.view === "preview") {
 		body.innerHTML = '<iframe class="art-frame"></iframe>';
@@ -7596,7 +7619,8 @@ $("#artCopy").onclick = () => { if (!ART) return; const f = ART.view === "code" 
 $("#artDl").onclick = () => {
 	if (!ART) return;
 	const name = String(ART.title || "page").replace(/[^\w -]+/g, "").trim().slice(0, 40) || "page", f = ART.view === "code" ? artFile() : null;
-	if (f) download(/\./.test(f.name) ? f.name.split("/").pop() : name + "." + ({ react: "jsx", javascript: "js" }[f.name] || f.name), f.text);
+	if (ART.kind === "doc") download(name + ".md", ART.page || "");
+	else if (f) download(/\./.test(f.name) ? f.name.split("/").pop() : name + "." + ({ react: "jsx", javascript: "js" }[f.name] || f.name), f.text);
 	else download(name + ".html", ART.page || ART.doc);
 };
 // wider or narrower: drag its edge (remembered)
@@ -7829,6 +7853,86 @@ $("#tempBtn").onclick = () => {
 	toast(TEMP ? "Temporary chat: not saved, not remembered" : "Chats are saved again");
 	$("#input").focus();
 };
+
+// ---------------------------------------------------------------- the canvas: writing, beside the chat
+// The answer is the first draft. Write in it directly, or ask for a change: to all of it, or only to what's selected.
+// Every change can be undone. What's in the canvas is kept with the answer (the chat itself stays as it was said).
+const CV_QUICK = [
+	["Shorter", "Make it shorter, about two thirds of the length, keeping every key point."],
+	["Longer", "Make it longer and richer: more detail, examples and depth, in the same voice."],
+	["Simpler", "Make it simpler to read: plain words, short sentences, nothing important lost."],
+	["More formal", "Make the tone more formal and professional."],
+	["Warmer", "Make the tone warmer and more personal."],
+	["Polish", "Fix grammar, spelling and punctuation, and smooth awkward sentences. Change nothing else."],
+];
+let CV_RUN = null;
+function openCanvas(i) {
+	const m = current && current.msgs[i];
+	if (!m || !m.text) return;
+	if (ART && ART.kind === "doc" && ART.i === i && ART.cid === current.id) { closeArt(); return; }
+	const q = current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? current.msgs[i - 1].text : "";
+	const head = (m.canvas ?? m.text).match(/^#{1,3}\s+(.+)$/m);
+	openArt({ kind: "doc", i, title: (head ? head[1] : q || "Document").replace(/[*_`#]/g, "").slice(0, 70), sub: "Canvas · edit it, or ask for a change", page: m.canvas ?? m.text, files: null, view: "write" });
+}
+function drawCanvas() {
+	const a = ART, m = current && current.msgs[a.i];
+	if (!m) { closeArt(); return; }
+	const text = m.canvas ?? m.text, read = a.view === "read";
+	$("#artBody").innerHTML = '<div class="cv"><div class="cv-top"><div class="seg2"><button data-cvview="write"' + (read ? "" : ' class="on"') + '>Write</button><button data-cvview="read"' + (read ? ' class="on"' : "") + '>Read</button></div><span class="cv-n" id="cvN"></span></div>' +
+		(read ? '<div class="cv-rd md" id="cvRd">' + md(text) + "</div>" : '<textarea class="cv-ed" id="cvEd" spellcheck="true" aria-label="The document"></textarea>') +
+		'<div class="cv-ask"><div class="cv-quick">' + CV_QUICK.map(([l], k) => '<button class="mu-btn" data-cvq="' + k + '">' + l + "</button>").join("") + (m.canvasPrev != null ? '<button class="mu-btn" data-cvundo>Undo</button>' : "") + (m.canvas != null && m.canvas !== m.text ? '<button class="mu-btn" data-cvorig>Back to the answer</button>' : "") +
+		'</div><div class="cv-row"><input class="inp" id="cvAsk" placeholder="Ask for a change (select text first to change just that part)" aria-label="Ask for a change"><button class="btn dark" id="cvGo">' + (CV_RUN ? "Stop" : "Change") + '</button></div><div class="status" id="cvSt"></div></div></div>';
+	const count = (t) => { const w = (t.match(/\S+/g) || []).length; $("#cvN").textContent = w.toLocaleString() + " word" + (w === 1 ? "" : "s"); };
+	count(text);
+	const ed = $("#cvEd");
+	if (ed) {
+		ed.value = text;
+		let t;
+		ed.oninput = () => { m.canvas = ed.value; ART.page = m.canvas; count(ed.value); clearTimeout(t); t = setTimeout(save, 500); };
+	}
+	$$("[data-cvview]").forEach((b) => b.onclick = () => { ART.view = b.dataset.cvview; drawCanvas(); });
+	$$("[data-cvq]").forEach((b) => b.onclick = () => canvasChange(CV_QUICK[+b.dataset.cvq][1]));
+	if ($("[data-cvundo]")) $("[data-cvundo]").onclick = () => { const prev = m.canvasPrev; m.canvasPrev = m.canvas ?? m.text; m.canvas = prev; ART.page = prev; save(); drawCanvas(); };
+	if ($("[data-cvorig]")) $("[data-cvorig]").onclick = () => { m.canvasPrev = m.canvas; m.canvas = m.text; ART.page = m.text; save(); drawCanvas(); };
+	$("#cvGo").onclick = () => { if (CV_RUN) { CV_RUN.abort(); return; } const v = $("#cvAsk").value.trim(); if (v) canvasChange(v); else $("#cvAsk").focus(); };
+	$("#cvAsk").onkeydown = (e) => { if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); $("#cvGo").click(); } };
+}
+async function canvasChange(how) {
+	const a = ART, m = a && current && current.msgs[a.i];
+	if (!m || CV_RUN) return;
+	if (a.view === "read") { a.view = "write"; drawCanvas(); }
+	const ed = $("#cvEd"), all = ed.value, s = ed.selectionStart, e = ed.selectionEnd, part = s !== e ? all.slice(s, e) : "";
+	const writer = bestFor("docx")[0] || rank("write")[0];
+	if (!writer) { toast("Andromeda can't reach a model right now"); return; }
+	const prompt = part
+		? "Here is a document, and a part of it the user selected. Rewrite ONLY the selected part as asked, so it still fits the text around it. Reply with only the new text for that part: nothing before or after it, no quotes.\n\nWhat to change: " + how + "\n\nThe selected part:\n" + part + "\n\nThe whole document, for context:\n" + all.slice(0, 80000)
+		: "Revise this document as asked, keeping everything else as it is. Reply with only the full revised document in Markdown: nothing before or after it.\n\nWhat to change: " + how + "\n\nThe document:\n" + all;
+	CV_RUN = new AbortController();
+	m.canvasPrev = all;
+	drawCanvas();
+	const box = $("#cvEd");
+	box.readOnly = true;
+	box.classList.add("cv-busy");
+	$("#cvSt").className = "status";
+	$("#cvSt").textContent = (part ? "Changing the selected part" : "Changing the document") + " · " + shortName(writer);
+	try {
+		const out = await stream(writer.id, [sys(), { role: "user", content: prompt }], (t) => { box.value = part ? all.slice(0, s) + t + all.slice(e) : t; }, CV_RUN.signal, effortExtra(writer.id), null);
+		m.canvas = part ? all.slice(0, s) + out.trim() + all.slice(e) : out.trim();
+		$("#cvSt").textContent = "";
+	} catch (err) {
+		m.canvas = all;
+		$("#cvSt").className = "status bad";
+		$("#cvSt").textContent = err.name === "AbortError" ? "Stopped: the document is as it was." : niceError(err);
+	}
+	CV_RUN = null;
+	ART.page = m.canvas;
+	save();
+	const said = $("#cvSt").textContent, cls = $("#cvSt").className;
+	drawCanvas();
+	$("#cvSt").className = cls;
+	$("#cvSt").textContent = said;
+}
+document.addEventListener("click", (e) => { const b = e.target.closest("[data-canvas]"); if (b) openCanvas(+b.dataset.canvas); });
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
