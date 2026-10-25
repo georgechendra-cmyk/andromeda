@@ -133,8 +133,8 @@ section.block { padding: 110px 0 0; }
 .tr .mdl { font-weight: 500; }
 .tr .lab, .tr .price { color: var(--muted); font-family: var(--mono); font-size: 13px; }
 .tr .why2 { display: block; color: var(--faint); font-size: 12.5px; font-weight: 400; margin-top: 2px; }
-.live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); margin-left: 12px; font-family: var(--mono); }
-.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); animation: ping 2s infinite; }
+span.live { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); margin-left: 12px; font-family: var(--mono); }
+span.live i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent); animation: ping 2s infinite; }
 @keyframes ping { 70% { box-shadow: 0 0 0 7px transparent; } }
 .tiers { display: flex; gap: 6px; margin: 0 0 16px; flex-wrap: wrap; }
 .tiers button { height: 32px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line); font-size: 13px; color: var(--muted); transition: all .2s; }
@@ -883,6 +883,10 @@ textarea#input::placeholder { color: var(--faint); }
 .tr .task i { background: var(--brand); box-shadow: 0 0 8px rgba(var(--brand-rgb), .7); }
 .cta-end { background: radial-gradient(120% 140% at 50% 0%, rgba(var(--brand-rgb), .16), transparent 60%), var(--glass); }
 
+/* ---- asking before it changes something on your computer */
+.ask { margin: 10px 0; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); border-radius: 14px; background: color-mix(in srgb, var(--warn) 7%, transparent); display: grid; gap: 10px; animation: rise .35s var(--ease) both; }
+.ask b { font-weight: 600; }
+.ask .ag-diff { margin: 0; border: 1px solid var(--line); border-radius: 10px; max-height: 260px; }
 /* ---- the layout: the chat's name at the top, a sidebar that folds away */
 .ttl { min-width: 0; max-width: 46%; font-size: 14px; font-weight: 560; letter-spacing: -.01em; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ttl:not(:empty) { animation: rise .4s var(--ease) both; }
@@ -1772,8 +1776,11 @@ async function conduct(text, atts, tried) {
 	const ways = Object.entries(WAYS).filter(([k]) => studio || !STUDIO_WAYS.includes(k));
 	// the user's own connected apps (Blender, Figma, their files...), with what each can do
 	if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
-	const apps = liveApps();
-	if (apps.length) ways.push(["apps", "work directly in the apps the user connected, with their own tools: " + apps.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ")]);
+	const apps = liveApps(), pc = apps.some((s) => s.name === "computer"), others = apps.filter((s) => s.name !== "computer");
+	ways.push(["act", "do it for real, step by step with tools, like an engineer at a computer: run Python or JavaScript to calculate, analyse or test, search the web and read pages, check its own work"
+		+ (pc ? "; on the user's own computer: run commands and programs, build and test their projects, install things, read, write and organise their files, look at the screen" : "")
+		+ (others.length ? "; in the user's connected apps: " + others.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ") : "")
+		+ ". Choose it whenever the request needs something done or checked rather than only said"]);
 	const imgs = atts.filter((a) => a.kind === "image").length, files = atts.filter((a) => a.kind !== "image").map((a) => a.name);
 	const made = lastMade();
 	const prompt = "You are Andromeda's conductor. Andromeda is an AI that makes whatever people ask for, using the best AI model for every part. Read the request and decide for yourself what would truly serve this person, then how Andromeda should do it.\n\n"
@@ -1843,7 +1850,7 @@ async function runWay(plan, text, atts) {
 		return runAgent(text, atts);
 	}
 	if (w === "app") return runApp(text, atts, { edit: plan.edit });
-	if (w === "apps") return runApps(text, atts);
+	if (w === "act" || w === "apps") return runAct(text, atts);
 	return runSmart(text, atts);
 }
 // No leaderboard measures voices or music yet: Andromeda picks itself, from what's live right now, for this request
@@ -2054,7 +2061,7 @@ function sys(extra) {
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
 	const plan = !extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "";
-	return { role: "system", content: [extra || base, plan, mine, langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
+	return { role: "system", content: [extra || base, plan, mine, memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
 }
 
 // ---------------------------------------------------------------- rendering
@@ -2945,6 +2952,7 @@ async function readFirst(names) {
 	for (const n of names) if (projectHas(n)) { try { return { name: n, text: (await pRead(n)).slice(0, 5000) }; } catch {} }
 	return null;
 }
+document.addEventListener("click", (e) => { if (e.target.closest("[data-open-memory]")) openMemory(); });
 document.addEventListener("click", (e) => { if (e.target.closest("#appsBtn")) { openAppsModal(); loadApps(true).then(() => { if ($("#apCheck")) openAppsModal(); }); } });
 async function runAgent(text, atts) {
 	const P = PROJECT;
@@ -2972,7 +2980,7 @@ async function runAgent(text, atts) {
 	if (!model) throw new Error("No coding model is available right now.");
 	let summary = null;
 	try {
-		for (let step = 0; step < 45 && summary == null; step++) {
+		for (let step = 0; step < 200 && summary == null; step++) {
 			msg.status = (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
 			msg.model = shortName(model);
 			updateLast();
@@ -3000,7 +3008,7 @@ async function runAgent(text, atts) {
 				if (m.role === "tool" && m.content.length > 2000) { size -= m.content.length; m.content = "(an older result, dropped to save room: run the tool again if you need it)"; }
 			}
 		}
-		if (summary == null) summary = "I stopped after 45 steps so this doesn't run away. Tell me to keep going, or narrow the task.";
+		if (summary == null) summary = "That's 200 steps, so I've paused here. Say \"keep going\" and I'll carry on.";
 	} finally {
 		// whatever happened, what changed is shown (and in a folder, can be undone)
 		msg.used = [{ name: shortName(model), desc: "Engineer: explored the code, made the changes and checked them" }];
@@ -3089,8 +3097,10 @@ function openAppsModal() {
 		'<div class="help">Double-click <b>CONNECT APPS.bat</b> in the Andromeda folder (it needs <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js</a>) and leave its window open: it runs every app listed in <b>tools/connections.json</b>, plus the ones Claude Desktop has. ' +
 		'For Blender: install the <a href="https://github.com/ahujasid/blender-mcp" target="_blank" rel="noopener">Blender MCP add-on</a>, press Connect in Blender, and add <code>"blender": {"command": "uvx", "args": ["blender-mcp"]}</code>.</div></div>' +
 		'<div class="field"><label>An online app</label><div class="row" style="gap:8px"><input class="inp" id="apName" placeholder="Name" style="max-width:140px"><input class="inp" id="apUrl" placeholder="Its MCP address (https://…/mcp)"></div><div class="row" style="gap:8px;margin-top:8px"><input class="inp" id="apTok" type="password" autocomplete="off" placeholder="Its key, if it needs one"><button class="btn" id="apAdd">Add</button></div><div class="help">Its key stays in this browser.</div></div>' +
+		'<div class="toggle"><div><div class="tl">Act on this computer without asking</div><div class="td">Off: Andromeda shows you every command and file change first and waits for you to allow it.</div></div><button class="sw' + (settings.trustComputer ? " on" : "") + '" id="apTrust" aria-label="Act without asking"></button></div>' +
 		'<p class="err" id="apErr" hidden></p>');
 	const err = (m) => { $("#apErr").hidden = false; $("#apErr").textContent = m; };
+	$("#apTrust").onclick = () => { settings.trustComputer = !settings.trustComputer; saveSettings(); openAppsModal(); };
 	const refresh = async (btn) => { if (btn) btn.disabled = true; await loadApps(true); openAppsModal(); };
 	$("#apCheck").onclick = (e) => refresh(e.target);
 	$("#apPair").onclick = (e) => { store.set("apps", { ...appsConf(), code: $("#apCode").value.trim() }); refresh(e.target); };
@@ -3104,40 +3114,154 @@ function openAppsModal() {
 	document.querySelectorAll("[data-apdel]").forEach((b) => (b.onclick = () => { const c = appsConf(); store.set("apps", { ...c, online: (c.online || []).filter((o) => o.name !== b.dataset.apdel) }); refresh(b); }));
 }
 
-// the work itself: the model that's best with tools, in the user's apps, until it's done
-async function runApps(text, atts) {
+// ---------------------------------------------------------------- memory: what Andromeda knows about you, across chats
+// Kept in this browser. Andromeda saves what's worth remembering as it goes (who you are, your projects, how you like
+// things done, what you decided) and reads it before every answer; every memory can be seen and deleted.
+const memories = () => store.get("memories", []);
+function remember(text) {
+	const t = String(text || "").trim().slice(0, 500), m = memories();
+	if (!t || m.some((x) => x.text.toLowerCase() === t.toLowerCase())) return false;
+	m.push({ id: uid(), text: t, at: Date.now() });
+	store.set("memories", m.slice(-200));
+	return true;
+}
+function forgetMemory(id) { store.set("memories", memories().filter((x) => x.id !== id)); }
+const memoryLine = () => {
+	const m = memories();
+	return m.length && settings.memory !== false ? "What you remember about the user and their work, from earlier chats (use it where it helps; don't recite it):\n" + m.slice(-80).map((x) => "- " + x.text).join("\n") : "";
+};
+// after an answer, the reader notes anything worth keeping (quietly, in the background; never blocks the chat)
+async function noteMemories(userText, answer) {
+	if (settings.memory === false || String(userText).split(/\s+/).length < 6) return;
+	const reader = bestFor("reader")[0];
+	if (!reader) return;
+	try {
+		const have = memories().slice(-60).map((x) => "- " + x.text).join("\n");
+		const raw = await stream(reader.id, [{ role: "user", content: "You keep the memory of an AI assistant about its user. From this exchange, note only lasting facts worth remembering across future chats: who they are, their projects and goals, their preferences and rules for how things should be done, decisions made. Not the topic of a one-off question, not secrets or passwords.\n\nAlready remembered:\n" + (have || "(nothing)") + "\n\nThe user said:\n" + String(userText).slice(0, 3000) + "\n\nThe assistant answered:\n" + String(answer).slice(0, 2000) + "\n\nReply with ONLY JSON: {\"remember\": [\"one short fact per item, written about the user\"]} (an empty list if nothing new is worth keeping)." }], () => {}, AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined, { max_tokens: 600, temperature: 0, reasoning: { effort: "low" } });
+		for (const t of (parseJSON(raw).remember || []).slice(0, 5)) remember(t);
+	} catch {}
+}
+function openMemory() {
+	const m = memories();
+	openModal('<h2>Memory</h2><p class="sub">What Andromeda remembers about you and your work, across chats. It\'s kept in this browser, and Andromeda adds to it as it learns.</p>' +
+		'<div class="toggle"><div><div class="tl">Remember things across chats</div><div class="td">Off: nothing new is saved, and nothing saved is used.</div></div><button class="sw' + (settings.memory !== false ? " on" : "") + '" id="memSw" aria-label="Remember things across chats"></button></div>' +
+		'<div class="field" style="margin-top:14px">' + (m.length ? m.slice().reverse().map((x) => '<div class="ag-cur"><span>' + esc(x.text) + '</span><button class="btn" data-memdel="' + esc(x.id) + '">Forget</button></div>').join("") : '<div class="help">Nothing yet.</div>') + "</div>" +
+		(m.length ? '<button class="btn" id="memAll">Forget everything</button>' : ""));
+	$("#memSw").onclick = () => { settings.memory = settings.memory === false; saveSettings(); openMemory(); };
+	document.querySelectorAll("[data-memdel]").forEach((b) => (b.onclick = () => { forgetMemory(b.dataset.memdel); openMemory(); }));
+	if ($("#memAll")) $("#memAll").onclick = () => { store.set("memories", []); openMemory(); };
+}
+
+// ---------------------------------------------------------------- running code right here: Python and JavaScript
+// In a worker of their own, so a long calculation never freezes the page, and stopped if it runs too long
+const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+let pyWorker = null;
+const codeWorker = (src) => new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
+const PY_SRC = "importScripts('" + PYODIDE + "pyodide.js'); let py; self.onmessage = async (e) => { let out = ''; try { if (!py) py = await loadPyodide({ indexURL: '" + PYODIDE + "' }); py.setStdout({ batched: (s) => (out += s + '\\n') }); py.setStderr({ batched: (s) => (out += s + '\\n') }); try { await py.loadPackagesFromImports(e.data); } catch {} const r = await py.runPythonAsync(e.data); self.postMessage({ out, result: r === undefined || r === null ? null : String(r) }); } catch (err) { self.postMessage({ out, error: String(err && err.message || err) }); } };";
+const JS_SRC = "self.onmessage = async (e) => { const out = []; const log = (...a) => out.push(a.map((x) => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch { return String(x); } }).join(' ')); self.console = { log, info: log, warn: log, error: log, table: log }; try { const r = await (0, eval)('(async () => {\\n' + e.data + '\\n})()'); self.postMessage(out.join('\\n') + (r !== undefined ? '\\n-> ' + (typeof r === 'string' ? r : JSON.stringify(r)) : '')); } catch (err) { self.postMessage(out.join('\\n') + '\\nError: ' + (err && err.stack || err)); } };";
+function runPython(code, ms = 180000) {
+	if (!pyWorker) pyWorker = codeWorker(PY_SRC);
+	const w = pyWorker;
+	return new Promise((done) => {
+		const t = setTimeout(() => { w.terminate(); pyWorker = null; done("It ran longer than " + ms / 1000 + " seconds and was stopped."); }, ms);
+		w.onmessage = (e) => { clearTimeout(t); const d = e.data || {}; done(((d.out || "") + (d.error ? "\nError: " + d.error : d.result != null ? "\n-> " + d.result : "")).trim() || "(it ran, and printed nothing)"); };
+		w.onerror = (e) => { clearTimeout(t); w.terminate(); pyWorker = null; done("Python couldn't start here: " + (e.message || "the runtime didn't load")); };
+		w.postMessage(String(code));
+	});
+}
+function runJs(code, ms = 60000) {
+	const w = codeWorker(JS_SRC);
+	return new Promise((done) => {
+		const t = setTimeout(() => { w.terminate(); done("It ran longer than " + ms / 1000 + " seconds and was stopped."); }, ms);
+		w.onmessage = (e) => { clearTimeout(t); w.terminate(); done(String(e.data || "").trim() || "(it ran, and printed nothing)"); };
+		w.postMessage(String(code));
+	});
+}
+
+// ---------------------------------------------------------------- Andromeda at work: an engineer with tools
+// Like an engineer at a computer: it runs code to work things out and test them, looks things up and reads pages,
+// remembers what matters, and, when this computer or other apps are connected, runs commands and programs and works
+// with files and apps there. It asks before anything that changes something on the computer. Long jobs keep going
+// (older steps are summed up to make room) and are saved as they go, so a job cut off can carry on.
+const BUILT_IN = [
+	["run_python", "Run Python code right here in the browser (numpy, pandas, sympy, matplotlib and more load on import) to calculate, analyse data or test an idea. print() what you want to see.", { code: { type: "string" } }, ["code"]],
+	["run_javascript", "Run JavaScript right here (in a worker, no page). console.log() what you want to see; return a value to see it too.", { code: { type: "string" } }, ["code"]],
+	["web_search", "Search the web for current information. Returns titles, links and the relevant text.", { query: { type: "string" } }, ["query"]],
+	["fetch_url", "Read a web page (or a raw file) as text.", { url: { type: "string" } }, ["url"]],
+	["lookup_docs", "Current documentation for a library or framework (React, Fabric, pandas, three.js...), so code matches today's API.", { library: { type: "string" }, topic: { type: "string" } }, ["library"]],
+	["remember", "Save a lasting fact about the user or their work to remember in future chats (their projects, preferences, decisions).", { fact: { type: "string" } }, ["fact"]],
+].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
+// what changes something on the computer: asked about first (reading, listing, searching and looking are not)
+const CHANGES = /^(run_command|start_command|stop_job|write_file|edit_file|open)$/;
+const ASKS = new Map();
+function approve(msg, what, detail) {
+	if (settings.trustComputer || (current && current.trustComputer)) return Promise.resolve(true);
+	return new Promise((done) => {
+		const id = uid();
+		ASKS.set(id, (ok) => { msg.data.ask = null; ASKS.delete(id); updateLast(); done(ok); });
+		msg.data.ask = { id, what, detail: String(detail || "").slice(0, 4000) };
+		msg.status = "Waiting for you to allow it";
+		updateLast();
+		if (talk && talk.on) toast("Andromeda is asking to " + what);
+	});
+}
+// a long job: the oldest steps summed up so there's always room to keep going
+async function compact(messages, keep = 14) {
+	if (messages.length <= keep + 4) return;
+	const head = messages[0].role === "system" ? 2 : 1, mid = messages.slice(head, messages.length - keep);
+	const flat = mid.map((m) => m.role + ": " + (typeof m.content === "string" ? m.content : (m.content || []).map((p) => p.text || "[picture]").join(" ")).slice(0, 3000) + (m.tool_calls ? " [called " + m.tool_calls.map((c) => c.function?.name).join(", ") + "]" : "")).join("\n").slice(0, 120000);
+	let sum = "";
+	try {
+		const reader = bestFor("reader")[0];
+		sum = reader ? await stream(reader.id, [{ role: "user", content: "Sum up this part of a long working session so the work can continue without it: what was done, what was found (exact paths, names, numbers, errors), what's decided, what's left. Be specific and complete; no fluff.\n\n" + flat }], () => {}, busy.signal, { max_tokens: 3000, temperature: 0, reasoning: { effort: "low" } }) : "";
+	} catch (e) { if (e.name === "AbortError") throw e; }
+	// a tool call's answer must stay right after it: the cut starts at a fresh turn
+	let cut = messages.length - keep;
+	while (cut < messages.length && messages[cut].role === "tool") cut++;
+	messages.splice(head, cut - head, { role: "user", content: "(Earlier in this job, summed up to make room:)\n" + (sum || flat.slice(-20000)) });
+}
+async function runAct(text, atts, resume) {
 	const servers = liveApps();
-	if (!servers.length) throw new Error("No connected app is answering. Open Connect apps to check them.");
-	const map = new Map(), tools = [];
+	const map = new Map(), tools = [...BUILT_IN];
 	for (const s of servers) for (const t of s.tools) {
 		const name = (s.name + "__" + t.name).replace(/[^\w-]/g, "_").slice(0, 64);
 		map.set(name, { s, t });
 		tools.push({ type: "function", function: { name, description: (s.name + ": " + (t.description || t.name)).slice(0, 1024), parameters: t.inputSchema && t.inputSchema.type === "object" ? t.inputSchema : { type: "object", properties: {} } } });
 	}
 	const names = servers.map((s) => s.name).join(", ");
-	const msg = { role: "assistant", kind: "agent", text: "", streaming: true, status: "Opening " + names, data: { project: names, pkind: "apps", log: [], diffs: [], shots: [] }, used: [] };
-	current.msgs.push(msg);
+	const msg = resume ? resume.msg : { role: "assistant", kind: "agent", text: "", streaming: true, status: "Getting to work", data: { id: uid(), project: names || "Andromeda", pkind: "act", log: [], diffs: [], shots: [], running: true }, used: [] };
+	if (!resume) current.msgs.push(msg);
+	msg.streaming = true;
+	msg.data.running = true;
 	updateLast();
 	const log = (label, detail, bad) => { msg.data.log.push({ label, detail: String(detail || "").slice(0, 160), bad: !!bad }); updateLast(); };
-	const system = "You are Andromeda, working in the user's own apps through their tools (" + names + "). Do the whole job yourself, step by step: look at how things are first, act, check what you did (a screenshot or a read-back when the tools offer one) and fix what isn't right. A few big precise steps beat many tiny ones. When it's done, say in a few sentences what you made and how to see it."
-		+ (PLAN_NOTE ? "\n\nWhat Andromeda decided to deliver: " + PLAN_NOTE : "") + (langLine() ? "\n\n" + langLine() : "");
-	const hist = chatHistory(), last = hist[hist.length - 1];
-	const prior = hist.slice(0, -1).slice(-6).map((m) => ({ role: m.role, content: (typeof m.content === "string" ? m.content : m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")).slice(0, 4000) }));
-	const material = sourceOf(atts, 30000);
-	const messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
+	let messages;
+	if (resume && resume.state) messages = resume.state.messages;
+	else {
+		const where = (servers.some((s) => s.name === "computer") ? " You're connected to the user's computer (" + (navigator.userAgent.includes("Windows") ? "Windows, PowerShell" : "bash") + "): you can run commands and programs, keep long ones running, and read, write, edit and search files there." : "")
+			+ (servers.some((s) => s.name !== "computer") ? " You also have the user's connected apps: " + servers.filter((s) => s.name !== "computer").map((s) => s.name).join(", ") + "." : "");
+		const system = "You are Andromeda, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
+			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
+			+ (PLAN_NOTE ? "\n\nWhat Andromeda decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
+		const hist = chatHistory(), last = hist[hist.length - 1];
+		const prior = hist.slice(0, -1).slice(-6).map((m) => ({ role: m.role, content: (typeof m.content === "string" ? m.content : m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")).slice(0, 4000) }));
+		const material = sourceOf(atts, 30000);
+		messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
+	}
 	// working with tools is its own measured skill (LMArena's agent board), with what this request needs on top
 	const cands = bestFirst(arenaRank("code", blendW({ "agent:overall": 0.6, "text:instruction_following": 0.25, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.4))).map((x) => x.m).filter((m) => m.tools !== false);
-	let ci = 0, model = cands[0] || best("code"), summary = null;
+	let ci = 0, model = cands[0] || best("code"), summary = null, step = resume && resume.state ? resume.state.step : 0;
+	const keep = () => vault.set("act:" + msg.data.id, { messages, step }).catch(() => {});
 	try {
-		for (let step = 0; step < 50 && summary == null; step++) {
-			msg.status = msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Looking at " + names;
+		for (; step < 400 && summary == null; step++) {
+			msg.status = msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Working";
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
 			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); }
 			catch (e) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
-				if (++ci < Math.min(cands.length, 4)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
+				if (++ci < Math.min(cands.length, 5)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
 				throw e;
 			}
 			const calls = (reply.tool_calls || []).map((c, k) => ({ ...c, id: c.id || "call_" + step + "_" + k }));
@@ -3147,38 +3271,84 @@ async function runApps(text, atts) {
 			for (const c of calls) {
 				let args = c.function?.arguments;
 				try { args = typeof args === "string" ? JSON.parse(args || "{}") : args || {}; } catch { args = {}; }
-				const hit = map.get(c.function?.name);
+				const fn = c.function?.name || "";
 				let out;
-				if (!hit) out = "There's no tool called " + c.function?.name + ".";
-				else {
-					try {
-						const r = await mcpPost(hit.s, { jsonrpc: "2.0", id: ++mcpId, method: "tools/call", params: { name: hit.t.name, arguments: args } }, busy.signal);
-						const parts = (r && r.content) || [];
-						for (const p of parts) if (p.type === "image" && p.data) { const url = "data:" + (p.mimeType || "image/png") + ";base64," + p.data; pics.push(url); msg.data.shots.push(await vault.put(b64Blob(p.data, p.mimeType || "image/png"))); }
-						out = parts.filter((p) => p.type === "text").map((p) => p.text).join("\n") || (pics.length ? "(it returned a picture, shown below)" : JSON.stringify(r && r.structuredContent || "Done."));
-						log(hit.s.name + " · " + hit.t.name, r && r.isError ? out : Object.keys(args).slice(0, 3).join(", "), r && r.isError);
-					} catch (e) {
-						if (e.name === "AbortError") throw e;
-						out = "The tool failed: " + (e.message || e);
-						log(hit.s.name + " · " + hit.t.name, out, true);
+				try {
+					if (fn === "run_python") { log("Ran Python", String(args.code).split("\n")[0]); out = await runPython(args.code); }
+					else if (fn === "run_javascript") { log("Ran JavaScript", String(args.code).split("\n")[0]); out = await runJs(args.code); }
+					else if (fn === "web_search") {
+						log("Searched the web", args.query);
+						const j = await toolCall("/api/tools/search", { query: args.query, n: 6 }, 25000);
+						out = (j.results || []).map((x, i) => "[" + (i + 1) + "] " + x.title + " (" + x.url + ")\n" + x.text).join("\n\n") || j.error?.message || "Nothing found.";
+					} else if (fn === "fetch_url") {
+						log("Read " + String(args.url).replace(/^https?:\/\//, "").slice(0, 60));
+						const j = await toolCall("/api/tools/fetch", { url: args.url }, 25000);
+						out = j.text ? (j.title ? j.title + "\n\n" : "") + j.text : j.error?.message || "Couldn't read it.";
+					} else if (fn === "lookup_docs") {
+						log("Looked up " + args.library + " docs", args.topic);
+						const j = await toolCall("/api/tools/docs", { library: args.library, topic: args.topic || "", tokens: 6000 }, 25000);
+						out = j.text || j.error?.message || "No docs found.";
+					} else if (fn === "remember") { out = remember(args.fact) ? "Saved." : "Already remembered."; log("Remembered", args.fact); }
+					else {
+						const hit = map.get(fn);
+						if (!hit) out = "There's no tool called " + fn + ".";
+						else {
+							// something that changes the computer: the user sees exactly what and says yes first
+							if (hit.s.name === "computer" && CHANGES.test(hit.t.name)) {
+								const what = { run_command: "run a command", start_command: "start a command", stop_job: "stop a job", write_file: "write " + args.path, edit_file: "change " + args.path, open: "open " + args.target }[hit.t.name];
+								const detail = args.command ? (args.cwd ? "in " + args.cwd + "\n" : "") + args.command : hit.t.name === "edit_file" ? "- " + args.old_text + "\n+ " + args.new_text : hit.t.name === "write_file" ? String(args.content || "").slice(0, 3000) : args.target || args.id || "";
+								if (!(await approve(msg, what, detail))) { out = "The user said no to this. Ask them what they want, or do it another way."; log("Not allowed: " + what, "", true); messages.push({ role: "tool", tool_call_id: c.id, content: out }); continue; }
+							}
+							const r = await mcpPost(hit.s, { jsonrpc: "2.0", id: ++mcpId, method: "tools/call", params: { name: hit.t.name, arguments: args } }, busy.signal);
+							const parts = (r && r.content) || [];
+							for (const p of parts) if (p.type === "image" && p.data) { pics.push("data:" + (p.mimeType || "image/png") + ";base64," + p.data); msg.data.shots.push(await vault.put(b64Blob(p.data, p.mimeType || "image/png"))); }
+							out = parts.filter((p) => p.type === "text").map((p) => p.text).join("\n") || (pics.length ? "(it returned a picture, shown to you next)" : JSON.stringify((r && r.structuredContent) || "Done."));
+							log((hit.s.name === "computer" ? "" : hit.s.name + " · ") + hit.t.name.replace(/_/g, " ") + (args.command ? ": " + String(args.command).slice(0, 80) : args.path ? ": " + args.path : ""), r && r.isError ? out : "", r && r.isError);
+						}
 					}
+				} catch (e) {
+					if (e.name === "AbortError") throw e;
+					out = "It failed: " + (e.message || e);
+					log(fn.replace(/_/g, " ") + " failed", e.message || e, true);
 				}
-				messages.push({ role: "tool", tool_call_id: c.id, content: String(out).slice(0, 40000) });
+				messages.push({ role: "tool", tool_call_id: c.id, content: String(out).slice(0, 50000) });
 			}
-			// what the tools showed, for a model that can see (so it checks its own work by looking)
+			// what the tools showed, for a model that can see, so it checks its own work by looking
 			if (pics.length && (model.input || []).includes("image")) messages.push({ role: "user", content: [{ type: "text", text: "What the tools showed:" }, ...pics.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] });
+			// room to keep going: pictures go first, then the oldest steps are summed up
 			let size = messages.reduce((t, m) => t + JSON.stringify(m.content || "").length, 0);
-			for (let k = 1; k < messages.length - 8 && size > 400000; k++) {
+			for (let k = 1; k < messages.length - 6 && size > 300000; k++) {
 				const m = messages[k];
-				if (m.role === "tool" && m.content.length > 2000) { size -= m.content.length; m.content = "(an older result, dropped to save room)"; }
-				else if (m.role === "user" && Array.isArray(m.content) && m.content.some((p) => p.type === "image_url")) { size -= JSON.stringify(m.content).length; m.content = "(an older picture, dropped to save room)"; }
+				if (m.role === "user" && Array.isArray(m.content) && m.content.some((p) => p.type === "image_url")) { size -= JSON.stringify(m.content).length; m.content = "(an older picture, dropped to make room)"; }
 			}
+			if (size > 300000) { msg.status = "Summing up the work so far to keep going"; updateLast(); await compact(messages); }
+			keep();
+			save();
 		}
-		if (summary == null) summary = "I stopped after 50 steps so this doesn't run away. Tell me to keep going.";
+		if (summary == null) summary = "That's 400 steps, so I've paused here. Say \"keep going\" and I'll carry on from where I am.";
 	} finally {
-		msg.used = [{ name: shortName(model), desc: "Worked in " + names + " with their own tools" }];
+		msg.used = [{ name: shortName(model), desc: "Did the work with tools" + (names ? " (" + names + ")" : "") }];
 		msg.text = summary != null ? summary || "Done." : "";
+		if (summary != null) { msg.data.running = false; vault.del ? vault.del("act:" + msg.data.id) : vault.set("act:" + msg.data.id, null); }
 	}
+}
+const runApps = runAct;
+// a job cut off (the tab closed, the connection dropped): carried on from its last saved step
+async function resumeAct(i) {
+	const msg = current.msgs[i];
+	if (busy || !msg || !msg.data) return;
+	const state = await vault.get("act:" + msg.data.id);
+	if (!state) { toast("That job's progress isn't on this device anymore"); return; }
+	if (appsConf().code || (appsConf().online || []).length) await loadApps(true).catch(() => {});
+	busy = new AbortController();
+	setBusy(true);
+	try { await runAct("", [], { msg, state }); }
+	catch (e) { if (e.name !== "AbortError") { msg.text = (msg.text ? msg.text + "\n\n" : "") + niceError(e); } }
+	msg.streaming = false;
+	busy = null;
+	setBusy(false);
+	save();
+	render();
 }
 
 // ---- the live preview: a plain website (HTML, CSS, JavaScript) runs right here with its changes, images included
@@ -3227,6 +3397,9 @@ function renderAgent(m, i, box) {
 	const files = (d.diffs || []).map((f, k) => '<details class="ag-file"' + ((d.diffs.length === 1 || f.lines.length < 40) && !m.streaming ? " open" : "") + '><summary><code>' + esc(f.path) + "</code>" + (f.status !== "modified" ? '<span class="ag-tag">' + f.status + "</span>" : "") + '<span class="ag-n"><i class="a">+' + f.add + '</i> <i class="d">−' + f.del + "</i></span></summary>" +
 		'<pre class="ag-diff">' + f.lines.map(([t, s]) => '<span class="' + ({ "+": "a", "-": "d", "@": "h", " ": "c" })[t] + '">' + (t === "@" ? "" : t + " ") + esc(s) + "</span>").join("\n") + (f.more ? '\n<span class="h">… ' + f.more + " more lines</span>" : "") + "</pre></details>").join("");
 	let act = "";
+	// asking before it changes something on the computer: exactly what, and yes, yes to everything in this chat, or no
+	const ask = d.ask ? '<div class="ask"><b>Andromeda wants to ' + esc(d.ask.what) + "</b>" + (d.ask.detail ? '<pre class="ag-diff">' + esc(d.ask.detail) + "</pre>" : "") + '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn dark" data-askyes>Allow</button><button class="btn" data-askall>Allow everything in this chat</button><button class="btn" data-askno>Don\'t allow</button></div></div>' : "";
+	if (d.pkind === "act" && d.running && !m.streaming && !busy) act = '<span class="ag-done">This job was cut off.</span><button class="btn dark" data-agresume>Carry on</button>';
 	if (!m.streaming && d.diffs && d.diffs.length) {
 		if (d.pkind === "folder" || d.pkind === "browser") act = (d.undone ? '<span class="ag-done">Undone: the files are back as they were.</span>' : '<button class="btn" data-agundo>Undo these changes</button>') + (d.pkind === "browser" ? '<button class="btn" data-agsave>Download</button>' : "");
 		else if (d.committed) act = '<span class="ag-done">' + esc(d.committed.what) + ' · <a href="' + esc(d.committed.url) + '" target="_blank" rel="noopener">View on GitHub</a></span>';
@@ -3234,10 +3407,17 @@ function renderAgent(m, i, box) {
 			(d.self && P.pending.get("index.html") != null ? '<button class="btn" data-agtry>Try the new Andromeda</button><button class="btn" data-agdl>Download index.html</button>' : "");
 	}
 	box.innerHTML = '<div class="ag"><details class="ag-log"' + (m.streaming ? " open" : "") + "><summary>" + (m.streaming ? "Working in " : "Worked in ") + esc(d.project) + " · " + d.log.length + " step" + (d.log.length === 1 ? "" : "s") + (m.model ? " · " + esc(m.model) : "") + "</summary><ol>" + log + "</ol></details>" +
-		(files ? '<div class="ag-files">' + files + "</div>" : "") + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
+		(files ? '<div class="ag-files">' + files + "</div>" : "") + ask + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
 		(d.preview && !m.streaming && P ? '<div class="ag-prev">' + (m.hidePreview ? "" : '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts allow-forms allow-modals" title="Preview"></iframe></div>') +
 			'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-agprev>' + (m.hidePreview ? "Show the preview" : "Hide the preview") + "</button>" + (m.hidePreview ? "" : '<button class="btn" data-agfull>Full screen</button><button class="btn" data-agreload>Reload</button><button class="btn" data-agtab>Open in a new tab</button>') + "</div></div>" : "") + "</div>";
 	const q = (s) => box.querySelector(s);
+	if (d.ask) {
+		const answer = (ok, all) => { const go = ASKS.get(d.ask.id); if (all && current) { current.trustComputer = true; save(); } if (go) go(ok); else { d.ask = null; renderStudy(m, i); } };
+		q("[data-askyes]").onclick = () => answer(true);
+		q("[data-askall]").onclick = () => answer(true, true);
+		q("[data-askno]").onclick = () => answer(false);
+	}
+	if (q("[data-agresume]")) q("[data-agresume]").onclick = () => resumeAct(i);
 	if (d.shots && d.shots.length) {
 		const g = document.createElement("div");
 		g.className = "shots imgs";
@@ -3447,6 +3627,10 @@ async function send(textOverride, fork) {
 		if (TOOLS_USED.length && lastMsg && lastMsg.role === "assistant" && !lastMsg.error) lastMsg.tools = TOOLS_USED.slice();
 	}
 	if (creditsMode()) refreshMe();
+	{
+		const lastMsg = current.msgs[current.msgs.length - 1];
+		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.error && lastMsg.text) noteMemories(text, lastMsg.text);
+	}
 	{
 		const lastMsg = current.msgs[current.msgs.length - 1];
 		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.error && !STUDY[lastMsg.kind] && (lastMsg.text || "").length > 300 && LEARNING.test(text) && classify(text, atts) !== "code" && !studyIntent(text, atts)) {
@@ -6092,6 +6276,7 @@ function openSettings() {
 	const bg = settings.bg || "none";
 	const sw = (k, label, thumb) => '<button class="bgsw' + (bg === k ? " on" : "") + '" data-bg="' + k + '" title="' + esc(label) + '">' + (thumb ? '<img src="' + thumb + '" alt="" loading="lazy">' : "") + "<span>" + esc(label) + "</span></button>";
 	openModal('<h2>Settings</h2><p class="sub">How Andromeda looks and answers you. Your chats stay in this browser.</p>' +
+		'<div class="field"><label>Memory</label><button class="btn" data-open-memory>What Andromeda remembers</button><div class="help">Lasting things about you and your work, kept across chats in this browser.</div></div>' +
 		'<div class="field"><label>Theme</label><div class="pills">' + [["system", "System"], ["dark", "Dark"], ["light", "Light"]].map(([k, n]) => '<button data-theme-pick="' + k + '"' + ((settings.theme || "system") === k ? ' class="on"' : "") + ">" + n + "</button>").join("") + "</div></div>" +
 		'<div class="field"><label>Background</label><div class="bggrid">' + sw("none", "None", "") + Object.entries(BACKGROUNDS).map(([k, [n, u]]) => sw(k, n, u + "?w=240&h=150&fit=crop&q=60&auto=format")).join("") +
 		sw("mine", "Your own", "") + '</div><div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" id="bgMine">Use my picture or video</button>' +

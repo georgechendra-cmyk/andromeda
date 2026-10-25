@@ -85,6 +85,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/music" && m === "POST") return music(req, env, user);
 	if (p === "/api/tools/docs" && m === "POST") return toolDocs(req, env);
 	if (p === "/api/tools/fetch" && m === "POST") return toolFetch(req, env);
+	if (p === "/api/tools/search" && m === "POST") return toolSearch(req, env);
 	if (p === "/api/payments/qris" && m === "POST") return qrisPayment(req, env, user);
 	throw fail(404, "Not found");
 }
@@ -1667,6 +1668,14 @@ async function toolDocs(req, env) {
 	return json({ library: pick.id, title: pick.title, text });
 }
 
+// a live web search for Andromeda working on its own (Tavily or Brave, when the server has a key for one)
+async function toolSearch(req, env) {
+	const b = await body(req);
+	const q = String(b.query || "").trim();
+	if (!q) throw fail(400, "Search for what?");
+	if (!env.TAVILY_KEY && !env.BRAVE_KEY) throw fail(503, "Web search isn't set up on this server yet (it needs a free Tavily key). Read pages directly with fetch_url instead.");
+	return json({ results: await searchWeb(env, q, Math.max(1, Math.min(10, Number(b.n) || 6))) });
+}
 async function toolFetch(req, env) {
 	const b = await body(req);
 	let u;

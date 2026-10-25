@@ -15,10 +15,10 @@
 // pairing code it prints (paste it into Andromeda once, under Connect apps).
 import http from "node:http";
 import { spawn } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { randomBytes } from "node:crypto";
-import { homedir } from "node:os";
-import { join, dirname } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { join, dirname, resolve, extname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -34,7 +34,9 @@ function readJson(p) { try { return JSON.parse(readFileSync(p, "utf8")); } catch
 function servers() {
 	const claude = process.platform === "win32" ? join(process.env.APPDATA || join(homedir(), "AppData", "Roaming"), "Claude", "claude_desktop_config.json")
 		: process.platform === "darwin" ? join(homedir(), "Library", "Application Support", "Claude", "claude_desktop_config.json") : join(homedir(), ".config", "Claude", "claude_desktop_config.json");
-	const out = {};
+	// this computer itself, built in (connections.json can say "computer": false to leave it out)
+	const own = readJson(join(here, "connections.json"));
+	const out = own && own.computer === false ? {} : { computer: { builtin: true } };
 	for (const f of [claude, join(here, "connections.json")]) {
 		const j = readJson(f);
 		for (const [name, s] of Object.entries((j && j.mcpServers) || {})) if (s && (s.command || s.url)) out[name.replace(/[^\w-]/g, "-")] = s;
@@ -107,6 +109,12 @@ http.createServer(async (req, res) => {
 	let body = "";
 	for await (const chunk of req) body += chunk;
 	try {
+		if (s.builtin) {
+			const msgs = JSON.parse(body), list = Array.isArray(msgs) ? msgs : [msgs];
+			const answers = (await Promise.all(list.map(computer))).filter(Boolean);
+			if (!answers.length) return send(202, null);
+			return send(200, Array.isArray(msgs) ? answers : answers[0], { "mcp-session-id": "local-computer" });
+		}
 		if (s.url) {
 			const r = await relay(s, req, body);
 			res.writeHead(r.status, { "Content-Type": r.type, ...cors, ...(r.session ? { "mcp-session-id": r.session } : {}) });
@@ -126,3 +134,148 @@ http.createServer(async (req, res) => {
 	console.log("  Pairing code (paste it into Andromeda, under Connect apps):  " + CODE + "\n");
 	console.log("  Apps: " + (names.length ? names.join(", ") : "none yet. Add them to tools/connections.json (see connections.example.json)") + "\n");
 });
+
+// ------------------------------------------------------------------ this computer itself
+// What an engineer at this computer does: run commands and programs (and keep long ones going in the background), read,
+// write and edit files, find and search them, open things, and look at the screen. Andromeda asks the user before
+// anything that changes something, showing exactly what (the command, the file and the change).
+const HOME = homedir(), WIN = process.platform === "win32";
+const SKIP = /^(node_modules|\.git|\.gradle|build|dist|target|__pycache__|\.venv|venv|\.next|\.cache|AppData)$/;
+const IMAGE = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp" };
+const at = (p, cwd) => resolve(cwd ? resolve(HOME, cwd) : HOME, String(p || "."));
+const S = (description) => ({ type: "string", description }), N = (description) => ({ type: "number", description });
+const COMPUTER = [
+	["run_command", "Run a command on the user's computer and wait for it to finish (" + (WIN ? "PowerShell" : "bash") + "). Returns everything it printed and its exit code. Anything that keeps running (a server, a watcher, a game) goes in start_command instead.", { command: S("the command"), cwd: S("the folder to run it in (default: the user's home folder)"), timeout_seconds: N("how long to wait, default 300, at most 3600") }, ["command"]],
+	["start_command", "Start a long-running command in the background (a dev server, a long build, a game server). Returns a job id; read_job shows its output.", { command: S("the command"), cwd: S("the folder to run it in") }, ["command"]],
+	["read_job", "What a background job has printed since you last looked, and whether it's still running.", { id: S("the job id") }, ["id"]],
+	["stop_job", "Stop a background job (and everything it started).", { id: S("the job id") }, ["id"]],
+	["read_file", "Read a text file, with line numbers (or look at an image file).", { path: S("the file (absolute, or from the user's home folder)"), offset: N("the first line, from 1"), limit: N("how many lines, default 2000") }, ["path"]],
+	["write_file", "Create a file or replace all of it (the folders are made as needed).", { path: S("the file"), content: S("everything that goes in it") }, ["path", "content"]],
+	["edit_file", "Change part of a file: old_text (exactly as it is in the file, appearing once unless replace_all) becomes new_text.", { path: S("the file"), old_text: S("the exact text to replace"), new_text: S("what it becomes"), replace_all: { type: "boolean", description: "replace every copy" } }, ["path", "old_text", "new_text"]],
+	["list_files", "List the files under a folder, optionally only those matching a pattern like **/*.java.", { path: S("the folder"), pattern: S("a glob pattern") }, ["path"]],
+	["search_files", "Search the files under a folder for a regular expression (like grep). Returns the matching lines with where they are.", { path: S("the folder (or one file)"), regex: S("the regular expression"), pattern: S("only files matching this glob, like *.ts") }, ["path", "regex"]],
+	["open", "Open a file, folder or web link in its usual app on the user's computer.", { target: S("the path or link") }, ["target"]],
+	["screenshot", "See the user's whole screen right now.", {}, []],
+];
+const JOBS = new Map();
+let jobN = 0;
+const cap = (s, n = 60000) => (s.length > n ? s.slice(0, n / 2) + "\n… (" + (s.length - n) + " characters cut) …\n" + s.slice(-n / 2) : s);
+function shell(command, cwd) {
+	return spawn(WIN ? "powershell.exe" : "bash", WIN ? ["-NoProfile", "-NonInteractive", "-Command", command] : ["-lc", command], { cwd: cwd ? at(cwd) : HOME, env: process.env, windowsHide: true });
+}
+const kill = (child) => { try { if (WIN) spawn("taskkill", ["/T", "/F", "/PID", String(child.pid)]); else child.kill("SIGTERM"); } catch {} };
+const globRe = (g) => new RegExp("^" + String(g).replace(/\\/g, "/").replace(/[.+^${}()|[\]]/g, "\\$&").replace(/\*\*\//g, "(?:.*/)?").replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]") + "$", "i");
+function walk(root, fn, limit = 20000) {
+	let n = 0;
+	const go = (dir) => {
+		let items;
+		try { items = readdirSync(dir, { withFileTypes: true }); } catch { return; }
+		for (const d of items) {
+			if (n >= limit) return;
+			const p = join(dir, d.name);
+			if (d.isDirectory()) { if (!SKIP.test(d.name)) go(p); }
+			else { n++; if (fn(p) === false) { n = limit; return; } }
+		}
+	};
+	go(root);
+}
+const text = (t) => [{ type: "text", text: t }];
+async function useComputer(name, a) {
+	if (name === "run_command" || name === "start_command") {
+		const child = shell(String(a.command || ""), a.cwd);
+		if (name === "start_command") {
+			const id = "job" + ++jobN, j = { child, out: "", read: 0, done: false, code: null };
+			child.stdout.on("data", (d) => (j.out += d)); child.stderr.on("data", (d) => (j.out += d));
+			child.on("close", (code) => { j.done = true; j.code = code; });
+			child.on("error", (e) => { j.done = true; j.out += "\n" + e.message; });
+			JOBS.set(id, j);
+			await new Promise((r) => setTimeout(r, 1500));
+			const first = j.out;
+			j.read = first.length;
+			return text("Started " + id + (j.done ? " (it already finished, exit code " + j.code + ")" : "") + ". So far:\n" + (cap(first, 8000) || "(nothing yet)"));
+		}
+		const limit = Math.min(3600, Math.max(5, Number(a.timeout_seconds) || 300)) * 1000;
+		return new Promise((done) => {
+			let out = "", late = false;
+			const t = setTimeout(() => { late = true; kill(child); }, limit);
+			child.stdout.on("data", (d) => (out += d)); child.stderr.on("data", (d) => (out += d));
+			child.on("error", (e) => { clearTimeout(t); done(text("It couldn't start: " + e.message)); });
+			child.on("close", (code) => { clearTimeout(t); done(text(cap(out) + "\n(exit code " + code + (late ? ", stopped after " + limit / 1000 + "s" : "") + ")")); });
+		});
+	}
+	if (name === "read_job" || name === "stop_job") {
+		const j = JOBS.get(String(a.id));
+		if (!j) return text("There's no job " + a.id + ".");
+		if (name === "stop_job") { kill(j.child); return text("Stopped " + a.id + "."); }
+		const fresh = j.out.slice(j.read);
+		j.read = j.out.length;
+		return text(cap(fresh, 30000) + (j.done ? "\n(finished, exit code " + j.code + ")" : "\n(still running)"));
+	}
+	if (name === "read_file") {
+		const p = at(a.path), type = IMAGE[extname(p).toLowerCase()];
+		if (type) return [{ type: "image", data: readFileSync(p).toString("base64"), mimeType: type }];
+		const lines = readFileSync(p, "utf8").split(/\r?\n/), from = Math.max(1, Number(a.offset) || 1), n = Math.max(1, Number(a.limit) || 2000);
+		return text(cap(lines.slice(from - 1, from - 1 + n).map((l, i) => String(from + i).padStart(6) + "\t" + l).join("\n"), 200000) + (lines.length > from - 1 + n ? "\n(" + lines.length + " lines in all)" : ""));
+	}
+	if (name === "write_file") {
+		const p = at(a.path);
+		mkdirSync(dirname(p), { recursive: true });
+		writeFileSync(p, String(a.content ?? ""));
+		return text("Wrote " + p + " (" + String(a.content ?? "").split("\n").length + " lines).");
+	}
+	if (name === "edit_file") {
+		const p = at(a.path), was = readFileSync(p, "utf8"), old = String(a.old_text ?? "");
+		const n = old ? was.split(old).length - 1 : 0;
+		if (!n) throw new Error("old_text isn't in " + p + " exactly as written. Read the file and copy it exactly.");
+		if (n > 1 && !a.replace_all) throw new Error("old_text appears " + n + " times in " + p + ": give more of the text around it, or set replace_all.");
+		writeFileSync(p, a.replace_all ? was.split(old).join(String(a.new_text ?? "")) : was.replace(old, () => String(a.new_text ?? "")));
+		return text("Changed " + p + (n > 1 ? " (" + n + " places)" : "") + ".");
+	}
+	if (name === "list_files") {
+		const root = at(a.path), re = a.pattern ? globRe(a.pattern) : null, out = [];
+		walk(root, (p) => { const r = relative(root, p).replace(/\\/g, "/"); if (!re || re.test(r) || re.test(r.split("/").pop())) out.push(r); if (out.length >= 2000) return false; });
+		return text(out.length ? out.join("\n") + (out.length >= 2000 ? "\n… (more: narrow it with a pattern)" : "") : "Nothing there matches.");
+	}
+	if (name === "search_files") {
+		const root = at(a.path), re = new RegExp(String(a.regex), "i"), only = a.pattern ? globRe(a.pattern) : null, out = [];
+		const look = (p) => {
+			if (only && !only.test(p.split(/[\\/]/).pop())) return;
+			let st;
+			try { st = statSync(p); } catch { return; }
+			if (st.size > 2e6 || IMAGE[extname(p).toLowerCase()]) return;
+			let body;
+			try { body = readFileSync(p, "utf8"); } catch { return; }
+			if (body.includes("\u0000")) return;
+			body.split(/\r?\n/).forEach((l, i) => { if (out.length < 300 && re.test(l)) out.push(relative(root, p).replace(/\\/g, "/") + ":" + (i + 1) + ": " + l.trim().slice(0, 300)); });
+			if (out.length >= 300) return false;
+		};
+		if (statSync(root).isFile()) look(root); else walk(root, look);
+		return text(out.length ? out.join("\n") : "No matches.");
+	}
+	if (name === "open") {
+		const target = String(a.target || "");
+		spawn(WIN ? "cmd" : process.platform === "darwin" ? "open" : "xdg-open", WIN ? ["/c", "start", "", target] : [target], { detached: true, stdio: "ignore", windowsHide: true }).unref();
+		return text("Opened " + target + ".");
+	}
+	if (name === "screenshot") {
+		if (!WIN) throw new Error("Screenshots work on Windows for now.");
+		const file = join(tmpdir(), "andromeda-screen-" + Date.now() + ".jpg");
+		const ps = "Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $b=[System.Windows.Forms.SystemInformation]::VirtualScreen; $m=New-Object System.Drawing.Bitmap $b.Width,$b.Height; $g=[System.Drawing.Graphics]::FromImage($m); $g.CopyFromScreen($b.Left,$b.Top,0,0,$m.Size); $w=[Math]::Min(1600,$b.Width); $s=New-Object System.Drawing.Bitmap $m,$w,([int]($b.Height*$w/$b.Width)); $s.Save('" + file.replace(/'/g, "''") + "',[System.Drawing.Imaging.ImageFormat]::Jpeg)";
+		await new Promise((done) => { const c = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", ps], { windowsHide: true }); c.on("close", done); c.on("error", done); });
+		if (!existsSync(file)) throw new Error("Couldn't take the screenshot.");
+		return [{ type: "image", data: readFileSync(file).toString("base64"), mimeType: "image/jpeg" }];
+	}
+	throw new Error("There's no tool called " + name + ".");
+}
+async function computer(msg) {
+	if (msg.id == null) return null;
+	const ok = (result) => ({ jsonrpc: "2.0", id: msg.id, result });
+	if (msg.method === "initialize") return ok({ protocolVersion: (msg.params && msg.params.protocolVersion) || "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "computer", version: "1" } });
+	if (msg.method === "ping") return ok({});
+	if (msg.method === "tools/list") return ok({ tools: COMPUTER.map(([name, description, properties, required]) => ({ name, description, inputSchema: { type: "object", properties, required } })) });
+	if (msg.method === "tools/call") {
+		try { return ok({ content: await useComputer(msg.params.name, msg.params.arguments || {}) }); }
+		catch (e) { return ok({ content: text(String(e.message || e)), isError: true }); }
+	}
+	return { jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Not supported" } };
+}
