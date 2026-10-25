@@ -1164,6 +1164,27 @@ body.art-open .msg > .av { display: none; }
 .pop [hidden] { display: none !important; }
 @media (max-width: 860px) { .sp-grid { grid-template-columns: 1fr; } .space-pg { padding-top: 5vh; padding-left: 16px; padding-right: 16px; } .sp-top .btn { display: none; } }
 @media (min-width: 861px) { body.sb-closed .sp-i, body.sb-closed .convo-group { display: none; } }
+
+/* ---- the site: editorial, after Anthropic's (the sky behind it stays as it was) */
+.hero { padding-top: 96px; }
+.hero h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(46px, 7.6vw, 98px); letter-spacing: -.028em; line-height: 1.0; margin: 28px auto 24px; }
+.hero h1 em { font-style: italic; background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; padding: 0 .08em 0 .02em; }
+.hero p.lead { font-size: clamp(17px, 1.7vw, 20px); max-width: 620px; }
+a.pill { text-decoration: none; color: var(--muted); transition: border-color .2s, color .2s; }
+a.pill:hover { color: var(--text); border-color: color-mix(in srgb, var(--brand) 40%, var(--line2)); }
+.block h2, .cta-end h2 { font-family: var(--serif); font-weight: 400; font-size: clamp(32px, 4.6vw, 56px); letter-spacing: -.022em; line-height: 1.06; }
+.block p.sub2 { font-size: 17.5px; }
+.nav .gh { display: inline-flex; }
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.card.mk h3 { font-size: 17px; }
+.feats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 30px 34px; }
+.feats div { border-top: 1px solid var(--line2); padding-top: 18px; }
+.feats b { display: block; font-weight: 600; font-size: 16px; margin-bottom: 6px; }
+.feats span { color: var(--muted); font-size: 14.5px; line-height: 1.6; }
+.demo-r .arrow { font-family: var(--sans); }
+.foot a { color: var(--muted); }
+@media (max-width: 960px) { .grid3, .feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .grid3, .feats { grid-template-columns: 1fr; } .nav .gh { display: none; } .hero { padding-top: 64px; } }
 </style>
 </head>
 <body>
@@ -1175,44 +1196,75 @@ body.art-open .msg > .av { display: none; }
 	<header class="nav" id="nav">
 		<div class="wrap">
 			<a class="logo" href="#" data-go-home><svg class="mark"><use href="#logo"/></svg>Andromeda</a>
-			<nav class="nav-links"><a href="#product">Product</a><a href="#models">Models</a><a href="#how">How it works</a><a href="#faq">FAQ</a></nav>
+			<nav class="nav-links"><a href="#product">Product</a><a href="#how">How it decides</a><a href="#models">Models</a><a href="#faq">FAQ</a></nav>
 			<span class="sp"></span>
-			<button class="b ghost" data-theme-toggle title="Light / dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
-			<a class="b sec" href="https://github.com/" target="_blank" rel="noopener" id="ghLink">GitHub</a>
-			<button class="b pri" data-open-app>Open app</button>
+			<button class="b ghost" data-theme-toggle title="Light or dark" aria-label="Switch light or dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+			<a class="b ghost gh" href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener" id="ghLink">GitHub</a>
+			<button class="b pri" data-open-app>Try Andromeda</button>
 		</div>
 	</header>
 
 	<section class="hero">
 		<div class="wrap">
-			<span class="pill"><span class="tag">NEW</span><span class="pill-t">Routes to <span id="newestModel">each lab's strongest model, not just its newest</span></span></span>
-			<h1>The right model<br><span class="dim">for every message.</span></h1>
-			<p class="lead">Ask anything, or ask for anything to be made: answers, code, apps and games, videos and ads, photos, music. Every step goes to the model that's best at it. Nothing to set up.</p>
-			<div class="ctas"><button class="b pri lg" data-open-app>Start chatting</button><a class="b sec lg" href="#how">How it works</a></div>
-			<div class="fine">Free credits every day · no card · your chats stay in this browser</div>
+			<a class="pill" href="#product"><span class="tag">NEW</span><span class="pill-t">Projects, a Library, and what it makes opens beside the chat</span></a>
+			<h1>Every AI's best,<br><em>working as one.</em></h1>
+			<p class="lead">Ask anything, or ask for anything to be made. Andromeda decides how to do it, then gives every part to the model that measurably does that part best.</p>
+			<div class="ctas"><button class="b pri lg" data-open-app>Try Andromeda</button><a class="b sec lg" href="#how">How it decides</a></div>
+			<div class="fine">Free credits every day · no card · your chats stay in your browser</div>
 
 			<div class="demo" id="product">
-				<div class="demo-h"><i></i><i></i><i></i><span class="sp"></span>router · live</div>
+				<div class="demo-h"><i></i><i></i><i></i><span class="sp"></span>andromeda · deciding live</div>
 				<div class="demo-b">
 					<div class="demo-q"><span class="you">you</span><span class="typed" id="demoQ"></span></div>
 					<div class="demo-r" id="demoR"></div>
 				</div>
 				<div class="demo-tasks" id="demoTasks"></div>
 			</div>
-			<div class="logos"><span>Anthropic</span><span>OpenAI</span><span>Google</span><span>xAI</span><span>Perplexity</span><span>Moonshot</span><span>DeepSeek</span><span>Qwen</span></div>
+			<div class="logos"><span>Anthropic</span><span>OpenAI</span><span>Google</span><span>xAI</span><span>DeepSeek</span><span>Moonshot</span><span>Qwen</span><span>Meta</span></div>
 		</div>
 	</section>
 
 	<section class="block reveal">
 		<div class="wrap">
-			<div class="eyebrow">Four ways to work</div>
-			<h2>Not one chatbot. A team of the best ones.</h2>
-			<p class="sub2">Every answer uses the strongest model for each step, and can show you which one did what.</p>
-			<div class="grid4">
-				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div><h3>Auto</h3><p>Ask anything. It works out what kind of task it is and picks the model that's best at it.</p><div class="flow">code → Claude<br>maths → GPT<br>news → Sonar</div></div>
-				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="17" r="2.5"/><path d="M8 9.5l2.6 5.5M16 9.5l-2.6 5.5"/></svg></div><h3>Make</h3><p>Videos and ads with voice and music, photos, posters, songs: planned, made and edited by the best model for each part.</p><div class="flow">idea → shots → voice → cut</div></div>
-				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h16M6 16l4-10 4 10M8 12h4M16 6l2 10"/></svg></div><h3>Build</h3><p>Brainstormed, planned, built and reviewed, each step by a different model, until it's finished.</p><div class="flow">idea → plan → build → review</div></div>
-				<div class="card"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h11a3 3 0 0 1 3 3v11H7a3 3 0 0 1-3-3z"/><path d="M8 9h6M8 13h4"/></svg></div><h3>Study</h3><p>Any topic or your own notes, turned into flashcards, a quiz, open questions or a two-voice podcast.</p><div class="flow">notes → cards · quiz · podcast</div></div>
+			<div class="eyebrow">One place for all of it</div>
+			<h2>Whatever you need, made by whoever does it best.</h2>
+			<p class="sub2">Not one chatbot: every lab's strongest models, and Andromeda deciding which one does each part.</p>
+			<div class="grid3">
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><h3>Answers you can check</h3><p>Live web search, with the sources read and cited. Deep research when being thorough matters.</p></div>
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 11v4M5 13h4"/><circle cx="16" cy="12" r=".6"/><circle cx="18" cy="15" r=".6"/></svg></div><h3>Apps and games</h3><p>Built and running right here, beside the chat, with the code one click away.</p></div>
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg></div><h3>Pictures and video</h3><p>Photos, posters, ads and short films, with voiceover and music.</p></div>
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div><h3>Music and voice</h3><p>Songs, beats and voiceovers, in any style or language.</p></div>
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></div><h3>Documents</h3><p>Word, PDF, slides and spreadsheets, ready to download.</p></div>
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></svg></div><h3>Study</h3><p>Flashcards, quizzes, mind maps and podcasts, from any topic or your own notes.</p></div>
+			</div>
+		</div>
+	</section>
+
+	<section class="block reveal" id="how">
+		<div class="wrap">
+			<div class="eyebrow">How it decides</div>
+			<h2>It works out what you need. Then it picks.</h2>
+			<p class="sub2">No rules written in advance: every request is read by a model, and Andromeda decides for itself.</p>
+			<div class="steps3">
+				<div class="card"><h3>It reads what you actually want</h3><p>An answer, something built, a film, a song, a report: whatever would serve you best, even for things nobody listed.</p></div>
+				<div class="card"><h3>It picks the best model for each part</h3><p>Measured, not guessed: LMArena's leaderboards from millions of real votes, refreshed every day, for that exact mix of skills.</p></div>
+				<div class="card"><h3>If something fails, it finds another way</h3><p>It's told what went wrong and decides again, with another way or another model. You get the thing, not an error.</p></div>
+			</div>
+		</div>
+	</section>
+
+	<section class="block reveal">
+		<div class="wrap">
+			<div class="eyebrow">Works like an engineer</div>
+			<h2>It doesn't just say it. It does it.</h2>
+			<p class="sub2">The access the best assistants have, all switched on from the start.</p>
+			<div class="feats">
+				<div><b>Runs code</b><span>Python and JavaScript right in your browser: your spreadsheets, charts and calculations, checked.</span></div>
+				<div><b>Your computer, with permission</b><span>Through a small connector: commands, files, builds and tests, asking before anything changes.</span></div>
+				<div><b>Your apps</b><span>Blender, Figma, a browser, your files: anything with an MCP server.</span></div>
+				<div><b>Projects</b><span>Chats that share instructions and files, so it always has the background.</span></div>
+				<div><b>Memory</b><span>Remembers what matters about you and your work. You can see and delete all of it.</span></div>
+				<div><b>Long jobs</b><span>Hundreds of steps, saved as it goes, and picked back up if it's cut off.</span></div>
 			</div>
 		</div>
 	</section>
@@ -1220,24 +1272,16 @@ body.art-open .msg > .av { display: none; }
 	<section class="block reveal" id="models">
 		<div class="wrap">
 			<div class="eyebrow">Who handles what <span class="live"><i></i>measured daily, LMArena</span></div>
-			<h2>Today's best model for each kind of task.</h2>
-			<p class="sub2">Read live from the labs' catalogs. Andromeda picks each lab's strongest proven model, and skips previews and small variants.</p>
+			<h2>Today's best model for each kind of work.</h2>
+			<p class="sub2">Read from the leaderboards every day. A new model counts the day it's rated, and no lab is favoured by hand.</p>
 			<div class="table" id="modelTable"><div class="tr th"><span>Task</span><span>Model</span><span>Lab</span></div><div class="tr"><span class="task">Loading the catalog…</span></div></div>
 		</div>
 	</section>
 
-	<section class="block reveal" id="how">
+	<section class="block reveal">
 		<div class="wrap">
-			<div class="eyebrow">How it works</div>
-			<h2>Three steps. Then you just ask.</h2>
-			<p class="sub2">Nothing to install and no keys to find. Make a free account and start.</p>
-			<div class="steps3">
-				<div class="card"><h3>Make a free account</h3><p>You get free credits straight away, and they come back every day. Every model from every lab, nothing to connect.</p></div>
-				<div class="card"><h3>Ask, attach, or talk</h3><p>Type, drop in files and images, dictate, or switch on talk mode for a hands-free conversation.</p></div>
-				<div class="card"><h3>See who did what</h3><p>Any answer can show which models worked on it and why each was picked.</p></div>
-			</div>
-			<div class="split" style="margin-top:12px">
-				<div class="card big"><h3>Private by design</h3><p>Your chats stay on your device and export to a file whenever you want. There are no keys of yours to look after.</p><div class="kv"><div>Where chats live<b>this browser</b></div><div>Keys to manage<b>none</b></div><div>Card needed<b>no</b></div></div></div>
+			<div class="split">
+				<div class="card big"><h3>Private by design</h3><p>Your chats, projects and memory stay on your device and export to a file whenever you want. No keys of yours to look after.</p><div class="kv"><div>Where chats live<b>this browser</b></div><div>Keys to manage<b>none</b></div><div>Card needed<b>no</b></div></div></div>
 				<div class="card big"><h3>Credits, not bills</h3><p>Free credits every day. Need more? Buy a pack once, no subscription. You only ever see credits.</p><div class="kv"><div>Every day<b>free credits</b></div><div>Packs<b>one-time</b></div><div>Subscription<b>none</b></div></div></div>
 			</div>
 		</div>
@@ -1247,18 +1291,19 @@ body.art-open .msg > .av { display: none; }
 		<div class="wrap faq">
 			<div class="eyebrow">FAQ</div>
 			<h2>Questions</h2>
-			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher. Andromeda keeps track so you don't have to.</p></details>
-			<details><summary>How does it decide where a message goes?</summary><p>Instantly and without an extra model call: it reads what you wrote and what you attached (code, maths, a question about today, an image) and picks the current flagship of the lab that's strongest at that kind of task.</p></details>
+			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher or the best writer. Andromeda keeps track so you don't have to.</p></details>
+			<details><summary>How does it decide?</summary><p>A fast model reads every request and decides what would serve you (an answer, an app, a video, research...) and how to do it. Then each part goes to the models that score highest on exactly that work on LMArena's leaderboards. You can also choose Fast, Max, or one model yourself.</p></details>
+			<details><summary>Can it use my computer?</summary><p>Only if you run its small connector on your computer, and it asks before it changes anything. Without it, Andromeda still runs code, searches and builds right in your browser.</p></details>
 			<details><summary>What does it cost?</summary><p>Everyone with an account gets free credits that come back every day. When you want more, buy a pack once: no subscription.</p></details>
-			<details><summary>Is my data safe?</summary><p>Your chats stay in this browser. What you ask goes through Andromeda's server to the model answering it, and isn't kept there.</p></details>
-			<details><summary>Which model answers me?</summary><p>The best one for each step, picked for you. "Show models used" on any answer shows who did what.</p></details>
+			<details><summary>Is my data safe?</summary><p>Your chats, projects and memory stay in this browser. What you ask goes through Andromeda's server to the model answering it, and isn't kept there.</p></details>
+			<details><summary>Which model answered me?</summary><p>The best one for each part, picked for you. "Show models used" on any answer shows who did what, and why.</p></details>
 		</div>
 	</section>
 
 	<div class="wrap reveal">
-		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">The best model for it is already picked.</p><button class="b pri lg" data-open-app>Open Andromeda</button></div>
+		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">It already knows who should answer it.</p><button class="b pri lg" data-open-app>Try Andromeda</button></div>
 	</div>
-	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><span>MIT licensed · your chats stay in your browser</span></div></footer>
+	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>MIT licensed · your chats stay in your browser</span></div></footer>
 </div>
 
 <!-- ============================== the app ============================== -->
@@ -7680,12 +7725,20 @@ const DEMO = [
 	["What's wrong in this screenshot of my error?", "vision"],
 	["How long do I boil an egg for?", "quick"],
 ];
-const DEMO_FALLBACK = { code: "Claude", reasoning: "GPT", research: "Sonar Pro", write: "Claude", brainstorm: "Claude", vision: "Gemini", quick: "Gemini Flash" };
+const DEMO_FALLBACK = { code: "Claude Opus", reasoning: "GPT", research: "GPT with search", write: "Claude Opus", brainstorm: "Claude Opus", vision: "Gemini", quick: "Gemini Flash" };
 const withTier = (tier, fn) => fn();
 const landingTier = "best";
+// the measured leader for a kind of work; while the server reaches no model yet, the leaderboard's own leader
+function landingBest(task) {
+	if (!catalog.length) return null;
+	let m = best(task);
+	if (m.id === "openrouter/auto" && REACH) { const r = REACH; REACH = null; try { m = best(task); } finally { REACH = r; } }
+	return m.id === "openrouter/auto" ? null : m;
+}
 function modelFor(task) {
 	if (!catalog.length) return { name: DEMO_FALLBACK[task], lab: "" };
-	const m = withTier(landingTier, () => best(task));
+	const m = landingBest(task);
+	if (!m) return { name: DEMO_FALLBACK[task], lab: "" };
 	return { name: shortName(m), lab: provider(m.id), pout: m.pout };
 }
 let demoI = 0, demoTimer;
@@ -7714,8 +7767,8 @@ function runDemo() {
 }
 function renderLanding() {
 	const rows = Object.keys(TASK_INFO).map((t) => {
-		const m = catalog.length ? withTier(landingTier, () => best(t)) : null;
-		return '<div class="tr"><span class="task"><i></i>' + TASK_INFO[t].label + '</span><span class="mdl">' + (m ? esc(shortName(m)) : "—") + '<span class="why2">' + esc(TASK_INFO[t].why) + '</span></span><span class="lab">' + (m ? esc(provider(m.id)) : "") + "</span></div>";
+		const m = landingBest(t);
+		return '<div class="tr"><span class="task"><i></i>' + TASK_INFO[t].label + '</span><span class="mdl">' + (m ? esc(shortName(m)) : esc(DEMO_FALLBACK[t] || "—")) + '<span class="why2">' + esc(TASK_INFO[t].why) + '</span></span><span class="lab">' + (m ? esc(provider(m.id)) : "") + "</span></div>";
 	}).join("");
 	$("#modelTable").innerHTML = '<div class="tr th"><span>Task</span><span>Model</span><span>Lab</span></div>' + rows;
 	if (catalog.length) {
