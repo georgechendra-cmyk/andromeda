@@ -17,6 +17,17 @@ With Andromeda you just type. It sends each part of your request to the stronges
 - **Files:** real PowerPoint decks (with charts and speaker notes), Excel spreadsheets with working formulas, Word documents and PDFs.
 - **Study:** mind maps, flashcards, quizzes that grade your answers, two-host podcasts and interactive simulations.
 
+## Everything the best assistants have, switched on
+
+- **Beside the chat:** apps, games, pages and simulations open in a panel next to the conversation, with their code a click away. Long writing opens as a **canvas** you can edit, or ask Andromeda to change (all of it, or just what you've selected), with undo.
+- **Projects:** chats that share instructions and files (PDFs, Word, Excel, slides, code), so Andromeda always has the background.
+- **Library:** every picture, video, song, app and document Andromeda made for you, in one place.
+- **Compare AIs:** the strongest models of three labs answer on their own, side by side, and the best of each is combined into one answer.
+- **Works like an engineer:** runs Python and JavaScript in your browser (your spreadsheets, charts, calculations), searches and reads the web, uses your computer and apps through a small connector (asking before anything changes), and keeps long jobs going for hundreds of steps.
+- **Memory** across chats (see it and delete it any time), **temporary chats** that aren't saved or remembered, and **share links** for any chat.
+- **Your way:** Auto decides everything; Fast and Max change how hard it works; or pick one model yourself. Styles (Concise, Explanatory, Learning...) change how it writes. Any answer can be tried again shorter, more detailed, simpler, or with another model, and shows what the model thought before answering.
+- **Capabilities:** every skill and tool is listed in Settings and on from the start; switch off what you don't want.
+
 ## Always looking things up
 
 - A link in your message is opened and read.
@@ -63,7 +74,7 @@ The ratings come from `arena.json`, refreshed every day by a GitHub Action (`.gi
 - More can be bought with QRIS (and card, once it's set up).
 - Andromeda only ever shows credits, never token counts.
 
-The site runs through a small credits server on Cloudflare (`server/`) that holds the AI keys, so no one using the site ever needs or sees a key. Models are reached through Cloudflare AI Gateway (GPT, Claude, Gemini and Grok at the labs' own prices) or OpenRouter (everything else). To set it up, double-click `server/SET UP SERVER.bat`.
+The site runs through a small credits server on Cloudflare (`server/`) that holds the AI keys, so no one using the site ever needs or sees a key. Models are reached through WaveSpeed first (chat models, pictures, video, voice and music, with web search built in), then any OpenAI-compatible gateway, Cloudflare AI Gateway or OpenRouter. To set it up, double-click `server/SET UP SERVER.bat`.
 
 ## License
 
