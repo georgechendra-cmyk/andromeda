@@ -126,7 +126,7 @@ if (-not (Has "CF_API_TOKEN")) {
 
 if (-not (Has "TAVILY_KEY")) {
 	Write-Host ""
-	Write-Host "WEB SEARCH for Gemini and Grok: GPT and Claude search the web themselves; Tavily (1,000 free searches a month, no card) does it for the others." -ForegroundColor Yellow
+	Write-Host "WEB SEARCH already works through WaveSpeed's models (about 2 credits a search, paid by whoever searches). Optional: a free Tavily key (1,000 searches a month, no card) does it for free instead." -ForegroundColor Yellow
 	if (Yes "Add a Tavily key?") {
 		Start-Process "https://app.tavily.com/home"
 		Write-Host "Tavily just opened: sign up, copy your API key (it starts with tvly-), come back here and paste it."

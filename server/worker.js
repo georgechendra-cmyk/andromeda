@@ -85,7 +85,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/music" && m === "POST") return music(req, env, user);
 	if (p === "/api/tools/docs" && m === "POST") return toolDocs(req, env);
 	if (p === "/api/tools/fetch" && m === "POST") return toolFetch(req, env);
-	if (p === "/api/tools/search" && m === "POST") return toolSearch(req, env);
+	if (p === "/api/tools/search" && m === "POST") return toolSearch(req, env, user);
 	if (p === "/api/payments/qris" && m === "POST") return qrisPayment(req, env, user);
 	throw fail(404, "Not found");
 }
@@ -865,6 +865,59 @@ async function searchWeb(env, q, n) {
 	} catch {}
 	return [];
 }
+// No search key: a model that searches the web for itself finds the sources (WaveSpeed's models with web search, or
+// OpenRouter's web plugin), so search works from the start. Only what it actually cites is kept (a model that answered
+// from memory isn't searching, and its links aren't trusted). About a cent a search, charged like anything else.
+const SEARCHERS = ["x-ai/grok-4.7", "openai/gpt-5.4-nano", "google/gemini-3.5-flash-lite", "anthropic/claude-haiku-5.5", "openai/gpt-4o-mini"];
+const SEARCH_OFF = new Map(); // a gateway that answered without searching: not asked again for an hour
+async function modelSearch(env, q, n) {
+	const ways = [...gateways(env).filter((g) => g.n === "ws").map((g) => ({ id: "ws", base: g.base, key: g.key })), ...(env.OPENROUTER_KEY ? [{ id: "or", base: orBase(env), key: env.OPENROUTER_KEY }] : [])];
+	const ask = "Search the web now for: " + q + "\n\nThen reply with ONLY JSON: {\"results\": [{\"title\": \"...\", \"url\": \"the page's address\", \"text\": \"what that page says that matters here, in 2 to 4 sentences, with its date if it has one\"}]}: up to " + n + " results from different sources, the most useful and recent first.";
+	let usd = 0;
+	for (const w of ways) {
+		if (Date.now() - (SEARCH_OFF.get(w.id) || 0) < 3600e3) continue;
+		models: for (const model of SEARCHERS) {
+			for (const extra of [{ plugins: [{ id: "web", max_results: n }], web_search_options: { search_context_size: "medium" } }, { web_search_options: { search_context_size: "medium" } }]) {
+				let r;
+				try {
+					r = await fetch(w.base + "/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + w.key, "Content-Type": "application/json" }, body: JSON.stringify({ model, messages: [{ role: "user", content: ask }], max_tokens: 2000, temperature: 0, ...extra }), signal: AbortSignal.timeout(40000) });
+				} catch { continue models; }
+				// a model it doesn't have: the next one; settings it doesn't take: the plainer form
+				if (r.status === 400 || r.status === 422) continue;
+				if (!r.ok) continue models;
+				const j = await r.json().catch(() => null);
+				usd += Number(j?.usage?.cost) || 0.012;
+				const msg = j?.choices?.[0]?.message || {};
+				const cites = (msg.annotations || []).map((a) => a.url_citation || a).filter((c) => c && /^https?:\/\//.test(String(c.url || "")));
+				if (!cites.length) { SEARCH_OFF.set(w.id, Date.now()); break models; }
+				let said = [];
+				try { said = JSON.parse(String(msg.content || "").replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).results || []; } catch {}
+				const seen = new Set(), out = [];
+				for (const c of cites) {
+					const u = String(c.url).replace(/[?&]utm_[^&]+/g, "");
+					if (seen.has(u)) continue;
+					seen.add(u);
+					const s = said.find((x) => x && String(x.url || "").replace(/\/$/, "") === u.replace(/\/$/, ""));
+					out.push({ title: String(c.title || (s && s.title) || new URL(u).hostname).slice(0, 200), url: u, text: String((s && s.text) || c.content || "").slice(0, 1500) });
+				}
+				return { results: out.slice(0, n), usd, model };
+			}
+		}
+	}
+	return { results: [], usd };
+}
+// what a search finds: the search key's results, or (with none) a model's own search, held and charged to the person
+async function searchFor(env, user, q, n) {
+	const keyed = await searchWeb(env, q, n);
+	if (keyed.length || !user) return keyed;
+	const c = await config(env), mt = media(c);
+	const held = await take(env, user.id, mt.toMc(0.06), c);
+	if (!held) return [];
+	let got = { results: [], usd: 0 };
+	try { got = await modelSearch(env, q, n); }
+	finally { await charge(env, user.id, "web-search" + (got.model ? ": " + got.model : ""), held, got.usd, mt); }
+	return got.results;
+}
 // the search results go in front of the newest message (not the system prompt), so the cached start of the
 // conversation stays the same
 function withNote(messages, note) {
@@ -948,7 +1001,7 @@ async function chat(req, env, ctx, user) {
 	let noted = null;
 	const notedMessages = async () => {
 		if (noted) return noted;
-		const found = await searchWeb(env, web.query, web.n);
+		const found = await searchFor(env, user, web.query, web.n);
 		noted = withNote(b.messages, found.length
 			? "Live web search results for this, just fetched. Use them for anything current and cite them inline as [n](url):\n\n" + found.map((x, i) => "[" + (i + 1) + "] " + x.title + " (" + x.url + ")\n" + x.text).join("\n\n") + "\n\n---\n\n"
 			: "(A live web search wasn't possible just now: answer from what you know, and say plainly if it may be out of date.)\n\n");
@@ -1670,12 +1723,12 @@ async function toolDocs(req, env) {
 }
 
 // a live web search for Andromeda working on its own (Tavily or Brave, when the server has a key for one)
-async function toolSearch(req, env) {
+async function toolSearch(req, env, user) {
 	const b = await body(req);
 	const q = String(b.query || "").trim();
 	if (!q) throw fail(400, "Search for what?");
-	if (!env.TAVILY_KEY && !env.BRAVE_KEY) throw fail(503, "Web search isn't set up on this server yet (it needs a free Tavily key). Read pages directly with fetch_url instead.");
-	return json({ results: await searchWeb(env, q, Math.max(1, Math.min(10, Number(b.n) || 6))) });
+	if (!env.TAVILY_KEY && !env.BRAVE_KEY && !env.WAVESPEED_KEY && !env.OPENROUTER_KEY) throw fail(503, "Web search isn't set up on this server yet. Read pages directly with fetch_url instead.");
+	return json({ results: await searchFor(env, user, q, Math.max(1, Math.min(10, Number(b.n) || 6))) });
 }
 async function toolFetch(req, env) {
 	const b = await body(req);
