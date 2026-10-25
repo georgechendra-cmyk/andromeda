@@ -1059,6 +1059,53 @@ textarea#input { padding: 16px 20px 6px; }
 	.act.ic { width: 36px; height: 36px; }
 }
 @media (max-width: 420px) { .welcome .greet { flex-direction: column; font-size: 28px; } #micBtn { display: none; } }
+
+/* ---- the panel beside the chat: what was made, big */
+@media (min-width: 861px) {
+	.app { --c1: var(--sb); --c3: 0px; grid-template-columns: var(--c1) minmax(0, 1fr) var(--c3); }
+	body.sb-closed .app { --c1: var(--rail); grid-template-columns: var(--c1) minmax(0, 1fr) var(--c3); }
+	body.art-open .app { --c3: var(--artw, min(48vw, 780px)); }
+}
+.art { position: relative; z-index: 5; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--glass-line); background: var(--bg2); container-type: inline-size; animation: fade .35s var(--ease) both; }
+.art[hidden] { display: none; }
+.art-h { display: flex; align-items: center; gap: 2px; height: 54px; padding: 0 8px 0 16px; border-bottom: 1px solid var(--glass-line); }
+.art-t { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.art-t b { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-t small { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seg2 { display: inline-flex; flex: none; padding: 3px; margin-right: 6px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); }
+.seg2[hidden] { display: none; }
+.seg2 button { height: 28px; padding: 0 11px; border-radius: 8px; font-size: 13px; color: var(--muted); }
+.seg2 button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.14); }
+.art .icon { flex: none; width: 32px; height: 32px; }
+.art .icon[hidden] { display: none; }
+.art-b { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); }
+.art-frame { flex: 1; width: 100%; border: 0; display: block; background: #fff; }
+.art-files { flex: none; margin: 0; padding: 10px 12px 0; }
+.art-code { flex: 1; min-height: 0; margin: 0; padding: 16px 18px; overflow: auto; font: 12.5px/1.6 var(--mono); white-space: pre; tab-size: 4; }
+.art-drag { position: absolute; left: -5px; top: 0; bottom: 0; width: 10px; cursor: col-resize; z-index: 3; }
+.art-drag::after { content: ""; position: absolute; left: 4px; top: 0; bottom: 0; width: 2px; background: var(--brand); opacity: 0; transition: opacity .2s; }
+.art-drag:hover::after, body.art-dragging .art-drag::after { opacity: 1; }
+body.art-dragging { cursor: col-resize; user-select: none; -webkit-user-select: none; }
+body.art-dragging iframe { pointer-events: none; }
+body.art-dragging .app { transition: none; }
+@container (max-width: 520px) { #artTab, #artFull { display: none; } .art-h { padding-left: 12px; } }
+@media (max-width: 860px) {
+	.art { position: fixed; inset: 0; z-index: 45; border: 0; padding-top: env(safe-area-inset-top); animation: sheet .35s var(--ease) both; }
+	.art-drag { display: none; }
+}
+@keyframes sheet { from { transform: translateY(28px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* what was made, as a card in the chat */
+.art-card { display: flex; align-items: center; gap: 12px; width: 100%; max-width: 470px; margin: 6px 0 2px; padding: 12px 14px; border: 1px solid var(--line2); border-radius: 16px; background: var(--bg2); text-align: left; transition: border-color .2s, transform .2s var(--ease), box-shadow .25s; }
+.art-card:hover { border-color: color-mix(in srgb, var(--brand) 40%, var(--line2)); box-shadow: var(--lift); transform: translateY(-1px); }
+.art-card .art-ic { flex: none; width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); }
+.art-card .art-ct { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.art-card b { font-weight: 600; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.art-card small { font-size: 12.5px; color: var(--muted); }
+.art-card .art-go { flex: none; padding: 5px 11px; border-radius: 9px; border: 1px solid var(--line2); font-size: 13px; color: var(--muted); }
+.art-card.on { border-color: color-mix(in srgb, var(--brand) 55%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand) 35%, transparent); }
+.art-card.on .art-go { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, transparent); }
+/* the chat is narrower beside the panel: no room for the mark out in the margin */
+body.art-open .msg > .av { display: none; }
 </style>
 </head>
 <body>
@@ -1244,6 +1291,20 @@ textarea#input { padding: 16px 20px 6px; }
 		</div>
 		<input type="file" id="fileInput" multiple hidden>
 	</main>
+	<aside class="art" id="art" hidden aria-label="What was made">
+		<div class="art-drag" id="artDrag" title="Drag to make it wider or narrower"></div>
+		<div class="art-h">
+			<div class="art-t"><b id="artTitle"></b><small id="artSub"></small></div>
+			<div class="seg2" id="artViews" role="tablist"><button data-artview="preview" role="tab" class="on">Preview</button><button data-artview="code" role="tab">Code</button></div>
+			<button class="icon" id="artReload" title="Start it again" aria-label="Start it again"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
+			<button class="icon" id="artCopy" title="Copy the code" aria-label="Copy the code"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/><rect x="3" y="8" width="13" height="13" rx="2"/></svg></button>
+			<button class="icon" id="artDl" title="Download" aria-label="Download"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
+			<button class="icon" id="artTab" title="Open in a new tab" aria-label="Open in a new tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></button>
+			<button class="icon" id="artFull" title="Full screen" aria-label="Full screen"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+			<button class="icon" id="artClose" title="Close" aria-label="Close"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+		</div>
+		<div class="art-b" id="artBody"></div>
+	</aside>
 </div>
 
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
@@ -1970,6 +2031,8 @@ const TOOLS = {
 	act: { label: "Tools and computer", ways: ["act"], ph: "What should I do? I can run code, search, and work in your apps" },
 };
 let TOOL = null;
+// what is open in the panel beside the chat (its code is further down)
+let ART = null;
 let PROFILE_TEXT = null, PLAN_NOTE = "";
 // what was made just before (so "make it calmer" changes that one)
 function lastMade() {
@@ -2359,7 +2422,7 @@ function md(text, live) {
 		const pv = live ? "" : pvKind(lang, code.textContent);
 		if (pv) wrap.dataset.pv = pv;
 		wrap.innerHTML = '<div class="code-h"><span>' + esc(diagram ? "diagram" : lang || "code") + '</span><span class="sp"></span>' +
-			(pv ? '<button data-pv>Preview</button><button data-pvfull hidden>Full screen</button><button data-pvtab title="Open the preview in a new tab">Open ↗</button>' : "") +
+			(pv ? '<button data-pv>Preview</button><button data-pvside title="Open it beside the chat, bigger">Beside</button><button data-pvfull hidden>Full screen</button><button data-pvtab title="Open the preview in a new tab">Open ↗</button>' : "") +
 			(diagram ? '<button data-mmcode hidden>Code</button><button data-mmsvg hidden>Download</button>' : "") + '<button data-copy>Copy</button></div>';
 		pre.replaceWith(wrap);
 		wrap.appendChild(pre);
@@ -2729,6 +2792,7 @@ function paintLast() {
 	stick();
 }
 function render() {
+	if (ART && (!current || ART.cid !== current.id || (ART.kind === "app" || ART.kind === "sim") && (current.msgs[ART.i] || {}).kind !== ART.kind)) closeArt();
 	renderConvoList();
 	renderThread();
 	current?.msgs.forEach((m, i) => STUDY[m.kind] && renderStudy(m, i));
@@ -3693,7 +3757,7 @@ function renderAgent(m, i, box) {
 	box.innerHTML = '<div class="ag"><details class="ag-log"' + (m.streaming ? " open" : "") + "><summary>" + (m.streaming ? "Working in " : "Worked in ") + esc(d.project) + " · " + d.log.length + " step" + (d.log.length === 1 ? "" : "s") + (m.model ? " · " + esc(m.model) : "") + "</summary><ol>" + log + "</ol></details>" +
 		(files ? '<div class="ag-files">' + files + "</div>" : "") + ask + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
 		(d.preview && !m.streaming && P ? '<div class="ag-prev">' + (m.hidePreview ? "" : '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts allow-forms allow-modals" title="Preview"></iframe></div>') +
-			'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-agprev>' + (m.hidePreview ? "Show the preview" : "Hide the preview") + "</button>" + (m.hidePreview ? "" : '<button class="btn" data-agfull>Full screen</button><button class="btn" data-agreload>Reload</button><button class="btn" data-agtab>Open in a new tab</button>') + "</div></div>" : "") + "</div>";
+			'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-agprev>' + (m.hidePreview ? "Show the preview" : "Hide the preview") + '</button><button class="btn" data-agside>Open beside</button>' + (m.hidePreview ? "" : '<button class="btn" data-agfull>Full screen</button><button class="btn" data-agreload>Reload</button><button class="btn" data-agtab>Open in a new tab</button>') + "</div></div>" : "") + "</div>";
 	const q = (s) => box.querySelector(s);
 	if (d.ask) {
 		const answer = (ok, all) => { const go = ASKS.get(d.ask.id); if (all && current) { current.trustComputer = true; save(); } if (go) go(ok); else { d.ask = null; renderStudy(m, i); } };
@@ -3710,6 +3774,11 @@ function renderAgent(m, i, box) {
 	}
 	if (q("[data-agprev]")) {
 		q("[data-agprev]").onclick = () => { m.hidePreview = !m.hidePreview; save(); renderStudy(m, i); };
+		q("[data-agside]").onclick = async () => {
+			const doc = await projectPreview().catch(() => null);
+			if (!doc) { toast("Nothing to preview in this project yet"); return; }
+			openArt({ kind: "project", title: d.project, sub: "Your project, running", sandbox: "allow-scripts allow-forms allow-modals", doc: withCsp(doc), page: doc, files: null, i });
+		};
 		const f = q(".ag-prev iframe");
 		if (f) {
 			const load = async () => { const doc = await projectPreview(); f.srcdoc = doc ? withCsp(doc) : "<p style='font-family:sans-serif;padding:20px'>Nothing to preview here.</p>"; return doc; };
@@ -4937,38 +5006,11 @@ function renderStudy(m, i) {
 			save();
 			renderStudy(m, i);
 		});
-	} else if (m.kind === "app") {
-		const files = m.data.files || {}, names = Object.keys(files);
-		const tab = m.tab && (m.tab === "preview" || files[m.tab] != null) ? m.tab : "preview";
-		const csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
-		const page = appDoc(files);
-		const doc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + csp) : "<!doctype html>" + csp + page;
-		box.innerHTML = '<div class="app-tabs"><button class="app-tab' + (tab === "preview" ? " on" : "") + '" data-apptab="preview">Preview</button>' +
-			names.map((n) => '<button class="app-tab' + (tab === n ? " on" : "") + '" data-apptab="' + esc(n) + '">' + esc(n) + "</button>").join("") + "</div>" +
-			(tab === "preview" ? '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts" title="Preview"></iframe></div>' : '<pre class="app-code"><code></code></pre>') +
-			'<div class="row" style="margin:8px 0 4px;gap:8px">' + (tab === "preview" ? '<button class="btn" data-appfull>Full screen</button><button class="btn" data-appreset>Restart</button><button class="btn" data-appdl>Download page</button>' : '<button class="btn" data-appcopy>Copy file</button><button class="btn" data-appdlfile>Download file</button>') + "</div>";
-		$$("[data-apptab]", box).forEach((b) => b.onclick = () => { m.tab = b.dataset.apptab; save(); renderStudy(m, i); });
-		if (tab === "preview") {
-			const f = $("iframe", box);
-			f.srcdoc = doc;
-			$("[data-appfull]", box).onclick = () => f.requestFullscreen && f.requestFullscreen();
-			$("[data-appreset]", box).onclick = () => { f.srcdoc = ""; f.srcdoc = doc; };
-			$("[data-appdl]", box).onclick = () => download((m.data.title || "app").replace(/[^\w -]+/g, "").slice(0, 40) + ".html", page);
-		} else {
-			$("code", box).textContent = files[tab];
-			$("[data-appcopy]", box).onclick = () => { navigator.clipboard.writeText(files[tab]); toast("Copied"); };
-			$("[data-appdlfile]", box).onclick = () => download(tab.split("/").pop(), files[tab]);
-		}
-	} else if (m.kind === "sim") {
-		const csp = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
-		const h = m.data.html;
-		const doc = /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + csp) : "<!doctype html>" + csp + h;
-		box.innerHTML = '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts" title="Simulation"></iframe></div><div class="row" style="margin:8px 0 4px;gap:8px"><button class="btn" data-simfull>Full screen</button><button class="btn" data-simreset>Restart</button><button class="btn" data-simdl>Download</button></div>';
-		const f = $("iframe", box);
-		f.srcdoc = doc;
-		$("[data-simfull]", box).onclick = () => f.requestFullscreen && f.requestFullscreen();
-		$("[data-simreset]", box).onclick = () => { f.srcdoc = ""; f.srcdoc = doc; };
-		$("[data-simdl]", box).onclick = () => download((m.data.title || "simulation").replace(/[^\w -]+/g, "").slice(0, 40) + ".html", m.data.html);
+	} else if (m.kind === "app" || m.kind === "sim") {
+		// a card here; the thing itself opens in the panel beside the chat
+		box.innerHTML = artCard(m, i);
+		// the newest thing made opens by itself, once, where there's room for it
+		if (m.artShown == null && i === current.msgs.length - 1 && !m.streaming) { m.artShown = true; save(); if (innerWidth > 860) openArt(artFor(i)); }
 	} else if (m.kind === "podcast") {
 		const lines = m.data.lines || [];
 		box.innerHTML = '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-play>' + (speech.playing === m ? "Stop" : "Play episode") + '</button><button class="btn" data-dl>Download script</button></div><div class="md">' + lines.map((l) => "<p><b>" + esc(l.who) + ":</b> " + esc(l.text) + "</p>").join("") + "</div>";
@@ -7017,6 +7059,11 @@ document.addEventListener("click", (e) => {
 		// remembered, so drawing the chat again keeps it as it was left
 		if (m && k >= 0) { m.pv = (m.pv || []).filter((x) => x !== k).concat(on ? [k] : []); save(); }
 	}
+	else if (t.hasAttribute("data-pvside")) {
+		const wrap = t.closest(".code"), code = wrap.querySelector("code").textContent, { m } = pvWhere(wrap);
+		const lang = wrap.dataset.lang || wrap.dataset.pv;
+		openArt({ kind: "code", title: (m && current.msgs[current.msgs.indexOf(m) - 1] && current.msgs[current.msgs.indexOf(m) - 1].text || "Preview").slice(0, 60), sub: ({ react: "React component", svg: "Picture (SVG)" })[wrap.dataset.pv] || "Web page", sandbox: PV_SANDBOX, doc: buildPreview(wrap.dataset.pv, code, wrap), page: code, files: [{ name: lang, text: code }] });
+	}
 	else if (t.hasAttribute("data-pvtab")) { const wrap = t.closest(".code"); openPreviewTab(buildPreview(wrap.dataset.pv, wrap.querySelector("code").textContent, wrap)); }
 	else if (t.hasAttribute("data-pvfull")) { const f = t.closest(".code").querySelector(".pv iframe"); if (f && f.requestFullscreen) f.requestFullscreen().catch(() => toast("Full screen isn't allowed here: use Open ↗")); }
 	else if (t.dataset.models != null) {
@@ -7230,6 +7277,125 @@ $("#modePop").addEventListener("click", (e) => {
 	toast(settings.pin ? shortName(catalog.find((x) => x.id === settings.pin) || { id: settings.pin }) + " answers everything until you switch back to Auto" : SPEEDS[speed()][0] + ": " + SPEEDS[speed()][1].toLowerCase());
 });
 drawMode();
+
+// ---------------------------------------------------------------- the panel beside the chat (like Claude's artifacts): what was made, big,
+// next to the conversation. Each thing runs in its own sandbox (it can't see this page or the account), with its code a
+// click away, and can be copied, downloaded, opened in a tab of its own or shown full screen.
+const ART_ICONS = {
+	app: '<rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 11v4M5 13h4"/><circle cx="16" cy="12" r=".6"/><circle cx="18" cy="15" r=".6"/>',
+	sim: '<circle cx="12" cy="12" r="1.6"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/>',
+};
+const SANDBOX_META = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
+const sealed = (h) => (/<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + SANDBOX_META) : "<!doctype html>" + SANDBOX_META + h);
+function artFor(i) {
+	const m = current && current.msgs[i];
+	if (!m || !m.data) return null;
+	if (m.kind === "app") {
+		const files = m.data.files || {}, page = appDoc(files);
+		return { kind: "app", i, title: m.data.title || "App", sub: "App · " + Object.keys(files).length + " file" + (Object.keys(files).length === 1 ? "" : "s"), sandbox: "allow-scripts", doc: sealed(page), page, files: Object.entries(files).map(([name, text]) => ({ name, text })) };
+	}
+	if (m.kind === "sim") {
+		const h = m.data.html || "";
+		return { kind: "sim", i, title: m.data.title || "Simulation", sub: "Simulation · interactive", sandbox: "allow-scripts", doc: sealed(h), page: h, files: [{ name: "index.html", text: h }] };
+	}
+	return null;
+}
+function artCard(m, i) {
+	const on = !!ART && !!current && ART.cid === current.id && ART.i === i;
+	const n = m.kind === "app" ? Object.keys(m.data.files || {}).length : 0;
+	return '<button class="art-card' + (on ? " on" : "") + '" data-artopen="' + i + '"><span class="art-ic">' + svgOf(ART_ICONS[m.kind] || ART_ICONS.app, 22) + '</span><span class="art-ct"><b>' + esc(m.data.title || (m.kind === "sim" ? "Simulation" : "App")) + "</b><small>" + (m.kind === "sim" ? "Simulation · interactive" : "App · " + n + " file" + (n === 1 ? "" : "s")) + '</small></span><span class="art-go">' + (on ? "Showing" : "Open") + "</span></button>";
+}
+function openArt(a) {
+	if (!a || !current) return;
+	ART = { view: "preview", file: 0, cid: current.id, ...a };
+	drawArt();
+	markArtCards();
+}
+function closeArt() {
+	if (!ART) return;
+	ART = null;
+	drawArt();
+	markArtCards();
+}
+function markArtCards() {
+	$$(".art-card").forEach((c) => {
+		const on = !!ART && !!current && ART.cid === current.id && ART.i === +c.dataset.artopen;
+		c.classList.toggle("on", on);
+		const go = c.querySelector(".art-go");
+		if (go) go.textContent = on ? "Showing" : "Open";
+	});
+}
+const langOf = (name) => {
+	const e = String(name || "").split(".").pop().toLowerCase();
+	return { html: "xml", htm: "xml", svg: "xml", xml: "xml", js: "javascript", mjs: "javascript", jsx: "javascript", javascript: "javascript", react: "javascript", ts: "typescript", tsx: "typescript", typescript: "typescript", css: "css", json: "json", py: "python", python: "python", md: "markdown" }[e] || "";
+};
+function artFile() { return ART && ART.files && ART.files.length ? ART.files[Math.min(ART.file || 0, ART.files.length - 1)] : null; }
+function drawArt() {
+	const a = ART;
+	document.body.classList.toggle("art-open", !!a);
+	$("#art").hidden = !a;
+	if (!a) { $("#artBody").innerHTML = ""; return; }
+	$("#artTitle").textContent = a.title;
+	$("#artSub").textContent = a.sub || "";
+	const hasCode = !!(a.files && a.files.length);
+	if (!hasCode) a.view = "preview";
+	$("#artViews").hidden = !hasCode;
+	$$("[data-artview]").forEach((b) => { b.classList.toggle("on", b.dataset.artview === a.view); b.setAttribute("aria-selected", String(b.dataset.artview === a.view)); });
+	$("#artReload").hidden = $("#artFull").hidden = a.view !== "preview";
+	const body = $("#artBody");
+	if (a.view === "preview") {
+		body.innerHTML = '<iframe class="art-frame"></iframe>';
+		const f = body.firstChild;
+		f.setAttribute("sandbox", a.sandbox || "allow-scripts");
+		f.setAttribute("allow", "fullscreen; clipboard-write");
+		f.setAttribute("title", a.title);
+		f.srcdoc = a.doc || "<p style='font-family:sans-serif;padding:20px'>Nothing to show yet.</p>";
+	} else {
+		const file = artFile(), k = a.files.indexOf(file);
+		body.innerHTML = (a.files.length > 1 ? '<div class="app-tabs art-files">' + a.files.map((x, n) => '<button class="app-tab' + (n === k ? " on" : "") + '" data-artfile="' + n + '">' + esc(x.name) + "</button>").join("") + "</div>" : "") + '<pre class="art-code"><code class="hljs"></code></pre>';
+		const code = body.querySelector("code"), lang = langOf(file.name);
+		try { code.innerHTML = window.hljs && lang && hljs.getLanguage(lang) && file.text.length < 400000 ? hljs.highlight(file.text, { language: lang }).value : esc(file.text); } catch { code.textContent = file.text; }
+	}
+}
+document.addEventListener("click", (e) => {
+	const card = e.target.closest("[data-artopen]");
+	if (card) {
+		const i = +card.dataset.artopen;
+		if (ART && current && ART.cid === current.id && ART.i === i) closeArt();
+		else openArt(artFor(i));
+		return;
+	}
+	const v = e.target.closest("[data-artview]"), f = e.target.closest("[data-artfile]");
+	if (v && ART) { ART.view = v.dataset.artview; drawArt(); }
+	else if (f && ART) { ART.file = +f.dataset.artfile; drawArt(); }
+});
+$("#artClose").onclick = closeArt;
+$("#artReload").onclick = () => ART && drawArt();
+$("#artFull").onclick = () => { const f = $("#artBody iframe"); if (f && f.requestFullscreen) f.requestFullscreen().catch(() => toast("Full screen isn't allowed here: open it in a new tab")); };
+$("#artTab").onclick = () => ART && openPreviewTab(ART.doc);
+$("#artCopy").onclick = () => { if (!ART) return; const f = ART.view === "code" ? artFile() : null; navigator.clipboard.writeText(f ? f.text : ART.page || ART.doc).then(() => toast("Copied"), () => toast("Couldn't copy here")); };
+$("#artDl").onclick = () => {
+	if (!ART) return;
+	const name = String(ART.title || "page").replace(/[^\w -]+/g, "").trim().slice(0, 40) || "page", f = ART.view === "code" ? artFile() : null;
+	if (f) download(/\./.test(f.name) ? f.name.split("/").pop() : name + "." + ({ react: "jsx", javascript: "js" }[f.name] || f.name), f.text);
+	else download(name + ".html", ART.page || ART.doc);
+};
+// wider or narrower: drag its edge (remembered)
+$("#artDrag").addEventListener("pointerdown", (e) => {
+	e.preventDefault();
+	const app = $(".app").getBoundingClientRect(), sb = $("#sidebar").getBoundingClientRect().width;
+	document.body.classList.add("art-dragging");
+	const move = (ev) => document.documentElement.style.setProperty("--artw", Math.round(Math.max(340, Math.min(app.right - ev.clientX, app.width - sb - 380))) + "px");
+	const up = () => {
+		document.body.classList.remove("art-dragging");
+		removeEventListener("pointermove", move);
+		removeEventListener("pointerup", up);
+		store.set("artw", document.documentElement.style.getPropertyValue("--artw"));
+	};
+	addEventListener("pointermove", move);
+	addEventListener("pointerup", up);
+});
+{ const w = store.get("artw", ""); if (/^\d+px$/.test(w)) document.documentElement.style.setProperty("--artw", w); }
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
