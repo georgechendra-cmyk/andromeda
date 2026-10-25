@@ -68,8 +68,13 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/webhooks/lemonsqueezy" && m === "POST") return lemonWebhook(req, env);
 	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : { image: [], video: [], speech: [], music: [] });
 	if (p.startsWith("/api/admin/")) return admin(req, env, p, m);
+	// a shared chat: anyone with its link can read it
+	let sh;
+	if ((sh = p.match(/^\/api\/shares\/([a-f0-9]{24})$/)) && m === "GET") return shareGet(env, sh[1]);
 
 	const user = await authUser(req, env);
+	if (p === "/api/shares" && m === "POST") return shareMake(req, env, user);
+	if (sh && m === "DELETE") return shareDel(env, user, sh[1]);
 	if (p === "/api/logout" && m === "POST") {
 		await env.DB.prepare("DELETE FROM sessions WHERE token_hash = ?").bind(await sha256hex(bearer(req))).run();
 		return json({ ok: true });
@@ -1750,6 +1755,35 @@ async function toolFetch(req, env) {
 			.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
 	}
 	return json({ url: u.toString(), title: title.replace(/\s+/g, " ").trim().slice(0, 200), text: t.slice(0, 30000) });
+}
+
+// ------------------------------------------------------------------ shared chats
+// A chat its owner chose to share: a read-only copy of its words (no files, pictures or apps), at a link nobody can guess.
+// Sharing it again updates the same link; the owner can stop sharing it.
+async function shareMake(req, env, user) {
+	const b = await body(req);
+	const msgs = (Array.isArray(b.msgs) ? b.msgs : []).slice(0, 500).map((x) => ({ role: x && x.role === "user" ? "user" : "assistant", text: String((x && x.text) || "").slice(0, 60000) })).filter((x) => x.text.trim());
+	if (!msgs.length) throw fail(400, "There's nothing in this chat to share yet.");
+	const data = JSON.stringify(msgs), title = String(b.title || "").slice(0, 120);
+	if (data.length > 900000) throw fail(413, "This chat is too long to share.");
+	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
+		const r = await env.DB.prepare("UPDATE shares SET title = ?, data = ?, created_at = ? WHERE id = ? AND user_id = ?").bind(title, data, now(), b.id, user.id).run();
+		if (r.meta && r.meta.changes) return json({ id: b.id });
+	}
+	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM shares WHERE user_id = ?").bind(user.id).first();
+	if (n && n.n >= 500) throw fail(429, "You're sharing 500 chats already: stop sharing some old ones first.");
+	const sid = id();
+	await env.DB.prepare("INSERT INTO shares (id, user_id, title, data, created_at) VALUES (?, ?, ?, ?, ?)").bind(sid, user.id, title, data, now()).run();
+	return json({ id: sid });
+}
+async function shareGet(env, sid) {
+	const r = await env.DB.prepare("SELECT title, data, created_at FROM shares WHERE id = ?").bind(sid).first();
+	if (!r) throw fail(404, "This chat isn't shared, or its owner stopped sharing it.");
+	return json({ title: r.title || "Shared chat", msgs: JSON.parse(r.data), at: r.created_at });
+}
+async function shareDel(env, user, sid) {
+	await env.DB.prepare("DELETE FROM shares WHERE id = ? AND user_id = ?").bind(sid, user.id).run();
+	return json({ ok: true });
 }
 
 // ------------------------------------------------------------------ payments

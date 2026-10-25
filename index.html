@@ -1185,6 +1185,18 @@ a.pill:hover { color: var(--text); border-color: color-mix(in srgb, var(--brand)
 .foot a { color: var(--muted); }
 @media (max-width: 960px) { .grid3, .feats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 620px) { .grid3, .feats { grid-template-columns: 1fr; } .nav .gh { display: none; } .hero { padding-top: 64px; } }
+
+/* ---- a shared chat, read-only */
+body.in-share .site, body.in-share .app, body.in-share .bgwrap { display: none !important; }
+.shared[hidden] { display: none; }
+.shared { min-height: 100dvh; animation: fade .4s var(--ease) both; }
+.sh-top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 14px; height: 60px; padding: 0 20px; border-bottom: 1px solid var(--glass-line); background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.sh-top .sp { flex: 1; }
+.sh-t { min-width: 0; font-size: 14px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-t:not(:empty)::before { content: "/"; margin-right: 12px; color: var(--faint); }
+.shared .thread { padding-bottom: 90px; }
+.sh-note { text-align: center; font-size: 13px; color: var(--faint); margin: 0 0 30px; }
+@media (max-width: 620px) { .sh-t, #shCont { display: none; } }
 </style>
 </head>
 <body>
@@ -1347,6 +1359,7 @@ a.pill:hover { color: var(--text); border-color: color-mix(in srgb, var(--brand)
 			<button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
 			<button class="menu-btn" id="newChatTop" aria-label="New chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
 			<div class="pop" id="chatPop" role="menu" hidden>
+				<button role="menuitem" data-chat="share"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Share a link</button>
 				<button role="menuitem" data-chat="copy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>Copy the chat as Markdown</button>
 				<button role="menuitem" data-chat="md"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Download as Markdown</button>
 				<button role="menuitem" data-chat="print"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/></svg>Print or save as PDF</button>
@@ -1411,6 +1424,10 @@ a.pill:hover { color: var(--text); border-color: color-mix(in srgb, var(--brand)
 	</aside>
 </div>
 
+<div class="shared" id="shared" hidden>
+	<header class="sh-top"><a class="logo" href="./" title="Andromeda"><svg class="mark"><use href="#logo"/></svg>Andromeda</a><span class="sh-t" id="shTitle"></span><span class="sp"></span><button class="b sec" id="shCont">Continue this chat</button><button class="b pri" data-open-app>Try Andromeda</button></header>
+	<div class="thread" id="shThread"></div>
+</div>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="srStatus" aria-live="polite"></div>
@@ -7300,7 +7317,8 @@ function chatAction(kind) {
 	closeChatMenu();
 	if (!current || !current.msgs.length) return;
 	const name = (current.title || "chat").replace(/[\\/:*?"<>|\n]+/g, " ").trim().slice(0, 60) || "chat";
-	if (kind === "copy") { navigator.clipboard.writeText(chatMarkdown(current)); toast("Copied the chat as Markdown"); }
+	if (kind === "share") shareChat();
+	else if (kind === "copy") { navigator.clipboard.writeText(chatMarkdown(current)); toast("Copied the chat as Markdown"); }
 	else if (kind === "md") saveBlob(new Blob([chatMarkdown(current)], { type: "text/markdown" }), name + ".md");
 	else if (kind === "print") setTimeout(() => print(), 60);
 	else if (kind === "rename") {
@@ -7698,8 +7716,78 @@ $("#libNav").onclick = () => { openSidebar(false); openLibrary(); };
 const TOOL_CAP = { research: "research", image: "create", video: "create", music: "create", study: "study", doc: "docs" };
 $("#plusBtn").addEventListener("click", () => $$("[data-tool]").forEach((b) => { const k = TOOL_CAP[b.dataset.tool]; b.hidden = !!k && !capOn(k); }), true);
 
+// ---------------------------------------------------------------- sharing a chat: a read-only copy of its words, at a link
+const shareURL = (sid) => location.origin + location.pathname + "#share=" + sid;
+function shareChat() {
+	if (!current || !current.msgs.length) return;
+	if (!account) { openAccount(); return; }
+	const c = current, have = c.shared;
+	const words = () => c.msgs.filter((m) => !m.error && (m.text || "").trim()).map((m) => ({ role: m.role, text: m.text }));
+	openModal('<h2>Share this chat</h2><p class="sub">Anyone with the link can read it: the words only. Files, pictures, apps, your projects and your other chats stay private.' + (have ? " Messages since you shared it are added when you update the link." : "") + '</p><div class="field" id="shBox">' + (have ? '<div class="row"><input class="inp" id="shUrl" readonly value="' + esc(shareURL(have.id)) + '"><button class="btn dark" id="shCopy">Copy</button></div>' : "") + '</div><div class="status" id="shStatus"></div><div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px">' +
+		(have ? '<button class="btn" id="shStop">Stop sharing</button><button class="btn" id="shGo">Update the link</button>' : '<button class="btn" id="shNo">Cancel</button><button class="btn dark" id="shGo">Create the link</button>') + "</div>");
+	const say = (t, bad) => { $("#shStatus").className = "status" + (bad ? " bad" : ""); $("#shStatus").textContent = t; };
+	const copy = () => navigator.clipboard.writeText(shareURL(c.shared.id)).then(() => toast("Link copied"), () => {});
+	if ($("#shCopy")) $("#shCopy").onclick = copy;
+	if ($("#shNo")) $("#shNo").onclick = closeModal;
+	$("#shGo").onclick = async () => {
+		$("#shGo").disabled = true;
+		say(have ? "Updating…" : "Making the link…");
+		try {
+			const j = await api("/api/shares", { method: "POST", body: JSON.stringify({ id: have ? have.id : undefined, title: c.title, msgs: words() }) });
+			c.shared = { id: j.id, at: Date.now() };
+			save();
+			shareChat();
+			copy();
+		} catch (e) { say(e.message, true); $("#shGo").disabled = false; }
+	};
+	if ($("#shStop")) $("#shStop").onclick = async () => {
+		try { await api("/api/shares/" + have.id, { method: "DELETE" }); delete c.shared; save(); closeModal(); toast("No longer shared: the link stops working"); }
+		catch (e) { say(e.message, true); }
+	};
+}
+// someone opened a shared link: the chat, read-only, and a way to carry it on in their own Andromeda
+let SHARED = null;
+async function openShared(sid) {
+	document.body.classList.remove("in-app");
+	document.body.classList.add("in-share");
+	$("#shared").hidden = false;
+	$("#shTitle").textContent = "";
+	$("#shThread").innerHTML = '<div class="msg"><span class="thinking">Opening the shared chat</span></div>';
+	try {
+		const r = await fetch(SERVER + "/api/shares/" + sid);
+		const j = await r.json().catch(() => ({}));
+		if (!r.ok) throw new Error((j.error && j.error.message) || "This chat isn't shared any more.");
+		SHARED = j;
+		document.title = j.title + " · Andromeda";
+		$("#shTitle").textContent = j.title;
+		$("#shThread").innerHTML = '<p class="sh-note">A chat someone shared from Andromeda · ' + esc(new Date(j.at).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })) + "</p>" +
+			j.msgs.map((m) => m.role === "user" ? '<div class="msg user"><div><div class="bubble">' + esc(m.text) + "</div></div></div>" : '<div class="msg"><svg class="av" aria-hidden="true"><use href="#logo"/></svg><div class="md">' + md(m.text) + "</div></div>").join("");
+		drawDiagrams($("#shThread"));
+	} catch (e) {
+		$("#shThread").innerHTML = '<div class="err">' + esc(e.message) + "</div>";
+	}
+}
+function closeShared() {
+	document.body.classList.remove("in-share");
+	$("#shared").hidden = true;
+	document.title = "Andromeda — the right model for every message";
+}
+$("#shCont").onclick = () => {
+	if (!SHARED) return;
+	const c = { id: uid(), title: SHARED.title, at: Date.now(), msgs: SHARED.msgs.map((m) => ({ role: m.role, text: m.text })) };
+	convos.unshift(c);
+	current = c;
+	SPACE_VIEW = null;
+	save();
+	closeShared();
+	location.hash = "#app";
+	if (!document.body.classList.contains("in-app")) showApp(true);
+	toast("It's yours now: carry on below");
+};
+
 // ---------------------------------------------------------------- the site
 function showApp(on) {
+	if (document.body.classList.contains("in-share")) closeShared();
 	document.body.classList.toggle("in-app", on);
 	if (on) {
 		history.replaceState(null, "", "#app");
@@ -7847,6 +7935,9 @@ const revealer = new IntersectionObserver((es) => es.forEach((en) => { if (en.is
 $$(".reveal").forEach((el) => revealer.observe(el));
 document.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && document.body.classList.contains("in-app")) { e.preventDefault(); $("#newChat").click(); } });
 addEventListener("hashchange", () => {
+	const sh = location.hash.match(/^#share=([a-f0-9]{24})$/);
+	if (sh) { openShared(sh[1]); return; }
+	if (document.body.classList.contains("in-share")) closeShared();
 	if (location.hash === "#admin") { showApp(true); openAdmin(); return; }
 	if (location.hash === "#pricing") { showApp(true); openPricing(); return; }
 	const want = location.hash === "#app";
@@ -7863,14 +7954,16 @@ addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
 	convos = convos.filter((c) => c.msgs.length);
 	// someone already set up goes straight to the app; anyone new sees what it is first
 	const inApp = location.hash === "#app" || location.hash === "#admin" || location.hash === "#pricing" || (connected() && !location.hash);
-	document.body.classList.toggle("in-app", inApp);
+	const shareId = (location.hash.match(/^#share=([a-f0-9]{24})$/) || [])[1];
+	document.body.classList.toggle("in-app", inApp && !shareId);
+	if (shareId) openShared(shareId);
 	render();
 	setMode("auto");
 	{
 		const draft = store.get("draft", "");
 		if (draft && !$("#input").value) { $("#input").value = draft; autosize(); updateRoute(); }
 	}
-	if (!inApp) { startSky(); runDemo(); }
+	if (!inApp && !shareId) { startSky(); runDemo(); }
 	renderLanding();
 	await Promise.all([loadCatalog(), loadPricing()]);
 	loadArena();

@@ -58,6 +58,16 @@ CREATE TABLE IF NOT EXISTS free_days (
 	mc INTEGER NOT NULL DEFAULT 0
 );
 
+-- chats their owners chose to share: a read-only copy of the words, at a link nobody can guess
+CREATE TABLE IF NOT EXISTS shares (
+	id TEXT PRIMARY KEY,
+	user_id TEXT NOT NULL,
+	title TEXT,
+	data TEXT NOT NULL, -- the messages, as JSON
+	created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS shares_user ON shares (user_id, created_at);
+
 CREATE TABLE IF NOT EXISTS config (
 	k TEXT PRIMARY KEY,
 	v TEXT NOT NULL
