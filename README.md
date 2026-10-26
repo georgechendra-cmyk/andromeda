@@ -11,7 +11,7 @@ With Andromeda you just type. It sends each part of your request to the stronges
 ## What it makes
 
 - **Answers:** short questions go to one fast model; bigger ones go to a team: a lead plans the work and specialists from different labs research, reason, code and write it.
-- **Videos and ads:** a director plans the shots, then image, video, voice (ElevenLabs) and music (Lyria) models make them, and Andromeda edits them into one video with captions.
+- **Videos and ads, any length:** a director plans the shots (a long film chapter by chapter) and decides for each one whether it needs real movement, filmed by a video model, or is a picture the camera moves over, the way documentaries are made, at a fraction of the price. Voice (ElevenLabs) and music (Lyria) are added, and Andromeda edits it all into one video with captions. Max films every shot.
 - **Photos, music and voiceovers.**
 - **Apps and games:** built, tested and running right in the chat.
 - **Files:** real PowerPoint decks (with charts and speaker notes), Excel spreadsheets with working formulas, Word documents and PDFs.

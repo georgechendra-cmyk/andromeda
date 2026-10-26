@@ -6430,7 +6430,9 @@ const VIDEO_W = { "i2v:overall": 0.7, "video:overall": 0.3 };
 const measured = (list, w, ok, price) => quarkFirst(mediaRank(list, w).filter((x) => !ok || ok(x.m)), null, null, (x) => (price && price(x.m)) || Infinity)[0]?.m || null;
 const videoModel = (tier) => {
 	const t = VIDEO_TIERS[tier];
-	const fits = (m) => (tier === "max" || t.models.includes(m.id)) && (t.frames !== "frame" || (m.frames && m.frames.length > 0));
+	// Cinematic and Max: whichever is measured best (or the cheapest a quark from it) among the models that make 1080p
+	// from a drawn first frame; the quicker tiers keep to their price range
+	const fits = (m) => (tier === "max" || tier === "cinematic" || t.models.includes(m.id)) && (tier !== "cinematic" || !(m.res || []).length || m.res.includes("1080p")) && (t.frames !== "frame" || (m.frames && m.frames.length > 0));
 	return measured(MEDIA.video, VIDEO_W, fits, (m) => vPerSec(m, t.res, true)) || pickFrom(MEDIA.video, t.models) || MEDIA.video.slice().sort((a, b) => vPerSec(b, "720p", true) - vPerSec(a, "720p", true))[{ max: 0, cinematic: 1, standard: 2 }[tier] ?? 3] || MEDIA.video[0] || null;
 };
 const imageModel = (kind) => (IMAGE_W[kind] && measured(MEDIA.image, IMAGE_W[kind], kind === "frame" ? (m) => m.refs > 0 : null, (m) => m.price)) || pickFrom(MEDIA.image, IMAGE_RANK[kind] || IMAGE_RANK.photo) || MEDIA.image[0] || null;
@@ -6669,23 +6671,32 @@ async function waitClip(job, onStatus, msg, signal) {
 }
 
 // ---- the director
-const DIRECTOR = `You are the director and editor of a top production studio, planning a short video that will be made entirely by AI models: one video model per shot, an image model for each shot's first frame, ElevenLabs for the voice, Lyria for music, and an editor that adds captions, transitions and an end card.
+const DIRECTOR = `You are the director and editor of a top production studio, planning a video that will be made entirely by AI models: an image model draws each shot, a video model brings to life the shots that need real movement, ElevenLabs reads the voice, Lyria writes the music, and an editor adds camera moves, captions, transitions and an end card.
+
+Each shot is one of two kinds, and you choose for every shot:
+- "video": the video model films it. Only where movement IS the point: people or animals doing something, action, water, fire, crowds, a product being used, a transformation. It costs 10 to 30 times as much per second as a still, so use it where a viewer would miss the movement, not everywhere.
+- "still": the image model draws one perfect frame and the editor moves the camera over it ("move": push in, pull out, pan left, pan right, tilt up, tilt down, drift). Documentaries and the best explainers are mostly made this way: landscapes, places, portraits, objects, establishing shots, details, memories, quiet moments, quotes. A great still with a slow move looks expensive.
+A good film mixes them: mostly stills that breathe, and real movement where it carries the story.
 
 Write the plan so the result looks expensive and real:
 - One consistent LOOK for every shot: the medium (photoreal live action unless they ask for animation, 3D, anime, claymation...), lens and camera language, lighting, colour grade. Describe every recurring person and product IDENTICALLY each time (age, face, hair, clothes, colours, logo text), because each shot is generated separately.
-- Shots are 4 to 8 seconds. Each "shot" is a video-model prompt of 50-110 words: subject, action, setting, camera move (slow dolly in, orbit, handheld follow, crane up...), framing, lighting, mood. One clear action per shot; no on-screen text in the shot itself (the editor adds captions). Never ask for a split screen or a collage.
-- "frame" is the very first frame as a still photograph (composition, pose, light) so the shots match.
+- Video shots are 4 to 8 seconds, stills 4 to 10. Each "shot" is a prompt of 50-110 words: subject, action, setting, camera move (slow dolly in, orbit, handheld follow, crane up...), framing, lighting, mood. One clear action per shot; no on-screen text in the shot itself (the editor adds captions). Never ask for a split screen or a collage.
+- "frame" is the shot as a still photograph (composition, pose, light): the first frame of a video shot, or the whole of a still, so it must be a beautiful picture on its own.
 - Ads: hook in the first 2 seconds, show the product/benefit, end on the brand and a call to action. Social/vertical: fast, 9:16. Films: build and pay off.
 - Voiceover: short, natural, said aloud in the time of its shot (about 2.5 words per second). Empty when the shot speaks for itself. ElevenLabs tags like [excited], [whispers], [laughs] are allowed sparingly.
 - Captions: short and punchy (max 6 words), or empty.
 
 Return ONLY JSON:
-{"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"shot":"...","frame":"...","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none"}`;
+{"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video","move":"push in","shot":"...","frame":"...","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none"}`;
+// how long they asked for, any length ("30s", "20 minutes", "1.5 hours"); 3 hours at most, which is past anything
+// a browser can cut in one go anyway
 function lengthOf(t) {
-	const m = t.match(/(\d{1,3})\s*(s|sec|secs|seconds?)\b/i), mm = t.match(/(\d{1,2})\s*(min|minutes?)\b/i);
-	if (m) return Math.max(5, Math.min(120, Number(m[1])));
-	if (mm) return Math.max(5, Math.min(120, Number(mm[1]) * 60));
-	return null;
+	// (a bare "s" only after a short number of its own, so "the 1980s" isn't 1,980 seconds)
+	const s = t.match(/(?<![\d.,])(\d{1,4})\s*(sec|secs|seconds?|detik)\b/i) || t.match(/(?<![\d.,])(\d{1,3})\s*s\b/i);
+	const m = t.match(/(?<![\d.,])(\d{1,3}(?:[.,]\d)?)\s*(m|min|mins|minutes?|menit)\b/i), h = t.match(/(?<![\d.,])(\d{1,2}(?:[.,]\d)?)\s*(h|hr|hrs|hours?|jam)\b/i);
+	const n = (x) => Number(String(x).replace(",", "."));
+	const secs = (h ? n(h[1]) * 3600 : 0) + (m ? n(m[1]) * 60 : 0) + (s ? n(s[1]) : 0);
+	return secs ? Math.max(5, Math.min(3 * 3600, Math.round(secs))) : null;
 }
 async function direct(text, atts, msg, signal) {
 	const want = lengthOf(text);
@@ -6694,27 +6705,57 @@ async function direct(text, atts, msg, signal) {
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
 		(sourceOf(atts, 1) ? "\n\nWhat they gave you about it (their page, notes or files): use the real names, products, prices, places and tone from it, never invent ones that contradict it.\n" + sourceOf(atts, 12000) : "") +
 		"\n\nVoices: " + Object.entries(VOICES).map(([k, v]) => k + " (" + v + ")").join(", ") + "." + (langLine() ? "\n" + langLine() + " (keep the JSON keys in English)" : "");
-	const content = imgs.length ? [{ type: "text", text: ask }, ...imgs.map((a) => ({ type: "image_url", image_url: { url: a.data } }))] : ask;
+	const withPics = (t) => (imgs.length ? [{ type: "text", text: t }, ...imgs.map((a) => ({ type: "image_url", image_url: { url: a.data } }))] : t);
 	const cands = bestFor(imgs.length ? "directorFromImage" : "director");
-	let lastErr;
-	for (const m of cands.slice(0, 6)) {
-		try {
-			msg.used.push({ name: shortName(m), desc: "Director: planned every shot, the voice and the music" });
-			const out = await stream(m.id, [{ role: "system", content: DIRECTOR }, { role: "user", content }], (t) => { msg.status = "Writing the shot list (" + Math.max(1, Math.round(t.length / 200)) + ")"; updateLast(); }, signal, { response_format: { type: "json_object" }, ...effortExtra(m.id) }, msg);
-			const p = parseJSON(out);
-			if (Array.isArray(p.scenes) && p.scenes.length) return cleanPlan(p, want);
-			throw new Error("The director's plan had no shots");
-		} catch (e) {
-			msg.used.pop();
-			if (e.name === "AbortError" || e.status === 401) throw e;
-			lastErr = e;
+	let named = false;
+	// the best director that answers with a plan of the shape asked for
+	const plan = async (t, ok, what) => {
+		let lastErr;
+		for (const m of cands.slice(0, 6)) {
+			try {
+				if (!named) msg.used.push({ name: shortName(m), desc: "Director: planned every shot, the voice and the music" });
+				const out = await stream(m.id, [{ role: "system", content: DIRECTOR }, { role: "user", content: withPics(t) }], (x) => { msg.status = "Writing the shot list" + (what ? ": " + what : "") + " (" + Math.max(1, Math.round(x.length / 200)) + ")"; updateLast(); }, signal, { response_format: { type: "json_object" }, ...effortExtra(m.id) }, msg);
+				const p = parseJSON(out);
+				if (ok(p)) { named = true; return p; }
+				throw new Error("The director's plan had no shots");
+			} catch (e) {
+				if (!named) msg.used.pop();
+				if (e.name === "AbortError" || e.status === 401) throw e;
+				lastErr = e;
+			}
 		}
-	}
-	throw lastErr || new Error("No model could plan this video");
+		throw lastErr || new Error("No model could plan this video");
+	};
+	const hasScenes = (p) => Array.isArray(p.scenes) && p.scenes.length > 0;
+	// a long film: the outline first, in chapters, then each chapter's shots planned on their own (a few at a time),
+	// all to the same look, voice and music
+	if (!want || want <= 240) return cleanPlan(await plan(ask, hasScenes), want);
+	const outline = await plan(ask + "\n\nIt's long, so plan it in chapters first: return the same JSON, but in place of \"scenes\" give \"chapters\": [{\"title\": \"...\", \"seconds\": 150, \"summary\": \"what this part shows and says, 2 to 4 sentences\"}], each 1 to 4 minutes, adding up to about " + want + " seconds.",
+		(p) => Array.isArray(p.chapters) && p.chapters.length > 0, "the outline");
+	const chapters = outline.chapters.slice(0, 60).map((c) => ({ title: String(c.title || "").slice(0, 120), seconds: Math.max(20, Number(c.seconds) || 120), summary: String(c.summary || "").slice(0, 900) }));
+	const parts = new Array(chapters.length);
+	let next = 0;
+	const worker = async () => {
+		while (next < chapters.length) {
+			const k = next++, c = chapters[k];
+			const p = await plan("The film: " + text + "\n\nIts look: " + String(outline.look || "") + "\nThe voice: " + String(outline.voice?.who || "") + ", " + String(outline.voice?.style || "")
+				+ "\nAll its chapters: " + chapters.map((x, n) => (n + 1) + ". " + x.title).join("; ")
+				+ (k ? "\nThe chapter before ends with: " + chapters[k - 1].summary : "")
+				+ "\n\nPlan only the shots of chapter " + (k + 1) + " of " + chapters.length + ", \"" + c.title + "\", about " + Math.round(c.seconds) + " seconds: " + c.summary
+				+ "\nKeep the same look and the same people and products, described identically. Return the same JSON; only its \"scenes\" are used.", hasScenes, "chapter " + (k + 1) + " of " + chapters.length);
+			parts[k] = p.scenes;
+		}
+	};
+	await Promise.all([worker(), worker(), worker()]);
+	return cleanPlan({ ...outline, scenes: parts.flat() }, want);
 }
 function cleanPlan(p, want) {
-	const scenes = p.scenes.slice(0, 12).map((s) => ({
-		seconds: Math.max(3, Math.min(10, Number(s.seconds) || 6)),
+	const MOVES = ["push in", "pull out", "pan left", "pan right", "tilt up", "tilt down", "drift"];
+	const scenes = p.scenes.slice(0, 1500).map((s) => ({
+		// a still holds a little longer than a filmed shot can
+		motion: String(s.motion || "").toLowerCase() === "still" ? "still" : "video",
+		move: MOVES.includes(String(s.move || "").toLowerCase()) ? String(s.move).toLowerCase() : "push in",
+		seconds: Math.max(3, Math.min(String(s.motion || "").toLowerCase() === "still" ? 12 : 10, Number(s.seconds) || 6)),
 		shot: String(s.shot || s.prompt || "").slice(0, 900),
 		frame: String(s.frame || s.shot || "").slice(0, 700),
 		vo: String(s.vo || "").slice(0, 400),
@@ -6733,31 +6774,40 @@ function cleanPlan(p, want) {
 const shotPrompt = (plan, sc) => sc.shot + "\n\nStyle: " + plan.look + (sc.sound ? "\nSound: " + sc.sound : "");
 const framePrompt = (plan, sc) => sc.frame + "\n\nStyle: " + plan.look + "\nA single frame from a film, " + plan.aspect + ", no text, no captions, no watermark, no borders.";
 
+// a shot the video model films (Max films every shot; otherwise only the ones the director chose to), or a still the
+// editor moves the camera over
+const filmed = (sc, tier) => tier === "max" || sc.motion !== "still";
+const shotSecs = (sc, tier, vm) => (filmed(sc, tier) ? fitDur(vm, sc.seconds) : sc.seconds);
+
 // ---- what it will cost, at each quality, before anything is spent
 function estimate(plan, tier) {
 	const vm = videoModel(tier);
 	if (!vm) return null;
-	let usd = 0.04; // the director
+	const total = plan.scenes.reduce((n, s) => n + shotSecs(s, tier, vm), 0);
+	// the director (and, for a long film, one more plan per chapter of a few minutes)
+	let usd = 0.04 + (total > 240 ? 0.04 * Math.ceil(total / 180) : 0);
 	const audio = vm.audio !== false && vm.audio !== null;
-	for (const sc of plan.scenes) usd += vPerSec(vm, fitRes(vm, VIDEO_TIERS[tier].res), audio) * fitDur(vm, sc.seconds);
-	usd += plan.scenes.length * (VIDEO_TIERS[tier].frames === "quick" ? 0.04 : 0.14);
+	for (const sc of plan.scenes) if (filmed(sc, tier)) usd += vPerSec(vm, fitRes(vm, VIDEO_TIERS[tier].res), audio) * fitDur(vm, sc.seconds);
+	const im = imageModel(VIDEO_TIERS[tier].frames);
+	usd += plan.scenes.length * ((im && im.price) || (VIDEO_TIERS[tier].frames === "quick" ? 0.04 : 0.14));
 	const vo = plan.scenes.reduce((n, s) => n + s.vo.length, 0), v = voiceModel();
 	usd += vo * (v?.perChar || 0.00004);
-	const total = plan.scenes.reduce((n, s) => n + fitDur(vm, s.seconds), 0);
 	usd += total > 30 ? 0.08 : 0.04;
-	return { usd, model: vm, seconds: total };
+	return { usd, model: vm, seconds: total, shots: plan.scenes.filter((s) => filmed(s, tier)).length };
 }
 function chooseTier(plan, left) {
 	return new Promise((res) => {
 		const rich = left != null && left >= MAX_BUILD_AT;
-		// the dearest one only for a big balance, and never twice the same model under two names
-		const tiers = ["draft", "standard", "cinematic", ...(rich ? ["max"] : [])].map((t) => ({ t, e: estimate(plan, t) })).filter((x, i, a) => x.e && a.findIndex((y) => y.e && y.e.model.id === x.e.model.id) === i);
+		// the dearest one only for a big balance, and never twice the same thing under two names (Max with the same model
+		// still differs when it films the shots the others leave as stills)
+		const tiers = ["draft", "standard", "cinematic", ...(rich ? ["max"] : [])].map((t) => ({ t, e: estimate(plan, t) })).filter((x, i, a) => x.e && a.findIndex((y) => y.e && y.e.model.id === x.e.model.id && y.e.shots === x.e.shots) === i);
 		if (!tiers.length) { res(null); return; }
 		let pick = rich ? (tiers.some((x) => x.t === "max") ? "max" : "cinematic") : "standard";
 		const afford = (e) => left == null || e.usd <= left;
 		if (!afford(tiers.find((x) => x.t === pick)?.e || { usd: 0 })) pick = (tiers.filter((x) => afford(x.e)).pop() || tiers[0]).t;
-		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots · about " + Math.round(tiers[0].e.seconds) + " seconds · " + esc(plan.aspect) + ". Pick the quality: you only pay for what's made.</p>" +
-			'<div class="tiers" style="--n:' + tiers.length + '">' + tiers.map(({ t, e }) => '<button class="tier' + (t === pick ? " on" : "") + '" data-tier="' + t + '"' + (afford(e) ? "" : " disabled") + "><b>" + VIDEO_TIERS[t].label + "</b><span class=\"price\">≈ " + money$(e.usd) + "</span><span>" + esc(e.model.name) + " · " + esc(fitRes(e.model, VIDEO_TIERS[t].res)) + "</span></button>").join("") + "</div>" +
+		const secs = Math.round(tiers[0].e.seconds), filmedN = plan.scenes.filter((s) => s.motion !== "still").length;
+		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots (" + filmedN + " filmed, " + (plan.scenes.length - filmedN) + " stills with camera moves) · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + ". Pick the quality: you only pay for what's made.</p>" +
+			'<div class="tiers" style="--n:' + tiers.length + '">' + tiers.map(({ t, e }) => '<button class="tier' + (t === pick ? " on" : "") + '" data-tier="' + t + '"' + (afford(e) ? "" : " disabled") + "><b>" + VIDEO_TIERS[t].label + "</b><span class=\"price\">≈ " + money$(e.usd) + "</span><span>" + esc(e.model.name) + " · " + esc(fitRes(e.model, VIDEO_TIERS[t].res)) + (t === "max" && filmedN < plan.scenes.length ? " · every shot filmed" : "") + "</span></button>").join("") + "</div>" +
 			'<div class="field"><div class="help">' + (creditsMode() ? (me ? "You have " + creditsText(me.credits) + " credits. " : "") : (left != null ? "Balance " + money$(left) + " · " : "") + "spent today " + money$(SPEND.usd) + ". ") + "Voice by ElevenLabs, music by Lyria, cut here in your browser.</div></div>" +
 			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button><button class="btn dark" id="tierGo">Make it</button></div>');
 		$$("[data-tier]").forEach((b) => b.onclick = () => { pick = b.dataset.tier; $$("[data-tier]").forEach((x) => x.classList.toggle("on", x === b)); });
@@ -6821,7 +6871,9 @@ async function produce(msg, only, signal) {
 			paint();
 			const first = i > 0 && d.scenes[0].frame ? [await blobToData(await vault.get(d.scenes[0].frame))] : [];
 			try {
-				const [b] = await firstThatWorks([im, ...imageModels("frame")], (m) => makeImage(m, framePrompt(plan, plan.scenes[i]), { ar: plan.aspect, res: tier === "cinematic" || tier === "max" ? "2K" : "1K", refs: [...refs, ...first] }, msg, signal));
+				// a still is the whole shot, with the camera moving over it: drawn sharper
+				const sharp = tier === "cinematic" || tier === "max" || (!filmed(plan.scenes[i], tier) && tier !== "draft");
+				const [b] = await firstThatWorks([im, ...imageModels("frame")], (m) => makeImage(m, framePrompt(plan, plan.scenes[i]), { ar: plan.aspect, res: sharp ? "2K" : "1K", refs: [...refs, ...first] }, msg, signal));
 				s.frame = b ? await vault.put(b) : null;
 			} catch (e) { if (e.name === "AbortError") throw e; s.frame = null; }
 			paint();
@@ -6832,6 +6884,15 @@ async function produce(msg, only, signal) {
 			const s = d.scenes[i];
 			if (s.clip && !redo(i)) return;
 			const fk = await frameOf(i);
+			// a still: its picture is the shot (the editor moves the camera over it), nothing to film
+			if (!filmed(plan.scenes[i], tier)) {
+				s.still = !!fk;
+				s.state = fk ? "done" : "failed";
+				if (!fk) s.error = "The picture for this shot couldn't be drawn";
+				paint();
+				return;
+			}
+			s.still = false;
 			const frame = fk ? await blobToData(await vault.get(fk)) : null;
 			const sc = { ...plan.scenes[i], prompt: shotPrompt(plan, plan.scenes[i]) };
 			// the chosen model, once more if it stumbles, then the next best: a shot is only missing if every model failed it
@@ -6877,21 +6938,25 @@ async function produce(msg, only, signal) {
 			d.music.state = "composing";
 			paint();
 			const secs = Math.round(plan.scenes.reduce((n, s) => n + s.seconds, 0) + (plan.end.title ? 3 : 0));
-			try { d.music.key = await vault.put(await firstThatWorks(musicModels(true).length ? [mus, ...musicModels(true)] : [mus], (mm) => makeMusic(mm, "Compose " + secs + " seconds of music for a video. " + plan.music.prompt + ". It must start strong, fit the picture, and end cleanly at " + secs + " seconds.", msg, signal))); d.music.state = "done"; }
+			// a long film: a three-minute piece that loops seamlessly, played round under all of it
+			const ask = secs > 180 ? "Compose 180 seconds of music for a long video, that loops seamlessly (its end flows straight back into its start). " + plan.music.prompt + ". Even and steady, so it can play under narration for a long time."
+				: "Compose " + secs + " seconds of music for a video. " + plan.music.prompt + ". It must start strong, fit the picture, and end cleanly at " + secs + " seconds.";
+			try { d.music.key = await vault.put(await firstThatWorks(musicModels(true).length ? [mus, ...musicModels(true)] : [mus], (mm) => makeMusic(mm, ask, msg, signal))); d.music.state = "done"; }
 			catch (e) { if (e.name === "AbortError") throw e; d.music.state = "failed"; d.music.error = String(e.message || e); }
 			paint();
 		};
 		// shot 1 is drawn first: every other shot is drawn with it as a reference, so they all match
 		if (!d.scenes[0].frame || redo(0)) await frameOf(0);
 		await Promise.all([Promise.all(plan.scenes.map((_, i) => shot(i))), voices(), score()]);
-		if (!d.scenes.some((s) => s.clip)) throw new Error("None of the shots could be made: " + (d.scenes.find((s) => s.error)?.error || "the video model failed"));
+		const made = (s) => s.clip || (s.still && s.frame);
+		if (!d.scenes.some(made)) throw new Error("None of the shots could be made: " + (d.scenes.find((s) => s.error)?.error || "the video model failed"));
 		// 5. the cut
 		note("Andromeda editor", "Edit: cut it together with captions, transitions, ducked music and an end card, in your browser");
 		d.stage = "cutting";
 		paint();
 		d.final = await vault.put(await cut(d, (p) => { d.progress = p; paint(); }));
 		d.stage = "done";
-		const failed = d.scenes.filter((s) => !s.clip).length;
+		const failed = d.scenes.filter((s) => !made(s)).length;
 		msg.text = "**" + plan.title + "**" + (failed ? "\n\n" + failed + " shot" + (failed > 1 ? "s" : "") + " couldn't be made and " + (failed > 1 ? "were" : "was") + " left out. Tap Redo on " + (failed > 1 ? "them" : "it") + " to try again." : "");
 	} catch (e) {
 		// stopped on purpose: not picked up again when the page is next opened
@@ -6904,7 +6969,7 @@ async function produce(msg, only, signal) {
 }
 function statusOf(d) {
 	if (d.stage === "cutting") return "Editing: " + Math.round((d.progress || 0) * 100) + "%";
-	const n = d.scenes.length, done = d.scenes.filter((s) => s.clip).length, rendering = d.scenes.filter((s) => s.state === "rendering").length;
+	const n = d.scenes.length, done = d.scenes.filter((s) => s.clip || (s.still && s.frame)).length, rendering = d.scenes.filter((s) => s.state === "rendering").length;
 	if (d.scenes.some((s) => s.state === "drawing")) return "Drawing the shots (" + d.scenes.filter((s) => s.frame).length + "/" + n + ")";
 	return "Filming: " + done + " of " + n + " shots done" + (rendering ? ", " + rendering + " rendering" : "") + " (a few minutes)";
 }
@@ -6920,6 +6985,14 @@ async function cut(d, onProgress) {
 	const shots = [];
 	for (let i = 0; i < d.scenes.length; i++) {
 		const s = d.scenes[i];
+		// a still: its picture, with the camera move the director chose
+		if (s.still && s.frame) {
+			const img = new Image();
+			img.src = await vault.url(s.frame);
+			await img.decode().catch(() => {});
+			shots.push({ i, img, still: true, move: plan.scenes[i].move || "push in", clipDur: plan.scenes[i].seconds, vo: s.vo, caption: plan.scenes[i].caption });
+			continue;
+		}
 		if (!s.clip) continue;
 		const url = await vault.url(s.clip);
 		const v = document.createElement("video");
@@ -6934,9 +7007,10 @@ async function cut(d, onProgress) {
 	const decode = async (blob) => { try { return await ac.decodeAudioData(await blob.arrayBuffer()); } catch { return null; } };
 	for (const s of shots) {
 		s.voBuf = s.vo ? await decode(await vault.get(s.vo)) : null;
-		s.sfx = await decode(await vault.get(d.scenes[s.i].clip));
-		// a line longer than its shot holds the last frame (slowly pushing in) until it's said
-		s.dur = Math.min(s.clipDur + 2.5, Math.max(s.clipDur, s.voBuf ? s.voBuf.duration + 0.7 : 0));
+		s.sfx = s.still ? null : await decode(await vault.get(d.scenes[s.i].clip));
+		// a line longer than its shot holds the last frame (slowly pushing in) until it's said; a still simply lasts as
+		// long as its line
+		s.dur = s.still ? Math.max(s.clipDur, s.voBuf ? s.voBuf.duration + 0.7 : 0) : Math.min(s.clipDur + 2.5, Math.max(s.clipDur, s.voBuf ? s.voBuf.duration + 0.7 : 0));
 	}
 	let t = 0;
 	for (const s of shots) { s.start = t; t += s.dur - XF; }
@@ -6952,6 +7026,8 @@ async function cut(d, onProgress) {
 	if (music) {
 		const src = oc.createBufferSource(), g = oc.createGain();
 		src.buffer = music;
+		// a long film's score is a piece that loops: round again under all of it
+		src.loop = music.duration < total;
 		src.connect(g).connect(oc.destination);
 		const base = 0.55 * plan.music.level / 0.5, duck = base * 0.32;
 		g.gain.setValueAtTime(0, 0);
@@ -6986,11 +7062,18 @@ async function cut(d, onProgress) {
 	src.buffer = mix;
 	src.connect(dest);
 	const font = "800 " + Math.round(ch * (plan.aspect === "9:16" ? 0.045 : 0.06)) + "px Inter, system-ui, sans-serif";
-	const cover = (v, alpha, zoom) => {
-		const vw = v.videoWidth || cw, vh = v.videoHeight || ch, k = Math.max(cw / vw, ch / vh) * (zoom || 1);
+	// a clip or a picture, filling the frame; dx and dy (-1 to 1) slide it across what overflows the frame
+	const cover = (v, alpha, zoom, dx = 0, dy = 0) => {
+		const vw = v.videoWidth || v.naturalWidth || cw, vh = v.videoHeight || v.naturalHeight || ch, k = Math.max(cw / vw, ch / vh) * (zoom || 1);
 		g.globalAlpha = alpha;
-		g.drawImage(v, (cw - vw * k) / 2, (ch - vh * k) / 2, vw * k, vh * k);
+		g.drawImage(v, (cw - vw * k) / 2 + dx * (vw * k - cw) / 2, (ch - vh * k) / 2 + dy * (vh * k - ch) / 2, vw * k, vh * k);
 		g.globalAlpha = 1;
+	};
+	// the camera over a still, eased so it starts and settles gently
+	const camera = (s, local, alpha) => {
+		const p0 = Math.max(0, Math.min(1, local / s.dur)), p = p0 * p0 * (3 - 2 * p0);
+		const m = { "push in": [1 + 0.12 * p, 0, 0], "pull out": [1.12 - 0.12 * p, 0, 0], "pan left": [1.12, 0.9 - 1.8 * p, 0], "pan right": [1.12, -0.9 + 1.8 * p, 0], "tilt up": [1.12, 0, 0.9 - 1.8 * p], "tilt down": [1.12, 0, -0.9 + 1.8 * p], drift: [1.06 + 0.05 * p, -0.4 + 0.8 * p, 0.25 - 0.5 * p] }[s.move] || [1 + 0.12 * p, 0, 0];
+		cover(s.img, alpha, m[0], m[1], m[2]);
 	};
 	const wrap = (text, maxW) => {
 		const words = text.split(/\s+/), lines = [];
@@ -7026,7 +7109,7 @@ async function cut(d, onProgress) {
 		const last = shots[shots.length - 1];
 		g.save();
 		g.filter = "blur(" + Math.round(ch * 0.012) + "px) brightness(.45)";
-		if (last) cover(last.v, 1, 1.08);
+		if (last) cover(last.v || last.img, 1, 1.08);
 		g.restore();
 		const a = Math.min(1, local / 0.5);
 		g.fillStyle = plan.end.color + "55";
@@ -7058,6 +7141,12 @@ async function cut(d, onProgress) {
 			for (const s of shots) {
 				const local = t - s.start;
 				const on = local > -0.25 && local < s.dur;
+				if (s.still) {
+					if (!on || local < 0) continue;
+					camera(s, local, s === shots[0] ? Math.min(1, local / 0.4) : Math.min(1, local / XF));
+					caption(s.caption, local - 0.15);
+					continue;
+				}
 				if (!on) { if (!s.v.paused) s.v.pause(); continue; }
 				if (local >= 0 && local < s.clipDur - 0.05 && s.v.paused) { try { s.v.currentTime = Math.max(0, local); } catch {} s.v.play().catch(() => {}); }
 				if (local >= s.clipDur - 0.05 && !s.v.paused) s.v.pause();
@@ -7076,7 +7165,7 @@ async function cut(d, onProgress) {
 	});
 	rec.stop();
 	await stopped;
-	shots.forEach((s) => s.v.pause());
+	shots.forEach((s) => s.v && s.v.pause());
 	return new Blob(chunks, { type: (mime || "video/webm").split(";")[0] });
 }
 
