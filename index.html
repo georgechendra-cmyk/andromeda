@@ -1317,6 +1317,9 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 .wn-it b { display: block; font-weight: 600; font-size: 14px; margin-bottom: 2px; }
 .wn-it span { display: block; font-size: 13px; color: var(--muted); line-height: 1.45; }
 @media (max-width: 640px) { .wn-grid { grid-template-columns: 1fr; } }
+
+/* ---- a team answer says so */
+.mu-btn.team { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 30%, transparent); background: var(--brand-soft); }
 </style>
 </head>
 <body>
@@ -1512,7 +1515,6 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 				<div class="pop up" id="plusPop" role="menu" hidden>
 					<button class="mi" role="menuitem" id="attachBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg><span><b>Add photos &amp; files</b></span></button>
 					<hr>
-					<button class="mi" role="menuitem" data-tool="compare"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 9.5l2.6 6M16 9.5l-2.6 6"/></svg><span><b>Compare AIs</b><small>The best models from several labs answer, then the best of each is combined</small></span></button>
 					<button class="mi" role="menuitem" data-tool="research"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span><b>Deep research</b><small>Searches widely, reads the sources, writes a cited report</small></span></button>
 					<button class="mi" role="menuitem" data-tool="image"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 15 5-5 4 4 3-3 6 6"/><circle cx="16" cy="9" r="1.5"/></svg><span><b>Create an image</b><small>Photos, art, posters, logos, or change one you attach</small></span></button>
 					<button class="mi" role="menuitem" data-tool="video"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg><span><b>Make a video</b><small>Ads and short films, with voice and music</small></span></button>
@@ -2246,7 +2248,6 @@ const WAYS = {
 	docx: "a Word document to download",
 	pdf: "a PDF to download",
 	task: "a scheduled task: something Andromeda does by itself on a schedule, even with this page closed, like a daily news brief, a weekly summary, a reminder at a time, or a check every hour. Choose it whenever the request is about doing something later or repeatedly",
-	compare: "compare AIs: the strongest models of several different labs each answer on their own, shown side by side, then the strongest combines them into one answer. For questions where being right really matters, where views differ, or when the user wants several opinions or asks to compare AIs",
 	research: "deep research: many searches and sources read and cross-checked, then a long, structured report with citations (for big questions where being thorough matters more than speed)",
 	pptx: "a PowerPoint deck to download",
 	xlsx: "an Excel spreadsheet to download",
@@ -2282,7 +2283,6 @@ const TOOLS = {
 	app: { label: "App or game", ways: ["app", "sim"], ph: "What should I build?" },
 	study: { label: "Study", ways: ["flashcards", "quiz", "open", "mindmap", "podcast"], ph: "A topic, or attach your notes" },
 	doc: { label: "Document", ways: FILE_WAYS, ph: "What should the document, deck or spreadsheet be?" },
-	compare: { label: "Compare AIs", ways: ["compare"], ph: "Ask, and see how the best AIs each answer" },
 	act: { label: "Tools and computer", ways: ["act"], ph: "What should I do? I can run code, search, and work in your apps" },
 };
 let TOOL = null;
@@ -2420,7 +2420,6 @@ async function runWay(plan, text, atts) {
 		return runAgent(text, atts);
 	}
 	if (w === "app") return runApp(text, atts, { edit: plan.edit });
-	if (w === "compare") return runCompare(text, atts);
 	if (w === "task") return runTaskWay(plan, text);
 	if (w === "act" || w === "apps") return runAct(text, atts);
 	if (w === "research") {
@@ -3021,10 +3020,16 @@ function modelsUsed(m) {
 	}
 	return [...out, ...(m.tools || [])];
 }
+// "Made by 5 models together": a team answer says so, and who did what is one click away
+function usedLabel(m) {
+	const n = new Set((m.steps || []).filter((s) => s.model && !s.error).map((s) => s.model)).size;
+	if (m.kind === "build" && n > 1) return m.showModels ? "Hide who did what" : "Made by " + n + " models together · who did what";
+	return m.showModels ? "Hide models used" : "Show models used";
+}
 function usedHtml(m, i) {
 	const u = modelsUsed(m);
 	if (!u.length) return "";
-	return '<div class="mu"><button class="mu-btn" data-models="' + i + '">' + (m.showModels ? "Hide models used" : "Show models used") + "</button>" +
+	return '<div class="mu"><button class="mu-btn' + (m.kind === "build" ? " team" : "") + '" data-models="' + i + '">' + usedLabel(m) + "</button>" +
 		'<div class="ucards"' + (m.showModels ? "" : " hidden") + ">" + u.map((x) => '<div class="ucard' + (x.bad ? " bad" : "") + '"><b>' + esc(x.name) + "</b><span>" + esc(x.desc) + "</span></div>").join("") + "</div></div>";
 }
 const SCIENCEY = /\b(atoms?|molecul\w*|electrons?|protons?|neutrons?|physics|chemi\w+|biolog\w*|cells?|waves?|gravity|orbits?|planets?|forces?|motion|energy|friction|circuits?|voltage|current|magnet\w*|light|optics|lens\w*|gas(es)?|pressure|temperature|heat|thermo\w*|pendulum|springs?|projectile|velocity|acceleration|ecosystem|evolution|genetic\w*|dna|photosynthesis|osmosis|reactions?|acids?|bonds?|periodic|trigonometr\w+|sine|vectors?|probability|geometry|calculus|derivatives?|integrals?|sorting|machine learning|neural network)\b/i;
@@ -4472,6 +4477,8 @@ async function runSmart(text, atts) {
 	}
 	if (PROFILE) kind = PROFILE.kind;
 	if (kind === "quick" && !atts.length) return runAuto(text, atts);
+	// Fast: straight to the best quick model; Auto and Max: the team
+	if (speed() === "fast" && kind !== "code") return runAuto(text, atts);
 	// code always goes round write → check → fix; so does any work a second expert would catch mistakes in
 	const check = kind === "code" || (PROFILE ? PROFILE.check : SPEC && SPEC.check);
 	if (check) return runChecked(text, atts, kind);
@@ -4722,7 +4729,7 @@ function readQuarks(raw, idx) {
 	try { j = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")); } catch { return null; }
 	const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
 	const seen = new Set(), pieces = [];
-	for (const [k, p] of (Array.isArray(j.pieces) ? j.pieces : []).slice(0, 12).entries()) {
+	for (const [k, p] of (Array.isArray(j.pieces) ? j.pieces : []).slice(0, 16).entries()) {
 		if (!p || !p.goal) continue;
 		const id = String(p.id || "p" + (k + 1)).slice(0, 24);
 		if (seen.has(id)) continue;
@@ -4734,8 +4741,10 @@ function readQuarks(raw, idx) {
 		const kind = kinds.includes(p.kind) ? p.kind : "write";
 		pieces.push({ id, label: String(p.label || p.skill || "Piece " + (k + 1)).slice(0, 70), goal: String(p.goal).slice(0, 700), skill: String(p.skill || "").slice(0, 200), kind, weights, needs, web: p.web === true || kind === "research" });
 	}
-	return pieces.length ? { understanding: String(j.understanding || "").slice(0, 700), pieces } : null;
+	return pieces.length ? { understanding: String(j.understanding || "").slice(0, 700), check: j.check !== false, pieces } : null;
 }
+// within this many of the board's spreads, two models measure the same: a margin smaller than the ratings' own uncertainty
+const TEAM_TIE = 0.15;
 async function runQuarks(text, atts) {
 	const idx = arenaIndex();
 	// without the leaderboards there's nothing to weigh the pieces on: the team by roles instead
@@ -4792,12 +4801,12 @@ async function runQuarks(text, atts) {
 	msg.steps.push(lead);
 	let plan = null;
 	try {
-		const ask = "You plan how a team of AI models answers one request. Split it into its smallest pieces of work: each piece is ONE clear job needing ONE clear skill (for example \"the regex\", \"the tax calculation\", \"the rhyming chorus\", \"a current fact to look up\", \"the SQL query\", \"the persuasive opening\"), so each piece can go to the model that is measurably best at exactly that.\n"
-			+ "- As many pieces as the request genuinely has, 1 to 10. A request that is really one job is 1 piece: never split what is one job.\n"
-			+ "- No piece for writing the final answer or combining the pieces: that happens afterwards.\n"
-			+ "- A piece that needs another piece's result lists it in \"needs\" (only pieces listed before it). Every other piece runs at the same time.\n"
-			+ "- weights: how much each measured skill matters for THAT piece (0 to 1, only the ones that matter), from:\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n")
-			+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want and any hidden requirement\", \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian phone numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"needs\": [], \"web\": false}]}\n\n"
+		const ask = "You plan how a team of the world's best AI models works together on one request, like a crew where everyone does only the one thing they are the best in the world at. Split the work into its smallest, most specific pieces: each piece is ONE narrow job needing ONE precise skill. Be as specific as you possibly can, never broad: not \"research\" but \"find the 5 moments of the French Revolution a 9-year-old would find most gripping, with dates\"; not \"brainstorm\" but \"3 everyday comparisons a 9-year-old already knows that make 'revolution' click\"; not \"writing\" but \"tell the storming of the Bastille as a 120-word story for a 9-year-old\"; not \"code\" but \"the regex that validates Indonesian mobile numbers\".\n"
+				+ "- Make them work together like a team: later pieces build on what earlier ones found (list those in \"needs\"). Usually: find the facts or understand the material, then work out the ideas, angles, examples or structure, then make each part, then check. Pieces that don't depend on each other run at the same time.\n"
+				+ "- As many pieces as the work really has, 1 to 16. A tiny request (a greeting, one fact) is 1 piece; anything substantial is usually 4 to 10.\n"
+				+ "- No piece for writing the final answer or combining the pieces: the best writer for this answer does that afterwards, and then it's checked.\n"
+				+ "- weights: for EACH piece, how much each measured skill matters for exactly that piece (0 to 1, only the ones that matter). This is what picks each piece's model, so be precise and different per piece: a history-facts piece leans on factuality and its field, a story piece on creative writing, a write-for-a-child piece on instruction following, a maths piece on maths. From:\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n")
+				+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want, who it's for, and any hidden requirement\", \"check\": true, \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian mobile numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"needs\": [], \"web\": false}]}\n\"check\" is true when facts, numbers, code or reasoning in the answer could be wrong.\n\n"
 			+ "The request:\n" + request.slice(0, 8000) + (material ? "\n\nThe attached material begins:\n" + material.slice(0, 5000) : "");
 		// a careful plan, but not a slow one: light thinking
 		const out = await run(lead, pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights)), () => [{ role: "user", content: ask }], null, null, "low");
@@ -4825,19 +4834,28 @@ async function runQuarks(text, atts) {
 	updateLast();
 
 	// 2. the pieces: whatever's ready runs now, four at once at most
-	const outs = new Map();
+	const outs = new Map(), teamUsed = new Set();
 	const runPiece = async (p) => {
 		const st = steps.get(p.id);
 		st.running = true;
 		updateLast();
-		const w = blendW(Object.keys(p.weights).length ? p.weights : ROLE_W[p.kind] || ROLE_W.quick, PROFILE && PROFILE.weights);
+		// the piece's own skills decide; the whole request (its field, its language) only nudges
+		let w = blendW(Object.keys(p.weights).length ? p.weights : ROLE_W[p.kind] || ROLE_W.quick, PROFILE && PROFILE.weights, 0.15);
+		// a piece that looks things up is weighed on live search too
+		if (p.web) w = blendW(w, { "search:overall": 1 }, 0.4);
+		let cands = pick(p.kind, w);
+		// two models within the leaderboards' margin of error for this piece: the one the team isn't using yet, so each
+		// model's own strengths get a part (never a measurably weaker model, only an equal one)
+		const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !teamUsed.has(c.m.id));
+		if (teamUsed.has(cands[0].m.id) && tie > 0) cands = [cands[tie], ...cands.filter((_, n) => n !== tie)];
+		teamUsed.add(cands[0].m.id);
 		const inputs = p.needs.filter((n) => outs.has(n)).map((n) => "### " + label(n) + "\n" + outs.get(n)).join("\n\n");
 		const ask = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
-			+ (inputs ? "\n\nResults you build on:\n" + inputs : "")
+			+ (inputs ? "\n\nWhat your teammates already did, for you to build on (use it, don't redo it):\n" + inputs : "")
 			+ "\n\nYour piece (" + p.label + "): " + p.goal + (p.skill ? "\nIts exact skill: " + p.skill : "")
 			+ "\n\nDo only this piece, completely and exactly (code in full, numbers worked out, facts checked). Another model puts the pieces together, so give the result itself: no introduction, no summary of the other pieces.";
 		try {
-			const out = await run(st, pick(p.kind, w), () => (single ? [sys(), ...hist] : [sys(), ...hist.slice(0, -1), withText(last, ask)]), single ? (t) => { msg.text = t; } : null, (m) => (p.web ? webExtra(m.id, true) : {}));
+			const out = await run(st, cands, () => (single ? [sys(), ...hist] : [sys(), ...hist.slice(0, -1), withText(last, ask)]), single ? (t) => { msg.text = t; } : null, (m) => (p.web ? webExtra(m.id, true) : {}));
 			outs.set(p.id, out);
 			done(st);
 		} catch (e) {
@@ -4874,8 +4892,9 @@ async function runQuarks(text, atts) {
 	const ask = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material.slice(0, 20000) : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
 		+ "\n\nIt was split into pieces, each done by the model that is measurably best at that exact piece:\n\n" + parts
 		+ "\n\nNow write the one answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Use every piece's work (keep code, numbers and quotes exactly; where two pieces disagree, work out which is right). Don't mention pieces, models or how it was made.";
+	const writers = pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
 	try {
-		msg.text = await run(fin, pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights)), () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; });
+		msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; });
 		done(fin);
 	} catch (e) {
 		if (e.name === "AbortError" || e.status === 401) throw e;
@@ -4884,6 +4903,41 @@ async function runQuarks(text, atts) {
 		msg.text = parts;
 	}
 	if (!msg.text) throw new Error("None of the models answered");
+
+	// 4. checked by the model that's measurably best at getting this field's facts and reasoning right (not the one that
+	// wrote it), and anything real it finds is fixed
+	if (!plan.check || !fin.done || fin.error) return;
+	const chk = { label: "Check it", goal: "Check every fact, number and step against the team's work and the request", text: "", model: "", id: "", done: false, running: true, open: false, role: "reasoning" };
+	msg.steps.push(chk);
+	msg.status = "Checking it";
+	updateLast();
+	let verdict = null;
+	try {
+		const field = {};
+		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
+		const checkers = pick("reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5)).filter((x) => x.m.id !== fin.id);
+		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"]}" }], null, null, "medium");
+		verdict = readVerdict(raw);
+		chk.text = verdict ? (verdict.pass ? "Passed." : "Found: " + verdict.issues.join(" · ")) : chk.text;
+		done(chk);
+	} catch (e) {
+		if (e.name === "AbortError" || e.status === 401) throw e;
+		done(chk, niceError(e));
+	}
+	if (!verdict || verdict.pass || !verdict.issues.length) return;
+	const fix = { label: "Fix what the check found", goal: "Correct exactly what the check found", text: "", model: "", id: "", done: false, running: true, open: false, role: "write" };
+	msg.steps.push(fix);
+	msg.status = "Fixing what the check found";
+	const first = msg.text;
+	try {
+		msg.text = await run(fix, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nYour first version:\n" + first + "\n\nAn expert checker found these real problems. Write the corrected answer the user reads, fixing exactly these and keeping everything else:\n- " + verdict.issues.join("\n- "))], (t) => { msg.text = t; });
+		done(fix);
+	} catch (e) {
+		if (e.name === "AbortError" || e.status === 401) throw e;
+		done(fix, niceError(e));
+		msg.text = first;
+	}
+	if (!msg.text) msg.text = first;
 }
 
 // ---------------------------------------------------------------- study
@@ -7496,7 +7550,7 @@ document.addEventListener("click", (e) => {
 		const m = current.msgs[+t.dataset.models], cards = t.parentElement.querySelector(".ucards");
 		m.showModels = !m.showModels;
 		if (cards) cards.hidden = !m.showModels;
-		t.textContent = m.showModels ? "Hide models used" : "Show models used";
+		t.textContent = usedLabel(m);
 		save();
 	}
 	else if (t.dataset.offer != null) {
@@ -8156,40 +8210,6 @@ $("#regenPop").addEventListener("click", (e) => {
 	editAt(i, current.msgs[i].text);
 });
 
-// ---------------------------------------------------------------- compare AIs
-async function runCompare(text, atts) {
-	const kind = PROFILE ? PROFILE.kind : classify(text, atts);
-	// the strongest model of each of the three labs that measure best at this work
-	const team = [], labs = new Set();
-	for (const m of [...rank(kind), ...rank("reasoning"), ...rank("write"), ...rank("quick")]) {
-		if (!m || labs.has(provider(m.id))) continue;
-		labs.add(provider(m.id));
-		team.push(m);
-		if (team.length >= 3) break;
-	}
-	if (team.length < 2) return runSmart(text, atts);
-	const msg = { role: "assistant", kind: "council", text: "", streaming: true, status: "Asking " + team.length + " models", members: team.map((m) => ({ name: shortName(m), id: m.id, text: "" })) };
-	current.msgs.push(msg);
-	updateLast();
-	const hist = [sys(), ...chatHistory()];
-	await Promise.all(team.map(async (m, k) => {
-		const x = msg.members[k];
-		try { await stream(m.id, hist, (t) => { x.text = t; updateLast(); }, busy.signal, effortExtra(m.id), msg); x.done = true; }
-		catch (e) { if (e.name === "AbortError") throw e; x.error = niceError(e); }
-		updateLast();
-	}));
-	const good = msg.members.filter((x) => x.done && x.text);
-	if (!good.length) throw new Error("None of the models could answer just now");
-	if (good.length === 1) { msg.text = good[0].text; msg.streaming = false; return; }
-	// the strongest at putting answers together writes the one answer
-	const judge = bestFor("assemble")[0] || team[0];
-	msg.judge = shortName(judge);
-	msg.status = "Combining the best of each";
-	updateLast();
-	const prompt = "Several expert AI models answered the same request on their own. Write the single best answer: keep what's correct and strongest in each, fix anything wrong, and where they genuinely disagree, say so briefly and say which view holds up best and why. Don't mention the models or that there were several answers unless they disagreed.\n\nThe request:\n" + text + "\n\n" + good.map((x, n) => "Answer " + (n + 1) + ":\n" + x.text).join("\n\n---\n\n");
-	await stream(judge.id, [sys(), ...chatHistory().slice(0, -1), { role: "user", content: prompt }], (t) => { msg.text = t; updateLast(); }, busy.signal, effortExtra(judge.id), msg);
-}
-
 document.addEventListener("click", async (e) => {
 	const b = e.target.closest("[data-run]");
 	if (!b || b.disabled) return;
@@ -8403,7 +8423,7 @@ const WHATS_NEW = { v: "2026-10-26", items: [
 	['<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 16.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>', "Canvas for writing", "Edit a long answer like a document, or ask for changes to all of it or just what you select."],
 	['<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', "Projects", "Chats that share instructions and files, so Andromeda always has the background."],
 	['<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', "Tasks", "It does things by itself on a schedule, even with this page closed: a morning brief, a weekly summary."],
-	['<circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 9.5l2.6 6M16 9.5l-2.6 6"/>', "Compare AIs", "Three labs' best models answer side by side, and the best of each is combined."],
+	['<circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 9.5l2.6 6M16 9.5l-2.6 6"/>', "A team on every answer", "Your request is split into tiny, precise pieces, each done by the model that's best at exactly that, working together."],
 	['<path d="M12 5v14M5 12h14"/>', "Everything in the + menu", "Deep research, pictures, video, music, apps, study sets, documents, your computer and apps."],
 	['<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', "Auto, Fast, Max, or one model", "Andromeda decides by default. Pick a style too: Concise, Explanatory, Learning…"],
 	['<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>', "Talk to it", "A voice screen that listens, thinks and speaks. Tap to interrupt."],
