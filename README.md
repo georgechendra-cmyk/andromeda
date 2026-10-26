@@ -34,6 +34,10 @@ With Andromeda you just type. It sends each part of your request to the stronges
 - Name a library in a coding question and it pulls that library's current docs (Context7).
 - Ask about something recent and it searches the web live.
 
+## Anything, without a recipe
+
+Nobody has to build a pipeline for what you ask. For anything Andromeda has no single way to make (a Minecraft mod, a launch with a site and an ad, a dataset and its analysis), it works like a lead engineer with a team: it works out the steps itself, hands each piece to the AI model measured best at exactly that skill (and, among models the ratings can't tell apart, the cheapest), uses its own makers for videos, pictures, music, documents and apps as tools, checks what comes back, and hands over the result, a whole project as a download if that's what it takes.
+
 ## Andromeda decides
 
 Nothing about a request is decided by rules written in advance. The model that measurably reads requests best reads each one and decides for itself what would serve it: an answer, something built and running in the page, a picture, a film, a song, a document, a study set, work on a code project, work in your connected apps, or its own way for anything nobody thought of. If that way fails, it's told why and chooses again.

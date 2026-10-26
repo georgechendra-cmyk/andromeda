@@ -2531,7 +2531,7 @@ async function conduct(text, atts, tried, only) {
 	ways.push(["act", "do it for real, step by step with tools, like an engineer at a computer: run Python or JavaScript to calculate, analyse or test, search the web and read pages, check its own work"
 		+ (pc ? "; on the user's own computer: run commands and programs, build and test their projects, install things, read, write and organise their files, look at the screen" : "")
 		+ (others.length ? "; in the user's connected apps: " + others.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ") : "")
-		+ ". Choose it whenever the request needs something done or checked rather than only said"]);
+		+ ". It is also the way for anything no single way above makes directly, or that combines several of them (a game mod, a business plan with a deck and a pitch video, a dataset with its analysis, a launch with a site and an ad): Andromeda works out the steps itself, hands each piece to the AI model measured best at exactly it, can use every way above as one of its tools, and hands over files, a whole project, as a download. Choose it whenever the request needs something done, built, combined or checked rather than only said"]);
 	ways = ways.filter(([k]) => wayOn(k));
 	// a tool the person picked themselves: one of its ways (when this server can do it)
 	if (only && only.length) { const f = ways.filter(([k]) => only.includes(k)); if (f.length) ways = f; else only = null; }
@@ -4079,7 +4079,58 @@ const BUILT_IN = [
 	["fetch_url", "Read a web page (or a raw file) as text.", { url: { type: "string" } }, ["url"]],
 	["lookup_docs", "Current documentation for a library or framework (React, Fabric, pandas, three.js...), so code matches today's API.", { library: { type: "string" }, topic: { type: "string" } }, ["library"]],
 	["remember", "Save a lasting fact about the user or their work to remember in future chats (their projects, preferences, decisions).", { fact: { type: "string" } }, ["fact"]],
+	["ask_expert", "Hand one piece of the work to the AI model measured best at exactly that skill (Andromeda routes it by the leaderboards and its own record, and takes the cheapest model the ratings can't tell apart from the best). Give the task complete: everything the expert needs to know, and exactly what to return. Its answer comes back to you.", {
+		task: { type: "string", description: "The complete piece of work, with every fact, file excerpt or constraint it needs" },
+		skills: { type: "object", description: "How much each measured skill matters for exactly this piece, 0 to 1 (keys from the skills list in your instructions), e.g. {\"text:coding\": 0.6, \"factuality:coding\": 0.4}", additionalProperties: { type: "number" } },
+		kind: { type: "string", enum: ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"] },
+		level: { type: "string", enum: ["easy", "medium", "hard"], description: "How hard it is to get exactly right: easy thinks lightly and costs least" },
+		web: { type: "boolean", description: "It needs a live web search" },
+	}, ["task", "kind"]],
+	["make", "Have one of Andromeda's makers make something, shown to the user in the chat: each maker picks its own best models (a video's director, animator, picture and video models, voice, music and editor; a document's writer; an app's builder, tested in the page). Write the request as the user would, complete.", {
+		what: { type: "string", enum: ["video", "image", "music", "voice", "docx", "pdf", "pptx", "xlsx", "app", "sim", "flashcards", "quiz", "open", "mindmap", "podcast"] },
+		request: { type: "string", description: "Exactly what to make, with every detail it needs (content, style, length, audience)" },
+	}, ["what", "request"]],
+	["save_file", "Save a file to hand to the user (a whole project, a mod, a script, data, a config): put each file at its real path, e.g. src/main/java/com/example/ExampleMod.java. Saving the same path again replaces it.", { path: { type: "string" }, content: { type: "string" } }, ["path", "content"]],
+	["read_saved_file", "Read back a file you saved.", { path: { type: "string" } }, ["path"]],
+	["deliver_files", "Hand the saved files to the user as one download (a .zip keeping their folders). Do it when they're finished and checked.", { name: { type: "string", description: "The download's name, e.g. glowing-ores-mod" } }, ["name"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
+// One piece of a job, done by the model measured best at exactly it: weighed on the skills the worker named, the cheapest
+// a quark from the best (quarkFirst), thinking as hard as the piece needs. On free credits, the low-cost strong models.
+async function askExpert(args, msg) {
+	const idx = arenaIndex();
+	const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
+	const kind = kinds.includes(args.kind) ? args.kind : "write";
+	const w = {};
+	for (const [k, v] of Object.entries(args.skills || {})) if (idx && idx[k] && Number(v) > 0) w[k] = Math.min(1, Number(v));
+	const cap = speed() === "max" ? null : { easy: "low", medium: "medium", hard: "high" }[args.level] || "medium";
+	let ranked = arenaRank(kind, Object.keys(w).length ? (args.web ? blendW(w, { "search:overall": 1 }, 0.4) : w) : ROLE_W[kind] || ROLE_W.quick);
+	if (liteMode()) { const cheap = ranked.filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)); if (cheap.length) ranked = cheap; }
+	const cands = bestFirst(quarkFirst(ranked, cap)).slice(0, 4);
+	if (!cands.length) cands.push(...rank(kind, cap).slice(0, 4).map((m) => ({ m, effort: EFFORT.get(m.id) || "" })));
+	let lastErr;
+	for (const x of cands) {
+		const m = x.m || x;
+		try {
+			const out = await stream(m.id, [sys("You are the world's best expert at exactly this work. Do it completely and exactly: code in full, numbers worked out, facts checked. Return only what was asked for."), { role: "user", content: String(args.task || "") }], () => {}, busy.signal, { ...effortFor(m.id, capEffort(x.effort || "", cap, m.id)), ...(args.web || kind === "research" ? webExtra(m.id, true) : {}) }, msg);
+			return { model: m, text: out };
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+			lastErr = e;
+		}
+	}
+	throw lastErr || new Error("No expert could take this piece");
+}
+// one of Andromeda's makers, run on the worker's brief as if the user had asked for it (it shows in the chat as usual)
+async function makeWith(args) {
+	const what = String(args.what || ""), request = String(args.request || "").trim();
+	const plan = { way: what, skills: [], edit: false, how: request, qty: 0, length: "", topic: request.slice(0, 200), name: "", schedule: null, profile: PROFILE };
+	const mark = current.msgs.length, note = PLAN_NOTE;
+	PLAN_NOTE = request;
+	try { await runWay(plan, request, []); }
+	finally { PLAN_NOTE = note; }
+	const made = current.msgs.slice(mark).filter((m) => m.role === "assistant");
+	return made.map((m) => (m.kind || "answer") + ": " + (m.error ? "failed: " + m.error : (m.text || "").replace(/\*\*/g, "").slice(0, 300) || "made")).join("\n") || "Nothing came of it.";
+}
 // what changes something on the computer: asked about first (reading, listing, searching and looking are not)
 const CHANGES = /^(run_command|start_command|stop_job|write_file|edit_file|open)$/;
 const ASKS = new Map();
@@ -4131,10 +4182,15 @@ async function runAct(text, atts, resume) {
 		const where = (servers.some((s) => s.name === "computer") ? " You're connected to the user's computer (" + (navigator.userAgent.includes("Windows") ? "Windows, PowerShell" : "bash") + "): you can run commands and programs, keep long ones running, and read, write, edit and search files there." : "")
 			+ (servers.some((s) => s.name !== "computer") ? " You also have the user's connected apps: " + servers.filter((s) => s.name !== "computer").map((s) => s.name).join(", ") + "." : "");
 		const files = codeFiles();
+		const idx = arenaIndex(), skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
 		const system = "You are Andromeda, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
+			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Andromeda has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Andromeda's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), and hand over files, even a whole project, as a download (save_file, then deliver_files)."
 			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + "." : "")
 			+ (skillLine() ? "\n\n" + skillLine() : "")
 			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
+			+ "\n\nBe the team, not one model: split big work into narrow pieces and give each to ask_expert with the exact skills it needs (its language, field and that field's facts, web page or app, maths, writing for whom...), so each goes to the model that measurably does exactly that best. Check what comes back, and send a piece back with the exact problem if it isn't right."
+			+ "\n\nSpend like it's your own money; every step costs the user. ask_expert already takes the cheapest model the ratings can't tell apart from the best: a model 20 times cheaper and only a hair behind does the piece. On top of that: mark easy pieces easy (they think lightly); give an expert everything it needs in one go rather than in rounds; reuse what you already have instead of asking again; for media, pictures with a moving camera or animation drawn in code cost a fraction of filmed video (the makers choose this themselves, so describe what you want, not how); and stop when the job is done well, with no extra rounds of polish nobody asked for."
+			+ (skills.length ? "\n\nThe measured skills ask_expert can weigh (key: what it measures):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") : "")
 			+ (PLAN_NOTE ? "\n\nWhat Andromeda decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
 		const hist = chatHistory(), last = hist[hist.length - 1];
 		const prior = hist.slice(0, -1).slice(-6).map((m) => ({ role: m.role, content: (typeof m.content === "string" ? m.content : m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")).slice(0, 4000) }));
@@ -4142,7 +4198,8 @@ async function runAct(text, atts, resume) {
 		messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
 	}
 	// working with tools is its own measured skill (LMArena's agent board), with what this request needs on top
-	const cands = bestFirst(arenaRank("code", blendW({ "agent:overall": 0.25, "agent_outcome:overall": 0.15, "agent_honest_tools:overall": 0.12, "agent_reliability:overall": 0.1, "agent_recovery:overall": 0.08, "agent_steerability:overall": 0.1, "text:instruction_following": 0.1, "text:hard_prompts": 0.1 }, PROFILE && PROFILE.weights, 0.3))).map((x) => x.m).filter((m) => m.tools !== false);
+	// the cheapest a quark from the best: a long job is many steps, so this saves the most of all
+	const cands = bestFirst(quarkFirst(arenaRank("code", blendW({ "agent:overall": 0.25, "agent_outcome:overall": 0.15, "agent_honest_tools:overall": 0.12, "agent_reliability:overall": 0.1, "agent_recovery:overall": 0.08, "agent_steerability:overall": 0.1, "text:instruction_following": 0.1, "text:hard_prompts": 0.1 }, PROFILE && PROFILE.weights, 0.3)).filter((x) => x.m.tools !== false))).map((x) => x.m);
 	let ci = 0, model = cands[0] || best("code"), summary = null, step = resume && resume.state ? resume.state.step : 0;
 	const keep = () => vault.set("act:" + msg.data.id, { messages, step }).catch(() => {});
 	try {
@@ -4187,6 +4244,40 @@ async function runAct(text, atts, resume) {
 						const j = await toolCall("/api/tools/docs", { library: args.library, topic: args.topic || "", tokens: 6000 }, 25000);
 						out = j.text || j.error?.message || "No docs found.";
 					} else if (fn === "remember") { out = remember(args.fact) ? "Saved." : "Already remembered."; log("Remembered", args.fact); }
+					else if (fn === "ask_expert") {
+						log("Asked an expert", String(args.task || "").split("\n")[0].slice(0, 120));
+						const r = await askExpert(args, msg);
+						const who = shortName(r.model);
+						if (!msg.used.some((u) => u.name === who)) msg.used.push({ name: who, desc: "Expert: did a piece of the work" });
+						msg.data.log[msg.data.log.length - 1].label = "Asked " + who;
+						out = "(" + who + ", measured best at this)\n" + r.text;
+					} else if (fn === "make") {
+						log("Making " + ({ docx: "a Word document", pdf: "a PDF", pptx: "a deck", xlsx: "a spreadsheet", open: "open questions", sim: "a simulation", app: "an app", image: "a picture", voice: "a voiceover", quiz: "a quiz", mindmap: "a mind map", podcast: "a podcast", video: "a video" }[args.what] || args.what), String(args.request || "").slice(0, 120));
+						out = await makeWith(args);
+					} else if (fn === "save_file") {
+						const path = normPath(String(args.path || "file.txt"));
+						const files = (msg.data.outFiles ||= []);
+						const at = files.findIndex((f) => f.path === path), key = await vault.put(new Blob([String(args.content || "")], { type: "text/plain" }));
+						if (at >= 0) files[at] = { path, key, size: String(args.content || "").length }; else files.push({ path, key, size: String(args.content || "").length });
+						log("Saved " + path);
+						out = "Saved " + path + " (" + files.length + " file" + (files.length === 1 ? "" : "s") + " so far).";
+					} else if (fn === "read_saved_file") {
+						const f = (msg.data.outFiles || []).find((x) => x.path === normPath(String(args.path || "")));
+						out = f ? await (await vault.get(f.key)).text() : "There's no saved file at " + args.path + ". Saved: " + ((msg.data.outFiles || []).map((x) => x.path).join(", ") || "none");
+					} else if (fn === "deliver_files") {
+						const files = msg.data.outFiles || [];
+						if (!files.length) out = "Nothing is saved yet: save_file first.";
+						else {
+							await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+							const zip = new JSZip();
+							for (const f of files) zip.file(f.path, await (await vault.get(f.key)).text());
+							const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+							const name = (String(args.name || "files").replace(/[^\w.-]+/g, "-").replace(/\.zip$/i, "") || "files") + ".zip";
+							(msg.data.downloads ||= []).push({ name, key: await vault.put(blob), size: blob.size, count: files.length });
+							log("Handed over " + name, files.length + " files");
+							out = "The user can download " + name + " (" + files.length + " files) from your message.";
+						}
+					}
 					else {
 						const hit = map.get(fn);
 						if (!hit) out = "There's no tool called " + fn + ".";
@@ -4225,7 +4316,7 @@ async function runAct(text, atts, resume) {
 		}
 		if (summary == null) summary = "That's 400 steps, so I've paused here. Say \"keep going\" and I'll carry on from where I am.";
 	} finally {
-		msg.used = [{ name: shortName(model), desc: "Did the work with tools" + (names ? " (" + names + ")" : "") }];
+		msg.used = [{ name: shortName(model), desc: "Did the work with tools" + (names ? " (" + names + ")" : "") }, ...(msg.used || []).filter((u) => /^Expert/.test(u.desc))];
 		msg.text = summary != null ? summary || "Done." : "";
 		if (summary != null) { msg.data.running = false; vault.del ? vault.del("act:" + msg.data.id) : vault.set("act:" + msg.data.id, null); }
 	}
@@ -4304,8 +4395,10 @@ function renderAgent(m, i, box) {
 		else if (P && P.pending.size) act = '<button class="btn dark" data-agpr>Open a pull request</button><button class="btn" data-agcommit>Commit to ' + esc(P.branch) + "</button>" +
 			(d.self && P.pending.get("index.html") != null ? '<button class="btn" data-agtry>Try the new Andromeda</button><button class="btn" data-agdl>Download index.html</button>' : "");
 	}
+	// what the job handed over: each as one download
+	const dls = (d.downloads || []).map((x, k) => '<div class="fs-card"><span class="fs-badge">ZIP</span><div class="fs-name"><b>' + esc(x.name) + "</b><span>" + x.count + " file" + (x.count === 1 ? "" : "s") + " · " + fmtSize(x.size) + '</span></div><button class="btn dark" data-agzip="' + k + '">Download</button></div>').join("");
 	box.innerHTML = '<div class="ag"><details class="ag-log"' + (m.streaming ? " open" : "") + "><summary>" + (m.streaming ? "Working in " : "Worked in ") + esc(d.project) + " · " + d.log.length + " step" + (d.log.length === 1 ? "" : "s") + (m.model ? " · " + esc(m.model) : "") + "</summary><ol>" + log + "</ol></details>" +
-		(files ? '<div class="ag-files">' + files + "</div>" : "") + ask + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
+		(files ? '<div class="ag-files">' + files + "</div>" : "") + dls + ask + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
 		(d.preview && !m.streaming && P ? '<div class="ag-prev">' + (m.hidePreview ? "" : '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts allow-forms allow-modals" title="Preview"></iframe></div>') +
 			'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-agprev>' + (m.hidePreview ? "Show the preview" : "Hide the preview") + '</button><button class="btn" data-agside>Open beside</button>' + (m.hidePreview ? "" : '<button class="btn" data-agfull>Full screen</button><button class="btn" data-agreload>Reload</button><button class="btn" data-agtab>Open in a new tab</button>') + "</div></div>" : "") + "</div>";
 	const q = (s) => box.querySelector(s);
@@ -4316,6 +4409,7 @@ function renderAgent(m, i, box) {
 		q("[data-askno]").onclick = () => answer(false);
 	}
 	if (q("[data-agresume]")) q("[data-agresume]").onclick = () => resumeAct(i);
+	box.querySelectorAll("[data-agzip]").forEach((b) => (b.onclick = async () => { const x = d.downloads[+b.dataset.agzip], blob = x && (await vault.get(x.key)); if (blob) saveBlob(blob, x.name); else toast("That download isn't on this device anymore"); }));
 	if (d.shots && d.shots.length) {
 		const g = document.createElement("div");
 		g.className = "shots imgs";
@@ -6785,10 +6879,11 @@ const framePrompt = (plan, sc) => sc.frame + "\n\nStyle: " + plan.look + "\nA si
 // the camera over, or a shot drawn in code (drawn in every quality: filming can't draw a diagram or exact words)
 const filmed = (sc, tier) => sc.motion === "video" || (tier === "max" && sc.motion === "still");
 const shotSecs = (sc, tier, vm) => (filmed(sc, tier) ? fitDur(vm, sc.seconds) : sc.seconds);
-// what animating one shot in code costs: the animator writing a scene (about 6k tokens read, 7k written, some thought)
+// what animating one shot in code costs: the animator writing a scene (about 6k tokens read, 7k written, some thought),
+// and the reviewer looking at three of its frames
 function drawnCost() {
 	const a = bestFor("animation")[0];
-	return a && (a.pin || a.pout) ? ((a.pin || 0) * 6000 + (a.pout || 0) * 10500) / 1e6 : 0.2;
+	return (a && (a.pin || a.pout) ? ((a.pin || 0) * 6000 + (a.pout || 0) * 10500) / 1e6 : 0.2) + 0.02;
 }
 
 // ---- what it will cost, at each quality, before anything is spent
@@ -7400,6 +7495,31 @@ Write ONE complete HTML document, exactly to this contract:
 Make it look like a top motion-design studio made it: a strong composition; easing on every move (cubic or expo in and out, a touch of anticipation and overshoot); secondary motion and layered parallax so it never feels static; a consistent palette and lighting; typography with real hierarchy, kept inside the middle 90% of the frame; texture where the style wants it (grain, paper, hatching, halftone); motion through the whole duration (no dead stretches), settling into a clean final frame. Characters, if any, drawn with care: clear silhouettes, expressive poses, simple faces that read.
 
 Reply with the HTML only.`;
+// A second pair of eyes, which is how a team beats any one model: the model measured best at reading pictures (or the
+// cheapest a quark from it) looks at the running shot's frames against its brief, as a studio's lead would before
+// anything ships. Null if it would ship; otherwise the real problems, for the animator to fix.
+async function reviewScene(html, sc, plan, W, H, msg, signal) {
+	let ranked = arenaRank("vision", { "vision:overall": 0.4, "vision:diagram": 0.2, "vision:captioning": 0.2, "vision:ocr": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
+	if (liteMode()) { const cheap = ranked.filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)); if (cheap.length) ranked = cheap; }
+	const eye = bestFirst(quarkFirst(ranked, "low"))[0];
+	if (!eye) return null;
+	const urls = [], sh = openScene(html, W, H);
+	try {
+		for (const t of [0.15, 0.5, 0.92]) {
+			const b = await sh.frame(t * sc.seconds), c = document.createElement("canvas");
+			c.width = W;
+			c.height = H;
+			c.getContext("2d").drawImage(b, 0, 0, W, H);
+			if (b.close) b.close();
+			urls.push(c.toDataURL("image/jpeg", 0.82));
+		}
+	} finally {
+		sh.close();
+	}
+	const out = await stream(eye.m.id, [{ role: "user", content: [{ type: "text", text: "Three frames (near the start, the middle and the end) of an animated shot for a film.\nIts brief: " + (sc.draw || sc.shot) + "\nThe film's look: " + plan.look + "\n\nWould a top motion-design studio ship it? Find only real problems a viewer would notice: words cut off, overlapping or hard to read; shapes or characters drawn wrong or broken; empty, cramped or unbalanced frames; not showing what the brief says; looking amateur. Reply with ONLY JSON: {\"ship\": true or false, \"problems\": [\"what's wrong, and how to fix it\"]}" }, ...urls.map((url) => ({ type: "image_url", image_url: { url } }))] }], () => {}, signal, { max_tokens: 1500, ...effortFor(eye.m.id, capEffort(eye.effort || "", "low", eye.m.id)) }, msg);
+	const j = parseJSON(out) || {};
+	return j.ship === false && Array.isArray(j.problems) && j.problems.length ? j.problems.slice(0, 6).map((p) => String(p).slice(0, 300)) : null;
+}
 async function animateShot(plan, sc, i, cands, msg, signal, W, H) {
 	const ask = "The film: " + plan.title + ". Its look: " + plan.look
 		+ "\nThe film's shots, for context: " + plan.scenes.map((x, k) => (k + 1) + ". " + (x.motion === "drawn" ? x.draw || x.shot : x.shot).slice(0, 110)).join(" | ").slice(0, 3500)
@@ -7408,16 +7528,32 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H) {
 		+ (sc.vo ? "\nThe voiceover during it (time the visuals to it, about 2.5 words a second): \"" + sc.vo + "\"" : "")
 		+ (sc.caption ? "\nThe editor adds this caption at the bottom, so keep the bottom fifth clear: \"" + sc.caption + "\"" : "")
 		+ "\nSame style, palette and characters as the rest of the film, so the shots cut together.";
+	const write = async (m, prompt) => {
+		const out = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id)), msg);
+		return (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
+	};
+	// once it runs: the review, and one round of fixing what it found (kept only if the fix runs too)
+	const polish = async (m, html) => {
+		let problems = null;
+		try { problems = await reviewScene(html, sc, plan, Math.round(W / 3), Math.round(H / 3), msg, signal); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		if (!problems) return html;
+		try {
+			const fixed = await write(m, ask + "\n\nYour version runs, and a reviewer looking at its frames found:\n- " + problems.join("\n- ") + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nFix exactly these, keep everything else, and send the whole file again.");
+			await checkScene(fixed, sc.seconds, Math.round(W / 4), Math.round(H / 4));
+			return fixed;
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+			return html;
+		}
+	};
 	let lastErr;
 	for (const m of cands.slice(0, 4)) {
 		let html = "", err = "";
 		for (let attempt = 0; attempt < 2; attempt++) {
 			try {
-				const prompt = attempt ? ask + "\n\nYour last version failed when it was run:\n" + err + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nFind the cause, fix it, and send the whole file again." : ask;
-				const out = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id)), msg);
-				html = (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
+				html = await write(m, attempt ? ask + "\n\nYour last version failed when it was run:\n" + err + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nFind the cause, fix it, and send the whole file again." : ask);
 				await checkScene(html, sc.seconds, Math.round(W / 4), Math.round(H / 4));
-				return html;
+				return await polish(m, html);
 			} catch (e) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				err = String(e.message || e).slice(0, 600);
