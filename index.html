@@ -1303,6 +1303,9 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 .tk-t b { font-weight: 500; }
 .tk-t small { color: var(--faint); font-size: 12.5px; }
 .tk .btn { height: 32px; font-size: 13px; }
+
+/* ---- on a phone the sidebar slides over the page: solid, so nothing shows through it */
+@media (max-width: 860px) { .sidebar, :root[data-theme="light"] .sidebar, body.has-bg .sidebar { background: var(--bg2); backdrop-filter: none; -webkit-backdrop-filter: none; } }
 </style>
 </head>
 <body>
@@ -7056,7 +7059,8 @@ function openSettings() {
 		'<div class="field"><label>Keyboard</label><div class="keys"><kbd>Enter</kbd><span>send (Shift+Enter: a new line)</span><kbd>⌘K / Ctrl+K</kbd><span>new chat</span><kbd>↑</kbd><span>in an empty box: edit your last message</span><kbd>Esc</kbd><span>stop the answer that\'s coming</span><kbd>/</kbd><span>go to the message box</span></div></div>' +
 		(installAsk ? '<div class="field"><label>App</label><button class="btn" id="installBtn">Install Andromeda</button><div class="help">Its own window and icon, on your home screen or desktop.</div></div>' : "") +
 		'<div class="field"><label>Big builds</label><label class="chk"><input type="checkbox" id="maxBuildChk"' + (settings.maxBuild !== false ? " checked" : "") + '> Ask to use the top models together when I have ' + creditsText(MAX_BUILD_AT / creditUsd()) + ' credits or more</label><div class="help">For a new app or game, the top labs each build a version and the strongest coder merges the best parts. It uses more credits.</div></div>' +
-		'<div class="row" style="justify-content:space-between;margin-top:8px">' + (creditsMode() ? '<button class="btn" data-open-account>Credits and account</button>' : "") + '<button class="btn" id="exportChats">Export chats</button><button class="btn dark" id="closeSettings">Done</button></div>', "wide");
+		'<div class="field"><label>Your data</label><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="exportChats">Export everything</button><button class="btn" id="importAll">Import</button><button class="btn" id="wipeChats">Delete all chats</button></div><input type="file" id="importFile" accept=".json,application/json" hidden><div class="help">Everything stays in this browser. The export is one file with your chats, projects and their files, memory and settings: keep it as a backup, or import it in another browser.</div></div>' +
+		'<div class="row" style="justify-content:space-between;margin-top:8px">' + (creditsMode() ? '<button class="btn" data-open-account>Credits and account</button>' : "<span></span>") + '<button class="btn dark" id="closeSettings">Done</button></div>', "wide");
 	$$("[data-theme-pick]").forEach((x) => x.onclick = () => { settings.theme = x.dataset.themePick; saveSettings(); morph(applyTheme); $$("[data-theme-pick]").forEach((y) => y.classList.toggle("on", y === x)); });
 	$$("[data-bg]").forEach((x) => x.onclick = async () => {
 		if (x.dataset.bg === "mine" && !(await vault.get("bg-mine"))) { $("#bgFile").click(); return; }
@@ -7102,7 +7106,14 @@ function openSettings() {
 	if ($("#installBtn")) $("#installBtn").onclick = async () => { const a = installAsk; if (!a) return; installAsk = null; a.prompt(); try { await a.userChoice; } catch {} closeModal(); };
 	$("#maxBuildChk").onchange = (e) => { settings.maxBuild = e.target.checked; saveSettings(); };
 	$$("[data-tone]").forEach((x) => x.onclick = () => { settings.tone = x.dataset.tone; saveSettings(); $$("[data-tone]").forEach((y) => y.classList.toggle("on", y === x)); });
-	$("#exportChats").onclick = () => download("andromeda-chats.json", JSON.stringify(store.get("convos", []), null, 2));
+	$("#exportChats").onclick = exportAll;
+	$("#importAll").onclick = () => $("#importFile").click();
+	$("#importFile").onchange = async (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) importAll(f); };
+	$("#wipeChats").onclick = () => {
+		openModal('<h2>Delete all chats?</h2><p class="sub">Every chat in this browser is deleted, with every version of it. Projects, memory and settings stay. Export first if you might want them back.</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="wpNo">Cancel</button><button class="btn dark" id="wpGo">Delete all chats</button></div>');
+		$("#wpNo").onclick = openSettings;
+		$("#wpGo").onclick = () => { convos = []; current = null; SPACE_VIEW = null; EDITING = -1; store.set("convos", []); closeArt(); render(); closeModal(); toast("All chats deleted"); };
+	};
 	$("#closeSettings").onclick = closeModal;
 }
 // ---------------------------------------------------------------- credits: account, pricing, admin
@@ -8339,6 +8350,41 @@ async function drawTasks() {
 	$$("[data-tkdel]", box).forEach((b) => b.onclick = async () => { try { await api("/api/tasks/" + b.dataset.tkdel, { method: "DELETE" }); drawTasks(); } catch (e) { toast(e.message); } });
 }
 $("#tasksNav").onclick = () => { openSidebar(false); openTasks(); };
+
+// ---------------------------------------------------------------- your data: one file out, and back in
+async function exportAll() {
+	const sp = spaces(), files = {};
+	for (const s of sp) files[s.id] = await loadSpace(s.id);
+	// (no keys or sign-in in it)
+	const { key, ...safe } = settings;
+	const data = { app: "andromeda", version: 1, at: Date.now(), convos: store.get("convos", []), spaces: sp, spaceFiles: files, memories: memories(), settings: safe };
+	download("andromeda-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(data, null, 1));
+	toast("Exported");
+}
+async function importAll(f) {
+	let d;
+	try { d = JSON.parse(await f.text()); } catch { toast("That file isn't an Andromeda export"); return; }
+	// an older export is just the list of chats
+	if (Array.isArray(d)) d = { convos: d };
+	if (!d || typeof d !== "object" || (!Array.isArray(d.convos) && !Array.isArray(d.spaces))) { toast("That file isn't an Andromeda export"); return; }
+	// what's already here stays as it is; only what's missing is added
+	const have = new Set(convos.map((c) => c.id));
+	const chats = (d.convos || []).filter((c) => c && c.id && Array.isArray(c.msgs) && c.msgs.length && !have.has(c.id));
+	convos = [...convos, ...chats].sort((a, b) => (b.at || 0) - (a.at || 0));
+	const spHave = new Set(spaces().map((s) => s.id));
+	const sps = (d.spaces || []).filter((s) => s && s.id && s.name && !spHave.has(s.id));
+	if (sps.length) saveSpaces([...spaces(), ...sps]);
+	for (const s of sps) {
+		const fl = (d.spaceFiles || {})[s.id];
+		if (Array.isArray(fl)) { SPACE_FILES.set(s.id, fl); await vault.set("space-files:" + s.id, fl); }
+	}
+	let mem = 0;
+	for (const m of d.memories || []) if (m && m.text && remember(m.text)) mem++;
+	save();
+	render();
+	closeModal();
+	toast("Imported " + chats.length + " chat" + (chats.length === 1 ? "" : "s") + (sps.length ? ", " + sps.length + " project" + (sps.length === 1 ? "" : "s") : "") + (mem ? ", " + mem + " memor" + (mem === 1 ? "y" : "ies") : ""));
+}
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
