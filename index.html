@@ -5056,7 +5056,24 @@ async function runQuarks(text, atts) {
 			+ "\n\nYour piece (" + p.label + "): " + p.goal + (p.skill ? "\nIts exact skill: " + p.skill : "")
 			+ "\n\nDo only this piece, completely and exactly (code in full, numbers worked out, facts checked). Another model puts the pieces together, so give the result itself: no introduction, no summary of the other pieces.";
 		try {
-			const out = await run(st, cands, () => (single ? [sys(), ...hist] : [sys(), ...hist.slice(0, -1), withText(last, ask)]), single ? (t) => { msg.text = t; } : null, (m) => (p.web ? webExtra(m.id, true) : {}));
+			const build = () => (single ? [sys(), ...hist] : [sys(), ...hist.slice(0, -1), withText(last, ask)]);
+			let out = await run(st, cands, build, single ? (t) => { msg.text = t; } : null, (m) => (p.web ? webExtra(m.id, true) : {}));
+			// code it wrote that can run here is run before anyone sees it; if it fails, the same model gets the exact error
+			// and fixes it
+			const tested = await testCode(out);
+			if (tested && tested.failed) {
+				msg.status = "Its code failed when run: fixing it";
+				updateLast();
+				const same = [cands.find((c) => (c.m || c).id === st.id) || cands[0], ...cands.filter((c) => (c.m || c).id !== st.id)];
+				const first = out;
+				try {
+					out = await run(st, same, () => [...build(), { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive your whole piece again with the code fixed. Check the fix line by line before you answer." }], single ? (t) => { msg.text = t; } : null);
+					st.tested = (await testCode(out) || {}).failed ? "still failing" : "fixed";
+				} catch (e) {
+					if (e.name === "AbortError" || e.status === 401) throw e;
+					out = first;
+				}
+			} else if (tested) st.tested = "ran";
 			outs.set(p.id, out);
 			done(st);
 		} catch (e) {
@@ -8644,6 +8661,29 @@ function showWhatsNew(force) {
 		WHATS_NEW.items.map(([d, t, s], k) => '<div class="wn-it" style="animation-delay:' + (k * 0.04).toFixed(2) + 's">' + svgOf(d, 20) + "<div><b>" + esc(t) + "</b><span>" + esc(s) + "</span></div></div>").join("") +
 		'</div><div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn dark" id="wnOk">Start</button></div></div>', "wide");
 	$("#wnOk").onclick = () => { closeModal(); $("#input").focus(); };
+}
+
+// ---------------------------------------------------------------- code that's run before anyone sees it
+// The first Python or JavaScript block in a piece that can run on its own here (nothing waiting for input, opening a
+// window or a server, or needing a page, files or the network) is run in the sandbox. An error means it doesn't work;
+// running too long only means it's long-running, not that it's wrong.
+const RUN_PY = /^(python3?|py)$/i, RUN_JS = /^(javascript|js|mjs)$/i;
+const NOT_HERE = /\binput\s*\(|tkinter|pygame|turtle|flask|fastapi|django|streamlit|app\.run\(|uvicorn|socket|requests\.|urllib|aiohttp|while\s+True|document\.|window\.|require\(|^\s*import\s[^\n]*\sfrom\s+['"]|^\s*export\s|process\.|setInterval|addEventListener|readline|subprocess|os\.system|open\(|fetch\(/m;
+let PY_LINE = Promise.resolve();
+async function testCode(text) {
+	if (!capOn("code")) return null;
+	const blocks = [...String(text || "").matchAll(/```([\w+-]*)\n([\s\S]*?)```/g)].map(([, l, c]) => [l, c]).filter(([l, c]) => (RUN_PY.test(l) || RUN_JS.test(l)) && c.length < 20000 && !NOT_HERE.test(c));
+	if (!blocks.length) return null;
+	const [lang, code] = blocks[0];
+	let r;
+	if (RUN_PY.test(lang)) {
+		// one Python at a time (pieces run side by side, and they share one Python)
+		const job = PY_LINE.then(() => runPython(code, [], 90000));
+		PY_LINE = job.catch(() => {});
+		r = (await job).text;
+	} else r = await runJs(code, 10000);
+	const failed = /(^|\n)Error: /.test(r) && !/ran longer than|couldn't start here/.test(r);
+	return { failed, error: failed ? r.slice(-2500) : "", output: r };
 }
 
 // ---------------------------------------------------------------- the site
