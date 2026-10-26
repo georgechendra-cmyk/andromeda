@@ -16,7 +16,7 @@
 <meta name="apple-mobile-web-app-title" content="Andromeda">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
@@ -1342,6 +1342,70 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 /* ---- while the new look spreads in, nothing underneath animates too (the page's own colour fades, repainting it
    every frame under the moving mask, were what made it stutter) */
 html.morphing *, html.morphing *::before, html.morphing *::after { transition: none !important; }
+
+/* ============================== the look, again: precise, quiet, confident ==============================
+   One sharp sans for everything, monochrome, the accent kept for what's chosen and what's working; solid ink buttons
+   instead of glowing gradients; nothing orbits or spins. (The backgrounds are as they were.) */
+:root { --serif: var(--sans); }
+.mark { color: var(--text); }
+.brand .mark, .wn-mark, .gmark svg { filter: none !important; }
+.brand:hover .mark { transform: none; }
+.btn.dark, .b.pri { background: var(--ink); color: var(--onink); border-color: var(--ink); box-shadow: none; }
+.btn.dark:hover, .b.pri:hover { filter: none; opacity: .86; box-shadow: none; }
+.send { background: var(--ink); color: var(--onink); box-shadow: none; }
+.send:not(:disabled):hover { transform: none; opacity: .86; }
+.send.talk.on { background: var(--brand); color: #fff; }
+.icon.on { background: var(--ink); color: var(--onink); }
+.pills button.on, .cur button.on, .tiers button.on { background: var(--ink); color: var(--onink); border-color: var(--ink); }
+.sw.on { background: var(--ink); }
+.sw.on::after { background: var(--onink); }
+.nav-i.new .ic, .av-i { background: var(--ink); color: var(--onink); box-shadow: none; }
+.nav-i.new:hover .ic { transform: none; }
+.plan .tag, .pill .tag { background: var(--ink); color: var(--onink); }
+.plan.popular { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+.welcome .slot .composer, .space-pg .slot .composer { box-shadow: var(--lift); }
+.composer:focus-within { border-color: color-mix(in srgb, var(--text) 26%, transparent); box-shadow: var(--lift); }
+.composer.working::before { background: conic-gradient(from var(--a), transparent 0 68%, color-mix(in srgb, var(--text) 50%, transparent) 84%, transparent 96%); }
+.tool-chip { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); border-color: var(--line2); }
+.mode-btn.set { color: var(--text); }
+.gmark::before, .gmark i { display: none; }
+.gmark { width: 32px; height: 32px; }
+.gmark svg { animation: none; }
+.welcome .greet { font-family: var(--sans); font-weight: 600; letter-spacing: -.04em; font-size: clamp(28px, 3.1vw, 38px); }
+.welcome.temp .greet { font-style: normal; }
+.sp-top h1, .wn h2, .v-state { font-family: var(--sans); font-weight: 600; letter-spacing: -.035em; }
+.wn-mark svg { animation: none; }
+.cv-ed { font: 400 16.5px/1.75 var(--sans); }
+.v-orb::before { background: radial-gradient(circle, color-mix(in srgb, var(--text) 14%, transparent), transparent 66%); }
+.v-orb i { border-color: color-mix(in srgb, var(--text) 14%, transparent); }
+.v-orb i::after { display: none; }
+.v-orb svg { color: var(--text); filter: none; }
+.thinking { background: linear-gradient(90deg, var(--faint) 0%, var(--text) 50%, var(--faint) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; }
+/* the home page */
+.hero h1 { font-family: var(--sans); font-weight: 650; letter-spacing: -.058em; line-height: .96; font-size: clamp(44px, 7.6vw, 100px); margin: 26px auto 24px; }
+.hero h1 em { font-style: normal; padding: 0; background: linear-gradient(180deg, color-mix(in srgb, var(--text) 55%, transparent), color-mix(in srgb, var(--text) 28%, transparent)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.block h2, .cta-end h2 { font-family: var(--sans); font-weight: 600; letter-spacing: -.045em; line-height: 1.02; }
+.eyebrow { color: var(--muted); }
+.card .ic { background: transparent; color: var(--text); border-color: var(--line2); }
+.card:hover { border-color: var(--line2); box-shadow: none; transform: translateY(-2px); }
+.tr .task i { background: var(--text); box-shadow: none; }
+.cta-end { background: var(--glass); }
+.stats { display: flex; justify-content: center; gap: clamp(24px, 5vw, 64px); margin: 42px auto 0; }
+.stats div { display: grid; gap: 4px; text-align: center; }
+.stats b { font: 600 32px/1 var(--sans); letter-spacing: -.045em; color: var(--text); }
+.stats span { font: 11px var(--mono); letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
+.demo { border-radius: 16px; }
+.demo-tasks { display: none; }
+.demo-b { padding-bottom: 20px; }
+.demo-r { display: grid; gap: 0; align-items: stretch; padding-top: 10px; min-height: 230px; }
+.dp { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 12px; padding: 10px 2px; border-bottom: 1px solid var(--line); animation: pop .4s var(--ease) both; }
+.dp-n { font: 12px var(--mono); color: var(--faint); }
+.dp-l { display: grid; gap: 2px; font-size: 14.5px; color: var(--text); }
+.dp-l small { font: 11.5px var(--mono); color: var(--faint); }
+.dp-m { font: 500 13px var(--mono); color: var(--text); padding: 4px 10px; border: 1px solid var(--line2); border-radius: 8px; white-space: nowrap; }
+.dp-end { border-bottom: 0; }
+.dp-end .dp-m { border-color: transparent; background: var(--ink); color: var(--onink); }
+@media (max-width: 620px) { .stats b { font-size: 24px; } .dp { grid-template-columns: 24px 1fr; } .dp-m { grid-column: 2; justify-self: start; } }
 </style>
 </head>
 <body>
@@ -1363,14 +1427,15 @@ html.morphing *, html.morphing *::before, html.morphing *::after { transition: n
 
 	<section class="hero">
 		<div class="wrap">
-			<a class="pill" href="#product"><span class="tag">NEW</span><span class="pill-t">Projects, a Library, and what it makes opens beside the chat</span></a>
+			<a class="pill" href="#product"><span class="tag">NEW</span><span class="pill-t">A team on every answer: each piece by the model measured best at exactly that</span></a>
 			<h1>Every AI's best,<br><em>working as one.</em></h1>
-			<p class="lead">Ask anything, or ask for anything to be made. Andromeda decides how to do it, then gives every part to the model that measurably does that part best.</p>
+			<p class="lead">Andromeda splits what you ask into its most specific pieces and gives each one to the model measured best at exactly that piece, then puts it together and checks it.</p>
 			<div class="ctas"><button class="b pri lg" data-open-app>Try Andromeda</button><a class="b sec lg" href="#how">How it decides</a></div>
 			<div class="fine">Free credits every day · no card · your chats stay in your browser</div>
+			<div class="stats"><div><b id="stSkills">101</b><span>measured skills</span></div><div><b id="stLeaders">16</b><span>models that lead one</span></div><div><b>Daily</b><span>re-ranked, by itself</span></div></div>
 
 			<div class="demo" id="product">
-				<div class="demo-h"><i></i><i></i><i></i><span class="sp"></span>andromeda · deciding live</div>
+				<div class="demo-h"><i></i><i></i><i></i><span class="sp"></span>andromeda · the team, picked live</div>
 				<div class="demo-b">
 					<div class="demo-q"><span class="you">you</span><span class="typed" id="demoQ"></span></div>
 					<div class="demo-r" id="demoR"></div>
@@ -1400,12 +1465,12 @@ html.morphing *, html.morphing *::before, html.morphing *::after { transition: n
 	<section class="block reveal" id="how">
 		<div class="wrap">
 			<div class="eyebrow">How it decides</div>
-			<h2>It works out what you need. Then it picks.</h2>
+			<h2>A team of specialists on every answer.</h2>
 			<p class="sub2">No rules written in advance: every request is read by a model, and Andromeda decides for itself.</p>
 			<div class="steps3">
-				<div class="card"><h3>It reads what you actually want</h3><p>An answer, something built, a film, a song, a report: whatever would serve you best, even for things nobody listed.</p></div>
-				<div class="card"><h3>It picks the best model for each part</h3><p>Measured, not guessed: LMArena's leaderboards from millions of real votes, refreshed every day, for that exact mix of skills.</p></div>
-				<div class="card"><h3>If something fails, it finds another way</h3><p>It's told what went wrong and decides again, with another way or another model. You get the thing, not an error.</p></div>
+				<div class="card"><h3>It splits the work into its smallest pieces</h3><p>Not "research" but "the five moments a 9-year-old finds most gripping, with dates". Each piece is one precise skill, and later pieces build on earlier ones.</p></div>
+				<div class="card"><h3>Each piece goes to the model best at exactly that</h3><p>Weighed on 101 measured skills from millions of real votes, re-ranked every day, plus Andromeda's own record of which model's work holds up at what.</p></div>
+				<div class="card"><h3>It's put together, checked and fixed</h3><p>The best writer for the answer combines the pieces, the model best at that field checks every fact, and what it finds is fixed before you see it.</p></div>
 			</div>
 		</div>
 	</section>
@@ -8588,15 +8653,44 @@ function showApp(on) {
 	}
 }
 
-const DEMO = [
-	["Fix the race condition in this Go worker pool", "code"],
-	["Is 2^61 − 1 prime? Walk me through it", "reasoning"],
-	["What did the Fed decide this week? Cite sources", "research"],
-	["Rewrite my cover letter so it actually sounds like me", "write"],
-	["Twelve names for a coffee brand on Mars", "brainstorm"],
-	["What's wrong in this screenshot of my error?", "vision"],
-	["How long do I boil an egg for?", "quick"],
+// a request, and the team it would get: each piece, the skills it's weighed on, and today's leader at exactly that
+const DEMO_TEAMS = [
+	["Fix the crash in my Minecraft Fabric mod", [
+		["Read the stack trace", "code", { "text:coding": 0.6, "text:hard_prompts": 0.4 }, "coding · hard problems"],
+		["Today's Fabric API for 1.21", "research", { "factuality:coding": 0.6, "search:overall": 0.4 }, "live search · API facts"],
+		["The fixed mixin", "code", { "text:coding": 0.7, "agent:overall": 0.3 }, "coding · agentic"],
+		["Why it crashed, in plain words", "write", { "text:instruction_following": 0.6, "text:creative_writing": 0.4 }, "explaining"],
+	]],
+	["What's wrong in this screenshot of my app?", [
+		["Read every word in the screenshot", "vision", { "vision:ocr": 0.6, "vision:diagram": 0.4 }, "reading pictures"],
+		["Find the bug", "code", { "text:coding": 0.7, "text:hard_prompts": 0.3 }, "coding"],
+		["The fix, step by step", "write", { "text:instruction_following": 0.7, "text:coding": 0.3 }, "explaining"],
+	]],
+	["A cash-flow forecast for my café, in Indonesian", [
+		["What cafés in Jakarta spend now", "research", { "factuality:industry_business_and_management_and_financial_operations": 0.6, "search:overall": 0.4 }, "live search · business"],
+		["The forecast maths", "reasoning", { "text:math": 0.7, "text:industry_mathematical": 0.3 }, "maths"],
+		["The spreadsheet formulas", "code", { "text:coding": 0.5, "text:math": 0.3, "text:instruction_following": 0.2 }, "formulas"],
+		["Advice in plain Indonesian", "write", { "text:non_english": 0.5, "text:industry_business_and_management_and_financial_operations": 0.5 }, "Indonesian · business"],
+	]],
+	["Teach my 9-year-old about the French Revolution", [
+		["The 5 most gripping moments, with dates", "research", { "factuality:overall": 0.6, "text:industry_life_and_physical_and_social_science": 0.2, "text:expert": 0.2 }, "facts · history"],
+		["Comparisons a 9-year-old already knows", "brainstorm", { "text:creative_writing": 0.6, "text:instruction_following": 0.4 }, "ideas · audience"],
+		["The Bastille as a 120-word story", "write", { "text:creative_writing": 0.9, "text:instruction_following": 0.1 }, "storytelling"],
+		["A quiz to check they got it", "write", { "text:instruction_following": 0.6, "factuality:overall": 0.4 }, "instructions · facts"],
+	]],
 ];
+// the leader for a piece, the way the team picks (ties to a teammate not yet used); what the leaderboards say when the
+// server reaches no model yet
+function demoPick(kind, w, used) {
+	const r = REACH;
+	let list = [];
+	try { list = arenaRank(kind, w); if (!list.length && r) { REACH = null; list = arenaRank(kind, w); } } catch {} finally { REACH = r; }
+	if (!list.length) return null;
+	const k = list.findIndex((x, n) => n > 0 && n < 4 && list[0].score - x.score < TEAM_TIE && !used.has(x.m.id));
+	const m = (used.has(list[0].m.id) && k > 0 ? list[k] : list[0]).m;
+	used.add(m.id);
+	return m;
+}
 const DEMO_FALLBACK = { code: "Claude Opus", reasoning: "GPT", research: "GPT with search", write: "Claude Opus", brainstorm: "Claude Opus", vision: "Gemini", quick: "Gemini Flash" };
 const withTier = (tier, fn) => fn();
 const landingTier = "best";
@@ -8618,17 +8712,20 @@ function demoTasks(active) { $("#demoTasks").innerHTML = Object.keys(TASK_INFO).
 function runDemo() {
 	clearTimeout(demoTimer);
 	if (document.body.classList.contains("in-app")) return;
-	const [q, task] = DEMO[demoI++ % DEMO.length];
+	const [q, pieces] = DEMO_TEAMS[demoI++ % DEMO_TEAMS.length];
 	const el = $("#demoQ"), r = $("#demoR");
 	r.innerHTML = "";
-	demoTasks(null);
 	const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 	let k = reduce ? q.length : 0;
+	// the plan, one piece at a time, each with today's leader at exactly that piece
 	const done = () => {
-		const m = modelFor(task);
-		demoTasks(task);
-		r.innerHTML = '<span class="arrow">→ ' + esc(TASK_INFO[task].label.toLowerCase()) + '</span><span class="model"><svg width="12" height="12"><use href="#logo"/></svg>' + esc(m.name) + '</span><span class="why">' + esc(TASK_INFO[task].why) + (m.lab ? " · " + esc(m.lab) : "") + "</span>";
-		demoTimer = setTimeout(runDemo, 2800);
+		const used = new Set();
+		const rows = pieces.map(([label, kind, w, skill], n) => {
+			const m = catalog.length ? demoPick(kind, w, used) : null;
+			return '<div class="dp" style="animation-delay:' + (n * 0.32).toFixed(2) + 's"><span class="dp-n">' + String(n + 1).padStart(2, "0") + '</span><span class="dp-l">' + esc(label) + '<small>' + esc(skill) + '</small></span><span class="dp-m">' + esc(m ? shortName(m) : DEMO_FALLBACK[kind] || "the leader") + "</span></div>";
+		});
+		r.innerHTML = rows.join("") + '<div class="dp dp-end" style="animation-delay:' + (pieces.length * 0.32).toFixed(2) + 's"><span class="dp-n">→</span><span class="dp-l">Put together, checked, fixed</span><span class="dp-m">one answer</span></div>';
+		demoTimer = setTimeout(runDemo, 4200 + pieces.length * 320);
 	};
 	const type = () => {
 		el.textContent = q.slice(0, k);
@@ -8637,7 +8734,27 @@ function runDemo() {
 	};
 	type();
 }
+function landingStats() {
+	try {
+		const idx = arenaIndex();
+		if (!idx) return;
+		const r = REACH;
+		REACH = null;
+		const leaders = new Set();
+		let skills = 0;
+		for (const [cat, per] of Object.entries(idx)) {
+			if (/^(image|imageedit|video|i2v|videoedit):/.test(cat)) continue;
+			skills++;
+			const top = [...per.values()].sort((a, b) => b.z - a.z)[0];
+			if (top) leaders.add(top.m.id);
+		}
+		REACH = r;
+		if ($("#stSkills")) $("#stSkills").textContent = Object.keys(idx).length;
+		if ($("#stLeaders") && leaders.size) $("#stLeaders").textContent = leaders.size;
+	} catch {}
+}
 function renderLanding() {
+	landingStats();
 	const rows = Object.keys(TASK_INFO).map((t) => {
 		const m = landingBest(t);
 		return '<div class="tr"><span class="task"><i></i>' + TASK_INFO[t].label + '</span><span class="mdl">' + (m ? esc(shortName(m)) : esc(DEMO_FALLBACK[t] || "—")) + '<span class="why2">' + esc(TASK_INFO[t].why) + '</span></span><span class="lab">' + (m ? esc(provider(m.id)) : "") + "</span></div>";
