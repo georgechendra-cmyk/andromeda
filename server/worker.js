@@ -21,9 +21,10 @@ const DEFAULT_CONFIG = {
 	// written is charged, so this only keeps a long answer from being cut off
 	maxTokens: 32000,
 	// free credits for everyone signed in, spent before anything paid for: a bucket of "credits" that refills through the
-	// day, a share every "every" hours (25 every 6 hours) until it's full, so the whole bucket takes "hours" to come back;
-	// at most dailyCap of them handed out a day across every account (600 credits cost the owner $3 at most)
-	free: { credits: 100, hours: 24, every: 6, dailyCap: 600 },
+	// day, a share every "every" hours (25 every 6 hours) until it's full, so the whole bucket takes "hours" to come back.
+	// budgetIdr: the most the owner spends on free use a day (the real cost of what free credits paid for, in rupiah at
+	// usdIdr); past it, no bucket refills until tomorrow. dailyCap: an older limit on credits handed out (0 = off)
+	free: { credits: 100, hours: 24, every: 6, budgetIdr: 50000, usdIdr: 18000, dailyCap: 0 },
 	// round local prices, not exchange-rate conversions
 	packs: [
 		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
@@ -311,11 +312,25 @@ async function authUser(req, env) {
 // has some again by lunch, instead of nothing until tomorrow. Free credits are always spent before paid ones, and
 // nobody is shown tokens or money, only credits.
 //
-// All of it together stays inside the owner's budget: free.dailyCap credits a day (UTC) are handed out, across every
-// account. Past that, nobody's bucket fills until tomorrow and bought credits still work, so a crowd arriving at once
-// (a post going viral) costs at most the day's cap, never the owner's savings.
+// All of it together stays inside the owner's budget: what free credits really cost (at the labs' prices) is added up
+// each day (UTC), and once it reaches free.budgetIdr no bucket refills and no new account gets its first until tomorrow.
+// Bought credits still work, and what's already in a bucket can still be used, so a crowd arriving at once (a post going
+// viral) costs about the day's budget, never the owner's savings.
 const nextDay = () => { const d = new Date(); d.setUTCHours(24, 0, 0, 0); return d.getTime(); };
+const spentKey = () => "spent:" + new Date().toISOString().slice(0, 10);
+const budgetUsd = (c) => (Number(c.free.budgetIdr) || 0) / (Number(c.free.usdIdr) || 18000);
+// the share of a charge that free credits paid for, at its real cost, added to today's total (a statement for the batch)
+function freeSpend(env, held, charged, usd) {
+	const fromFree = Math.min(Math.max(0, held.fromFree || 0), charged);
+	if (!(fromFree > 0) || !(usd > 0)) return [];
+	const micro = Math.round(usd * 1e6 * fromFree / Math.max(1, charged));
+	return [env.DB.prepare("INSERT INTO free_days (day, mc) VALUES (?, ?) ON CONFLICT(day) DO UPDATE SET mc = mc + excluded.mc").bind(spentKey(), micro)];
+}
 async function grantFree(env, c, mc) {
+	if (mc > 0 && budgetUsd(c) > 0) {
+		const row = await env.DB.prepare("SELECT mc FROM free_days WHERE day = ?").bind(spentKey()).first();
+		if (((row && row.mc) || 0) >= budgetUsd(c) * 1e6) return 0;
+	}
 	const cap = Math.round((Number(c.free.dailyCap) || 0) * 1000);
 	if (!cap || mc <= 0) return mc;
 	const day = new Date().toISOString().slice(0, 10);
@@ -368,7 +383,7 @@ const spendable = (u) => Math.max(0, u.free_mc || 0) + Math.max(0, u.balance_mc 
 function outOfCredits(u, c) {
 	const left = u.free_reset_at ? Math.max(0, u.free_reset_at - now()) : 0;
 	const mins = Math.max(1, Math.ceil(left / 60e3)), h = Math.floor(mins / 60), m = mins % 60, when = h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
-	if (u.free_capped && left) return fail(402, "Today's free credits have all been given out (everyone shares one daily pool). Yours come in " + when + ", or buy credits to keep going.");
+	if (u.free_capped && left) return fail(402, "Andromeda's free credits for today are all used up. Yours come back in " + when + ", or buy credits to keep going.");
 	return fail(402, left && Number(c.free.credits) > 0
 		? "You've used your free credits for now. " + freeStep(c).share + " more come back in " + when + ", or buy credits to keep going."
 		: "You're out of credits. Buy credits to keep going.");
@@ -1027,6 +1042,7 @@ async function chat(req, env, ctx, user) {
 		await env.DB.batch([
 			giveBack(env, user.id, held, charged),
 			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at) VALUES (?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now()),
+			...freeSpend(env, held, charged, real),
 		]);
 		return charged;
 	};
@@ -1213,6 +1229,7 @@ async function charge(env, userId, model, held, usd, mt) {
 	await env.DB.batch([
 		giveBack(env, userId, held, charged),
 		env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at) VALUES (?, ?, ?, ?, ?)").bind(userId, model, usd, charged, now()),
+		...freeSpend(env, held, charged, usd),
 	]);
 	return charged;
 }
@@ -2021,14 +2038,16 @@ async function admin(req, env, p, m) {
 	if (!env.ADMIN_TOKEN || !sameString(req.headers.get("X-Admin-Token") || "", env.ADMIN_TOKEN)) throw fail(401, "Wrong admin password.");
 	if (p === "/api/admin/overview" && m === "GET") {
 		const q = (sql, ...a) => env.DB.prepare(sql).bind(...a).all().then((r) => r.results || []);
-		const [pending, recent, users, totals, spent] = await Promise.all([
+		const [pending, recent, users, totals, spent, freeDays] = await Promise.all([
 			q("SELECT p.*, u.email FROM payments p JOIN users u ON u.id = p.user_id WHERE p.status = 'pending' ORDER BY p.created_at"),
 			q("SELECT p.*, u.email FROM payments p JOIN users u ON u.id = p.user_id WHERE p.status != 'pending' ORDER BY p.decided_at DESC LIMIT 30"),
 			q("SELECT id, email, balance_mc, free_mc, created_at FROM users ORDER BY created_at DESC LIMIT 100"),
 			q("SELECT currency, SUM(amount) AS amount, SUM(credits_mc) AS credits_mc, COUNT(*) AS n FROM payments WHERE status = 'approved' GROUP BY currency"),
 			q("SELECT SUM(cost_usd) AS cost, SUM(charged_mc) AS charged_mc, COUNT(*) AS n FROM usage"),
+			// what free use really cost, day by day (dollars)
+			q("SELECT substr(day, 7) AS day, mc / 1e6 AS usd FROM free_days WHERE day LIKE 'spent:%' ORDER BY day DESC LIMIT 14"),
 		]);
-		return json({ pending, recent, users, totals, spent: spent[0] || {}, config: await config(env) });
+		return json({ pending, recent, users, totals, spent: spent[0] || {}, freeDays, config: await config(env) });
 	}
 	const approve = p.match(/^\/api\/admin\/payments\/([\w-]+)\/(approve|reject)$/);
 	if (approve && m === "POST") {

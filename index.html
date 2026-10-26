@@ -1930,8 +1930,8 @@ function flagship(lab, task, fast) {
 }
 // The candidates for a task, best first: the models that measurably score highest on this request's exact mix of work
 // when the leaderboards are loaded, otherwise one per lab in the order above
-function rank(task) {
-	const data = bestFirst(arenaRank(task));
+function rank(task, cap) {
+	const data = bestFirst(quarkFirst(arenaRank(task), cap));
 	if (data.length >= 2) return pinFirst(diversify(data), task);
 	const out = [];
 	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
@@ -2112,11 +2112,12 @@ function boardIndex(cats, find) {
 			const m = find(name);
 			if (!m) continue;
 			const z = (v - ci / 2 - mean) / sd;
-			// the same model is rated once per reasoning effort ("(High)", "-xhigh"): each kept, and its best
-			const e = per.get(m.id) || { m, z: -Infinity, eff: {} };
+			// the same model is rated once per reasoning effort ("(High)", "-xhigh"): each kept, and its best, with how
+			// uncertain that rating is (its 95% margin, in the same units)
+			const e = per.get(m.id) || { m, z: -Infinity, eff: {}, hw: {} };
 			const f = effortOf(name, m);
-			if (!(f in e.eff) || z > e.eff[f]) e.eff[f] = z;
-			if (z > e.z) e.z = z;
+			if (!(f in e.eff) || z > e.eff[f]) { e.eff[f] = z; e.hw[f] = (Number(ci) || 0) / sd; }
+			if (z > e.z) { e.z = z; e.w = (Number(ci) || 0) / sd; }
 			per.set(m.id, e);
 		}
 		idx[cat] = per;
@@ -2215,7 +2216,7 @@ function bestFor(feature) {
 	const f = FEATURE_W[feature];
 	let data = arenaRank(f.task, blendW(f.w, PROFILE && PROFILE.weights, 0.6));
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
-	data = bestFirst(data);
+	data = bestFirst(quarkFirst(data));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -2243,7 +2244,8 @@ function inherit(idx) {
 			if (!prev) continue;
 			const eff = {};
 			for (const [f, z] of Object.entries(prev.eff)) eff[f] = z - 0.05;
-			per.set(m.id, { m, z: prev.z - 0.05, eff, from: prev.m.id });
+			// (not rated itself: no margin of its own to be counted level with the best by)
+			per.set(m.id, { m, z: prev.z - 0.05, eff, hw: {}, w: 0, from: prev.m.id });
 		}
 	}
 	return idx;
@@ -2260,17 +2262,20 @@ function mediaRank(list, weights) {
 	}
 	const idx = MEDIA_IDX.idx, out = [];
 	for (const m of list) {
-		let s = 0, tw = 0, rated = false;
+		let s = 0, tw = 0, rated = false, mid = 0, hv = 0;
 		for (const [cat, wt] of Object.entries(weights)) {
 			const per = idx[cat];
 			if (!per) continue;
 			const e = per.get(m.id);
 			const o = e ? null : idx[cat.split(":")[0] + ":overall"]?.get(m.id);
 			if (e) rated = true;
-			s += wt * (e ? e.z : o ? o.z - 0.75 : -2.5);
+			const z = e ? e.z : o ? o.z - 0.75 : -2.5, h = e ? e.w || 0 : 0;
+			s += wt * z;
+			mid += wt * (z + h / 2);
+			hv += (wt * h) ** 2;
 			tw += wt;
 		}
-		if (rated && tw) out.push({ m, score: s / tw });
+		if (rated && tw) out.push({ m, score: s / tw, mid: mid / tw, hw: Math.sqrt(hv) / tw });
 	}
 	return out.sort((a, b) => b.score - a.score);
 }
@@ -2299,7 +2304,9 @@ function arenaRank(task, weights) {
 		for (const cat of Object.keys(w)) for (const f of Object.keys(idx[cat]?.get(id)?.eff || {})) efforts.add(f);
 		if (!efforts.size) efforts.add("");
 		for (const f of efforts) {
-			let s = 0, tw = 0;
+			// the score, and what's needed to tell it apart from another: where the rating sits, and its margin (only
+			// where it was actually rated at this effort; a stand-in from elsewhere has no margin to count on)
+			let s = 0, tw = 0, mid = 0, hv = 0;
 			for (const [cat, wt] of Object.entries(w)) {
 				if (!idx[cat] || !(wt > 0)) continue;
 				const e = idx[cat].get(id);
@@ -2308,16 +2315,46 @@ function arenaRank(task, weights) {
 				// Rated on it, but not at this effort: its best there, held back a little
 				const board = cat.split(":")[0];
 				const o = e ? null : idx[board + ":overall"]?.get(id) || (board === "factuality" ? idx["text:overall"]?.get(id) : null);
-				s += wt * (e ? (f in e.eff ? e.eff[f] : e.z - 0.3) : o ? o.z - 0.75 : -2.5);
+				const z = e ? (f in e.eff ? e.eff[f] : e.z - 0.3) : o ? o.z - 0.75 : -2.5;
+				const h = e && f in e.eff ? e.hw?.[f] || 0 : 0;
+				s += wt * z;
+				mid += wt * (z + h / 2);
+				hv += (wt * h) ** 2;
 				tw += wt;
 			}
-			if (tw) out.push({ m, score: s / tw, effort: f });
+			if (tw) out.push({ m, score: s / tw, effort: f, mid: mid / tw, hw: Math.sqrt(hv) / tw });
 		}
 	}
 	out.sort((a, b) => b.score - a.score);
 	// Fast: the quickest strong models (the fast ones that score best on this work)
 	if (speed() === "fast") { const quick = out.filter((x) => FAST.test(x.m.id)); if (quick.length) return quick; }
 	return out;
+}
+// A quark isn't worth a dollar. Among the models (and how hard each thinks) that the leaderboards can't tell apart from
+// the best (the gap smaller than the two ratings' own 95% uncertainty, and never more than QUARK_MAX), the one that costs
+// least for this work does it: often the same model thinking less, or another lab's at a fraction of the price. Within
+// a quarter of the cheapest, one already on the team is preferred (its pieces then go in the same call). Max: the best.
+const QUARK_MAX = 0.6;
+const THINK_TOK = { none: 0, minimal: 300, low: 1200, medium: 3500, high: 7000, xhigh: 11000, max: 16000 };
+function callCost(x, cap) {
+	const m = x.m || x, eff = capEffort(x.effort || "", cap, m.id);
+	const thinks = Array.isArray(m.efforts) && m.efforts.some((e) => e !== "none");
+	const t = eff ? THINK_TOK[eff] ?? 2000 : thinks ? 2000 : 0;
+	const v = (Number(m.pin) || 0) * 3000 + (Number(m.pout) || 0) * (800 + t);
+	return v > 0 ? v : Infinity;
+}
+// (Andromeda's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
+// record here is clearly worse than the best's isn't level with it, whatever the ratings say)
+const quarkTied = (top, x) => x.mid != null && top.mid != null && top.mid - x.mid <= Math.min(QUARK_MAX, Math.hypot(top.hw || 0, x.hw || 0)) && (x.learned || 0) >= (top.learned || 0) - 0.25;
+function quarkFirst(list, cap, used, cost = callCost) {
+	if (speed() === "max" || list.length < 2) return list;
+	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
+	const tied = list.filter((x) => x === top || quarkTied(top, x));
+	const low = Math.min(...tied.map((x) => cost(x, cap)));
+	if (!Number.isFinite(low)) return list;
+	const fair = tied.filter((x) => cost(x, cap) <= low * 1.25);
+	const pick = (used && fair.find((x) => used.has(x.m.id))) || fair.reduce((a, b) => (cost(b, cap) < cost(a, cap) || (cost(b, cap) === cost(a, cap) && b.score > a.score) ? b : a));
+	return pick === list[0] ? list : [pick, ...list.filter((x) => x !== pick)];
 }
 // best first, but no more than two from one lab near the top, so if a lab is down the next in line is someone else
 function diversify(ranked) {
@@ -4567,10 +4604,14 @@ function setBusy(on) {
 async function runAuto(text, atts) {
 	const task = PROFILE ? PROFILE.kind : classify(text, atts);
 	const lite = liteMode();
-	const cands = lite ? liteOnly(rank(task).concat(catalog.filter((m) => usable(m, task) && FAST.test(m.id)))) : rank(task);
 	// an everyday question gets an instant answer: light thinking (the thought a hard question gets would cost many times
 	// as much, take far longer and not make it better), on free credits the lightest; Max thinks fully
 	const light = lite ? (task === "quick" ? "minimal" : "low") : task === "quick" && speed() !== "max" ? "low" : "";
+	// the cheapest a quark from the best at that thought; on free credits, among the low-cost strong models
+	const cheapRanked = lite ? arenaRank(task).filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)) : [];
+	const cands = !lite ? rank(task, light || undefined)
+		: cheapRanked.length >= 2 ? pinFirst(diversify(bestFirst(quarkFirst(cheapRanked, light))), task)
+		: liteOnly(rank(task, light).concat(catalog.filter((m) => usable(m, task) && FAST.test(m.id))));
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
 	const hist = [sys(), ...chatHistory()];
@@ -4957,7 +4998,8 @@ function learned(cands, tags, record, pool) {
 		for (const [id, rate, n] of rates) zs.set(id, (zs.get(id) || 0) + ((rate - mean) / sd) * Math.min(1, n / 20));
 	}
 	share /= rows.length;
-	return list.map((c) => ({ ...c, score: (1 - share) * (c.score ?? 0) + share * ((zs.get(c.m.id) || 0) / rows.length), learned: zs.get(c.m.id) || 0 })).sort((a, b) => b.score - a.score);
+	const mix = (v, c) => (1 - share) * v + share * ((zs.get(c.m.id) || 0) / rows.length);
+	return list.map((c) => ({ ...c, score: mix(c.score ?? 0, c), mid: c.mid == null ? c.mid : mix(c.mid, c), hw: c.hw == null ? c.hw : (1 - share) * c.hw, learned: zs.get(c.m.id) || 0 })).sort((a, b) => b.score - a.score);
 }
 // what a checked team answer adds to the record: each piece's model, its tags, and whether its work held up
 function shareRecord(plan, steps, verdict) {
@@ -4970,19 +5012,8 @@ function shareRecord(plan, steps, verdict) {
 	if (results.length) api("/api/skills", { method: "POST", body: JSON.stringify({ results }) }).catch(() => {});
 }
 // ---------------------------------------------------------------- the team, without waste
-// A piece's model, among those that measure the same (within the ratings' margin of error), or a clearly cheaper one only
-// a hair behind: the cheapest. A measurably better model still wins. (Max always takes the top; ties there go to a
-// teammate the team isn't using yet.)
-const piecePrice = (c) => { const m = c.m || c, v = (Number(m.pin) || 0) * 3 + (Number(m.pout) || 0); return v > 0 ? v : Infinity; };
-function cheaperTie(cands, used) {
-	const top = cands[0];
-	if (!top || top.score == null) return cands;
-	const ok = cands.slice(0, 6).filter((c) => c.score != null && (top.score - c.score < TEAM_TIE || (top.score - c.score < TEAM_TIE * 1.7 && piecePrice(c) * 3 <= piecePrice(top))));
-	const low = Math.min(...ok.map(piecePrice));
-	const fair = ok.filter((c) => piecePrice(c) <= low * 1.25);
-	const chosen = fair.find((c) => !used.has(c.m.id)) || fair[0];
-	return chosen ? [chosen, ...cands.filter((c) => c !== chosen)] : cands;
-}
+// (a piece's model is the cheapest a quark from the best: quarkFirst) In Max the top always does it; a tie there goes
+// to a teammate the team isn't using yet.
 function teammateTie(cands, used) {
 	const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !used.has(c.m.id));
 	return used.has((cands[0].m || cands[0]).id) && tie > 0 ? [cands[tie], ...cands.filter((_, n) => n !== tie)] : cands;
@@ -5044,10 +5075,15 @@ async function runQuarks(text, atts) {
 	// on free credits: the fast, low-cost models measured best at each piece (the same team, the same checks); Max and
 	// bought credits: everything
 	const lite = liteMode();
-	const pick = (kind, w) => {
+	// cap: how hard this step may think (what it would cost); seen: a piece's tags with Andromeda's own record on them, and
+	// the models already on the team. The one that does it is the cheapest a quark from the best (quarkFirst)
+	const pick = (kind, w, cap, seen) => {
 		const out = [], perLab = {};
 		let ranked = arenaRank(kind, w);
 		if (lite) { const cheap = ranked.filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)); if (cheap.length) ranked = cheap; }
+		if (seen && seen.except) ranked = ranked.filter((x) => x.m.id !== seen.except);
+		if (seen && seen.record) ranked = learned(ranked, seen.tags, seen.record, ranked);
+		ranked = quarkFirst(ranked, cap, seen && seen.used);
 		for (const x of ranked) {
 			const p = provider(x.m.id);
 			if (out.some((y) => y.m.id === x.m.id)) continue;
@@ -5100,7 +5136,7 @@ async function runQuarks(text, atts) {
 	updateLast();
 
 	// 2. who does each piece, worked out up front: the piece's own skills, what Andromeda measured itself on its tags, and
-	// among equals the cheaper model (in Max, a teammate)
+	// the cheapest of those a quark from the best, at the thought the piece needs (in Max, the best, or a teammate)
 	const outs = new Map(), teamUsed = new Set();
 	const record = await skillRecord(plan.pieces.flatMap((p) => p.tags));
 	const CAPS_UP = ["minimal", "low", "medium", "high"];
@@ -5109,12 +5145,12 @@ async function runQuarks(text, atts) {
 	for (const p of plan.pieces) {
 		let w = blendW(Object.keys(p.weights).length ? p.weights : ROLE_W[p.kind] || ROLE_W.quick, PROFILE && PROFILE.weights, 0.15);
 		if (p.web) w = blendW(w, { "search:overall": 1 }, 0.4);
-		let cands = learned(pick(p.kind, w), p.tags, record, record ? arenaRank(p.kind, w) : null);
-		cands = speed() === "max" ? teammateTie(cands, teamUsed) : cheaperTie(cands, teamUsed);
-		teamUsed.add((cands[0].m || cands[0]).id);
-		p.cands = cands;
 		// Max lets every model think fully
 		p.cap = speed() === "max" ? null : PIECE_CAP[p.level === "easy" ? 0 : p.level === "medium" ? 1 : 2];
+		let cands = pick(p.kind, w, p.cap, { tags: p.tags, record, used: teamUsed });
+		if (speed() === "max") cands = teammateTie(cands, teamUsed);
+		teamUsed.add((cands[0].m || cands[0]).id);
+		p.cands = cands;
 	}
 	// The pieces one model does go to it together, in order, each building on the last: a team costs as many calls as it
 	// has different models, not as many as it has pieces (the same model doing the same work, so nothing is lost). A piece
@@ -5218,8 +5254,8 @@ async function runQuarks(text, atts) {
 			+ "\n\nIt was split into pieces, each done by the model that is measurably best at that exact piece:\n\n" + parts
 			+ "\n\nNow write the one answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Use every piece's work (keep code, numbers and quotes exactly; where two pieces disagree, work out which is right). Don't mention pieces, models or how it was made.";
 		writers = codey
-			? pick("code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3))
-			: pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
+			? pick("code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3), joinCap)
+			: pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights), joinCap);
 		try {
 			msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; }, null, undefined, joinCap);
 			done(fin);
@@ -5244,12 +5280,13 @@ async function runQuarks(text, atts) {
 		const field = {};
 		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
 		const checkW = codey ? ["code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)] : ["reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5)];
-		let checkers = pick(...checkW).filter((x) => x.m.id !== fin.id);
+		const checkCap = lite ? "low" : "medium";
+		let checkers = pick(...checkW, checkCap, { except: fin.id }).filter((x) => x.m.id !== fin.id);
 		// never skipped: on free credits with no second low-cost model, another model checks it (one call), and only if
 		// there's no other model at all, the writer checks its own work
 		if (!checkers.length) checkers = arenaRank(...checkW).filter((x) => x.m.id !== fin.id).slice(0, 4);
 		if (!checkers.length) checkers = pick(...checkW);
-		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, lite ? "low" : "medium");
+		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, checkCap);
 		verdict = readVerdict(raw);
 		if (verdict) { try { const pj = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).pieces; if (pj && typeof pj === "object") verdict.pieces = pj; } catch {} }
 		shareRecord(plan, steps, verdict);
@@ -6342,7 +6379,7 @@ async function loadMedia() {
 		[v, im, sp, au] = [j.video || [], j.image || [], j.speech || [], j.music || []];
 	} else [v, im, sp, au] = await Promise.all([get(API + "/videos/models"), get(API + "/images/models"), get(API + "/models?output_modalities=speech"), get(API + "/models?output_modalities=audio")]);
 	MEDIA.video = v.map((m) => ({ id: m.id, name: (m.name || m.id).replace(/^[^:]+:\s*/, ""), durations: m.supported_durations || [], res: m.supported_resolutions || [], ar: m.supported_aspect_ratios || [], frames: m.supported_frame_images || [], audio: m.generate_audio, skus: m.pricing_skus || {} }));
-	MEDIA.image = im.map((m) => ({ id: m.id, name: (m.name || m.id).replace(/^[^:]+:\s*/, ""), ar: m.supported_parameters?.aspect_ratio?.values || [], res: m.supported_parameters?.resolution?.values || [], refs: m.supported_parameters?.input_references?.max ?? 0 }));
+	MEDIA.image = im.map((m) => ({ id: m.id, name: (m.name || m.id).replace(/^[^:]+:\s*/, ""), ar: m.supported_parameters?.aspect_ratio?.values || [], res: m.supported_parameters?.resolution?.values || [], refs: m.supported_parameters?.input_references?.max ?? 0, price: Number(m.price) || 0 }));
 	MEDIA.speech = sp.map((m) => ({ id: m.id, name: (m.name || m.id).replace(/^[^:]+:\s*/, ""), voices: m.supported_voices || [], perChar: Number(m.pricing?.prompt || 0) }));
 	MEDIA.music = au.filter((m) => /lyria/.test(m.id) || m.music).map((m) => ({ id: m.id, name: (m.name || m.id).replace(/^[^:]+:\s*/, "") }));
 	MEDIA.from = from;
@@ -6389,13 +6426,14 @@ const IMAGE_W = {
 	frame: { "image:photorealistic": 0.5, "imageedit:overall": 0.3, "image:overall": 0.2 },
 };
 const VIDEO_W = { "i2v:overall": 0.7, "video:overall": 0.3 };
-const measured = (list, w, ok) => mediaRank(list, w).find((x) => !ok || ok(x.m))?.m || null;
+// the best measured, or the cheapest a quark from it (what one picture, or a second of video, costs on each)
+const measured = (list, w, ok, price) => quarkFirst(mediaRank(list, w).filter((x) => !ok || ok(x.m)), null, null, (x) => (price && price(x.m)) || Infinity)[0]?.m || null;
 const videoModel = (tier) => {
 	const t = VIDEO_TIERS[tier];
 	const fits = (m) => (tier === "max" || t.models.includes(m.id)) && (t.frames !== "frame" || (m.frames && m.frames.length > 0));
-	return measured(MEDIA.video, VIDEO_W, fits) || pickFrom(MEDIA.video, t.models) || MEDIA.video.slice().sort((a, b) => vPerSec(b, "720p", true) - vPerSec(a, "720p", true))[{ max: 0, cinematic: 1, standard: 2 }[tier] ?? 3] || MEDIA.video[0] || null;
+	return measured(MEDIA.video, VIDEO_W, fits, (m) => vPerSec(m, t.res, true)) || pickFrom(MEDIA.video, t.models) || MEDIA.video.slice().sort((a, b) => vPerSec(b, "720p", true) - vPerSec(a, "720p", true))[{ max: 0, cinematic: 1, standard: 2 }[tier] ?? 3] || MEDIA.video[0] || null;
 };
-const imageModel = (kind) => (IMAGE_W[kind] && measured(MEDIA.image, IMAGE_W[kind], kind === "frame" ? (m) => m.refs > 0 : null)) || pickFrom(MEDIA.image, IMAGE_RANK[kind] || IMAGE_RANK.photo) || MEDIA.image[0] || null;
+const imageModel = (kind) => (IMAGE_W[kind] && measured(MEDIA.image, IMAGE_W[kind], kind === "frame" ? (m) => m.refs > 0 : null, (m) => m.price)) || pickFrom(MEDIA.image, IMAGE_RANK[kind] || IMAGE_RANK.photo) || MEDIA.image[0] || null;
 const voiceModel = () => pickFrom(MEDIA.speech, VOICE_RANK) || MEDIA.speech[0] || null;
 const musicModel = (full) => pickFrom(MEDIA.music, full ? ["google/lyria-3-pro-preview", "google/lyria-3-clip-preview"] : ["google/lyria-3-clip-preview", "google/lyria-3-pro-preview"]) || (MEDIA.from === "server" && MEDIA.music[0]) || null;
 // Every model that could make it, best first (the pick above, then the rest in order, each once): nothing is lost
@@ -7773,6 +7811,9 @@ async function openAdmin() {
 	const when = (t) => (t ? new Date(t).toLocaleString() : "");
 	const totals = o.totals.map((t) => money(t.amount, t.currency) + " (" + t.n + ")").join(" · ") || "nothing yet";
 	const spent = o.spent || {};
+	// what free use really cost, the last days (so the budget can be set from what actually happens)
+	const rate = (c.free && Number(c.free.usdIdr)) || 18000;
+	const freeSpentText = (o.freeDays || []).length ? "Free use cost you: " + o.freeDays.slice(0, 7).map((d) => d.day.slice(5) + " Rp" + Math.round(d.usd * rate).toLocaleString("id-ID")).join(" · ") + ". " : "";
 	openModal('<h2>Admin</h2><p class="sub">Sold: ' + totals + " · AI cost so far $" + (Number(spent.cost) || 0).toFixed(2) + " for " + creditsText((spent.charged_mc || 0) / 1000) + " credits used (" + (spent.n || 0) + " answers)</p>" +
 		'<div class="field"><label>Waiting for confirmation (' + o.pending.length + ")</label>" + (o.pending.length ? '<table class="ptable"><tr><th>When</th><th>Who</th><th>Paid</th><th>Name on payment</th><th>Credits</th><th></th></tr>' + o.pending.map((p) => "<tr><td>" + when(p.created_at) + "</td><td>" + esc(p.email) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + esc(p.note || "") + "</td><td>" + creditsText(p.credits_mc / 1000) + '</td><td class="row"><button class="btn dark" data-ok="' + p.id + '">Approve</button><button class="btn" data-no="' + p.id + '">Reject</button></td></tr>').join("") + "</table>" : '<div class="help">Nothing waiting. Check your e-wallet for a payment before approving one.</div>') + "</div>" +
 		'<div class="field"><label>Sales</label><label class="chk"><input type="checkbox" id="adOpen"' + (c.open ? " checked" : "") + "> Credits are on sale</label></div>" +
@@ -7781,7 +7822,7 @@ async function openAdmin() {
 		'<div class="field"><label>Card checkout links (one per pack)</label>' + c.packs.map((p) => '<div class="row" style="margin-bottom:6px"><span style="width:80px;font-size:13px">' + esc(p.name) + '</span><input class="inp" data-link="' + p.id + '" placeholder="https://…lemonsqueezy.com/checkout/buy/…" value="' + esc((c.checkout.links || {})[p.id] || "") + '"><input class="inp" style="max-width:130px" data-variant="' + p.id + '" placeholder="variant id" value="' + esc(p.lemonVariant || "") + '"></div>').join("") + "</div>" +
 		'<div class="field"><label>Mark-up on OpenRouter cost</label><div class="row"><span style="font-size:13px">cheap ×</span><input class="inp" id="adM1" type="number" step="0.1" value="' + c.multipliers.cheap + '"><span style="font-size:13px">mid ×</span><input class="inp" id="adM2" type="number" step="0.1" value="' + c.multipliers.mid + '"><span style="font-size:13px">top ×</span><input class="inp" id="adM3" type="number" step="0.1" value="' + c.multipliers.top + '"></div><div class="help">Cheap means under $' + c.bands.cheapBelow + ", top means $" + c.bands.topFrom + " or more per million output tokens.</div></div>" +
 		'<div class="field"><label>Free credits</label><div class="row"><input class="inp" id="adFree" type="number" min="0" step="1" value="' + ((c.free && c.free.credits) ?? 100) + '"><span style="font-size:13px">credits, refilled over</span><input class="inp" id="adFreeH" type="number" min="1" step="1" value="' + ((c.free && c.free.hours) ?? 24) + '"><span style="font-size:13px">hours, a share every</span><input class="inp" id="adFreeE" type="number" min="0" step="1" value="' + ((c.free && c.free.every) ?? 6) + '"><span style="font-size:13px">hours</span></div><div class="help">Everyone signed in gets these, used before bought credits. 100 over 24 hours with a share every 6 means 25 come back every 6 hours until all 100 are there again. 0 turns them off.</div></div>' +
-		'<div class="field"><label>Free credits a day, all accounts together</label><div class="row"><input class="inp" id="adFreeCap" type="number" min="0" step="50" value="' + ((c.free && c.free.dailyCap) ?? 600) + '"><span style="font-size:13px">credits at most</span></div><div class="help">Your budget for free credits: past it, nobody gets more until tomorrow (bought credits still work). 600 a day costs you at most about $2 to $3 (Rp32,000 to Rp48,000). 0 means no limit.</div></div>' +		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
+		'<div class="field"><label>The most you spend on free use a day</label><div class="row"><span style="font-size:13px">Rp</span><input class="inp" id="adFreeBudget" type="number" min="0" step="5000" value="' + ((c.free && c.free.budgetIdr) ?? 50000) + '"><span style="font-size:13px">at 1 US$ = Rp</span><input class="inp" id="adUsdIdr" type="number" min="1000" step="100" value="' + ((c.free && c.free.usdIdr) ?? 18000) + '"></div><div class="help">What free credits really cost you (the AI labs\' prices), added up each day (UTC). Past it, nobody\'s free credits refill until tomorrow; bought credits still work. ' + freeSpentText + '0 means no limit: then a crowd arriving at once costs whatever they use.</div></div>' +		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
 		'<div class="field"><label>Packs and prices (advanced)</label><textarea class="inp" id="adPacks" style="height:150px;padding:10px;font-family:var(--mono);font-size:12px">' + esc(JSON.stringify(c.packs.map(({ lemonVariant, ...p }) => p), null, 1)) + '</textarea><div class="status" id="adStatus"></div></div>' +
 		'<div class="field"><label>Give or take credits by hand</label><div class="row"><input class="inp" id="adEmail" placeholder="email"><input class="inp" id="adCredits" type="number" placeholder="credits (- to take)" style="max-width:150px"><button class="btn" id="adGive">Apply</button></div></div>' +
 		'<div class="field"><label>Accounts (' + o.users.length + ')</label><table class="ptable"><tr><th>Email</th><th>Credits</th><th>Joined</th></tr>' + o.users.slice(0, 30).map((u) => "<tr><td>" + esc(u.email) + "</td><td>" + creditsText(u.balance_mc / 1000) + "</td><td>" + when(u.created_at) + "</td></tr>").join("") + "</table></div>" +
@@ -7800,7 +7841,7 @@ async function openAdmin() {
 		const links = {};
 		$$("[data-link]").forEach((i) => { if (i.value.trim()) links[i.dataset.link] = i.value.trim(); });
 		const next = { ...c, open: $("#adOpen").checked, qris: { image: $("#adQris").value.trim(), name: $("#adQrisName").value.trim() }, checkout: { ...c.checkout, links },
-			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top, media: c.multipliers.media || 2 }, free: { credits: Math.max(0, Number($("#adFree").value) || 0), hours: Math.max(1, Number($("#adFreeH").value) || 24), every: Math.max(0, Number($("#adFreeE").value) || 0), dailyCap: Math.max(0, Number($("#adFreeCap").value) || 0) }, support: $("#adSupport").value.trim(), packs };
+			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top, media: c.multipliers.media || 2 }, free: { credits: Math.max(0, Number($("#adFree").value) || 0), hours: Math.max(1, Number($("#adFreeH").value) || 24), every: Math.max(0, Number($("#adFreeE").value) || 0), budgetIdr: Math.max(0, Number($("#adFreeBudget").value) || 0), usdIdr: Math.max(1000, Number($("#adUsdIdr").value) || 18000), dailyCap: 0 }, support: $("#adSupport").value.trim(), packs };
 		try { await call("/api/admin/config", { method: "PUT", body: JSON.stringify(next) }); pricing = null; toast("Saved"); openAdmin(); }
 		catch (e) { st.className = "status bad"; st.textContent = e.message; }
 	};
