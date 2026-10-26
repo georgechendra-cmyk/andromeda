@@ -2625,9 +2625,24 @@ function cached(model, messages) {
 	if (out.length >= 3) out[out.length - 2] = mark(out[out.length - 2]);
 	return out;
 }
+// What changes with every request (what Andromeda decided to deliver, the playbooks for it) goes with the newest message,
+// not at the top: the start of a chat then stays exactly the same from one message to the next, and the whole
+// conversation read again is billed at the cached price (a tenth for Claude, a quarter to a half for the others)
+function placeNote(messages) {
+	const s = messages[0];
+	if (!s || s.role !== "system" || !("note" in s)) return messages;
+	const { note, ...head } = s, out = [head, ...messages.slice(1)];
+	if (!note) return out;
+	let k = out.length - 1;
+	while (k > 0 && out[k].role !== "user") k--;
+	if (k <= 0) { out[0] = { ...head, content: head.content + "\n\n" + note }; return out; }
+	const m = out[k], add = "(From Andromeda, for this answer)\n" + note;
+	out[k] = typeof m.content === "string" ? { ...m, content: m.content + "\n\n" + add } : { ...m, content: [...m.content, { type: "text", text: add }] };
+	return out;
+}
 // Stream a chat completion; calls onText(fullTextSoFar). Resolves with the full text.
 async function stream(model, messages, onText, signal, extra = {}, acc = null) {
-	const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify({ model, messages: cached(model, messages), stream: true, ...extra }) });
+	const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra }) });
 	if (!r.ok) {
 		let msg = r.statusText;
 		try { const j = await r.json(); msg = j.error?.message || msg; } catch {}
@@ -2669,7 +2684,7 @@ function fail(message, status) {
 	return e;
 }
 async function once(model, messages, extra = {}, acc = null) {
-	const r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify({ model, messages: cached(model, messages), ...extra }) });
+	const r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), ...extra }) });
 	const j = await r.json();
 	if (!r.ok || j.error) throw fail(j.error?.message || r.statusText, r.ok ? j.error?.code : r.status);
 	if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) { acc.cost = (acc.cost || 0) + c; acc.unit = creditsMode() ? "credits" : "usd"; } addSpend(c); }
@@ -2792,7 +2807,8 @@ function sys(extra) {
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
 	const plan = (!extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
-	return { role: "system", content: [extra || base, plan, skillLine(), mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n") };
+	// what was decided for this one request goes with the newest message (placeNote), not here
+	return { role: "system", content: [extra || base, mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n"), note: [plan, skillLine()].filter(Boolean).join("\n\n") };
 }
 function spaceLine() {
 	const sp = current && spaceOf(current.space);
@@ -3906,10 +3922,17 @@ function remember(text) {
 	store.set("memories", m.slice(-200));
 	return true;
 }
-function forgetMemory(id) { store.set("memories", memories().filter((x) => x.id !== id)); }
+function forgetMemory(id) { store.set("memories", memories().filter((x) => x.id !== id)); MEM_SNAP.clear(); }
+// A chat keeps the memories it began with (what it adds is in the chat already): its start then stays the same from one
+// message to the next, billed at the cached price. Forgetting, or switching memory off, takes effect at once.
+const MEM_SNAP = new Map();
 const memoryLine = () => {
+	const key = current && current.id;
+	if (key && MEM_SNAP.has(key)) return MEM_SNAP.get(key);
 	const m = memories();
-	return m.length && settings.memory !== false && !(current && current.temp) ? "What you remember about the user and their work, from earlier chats (use it where it helps; don't recite it):\n" + m.slice(-80).map((x) => "- " + x.text).join("\n") : "";
+	const line = m.length && settings.memory !== false && !(current && current.temp) ? "What you remember about the user and their work, from earlier chats (use it where it helps; don't recite it):\n" + m.slice(-80).map((x) => "- " + x.text).join("\n") : "";
+	if (key) MEM_SNAP.set(key, line);
+	return line;
 };
 // after an answer, the reader notes anything worth keeping (quietly, in the background; never blocks the chat)
 async function noteMemories(userText, answer) {
@@ -3928,9 +3951,9 @@ function openMemory() {
 		'<div class="toggle"><div><div class="tl">Remember things across chats</div><div class="td">Off: nothing new is saved, and nothing saved is used.</div></div><button class="sw' + (settings.memory !== false ? " on" : "") + '" id="memSw" aria-label="Remember things across chats"></button></div>' +
 		'<div class="field" style="margin-top:14px">' + (m.length ? m.slice().reverse().map((x) => '<div class="ag-cur"><span>' + esc(x.text) + '</span><button class="btn" data-memdel="' + esc(x.id) + '">Forget</button></div>').join("") : '<div class="help">Nothing yet.</div>') + "</div>" +
 		(m.length ? '<button class="btn" id="memAll">Forget everything</button>' : ""));
-	$("#memSw").onclick = () => { settings.memory = settings.memory === false; saveSettings(); openMemory(); };
+	$("#memSw").onclick = () => { settings.memory = settings.memory === false; saveSettings(); MEM_SNAP.clear(); openMemory(); };
 	document.querySelectorAll("[data-memdel]").forEach((b) => (b.onclick = () => { forgetMemory(b.dataset.memdel); openMemory(); }));
-	if ($("#memAll")) $("#memAll").onclick = () => { store.set("memories", []); openMemory(); };
+	if ($("#memAll")) $("#memAll").onclick = () => { store.set("memories", []); MEM_SNAP.clear(); openMemory(); };
 }
 
 // ---------------------------------------------------------------- running code right here: Python and JavaScript
@@ -4542,7 +4565,11 @@ function setBusy(on) {
 
 async function runAuto(text, atts) {
 	const task = PROFILE ? PROFILE.kind : classify(text, atts);
-	const cands = rank(task);
+	const lite = liteMode();
+	const cands = lite ? liteOnly(rank(task).concat(catalog.filter((m) => usable(m, task) && FAST.test(m.id)))) : rank(task);
+	// an everyday question gets an instant answer: light thinking (the thought a hard question gets would cost many times
+	// as much, take far longer and not make it better); Max thinks fully
+	const light = lite || (task === "quick" && speed() !== "max");
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
 	const hist = [sys(), ...chatHistory()];
@@ -4557,7 +4584,7 @@ async function runAuto(text, atts) {
 			msg.spec = specFor(task);
 		updateLast();
 		try {
-			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...effortExtra(m.id) }, msg);
+			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "low")) : effortExtra(m.id)) }, msg);
 			return;
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
@@ -4959,6 +4986,9 @@ function teammateTie(cands, used) {
 	const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !used.has(c.m.id));
 	return used.has((cands[0].m || cands[0]).id) && tie > 0 ? [cands[tie], ...cands.filter((_, n) => n !== tie)] : cands;
 }
+// on free credits (nothing bought) everything runs on the low-cost strong models: the same Andromeda, a fraction of the price
+function liteMode() { return speed() !== "max" && creditsMode() && !!me && !(me.paid > 0); }
+const liteOnly = (list) => { const cheap = list.filter((m) => FAST.test(m.id) || (m.pout > 0 && m.pout <= 6)); return cheap.length ? cheap : list; };
 // no deeper thinking than the piece needs (never more than the model was rated at)
 const capEffort = (e, cap) => (cap && e && LEVELS.indexOf(e) > LEVELS.indexOf(cap) ? cap : e);
 // what a piece is sent: the system prompt with the project's files trimmed, and older messages kept short
@@ -5008,7 +5038,7 @@ async function runQuarks(text, atts) {
 	// the best for a mix of skills, at the effort each scored best at; at most two from one lab near the top
 	// on free credits: the fast, low-cost models measured best at each piece (the same team, the same checks); Max and
 	// bought credits: everything
-	const lite = speed() !== "max" && creditsMode() && !!me && !(me.paid > 0);
+	const lite = liteMode();
 	const pick = (kind, w) => {
 		const out = [], perLab = {};
 		let ranked = arenaRank(kind, w);
@@ -5064,107 +5094,138 @@ async function runQuarks(text, atts) {
 	chip();
 	updateLast();
 
-	// 2. the pieces: whatever's ready runs now, four at once at most
+	// 2. who does each piece, worked out up front: the piece's own skills, what Andromeda measured itself on its tags, and
+	// among equals the cheaper model (in Max, a teammate)
 	const outs = new Map(), teamUsed = new Set();
-	// what Andromeda has measured itself on exactly these pieces' tags (one request for the whole plan)
 	const record = await skillRecord(plan.pieces.flatMap((p) => p.tags));
-	const runPiece = async (p) => {
-		const st = steps.get(p.id);
-		st.running = true;
-		updateLast();
-		// the piece's own skills decide; the whole request (its field, its language) only nudges
+	const CAPS_UP = ["low", "medium", "high"];
+	for (const p of plan.pieces) {
 		let w = blendW(Object.keys(p.weights).length ? p.weights : ROLE_W[p.kind] || ROLE_W.quick, PROFILE && PROFILE.weights, 0.15);
-		// a piece that looks things up is weighed on live search too
 		if (p.web) w = blendW(w, { "search:overall": 1 }, 0.4);
 		let cands = learned(pick(p.kind, w), p.tags, record, record ? arenaRank(p.kind, w) : null);
-		// two models within the leaderboards' margin of error for this piece: the one the team isn't using yet, so each
-		// model's own strengths get a part (never a measurably weaker model, only an equal one)
 		cands = speed() === "max" ? teammateTie(cands, teamUsed) : cheaperTie(cands, teamUsed);
 		teamUsed.add((cands[0].m || cands[0]).id);
-		// thinking to match the piece: light for easy ones, moderate for medium, high (past which more thinking costs far
-		// more than it adds) for hard ones; Max lets every model think as hard as it can
-		const cap = speed() === "max" ? null : p.level === "easy" ? "low" : p.level === "medium" ? "medium" : "high";
-		const inputs = p.needs.filter((n) => outs.has(n)).map((n) => "### " + label(n) + "\n" + outs.get(n)).join("\n\n");
-		const ask = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
-			+ (inputs ? "\n\nWhat your teammates already did, for you to build on (use it, don't redo it):\n" + inputs : "")
-			+ "\n\nYour piece (" + p.label + "): " + p.goal + (p.skill ? "\nIts exact skill: " + p.skill : "")
-			+ "\n\nDo only this piece, completely and exactly (code in full, numbers worked out, facts checked). Another model puts the pieces together, so give the result itself: no introduction, no summary of the other pieces.";
+		p.cands = cands;
+		// thinking to match the piece: light for easy, moderate for medium, high for hard; Max lets every model think fully
+		p.cap = speed() === "max" ? null : p.level === "easy" ? "low" : p.level === "medium" ? "medium" : "high";
+	}
+	// The pieces one model does go to it together, in order, each building on the last: a team costs as many calls as it
+	// has different models, not as many as it has pieces (the same model doing the same work, so nothing is lost). A piece
+	// joins its model's group only when what it needs is in that group or in groups before it, so nothing waits in a loop.
+	const groups = [];
+	for (const p of plan.pieces) {
+		const id = (p.cands[0].m || p.cands[0]).id;
+		const g = [...groups].reverse().find((x) => x.model === id);
+		if (g && p.needs.every((n) => g.ids.has(n) || groups.findIndex((y) => y.ids.has(n)) < groups.indexOf(g))) { g.pieces.push(p); g.ids.add(p.id); }
+		else groups.push({ model: id, pieces: [p], ids: new Set([p.id]), cands: p.cands });
+	}
+	for (const g of groups) {
+		g.needs = [...new Set(g.pieces.flatMap((p) => p.needs.filter((n) => !g.ids.has(n))))];
+		g.web = g.pieces.some((p) => p.web);
+		g.cap = g.pieces.some((p) => !p.cap) ? null : CAPS_UP[Math.max(...g.pieces.map((p) => CAPS_UP.indexOf(p.cap)))];
+	}
+	// one model does it all: its one call writes the finished answer, nothing to put together
+	const solo = groups.length === 1;
+	// ...and writes it with at least the thought the putting-together would have had
+	if (solo && plan.pieces.length > 1 && groups[0].cap === "low") groups[0].cap = "medium";
+	const codey = (PROFILE && PROFILE.kind === "code") || plan.pieces.filter((p) => p.kind === "code").length * 2 >= plan.pieces.length;
+	if (codey) plan.check = true;
+	const outline = plan.pieces.map((p, k) => (k + 1) + ". " + p.label + ": " + p.goal + (p.skill ? " (" + p.skill + ")" : "")).join("\n");
+	let fin = null, writers = null, parts = "", ask = "";
+	// a group's answer, piece by piece (each under its own heading)
+	const splitGroup = (text, pieces) => {
+		const at = pieces.map((p) => { const m = new RegExp("^#{2,4}\\s*" + p.id + "\\b.*$", "mi").exec(text); return m ? m.index : -1; });
+		if (at.some((x) => x < 0) || at.some((x, k) => k && x < at[k - 1])) return null;
+		return pieces.map((p, k) => text.slice(text.indexOf("\n", at[k]) + 1, k + 1 < pieces.length ? at[k + 1] : text.length).trim());
+	};
+	const runGroup = async (g) => {
+		const sts = g.pieces.map((p) => steps.get(p.id)), st = sts[0];
+		sts.forEach((s) => (s.running = true));
+		updateLast();
+		const inputs = g.needs.filter((n) => outs.has(n)).map((n) => "### " + label(n) + "\n" + outs.get(n)).join("\n\n");
+		const head = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
+			+ (inputs ? "\n\nWhat your teammates already did, for you to build on (use it, don't redo it):\n" + inputs : "");
+		const gAsk = solo
+			? head + "\n\nThe plan, in order:\n" + outline + "\n\nWork through every part of the plan, each building on the last (code in full, numbers worked out, facts checked), and write the one finished answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Don't mention the plan or its parts."
+			: head + "\n\nYour pieces of the work, in order (each may build on the ones before it):\n\n" + g.pieces.map((p) => "### " + p.id + ": " + p.label + "\n" + p.goal + (p.skill ? "\nIts exact skill: " + p.skill : "")).join("\n\n")
+				+ "\n\nDo only these pieces, completely and exactly (code in full, numbers worked out, facts checked). Another model puts everything together, so give the results themselves, each under its own heading exactly as given (" + g.pieces.map((p) => "### " + p.id).join(", ") + "): no introduction, no summary.";
+		// the finished answer sees the whole chat; a piece gets the recent part and a trimmed copy of the project's files
+		// (the same start for every piece, so the providers bill it at their cached price)
+		const build = () => (solo ? [sys(), ...hist.slice(0, -1), withText(last, gAsk)] : [leanSys(), ...hist.slice(0, -1).slice(-6).map(trimMsg), withText(last, gAsk)]);
+		const live = solo ? (t) => { msg.text = t; } : null;
 		try {
-			// a piece gets the recent conversation and a trimmed copy of the project's files, not everything every time (the
-			// same start for every piece, so the providers bill it at their cached price); putting it together sees it all
-			const build = () => (single ? [sys(), ...hist] : [leanSys(), ...hist.slice(0, -1).slice(-6).map(trimMsg), withText(last, ask)]);
-			let out = await run(st, cands, build, single ? (t) => { msg.text = t; } : null, (m) => (p.web ? webExtra(m.id, true) : {}), undefined, cap);
+			let out = await run(st, g.cands, build, live, (m) => (g.web ? webExtra(m.id, true) : {}), undefined, g.cap);
 			// code it wrote that can run here is run before anyone sees it; if it fails, the same model gets the exact error
 			// and fixes it
 			const tested = await testCode(out);
 			if (tested && tested.failed) {
 				msg.status = "Its code failed when run: fixing it";
 				updateLast();
-				const same = [cands.find((c) => (c.m || c).id === st.id) || cands[0], ...cands.filter((c) => (c.m || c).id !== st.id)];
-				const first = out;
+				const same = [g.cands.find((c) => (c.m || c).id === st.id) || g.cands[0], ...g.cands.filter((c) => (c.m || c).id !== st.id)];
+				const firstOut = out;
 				try {
-					out = await run(st, same, () => [...build(), { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive your whole piece again with the code fixed. Check the fix line by line before you answer." }], single ? (t) => { msg.text = t; } : null, null, undefined, cap);
+					out = await run(st, same, () => [...build(), { role: "assistant", content: firstOut }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive your whole answer again with the code fixed. Check the fix line by line before you answer." }], live, null, undefined, g.cap);
 					st.tested = (await testCode(out) || {}).failed ? "still failing" : "fixed";
 				} catch (e) {
 					if (e.name === "AbortError" || e.status === 401) throw e;
-					out = first;
+					out = firstOut;
 				}
 			} else if (tested) st.tested = "ran";
-			outs.set(p.id, out);
-			done(st);
+			const each = g.pieces.length > 1 && !solo ? splitGroup(out, g.pieces) : null;
+			g.pieces.forEach((p, k) => outs.set(p.id, each ? each[k] : k === 0 ? out : "(in " + g.pieces[0].label + ", above)"));
+			sts.forEach((s) => { s.model = st.model; s.id = st.id; done(s); });
+			if (solo) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; }
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
-			done(st, niceError(e));
+			sts.forEach((s) => done(s, niceError(e)));
 		}
 	};
-	msg.status = single ? "Answering" : pieceCount + " pieces, each with the model best at it";
-	const todo = plan.pieces.slice(), running = new Set();
+	msg.status = solo ? "Answering" : pieceCount + " pieces, by " + groups.length + " models, each the best at its pieces";
+	const todo = groups.slice(), running = new Set();
 	while (todo.length || running.size) {
-		for (const p of todo.slice()) {
+		for (const g of todo.slice()) {
 			if (running.size >= 4) break;
 			// a piece that failed doesn't hold up the ones after it: they get what there is
-			if (!p.needs.every((n) => steps.get(n).done)) continue;
-			todo.splice(todo.indexOf(p), 1);
-			const job = runPiece(p).finally(() => running.delete(job));
+			if (!g.needs.every((n) => steps.get(n).done)) continue;
+			todo.splice(todo.indexOf(g), 1);
+			const job = runGroup(g).finally(() => running.delete(job));
 			running.add(job);
 		}
 		if (!running.size) break;
 		await Promise.race(running);
 	}
-	if (single) {
-		msg.text = outs.get(plan.pieces[0].id) || "";
-		if (!msg.text) throw new Error("None of the models answered");
-		return;
-	}
 	if (!outs.size) throw new Error("None of the models answered");
 
-	// 3. one answer from every piece, by the model best at writing this answer
-	const fin = { label: "Put it together", goal: "One answer from every piece", text: "", model: "", id: "", done: false, running: true, open: false, role: "write" };
-	msg.steps.push(fin);
-	msg.status = "Putting it together";
-	const parts = plan.pieces.filter((p) => outs.has(p.id)).map((p) => "### " + p.label + "\n" + outs.get(p.id)).join("\n\n");
-	const ask = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material.slice(0, 20000) : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
-		+ "\n\nIt was split into pieces, each done by the model that is measurably best at that exact piece:\n\n" + parts
-		+ "\n\nNow write the one answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Use every piece's work (keep code, numbers and quotes exactly; where two pieces disagree, work out which is right). Don't mention pieces, models or how it was made.";
-	const codey = (PROFILE && PROFILE.kind === "code") || plan.pieces.filter((p) => p.kind === "code").length * 2 >= plan.pieces.length;
-	if (codey) plan.check = true;
-	const writers = codey
-		? pick("code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3))
-		: pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
-	try {
-		msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; }, null, undefined, speed() === "max" ? null : "medium");
-		done(fin);
-	} catch (e) {
-		if (e.name === "AbortError" || e.status === 401) throw e;
-		done(fin, niceError(e));
-		// the pieces as they are, rather than nothing
-		msg.text = parts;
+	// 3. one answer from every piece, by the model best at writing this answer (when more than one model did the work)
+	if (solo) {
+		parts = "The plan it followed:\n" + outline;
+		if (!msg.text) throw new Error("None of the models answered");
+	} else {
+		fin = { label: "Put it together", goal: "One answer from every piece", text: "", model: "", id: "", done: false, running: true, open: false, role: "write" };
+		msg.steps.push(fin);
+		msg.status = "Putting it together";
+		parts = plan.pieces.filter((p) => outs.has(p.id)).map((p) => "### " + p.label + "\n" + outs.get(p.id)).join("\n\n");
+		ask = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material.slice(0, 20000) : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
+			+ "\n\nIt was split into pieces, each done by the model that is measurably best at that exact piece:\n\n" + parts
+			+ "\n\nNow write the one answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Use every piece's work (keep code, numbers and quotes exactly; where two pieces disagree, work out which is right). Don't mention pieces, models or how it was made.";
+		writers = codey
+			? pick("code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3))
+			: pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
+		try {
+			msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; }, null, undefined, speed() === "max" ? null : "medium");
+			done(fin);
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401) throw e;
+			done(fin, niceError(e));
+			// the pieces as they are, rather than nothing
+			msg.text = parts;
+		}
+		if (!msg.text) throw new Error("None of the models answered");
 	}
-	if (!msg.text) throw new Error("None of the models answered");
 
 	// 4. checked by the model that's measurably best at getting this field's facts and reasoning right (not the one that
 	// wrote it), and anything real it finds is fixed
-	if (!plan.check || !fin.done || fin.error) return;
+	if (!plan.check || !fin || !fin.done || fin.error) return;
 	const chk = { label: "Check it", goal: "Check every fact, number and step against the team's work and the request", text: "", model: "", id: "", done: false, running: true, open: false, role: "reasoning" };
 	msg.steps.push(chk);
 	msg.status = "Checking it";
@@ -7603,7 +7664,7 @@ function money(amount, cur) {
 	catch { return (cur || "") + " " + amount; }
 }
 const DEFAULT_PRICING = {
-	creditUsd: 0.01, open: false, free: { credits: 32, hours: 24 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
+	creditUsd: 0.01, open: false, free: { credits: 100, hours: 24 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	packs: [
 		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
 		{ id: "plus", name: "Plus", credits: 1000, bonus: 100, popular: true, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },

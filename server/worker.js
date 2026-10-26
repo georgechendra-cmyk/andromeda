@@ -22,7 +22,7 @@ const DEFAULT_CONFIG = {
 	maxTokens: 32000,
 	// free credits for everyone signed in, spent before anything paid for, full again "hours" after the first one is
 	// used; at most dailyCap of them handed out a day across every account (600 credits cost the owner $3 at most)
-	free: { credits: 25, hours: 24, dailyCap: 600 },
+	free: { credits: 100, hours: 24, dailyCap: 600 },
 	// round local prices, not exchange-rate conversions
 	packs: [
 		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
