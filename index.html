@@ -1406,6 +1406,18 @@ html.morphing *, html.morphing *::before, html.morphing *::after { transition: n
 .dp-end { border-bottom: 0; }
 .dp-end .dp-m { border-color: transparent; background: var(--ink); color: var(--onink); }
 @media (max-width: 620px) { .stats b { font-size: 24px; } .dp { grid-template-columns: 24px 1fr; } .dp-m { grid-column: 2; justify-self: start; } }
+
+/* ---- the last of the purple: what's selected and what was made, in ink too */
+.art-card .art-ic, .sp-ic { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text); }
+.art-card.on { border-color: color-mix(in srgb, var(--text) 45%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 18%, transparent); }
+.art-card.on .art-go { color: var(--text); border-color: color-mix(in srgb, var(--text) 35%, transparent); }
+.art-card:hover { border-color: color-mix(in srgb, var(--text) 30%, var(--line2)); }
+.pop .mi.on { background: color-mix(in srgb, var(--text) 7%, transparent); }
+.pop .mi.on > svg:first-child, .pop .mi .ck { color: var(--text); }
+.pop .st-pill.on { color: var(--onink); background: var(--ink); border-color: var(--ink); }
+.lib-th { background: color-mix(in srgb, var(--text) 5%, var(--bg3)); color: var(--text); }
+.drop > div { border-color: color-mix(in srgb, var(--text) 35%, transparent); color: var(--text); }
+.sp-i.active svg { color: var(--text); }
 </style>
 </head>
 <body>

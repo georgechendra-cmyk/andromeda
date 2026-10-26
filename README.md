@@ -62,11 +62,15 @@ By measurement, not by guesswork. Every request is first read by a fast model fo
 - **Beyond chat:** web pages, React apps, a site from a screenshot, reading text in images, diagrams, homework photos, live search, documents, agentic coding.
 - **The studio:** photorealistic pictures, portraits, art, cartoons, text in pictures, image editing, video from a still.
 
-The model that scores highest on that exact mix does the work. No lab is favoured by hand, and a new model counts the day it's rated. Code and anything a second expert could catch mistakes in (proofs, maths, medical, legal or financial facts) is checked by the best model from a different lab and fixed until it passes. For code, Claude writes it unless another model measures clearly better at that particular code.
+- **Agents:** finishing the job, never inventing tools or results, reliability over long command-line work, recovering from errors, following directions.
+
+That's 101 measured skills. Every piece of a team answer is weighed on its own mix of them, and the model that scores highest on exactly that mix does it. No lab is favoured by hand. Code goes through the team too: the model measured best at code puts it together and the best code checker reviews it.
+
+**Andromeda's own measurements.** Public leaderboards stop at a hundred skills; real work has far more ("Rust async lifetimes", "a story for a 9-year-old"). Every piece carries tags for exactly what it was, and every checked answer records whether each model's piece held up. Added up across everyone (only the tags and pass or fail, never what anyone wrote), this becomes a leaderboard for every tag, and once there's enough evidence it outweighs the general ratings.
 
 **The best, run the way it was rated.** Many models are rated more than once, at different thinking efforts ("Claude Opus 5.5 (Max)", "GPT-5.6 Sol (xHigh)"): Andromeda runs each at the effort that scored best, with room to think that long. Each of its own features goes to the model measured best at exactly that: apps and simulations by the web-app boards, a site from a screenshot by the screenshot-to-site board, flashcards and quizzes by expertise and factual accuracy, spreadsheets by maths, decks and documents by writing and instruction following, the video director by creative writing. Live questions are answered with each lab's own web search, the way the search board rates them. The whole conversation is always sent, and Claude rereads it from its cache at a tenth of the price, the only saving that changes nothing in the answer.
 
-The ratings come from `arena.json`, refreshed every day by a GitHub Action (`.github/workflows/arena.yml`, which runs `tools/arena.mjs`). Without it, Andromeda falls back to a built-in list of which labs lead at each kind of task. If a model is busy, the next one in line takes over.
+The ratings come from LMArena's public dataset. The page reads the latest boards itself once a day (and `arena.json`, made by `tools/arena.mjs`, is the fallback), so a model that takes the lead is used the day it's rated. A brand-new version stands just behind its predecessor until its own ratings arrive, and takes over only if it actually measures better. If a model is busy, the next one in line takes over.
 
 ## Credits
 
