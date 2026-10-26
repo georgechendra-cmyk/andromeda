@@ -14,12 +14,22 @@ const BOARDS = {
 	vision_style_control: "vision",
 	search_style_control: "search",
 	document_style_control: "document",
+	search_factuality: "searchfact",
 	agent: "agent",
+	// how agents behave over a long job (every one of these: higher is better)
+	agent_task_outcome_explicit: "agent_outcome",
+	agent_tool_hallucination: "agent_honest_tools",
+	agent_bash_reliability: "agent_reliability",
+	agent_bash_reliability_no_prereq: "agent_reliability_cold",
+	agent_bash_recovery_steps: "agent_recovery",
+	agent_steerability: "agent_steerability",
+	agent_praise_complaint: "agent_satisfaction",
 	// the studio: pictures by kind (photorealistic, portraits, art, cartoon, text in the image...), edits, and video
 	text_to_image: "image",
 	image_edit: "imageedit",
 	text_to_video: "video",
 	image_to_video: "i2v",
+	video_edit: "videoedit",
 };
 // the best this many of each category are kept: enough to cover every model a request could go to
 const KEEP = 60;

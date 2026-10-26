@@ -1860,7 +1860,43 @@ async function loadArena() {
 			ARENA_IDX = null;
 		}
 	} catch {}
+	// what this page read from LMArena itself, when that's newer
+	try {
+		const fresh = await vault.get("arena-fresh");
+		if (fresh && fresh.cats && (!ARENA || String(fresh.updated) > String(ARENA.updated))) { ARENA = fresh; ARENA_IDX = null; }
+	} catch {}
+	// more than a day old: read the latest now, in the background (a model that takes the lead is used the day it's rated)
+	if (!ARENA || Date.now() - Date.parse(ARENA.updated || 0) > 20 * 3600e3) setTimeout(() => freshArena().then((f) => { if (f) { ARENA = f; ARENA_IDX = null; try { renderLanding(); } catch {} } }).catch(() => {}), 6000);
 	return ARENA;
+}
+// The same as tools/arena.mjs, run by the page: LMArena's public leaderboard dataset, every board Andromeda routes on
+const LMARENA = "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset/resolve/main/";
+const ARENA_BOARDS = { text_style_control: "text", text_factuality: "factuality", webdev: "webdev", vision_style_control: "vision", search_style_control: "search", document_style_control: "document", search_factuality: "searchfact", agent: "agent", agent_task_outcome_explicit: "agent_outcome", agent_tool_hallucination: "agent_honest_tools", agent_bash_reliability: "agent_reliability", agent_bash_reliability_no_prereq: "agent_reliability_cold", agent_bash_recovery_steps: "agent_recovery", agent_steerability: "agent_steerability", agent_praise_complaint: "agent_satisfaction", text_to_image: "image", image_edit: "imageedit", text_to_video: "video", image_to_video: "i2v", video_edit: "videoedit" };
+async function freshArena() {
+	if (store.get("arenaTry", 0) > Date.now() - 6 * 3600e3) return null;
+	store.set("arenaTry", Date.now());
+	const { parquetReadObjects } = await import("https://cdn.jsdelivr.net/npm/hyparquet@1.31.2/+esm");
+	const out = { updated: new Date().toISOString(), source: "LMArena leaderboard-dataset, read by this page", published: {}, cats: {} };
+	await Promise.all(Object.entries(ARENA_BOARDS).map(async ([config, name]) => {
+		try {
+			const r = await fetch(LMARENA + config + "/latest-00000-of-00001.parquet");
+			if (!r.ok) return;
+			const rows = await parquetReadObjects({ file: await r.arrayBuffer() });
+			const byCat = new Map();
+			for (const x of rows) {
+				const value = x.rating ?? x.score, lower = x.rating_lower ?? x.score_ci_lower;
+				if (value == null || !x.model_name) continue;
+				if (!byCat.has(x.category)) byCat.set(x.category, []);
+				byCat.get(x.category).push([String(x.model_name), String(x.organization || ""), +Number(value).toFixed(4), +Number(value - (lower ?? value)).toFixed(4), Number(x.vote_count ?? x.session_count ?? 0)]);
+				if (x.leaderboard_publish_date) out.published[name] = String(x.leaderboard_publish_date);
+			}
+			for (const [cat, list] of byCat) { list.sort((a, b) => b[2] - a[2]); out.cats[name + ":" + cat] = list.slice(0, 60); }
+		} catch {}
+	}));
+	// only a full read replaces what there is
+	if (Object.keys(out.cats).length < 60) return null;
+	await vault.set("arena-fresh", out);
+	return out;
 }
 // what each measured skill is, for the reader (only the ones in today's data are offered)
 const SKILLS = {
@@ -1904,6 +1940,14 @@ const SKILLS = {
 	"search:overall": "answering from a live web search with sources",
 	"document:overall": "reading and answering from PDFs and documents",
 	"agent:overall": "agentic coding: working through a codebase with tools",
+	"agent_outcome:overall": "an agent that actually finishes the job it was given",
+	"agent_honest_tools:overall": "an agent that never invents tools, files or results it doesn't have",
+	"agent_reliability:overall": "an agent doing long command-line work reliably, step after step",
+	"agent_reliability_cold:overall": "an agent working reliably in an unfamiliar environment with nothing set up",
+	"agent_recovery:overall": "an agent recovering on its own from errors and failed commands",
+	"agent_steerability:overall": "an agent that follows the user's direction and corrections",
+	"agent_satisfaction:overall": "an agent people are pleased with (praised more, complained about less)",
+	"searchfact:overall": "getting facts right in an answer built from a live web search",
 };
 // what a team step (or a request nobody profiled) leans on
 const ROLE_W = {
@@ -2080,23 +2124,27 @@ function arenaIndex() {
 	if (ARENA_IDX || !ARENA || !ARENA.cats || !catalog.length) return ARENA_IDX;
 	return (ARENA_IDX = inherit(boardIndex(ARENA.cats, nameMatcher(catalog))));
 }
-// A lab's new version the day it comes out, before the leaderboards have rated it (that takes days or weeks): it starts
-// from its own line's last rated version (Claude Opus 5.6 from Opus 5.5), a little ahead, on every board that one is on,
-// and its own ratings replace that the day they arrive. Only the same line, a newer version, a newer release, and
-// never a preview or a small variant: a new mini never inherits its big sibling's place.
+// A lab's new version the day it comes out, before a leaderboard has rated it (that takes days or weeks): on every
+// board where its own line's last version is rated and it isn't yet, it stands just behind that version, next in line.
+// It takes over only when its own rating comes in ahead: a new model is used the day it measurably beats the old one,
+// not before. Only the same line, a newer version, a newer release, and never a preview or a small variant.
 function inherit(idx) {
-	const rated = new Set();
-	for (const per of Object.values(idx)) for (const id of per.keys()) rated.add(id);
-	for (const m of catalog) {
-		if (rated.has(m.id) || UNPROVEN.test(m.id) || !usable(m, "quick")) continue;
-		const prev = catalog.filter((p) => rated.has(p.id) && line(p.id) === line(m.id) && ver(p) < ver(m) && p.created <= m.created).sort((a, b) => ver(b) - ver(a))[0];
-		if (!prev) continue;
-		for (const per of Object.values(idx)) {
-			const e = per.get(prev.id);
-			if (!e) continue;
+	const usableNow = catalog.filter((m) => !UNPROVEN.test(m.id) && usable(m, "quick"));
+	// each model's line and version worked out once (there are a hundred boards)
+	const lines = new Map(), vers = new Map();
+	const L = (m) => (lines.has(m.id) ? lines.get(m.id) : (lines.set(m.id, line(m.id)), lines.get(m.id)));
+	const V = (m) => (vers.has(m.id) ? vers.get(m.id) : (vers.set(m.id, ver(m)), vers.get(m.id)));
+	for (const per of Object.values(idx)) {
+		const byLine = new Map();
+		for (const e of per.values()) { const l = L(e.m); if (!byLine.has(l)) byLine.set(l, []); byLine.get(l).push(e); }
+		for (const m of usableNow) {
+			if (per.has(m.id)) continue;
+			let prev = null;
+			for (const e of byLine.get(L(m)) || []) if (V(e.m) < V(m) && e.m.created <= m.created && (!prev || V(e.m) > V(prev.m))) prev = e;
+			if (!prev) continue;
 			const eff = {};
-			for (const [f, z] of Object.entries(e.eff)) eff[f] = z + 0.1;
-			per.set(m.id, { m, z: e.z + 0.1, eff, from: prev.id });
+			for (const [f, z] of Object.entries(prev.eff)) eff[f] = z - 0.05;
+			per.set(m.id, { m, z: prev.z - 0.05, eff, from: prev.m.id });
 		}
 	}
 	return idx;
@@ -3027,6 +3075,8 @@ function usedLabel(m) {
 	return m.showModels ? "Hide models used" : "Show models used";
 }
 function usedHtml(m, i) {
+	// (not shown: the answer is what matters; who did what stays in the chat's data)
+	return "";
 	const u = modelsUsed(m);
 	if (!u.length) return "";
 	return '<div class="mu"><button class="mu-btn' + (m.kind === "build" ? " team" : "") + '" data-models="' + i + '">' + usedLabel(m) + "</button>" +
@@ -3605,7 +3655,7 @@ async function runAgent(text, atts) {
 	const material = sourceOf(atts, 30000);
 	const messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
 	// working through a real project with tools is its own measured skill (LMArena's agent arena), on top of the code
-	const agentic = bestFirst(arenaRank("code", { "agent:overall": 0.6, "text:coding": 0.25, "text:industry_software_and_it_services": 0.15 })).map((x) => x.m);
+	const agentic = bestFirst(arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 })).map((x) => x.m);
 	const cands = [...new Set([...agentic, ...teamFor("code", new Set())])].filter((m) => m.tools !== false);
 	let ci = 0, model = cands[0];
 	if (!model) throw new Error("No coding model is available right now.");
@@ -3929,7 +3979,7 @@ async function runAct(text, atts, resume) {
 		messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
 	}
 	// working with tools is its own measured skill (LMArena's agent board), with what this request needs on top
-	const cands = bestFirst(arenaRank("code", blendW({ "agent:overall": 0.6, "text:instruction_following": 0.25, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.4))).map((x) => x.m).filter((m) => m.tools !== false);
+	const cands = bestFirst(arenaRank("code", blendW({ "agent:overall": 0.25, "agent_outcome:overall": 0.15, "agent_honest_tools:overall": 0.12, "agent_reliability:overall": 0.1, "agent_recovery:overall": 0.08, "agent_steerability:overall": 0.1, "text:instruction_following": 0.1, "text:hard_prompts": 0.1 }, PROFILE && PROFILE.weights, 0.3))).map((x) => x.m).filter((m) => m.tools !== false);
 	let ci = 0, model = cands[0] || best("code"), summary = null, step = resume && resume.state ? resume.state.step : 0;
 	const keep = () => vault.set("act:" + msg.data.id, { messages, step }).catch(() => {});
 	try {
@@ -4479,9 +4529,8 @@ async function runSmart(text, atts) {
 	if (kind === "quick" && !atts.length) return runAuto(text, atts);
 	// Fast: straight to the best quick model; Auto and Max: the team
 	if (speed() === "fast" && kind !== "code") return runAuto(text, atts);
-	// code always goes round write → check → fix; so does any work a second expert would catch mistakes in
-	const check = kind === "code" || (PROFILE ? PROFILE.check : SPEC && SPEC.check);
-	if (check) return runChecked(text, atts, kind);
+	// everything else, code included, is made by the team: the most specific pieces, each by the model measured best at
+	// exactly that, put together, checked and fixed
 	return runQuarks(text, atts);
 }
 
@@ -4729,7 +4778,7 @@ function readQuarks(raw, idx) {
 	try { j = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")); } catch { return null; }
 	const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
 	const seen = new Set(), pieces = [];
-	for (const [k, p] of (Array.isArray(j.pieces) ? j.pieces : []).slice(0, 16).entries()) {
+	for (const [k, p] of (Array.isArray(j.pieces) ? j.pieces : []).slice(0, 32).entries()) {
 		if (!p || !p.goal) continue;
 		const id = String(p.id || "p" + (k + 1)).slice(0, 24);
 		if (seen.has(id)) continue;
@@ -4803,13 +4852,14 @@ async function runQuarks(text, atts) {
 	try {
 		const ask = "You plan how a team of the world's best AI models works together on one request, like a crew where everyone does only the one thing they are the best in the world at. Split the work into its smallest, most specific pieces: each piece is ONE narrow job needing ONE precise skill. Be as specific as you possibly can, never broad: not \"research\" but \"find the 5 moments of the French Revolution a 9-year-old would find most gripping, with dates\"; not \"brainstorm\" but \"3 everyday comparisons a 9-year-old already knows that make 'revolution' click\"; not \"writing\" but \"tell the storming of the Bastille as a 120-word story for a 9-year-old\"; not \"code\" but \"the regex that validates Indonesian mobile numbers\".\n"
 				+ "- Make them work together like a team: later pieces build on what earlier ones found (list those in \"needs\"). Usually: find the facts or understand the material, then work out the ideas, angles, examples or structure, then make each part, then check. Pieces that don't depend on each other run at the same time.\n"
-				+ "- As many pieces as the work really has, 1 to 16. A tiny request (a greeting, one fact) is 1 piece; anything substantial is usually 4 to 10.\n"
+				+ "- As many pieces as the work really has, 1 to 32. A tiny request (a greeting, one fact) is 1 piece; anything substantial is usually 5 to 15, and big work more.\n"
+				+ "- For each piece, weigh the MOST specific measured skills that apply, never just the broad ones: its exact language, its field and that field's factuality, web page vs React app, agentic work, live search, reading documents or pictures. Two pieces needing different skills must have different weights.\n"
 				+ "- No piece for writing the final answer or combining the pieces: the best writer for this answer does that afterwards, and then it's checked.\n"
 				+ "- weights: for EACH piece, how much each measured skill matters for exactly that piece (0 to 1, only the ones that matter). This is what picks each piece's model, so be precise and different per piece: a history-facts piece leans on factuality and its field, a story piece on creative writing, a write-for-a-child piece on instruction following, a maths piece on maths. From:\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n")
 				+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want, who it's for, and any hidden requirement\", \"check\": true, \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian mobile numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"needs\": [], \"web\": false}]}\n\"check\" is true when facts, numbers, code or reasoning in the answer could be wrong.\n\n"
 			+ "The request:\n" + request.slice(0, 8000) + (material ? "\n\nThe attached material begins:\n" + material.slice(0, 5000) : "");
 		// a careful plan, but not a slow one: light thinking
-		const out = await run(lead, pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights)), () => [{ role: "user", content: ask }], null, null, "low");
+		const out = await run(lead, pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights)), () => [{ role: "user", content: ask }], null, null, "medium");
 		plan = readQuarks(out, idx);
 	} catch (e) {
 		if (e.name === "AbortError" || e.status === 401) throw e;
@@ -4892,7 +4942,11 @@ async function runQuarks(text, atts) {
 	const ask = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material.slice(0, 20000) : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
 		+ "\n\nIt was split into pieces, each done by the model that is measurably best at that exact piece:\n\n" + parts
 		+ "\n\nNow write the one answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Use every piece's work (keep code, numbers and quotes exactly; where two pieces disagree, work out which is right). Don't mention pieces, models or how it was made.";
-	const writers = pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
+	const codey = (PROFILE && PROFILE.kind === "code") || plan.pieces.filter((p) => p.kind === "code").length * 2 >= plan.pieces.length;
+	if (codey) plan.check = true;
+	const writers = codey
+		? pick("code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3))
+		: pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
 	try {
 		msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; });
 		done(fin);
@@ -4915,7 +4969,7 @@ async function runQuarks(text, atts) {
 	try {
 		const field = {};
 		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
-		const checkers = pick("reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5)).filter((x) => x.m.id !== fin.id);
+		const checkers = (codey ? pick("code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)) : pick("reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5))).filter((x) => x.m.id !== fin.id);
 		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"]}" }], null, null, "medium");
 		verdict = readVerdict(raw);
 		chk.text = verdict ? (verdict.pass ? "Passed." : "Found: " + verdict.issues.join(" · ")) : chk.text;
