@@ -20,9 +20,10 @@ const DEFAULT_CONFIG = {
 	// the most one answer may write, whatever the balance (a model asked to think gets room for that on top); only what's
 	// written is charged, so this only keeps a long answer from being cut off
 	maxTokens: 32000,
-	// free credits for everyone signed in, spent before anything paid for, full again "hours" after the first one is
-	// used; at most dailyCap of them handed out a day across every account (600 credits cost the owner $3 at most)
-	free: { credits: 100, hours: 24, dailyCap: 600 },
+	// free credits for everyone signed in, spent before anything paid for: a bucket of "credits" that refills through the
+	// day, a share every "every" hours (25 every 6 hours) until it's full, so the whole bucket takes "hours" to come back;
+	// at most dailyCap of them handed out a day across every account (600 credits cost the owner $3 at most)
+	free: { credits: 100, hours: 24, every: 6, dailyCap: 600 },
 	// round local prices, not exchange-rate conversions
 	packs: [
 		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
@@ -179,7 +180,8 @@ async function config(env) {
 	return { ...DEFAULT_CONFIG, ...saved, maxTokens, multipliers: { ...DEFAULT_CONFIG.multipliers, ...(saved.multipliers || {}) }, bands: { ...DEFAULT_CONFIG.bands, ...(saved.bands || {}) }, free: { ...DEFAULT_CONFIG.free, ...(saved.free || {}) } };
 }
 function publicConfig(c) {
-	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24 }, packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: c.checkout, support: c.support, open: !!c.open };
+	const { every, share } = freeStep(c);
+	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share }, packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: c.checkout, support: c.support, open: !!c.open };
 }
 
 // ------------------------------------------------------------------ accounts
@@ -304,8 +306,10 @@ async function authUser(req, env) {
 }
 
 // ------------------------------------------------------------------ free credits
-// A bucket of free credits per person. The clock starts when the first one is spent; when it runs out the bucket is full
-// again. Free credits are always spent before paid ones, and nobody is shown tokens or money, only credits.
+// A bucket of free credits per person. The clock starts when the first one is spent; every "every" hours a share comes
+// back (credits x every / hours), until the bucket is full and the clock stops. So someone who uses it all at breakfast
+// has some again by lunch, instead of nothing until tomorrow. Free credits are always spent before paid ones, and
+// nobody is shown tokens or money, only credits.
 //
 // All of it together stays inside the owner's budget: free.dailyCap credits a day (UTC) are handed out, across every
 // account. Past that, nobody's bucket fills until tomorrow and bought credits still work, so a crowd arriving at once
@@ -319,8 +323,15 @@ async function grantFree(env, c, mc) {
 	const r = await env.DB.prepare("UPDATE free_days SET mc = mc + ? WHERE day = ? AND mc + ? <= ?").bind(mc, day, mc, cap).run();
 	return r.meta && r.meta.changes ? mc : 0;
 }
+// how often a share comes back, and how big it is (every 0, or as long as the whole: the whole bucket at once)
+function freeStep(c) {
+	const hours = Number(c.free.hours) || 24, credits = Number(c.free.credits) || 0;
+	const every = Number(c.free.every) > 0 && Number(c.free.every) < hours ? Number(c.free.every) : hours;
+	return { every, share: Math.round(credits * every / hours * 1000) / 1000, stepMs: every * 3600e3 };
+}
 async function refill(env, user, c) {
 	const full = Math.round((Number(c.free.credits) || 0) * 1000);
+	const { share, stepMs } = freeStep(c);
 	const due = user.free_reset_at && now() >= user.free_reset_at;
 	// a full bucket that's never been touched since the amount went up (or an account from before free credits)
 	const topUp = !user.free_reset_at && (user.free_mc || 0) < full;
@@ -329,16 +340,22 @@ async function refill(env, user, c) {
 		if (!(user.free_mc > 0) && user.free_reset_at === nextDay()) user.free_capped = true;
 		return user;
 	}
-	if (!(await grantFree(env, c, full - Math.max(0, user.free_mc || 0)))) {
+	const have = Math.max(0, user.free_mc || 0);
+	// every share that's come due since the clock's last tick (someone away a day gets a full bucket, not more)
+	const ticks = due ? 1 + Math.floor((now() - user.free_reset_at) / stepMs) : 0;
+	const add = Math.max(0, topUp ? full - have : Math.min(full - have, Math.round(ticks * share * 1000)));
+	if (add && !(await grantFree(env, c, add))) {
 		// today's free credits are all given out: this bucket fills tomorrow
 		await env.DB.prepare("UPDATE users SET free_reset_at = ? WHERE id = ?").bind(nextDay(), user.id).run();
 		user.free_reset_at = nextDay();
 		user.free_capped = true;
 		return user;
 	}
-	await env.DB.prepare("UPDATE users SET free_mc = ?, free_reset_at = 0 WHERE id = ? AND free_reset_at = ?").bind(full, user.id, user.free_reset_at || 0).run();
-	user.free_mc = full;
-	user.free_reset_at = 0;
+	// not full yet: the clock keeps going, the next share on the same beat
+	const next = have + add >= full ? 0 : user.free_reset_at + ticks * stepMs;
+	await env.DB.prepare("UPDATE users SET free_mc = MIN(free_mc + ?, ?), free_reset_at = ? WHERE id = ? AND free_reset_at = ?").bind(add, full, next, user.id, user.free_reset_at || 0).run();
+	user.free_mc = Math.min(have + add, full);
+	user.free_reset_at = next;
 	return user;
 }
 // a new account's first bucket, if today's budget still has room
@@ -353,7 +370,7 @@ function outOfCredits(u, c) {
 	const mins = Math.max(1, Math.ceil(left / 60e3)), h = Math.floor(mins / 60), m = mins % 60, when = h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
 	if (u.free_capped && left) return fail(402, "Today's free credits have all been given out (everyone shares one daily pool). Yours come in " + when + ", or buy credits to keep going.");
 	return fail(402, left && Number(c.free.credits) > 0
-		? "You've used your free credits for now. " + c.free.credits + " more come back in " + when + ", or buy credits to keep going."
+		? "You've used your free credits for now. " + freeStep(c).share + " more come back in " + when + ", or buy credits to keep going."
 		: "You're out of credits. Buy credits to keep going.");
 }
 // Hold mc: free credits first, then paid. Null if there isn't enough. The free clock starts on the first free credit.
@@ -362,7 +379,7 @@ async function take(env, userId, mc, c) {
 		const u = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at FROM users WHERE id = ?").bind(userId).first();
 		const fromFree = Math.min(Math.max(0, u.free_mc || 0), mc), fromPaid = mc - fromFree;
 		if (fromPaid > Math.max(0, u.balance_mc)) return null;
-		const resetAt = fromFree > 0 && !u.free_reset_at ? now() + (Number(c.free.hours) || 24) * 3600e3 : u.free_reset_at || 0;
+		const resetAt = fromFree > 0 && !u.free_reset_at ? now() + freeStep(c).stepMs : u.free_reset_at || 0;
 		// only if nothing else spent them in between: a race simply goes round again
 		const r = await env.DB.prepare("UPDATE users SET free_mc = free_mc - ?, balance_mc = balance_mc - ?, free_reset_at = ? WHERE id = ? AND free_mc >= ? AND balance_mc >= ?").bind(fromFree, fromPaid, resetAt, userId, fromFree, fromPaid).run();
 		if (r.meta && r.meta.changes) return { fromFree, fromPaid };
@@ -384,7 +401,7 @@ async function meOf(env, user) {
 		email: user.email,
 		credits: (Math.max(0, u.balance_mc || 0) + Math.max(0, u.free_mc || 0)) / 1000,
 		paid: Math.max(0, u.balance_mc || 0) / 1000,
-		free: { left: Math.max(0, u.free_mc || 0) / 1000, of: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, backAt: u.free_reset_at || null },
+		free: { left: Math.max(0, u.free_mc || 0) / 1000, of: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every: freeStep(c).every, share: freeStep(c).share, backAt: u.free_reset_at || null },
 		payments: (pays.results || []).map((x) => ({ ...x, credits: x.credits_mc / 1000 })),
 	};
 }

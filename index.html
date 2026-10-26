@@ -2498,23 +2498,34 @@ async function conduct(text, atts, tried, only) {
 	if (only && only.length) { const f = ways.filter(([k]) => only.includes(k)); if (f.length) ways = f; else only = null; }
 	const imgs = atts.filter((a) => a.kind === "image").length, files = atts.filter((a) => a.kind !== "image").map((a) => a.name);
 	const made = lastMade();
+	// what's worth remembering about the user is noticed in this same read (no call of its own after every answer)
+	const mem = settings.memory !== false && !(current && current.temp);
+	const known = mem ? memories().slice(-40).map((x) => "- " + x.text).join("\n") : "";
+	// what's the same for every message comes first and this request's own context after it, so the reader's provider
+	// bills that long start at its cached price
 	const prompt = "You are Andromeda's conductor. Andromeda is an AI that makes whatever people ask for, using the best AI model for every part. Read the request and decide for yourself what would truly serve this person, then how Andromeda should do it.\n\n"
 		+ "The ways Andromeda can deliver:\n" + ways.map(([k, d]) => k + ": " + d).join("\n")
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
+		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
+		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
+		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
+		+ (mem ? " \"remember\": lasting facts about the user that this request states, worth knowing in future chats (who they are, their projects and goals, their preferences and rules for how things should be done, decisions they made), each written about the user; not the topic of a one-off question, never secrets or passwords, nothing already remembered; [] if none." : "") + "\n"
 		+ (only ? "\nThe person picked this themselves from Andromeda's tools: deliver it that way.\n" : "")
 		+ (spaceOf(current && current.space) ? "\nThis chat is in the user's project \"" + spaceOf(current.space).name + "\"" + (String(spaceOf(current.space).about || "").trim() ? ", whose instructions say: " + spaceOf(current.space).about.slice(0, 600) : "") + ((SPACE_FILES.get(current.space) || []).length ? ". Its files: " + SPACE_FILES.get(current.space).map((f) => f.name).join(", ").slice(0, 300) : "") + ".\n" : "")
 		+ (made ? "\nThe thing made just before this was: " + made + ". If the request changes that, choose its way again with \"edit\": true.\n" : "")
 		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
 		+ (tried && tried.length ? "\nAlready tried, and it failed:\n" + tried.map((t) => "- " + t.way + ": " + t.error).join("\n") + "\nChoose a different way, or the same way only if that error clearly won't happen again.\n" : "")
-		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
-		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}}\n"
-		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions.\n\nThe request:\n" + text.slice(0, 4000);
+		+ (known ? "\nWhat's already remembered about the user:\n" + known + "\n" : "")
+		+ "\nThe request:\n" + text.slice(0, 4000);
 	const signal = AbortSignal.any && AbortSignal.timeout ? AbortSignal.any([busy.signal, AbortSignal.timeout(20000)]) : busy.signal;
+	// deciding how to serve "hi" or "a name for my cat" takes little thought; a longer request, files, or a way that
+	// failed get more
+	const brief = !atts.length && !(tried && tried.length) && text.trim().split(/\s+/).length <= 30;
 	let j;
 	try {
-		const raw = await stream(reader.id, [{ role: "user", content: prompt }], () => {}, signal, { max_tokens: 2500, temperature: 0, reasoning: { effort: "low" } });
+		const raw = await stream(reader.id, [{ role: "user", content: prompt }], () => {}, signal, { max_tokens: 2500, temperature: 0, ...effortFor(reader.id, brief ? "minimal" : "low") });
 		j = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1"));
 	} catch (e) {
 		if (busy.signal.aborted) throw e;
@@ -2535,7 +2546,7 @@ async function conduct(text, atts, tried, only) {
 		const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
 		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), weights, check: j.check === true, language: lang };
 	}
-	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile };
+	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [] };
 }
 // the way it chose, done by the part of Andromeda that does it
 async function runWay(plan, text, atts) {
@@ -3934,17 +3945,7 @@ const memoryLine = () => {
 	if (key) MEM_SNAP.set(key, line);
 	return line;
 };
-// after an answer, the reader notes anything worth keeping (quietly, in the background; never blocks the chat)
-async function noteMemories(userText, answer) {
-	if (settings.memory === false || (current && current.temp) || String(userText).split(/\s+/).length < 6) return;
-	const reader = bestFor("reader")[0];
-	if (!reader) return;
-	try {
-		const have = memories().slice(-60).map((x) => "- " + x.text).join("\n");
-		const raw = await stream(reader.id, [{ role: "user", content: "You keep the memory of an AI assistant about its user. From this exchange, note only lasting facts worth remembering across future chats: who they are, their projects and goals, their preferences and rules for how things should be done, decisions made. Not the topic of a one-off question, not secrets or passwords.\n\nAlready remembered:\n" + (have || "(nothing)") + "\n\nThe user said:\n" + String(userText).slice(0, 3000) + "\n\nThe assistant answered:\n" + String(answer).slice(0, 2000) + "\n\nReply with ONLY JSON: {\"remember\": [\"one short fact per item, written about the user\"]} (an empty list if nothing new is worth keeping)." }], () => {}, AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined, { max_tokens: 600, temperature: 0, reasoning: { effort: "low" } });
-		for (const t of (parseJSON(raw).remember || []).slice(0, 5)) remember(t);
-	} catch {}
-}
+// (what's worth keeping is noticed by the conductor as it reads each message: conduct()'s "remember")
 function openMemory() {
 	const m = memories();
 	openModal('<h2>Memory</h2><p class="sub">What Andromeda remembers about you and your work, across chats. It\'s kept in this browser, and Andromeda adds to it as it learns.</p>' +
@@ -4446,6 +4447,7 @@ async function send(textOverride, fork) {
 		try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 		// it couldn't be asked, but the person said what they want: that way
 		if (!plan && tool) plan = { way: TOOLS[tool].ways[0], skills: [], edit: false, how: "", qty: 0, length: "", topic: "", name: "", profile: null };
+		if (plan) (plan.remember || []).forEach((t) => remember(t));
 		PROFILE = plan ? plan.profile : null;
 		PROFILE_TEXT = plan ? text : null;
 		PLAN_NOTE = plan ? plan.how : "";
@@ -4508,7 +4510,6 @@ async function send(textOverride, fork) {
 	if (creditsMode()) refreshMe();
 	{
 		const lastMsg = current.msgs[current.msgs.length - 1];
-		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.error && lastMsg.text) noteMemories(text, lastMsg.text);
 		if (lastMsg && lastMsg.role === "assistant" && !lastMsg.kind && !lastMsg.error && (lastMsg.text || "").length > 1500 && SKILLS_ON.includes("writing") && capOn("panel") && innerWidth > 860) lastMsg.autoCanvas = true;
 	}
 	{
@@ -4549,7 +4550,7 @@ function untilText(ts) {
 function outOfCredits(msg) {
 	const f = me && me.free, back = f && f.backAt && f.backAt > Date.now();
 	openModal('<h2>' + (back && !(me.paid > 0) ? "That's your free credits for now" : "Not enough credits") + '</h2><p class="sub">' + esc(msg || "") + "</p>" +
-		(back ? '<div class="acct-bal">' + untilText(f.backAt) + '</div><div class="help" style="font-size:13px;color:var(--faint)">until ' + f.of + " free credits come back</div>" : "") +
+		(back ? '<div class="acct-bal">' + untilText(f.backAt) + '</div><div class="help" style="font-size:13px;color:var(--faint)">until ' + (f.share || f.of) + " free credits come back</div>" : "") +
 		'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:18px"><button class="btn" id="ocWait">' + (back ? "I'll wait" : "OK") + '</button><button class="btn dark" data-open-pricing>Buy credits</button></div>');
 	$("#ocWait").onclick = closeModal;
 }
@@ -4568,8 +4569,8 @@ async function runAuto(text, atts) {
 	const lite = liteMode();
 	const cands = lite ? liteOnly(rank(task).concat(catalog.filter((m) => usable(m, task) && FAST.test(m.id)))) : rank(task);
 	// an everyday question gets an instant answer: light thinking (the thought a hard question gets would cost many times
-	// as much, take far longer and not make it better); Max thinks fully
-	const light = lite || (task === "quick" && speed() !== "max");
+	// as much, take far longer and not make it better), on free credits the lightest; Max thinks fully
+	const light = lite ? (task === "quick" ? "minimal" : "low") : task === "quick" && speed() !== "max" ? "low" : "";
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
 	const hist = [sys(), ...chatHistory()];
@@ -4584,7 +4585,7 @@ async function runAuto(text, atts) {
 			msg.spec = specFor(task);
 		updateLast();
 		try {
-			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "low")) : effortExtra(m.id)) }, msg);
+			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", light, m.id)) : effortExtra(m.id)) }, msg);
 			return;
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
@@ -4989,8 +4990,12 @@ function teammateTie(cands, used) {
 // on free credits (nothing bought) everything runs on the low-cost strong models: the same Andromeda, a fraction of the price
 function liteMode() { return speed() !== "max" && creditsMode() && !!me && !(me.paid > 0); }
 const liteOnly = (list) => { const cheap = list.filter((m) => FAST.test(m.id) || (m.pout > 0 && m.pout <= 6)); return cheap.length ? cheap : list; };
-// no deeper thinking than the piece needs (never more than the model was rated at)
-const capEffort = (e, cap) => (cap && e && LEVELS.indexOf(e) > LEVELS.indexOf(cap) ? cap : e);
+// no deeper thinking than the piece needs (never more than the model was rated at); a model that thinks but wasn't rated
+// at any level would think as long as its provider likes, so it's held to the cap too
+const capEffort = (e, cap, id) => {
+	if (!e && cap && id) { const m = catalog.find((x) => x.id === id); return m && Array.isArray(m.efforts) && m.efforts.some((x) => x !== "none") ? cap : e; }
+	return cap && e && LEVELS.indexOf(e) > LEVELS.indexOf(cap) ? cap : e;
+};
 // what a piece is sent: the system prompt with the project's files trimmed, and older messages kept short
 let SPACE_LIMIT = 150000;
 function leanSys() { SPACE_LIMIT = 30000; try { return sys(); } finally { SPACE_LIMIT = 150000; } }
@@ -5023,7 +5028,7 @@ async function runQuarks(text, atts) {
 			chip();
 			updateLast();
 			try {
-				return await stream(m.id, build(), (t) => { step.text = t; onText && onText(t); updateLast(); }, busy.signal, { ...(extra ? extra(m) : {}), ...effortFor(m.id, effort || capEffort(c.effort, cap)) }, msg);
+				return await stream(m.id, build(), (t) => { step.text = t; onText && onText(t); updateLast(); }, busy.signal, { ...(extra ? extra(m) : {}), ...effortFor(m.id, effort || capEffort(c.effort, cap, m.id)) }, msg);
 			} catch (e) {
 				if (e.name === "AbortError" || e.status === 401) throw e;
 				// broke off part way: the next model does it whole
@@ -5098,7 +5103,9 @@ async function runQuarks(text, atts) {
 	// among equals the cheaper model (in Max, a teammate)
 	const outs = new Map(), teamUsed = new Set();
 	const record = await skillRecord(plan.pieces.flatMap((p) => p.tags));
-	const CAPS_UP = ["low", "medium", "high"];
+	const CAPS_UP = ["minimal", "low", "medium", "high"];
+	// thinking to match the piece: light for easy, moderate for medium, high for hard (on free credits, a step lighter)
+	const PIECE_CAP = lite ? ["minimal", "low", "medium"] : ["low", "medium", "high"];
 	for (const p of plan.pieces) {
 		let w = blendW(Object.keys(p.weights).length ? p.weights : ROLE_W[p.kind] || ROLE_W.quick, PROFILE && PROFILE.weights, 0.15);
 		if (p.web) w = blendW(w, { "search:overall": 1 }, 0.4);
@@ -5106,8 +5113,8 @@ async function runQuarks(text, atts) {
 		cands = speed() === "max" ? teammateTie(cands, teamUsed) : cheaperTie(cands, teamUsed);
 		teamUsed.add((cands[0].m || cands[0]).id);
 		p.cands = cands;
-		// thinking to match the piece: light for easy, moderate for medium, high for hard; Max lets every model think fully
-		p.cap = speed() === "max" ? null : p.level === "easy" ? "low" : p.level === "medium" ? "medium" : "high";
+		// Max lets every model think fully
+		p.cap = speed() === "max" ? null : PIECE_CAP[p.level === "easy" ? 0 : p.level === "medium" ? 1 : 2];
 	}
 	// The pieces one model does go to it together, in order, each building on the last: a team costs as many calls as it
 	// has different models, not as many as it has pieces (the same model doing the same work, so nothing is lost). A piece
@@ -5126,9 +5133,11 @@ async function runQuarks(text, atts) {
 	}
 	// one model does it all: its one call writes the finished answer, nothing to put together
 	const solo = groups.length === 1;
-	// ...and writes it with at least the thought the putting-together would have had
-	if (solo && plan.pieces.length > 1 && groups[0].cap === "low") groups[0].cap = "medium";
 	const codey = (PROFILE && PROFILE.kind === "code") || plan.pieces.filter((p) => p.kind === "code").length * 2 >= plan.pieces.length;
+	// Putting the pieces together is writing more than working things out: light thought, a little more for code (whose
+	// pieces must fit exactly). One model doing it all writes with at least that much.
+	const joinCap = speed() === "max" ? null : codey && !lite ? "medium" : "low";
+	if (solo && plan.pieces.length > 1 && groups[0].cap && CAPS_UP.indexOf(groups[0].cap) < CAPS_UP.indexOf(joinCap)) groups[0].cap = joinCap;
 	if (codey) plan.check = true;
 	const outline = plan.pieces.map((p, k) => (k + 1) + ". " + p.label + ": " + p.goal + (p.skill ? " (" + p.skill + ")" : "")).join("\n");
 	let fin = null, writers = null, parts = "", ask = "";
@@ -5212,7 +5221,7 @@ async function runQuarks(text, atts) {
 			? pick("code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3))
 			: pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
 		try {
-			msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; }, null, undefined, speed() === "max" ? null : "medium");
+			msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; }, null, undefined, joinCap);
 			done(fin);
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
@@ -5240,7 +5249,7 @@ async function runQuarks(text, atts) {
 		// there's no other model at all, the writer checks its own work
 		if (!checkers.length) checkers = arenaRank(...checkW).filter((x) => x.m.id !== fin.id).slice(0, 4);
 		if (!checkers.length) checkers = pick(...checkW);
-		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, "medium");
+		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, lite ? "low" : "medium");
 		verdict = readVerdict(raw);
 		if (verdict) { try { const pj = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).pieces; if (pj && typeof pj === "object") verdict.pieces = pj; } catch {} }
 		shareRecord(plan, steps, verdict);
@@ -7648,7 +7657,7 @@ function openAccount() {
 		const pays = (me && me.payments) || [];
 		openModal('<h2>Your credits</h2><p class="sub">' + esc(account.email) + '</p>' +
 			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:' + (me && me.free && me.free.of ? 8 : 18) + 'px"><div><div class="acct-bal">' + (me ? creditsText(me.credits) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">credits</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>Buy credits</button></div></div>' +
-			(me && me.free && me.free.of ? '<div class="help" style="font-size:13px;margin-bottom:18px">' + creditsText(me.free.left) + " of your " + me.free.of + " free credits left" + (me.free.backAt && me.free.backAt > Date.now() ? " · all " + me.free.of + " back in " + untilText(me.free.backAt) : " · used first, back " + me.free.hours + " hours after you start") + (me.paid > 0 ? " · " + creditsText(me.paid) + " bought" : "") + "</div>" : "") +
+			(me && me.free && me.free.of ? '<div class="help" style="font-size:13px;margin-bottom:18px">' + creditsText(me.free.left) + " of your " + me.free.of + " free credits left" + (me.free.backAt && me.free.backAt > Date.now() ? " · " + (me.free.share || me.free.of) + " more in " + untilText(me.free.backAt) : " · used first; " + (me.free.share && me.free.share < me.free.of ? me.free.share + " come back every " + me.free.every + " hours" : "back " + me.free.hours + " hours after you start")) + (me.paid > 0 ? " · " + creditsText(me.paid) + " bought" : "") + "</div>" : "") +
 			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>Pack</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(p.pack || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + creditsText(p.credits) + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status) + "</span></td></tr>").join("") + "</table></div>" : "") +
 			'<div class="row" style="justify-content:space-between;margin-top:6px"><button class="btn" id="acOut">Sign out</button><button class="btn" id="acDone">Done</button></div>');
 		$("#acRefresh").onclick = async () => { await refreshMe(); draw(); };
@@ -7664,7 +7673,7 @@ function money(amount, cur) {
 	catch { return (cur || "") + " " + amount; }
 }
 const DEFAULT_PRICING = {
-	creditUsd: 0.01, open: false, free: { credits: 100, hours: 24 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
+	creditUsd: 0.01, open: false, free: { credits: 100, hours: 24, every: 6 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	packs: [
 		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
 		{ id: "plus", name: "Plus", credits: 1000, bonus: 100, popular: true, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
@@ -7771,8 +7780,8 @@ async function openAdmin() {
 		'<div class="field"><label>Name shown on QRIS</label><input class="inp" id="adQrisName" value="' + esc((c.qris && c.qris.name) || "") + '"></div>' +
 		'<div class="field"><label>Card checkout links (one per pack)</label>' + c.packs.map((p) => '<div class="row" style="margin-bottom:6px"><span style="width:80px;font-size:13px">' + esc(p.name) + '</span><input class="inp" data-link="' + p.id + '" placeholder="https://…lemonsqueezy.com/checkout/buy/…" value="' + esc((c.checkout.links || {})[p.id] || "") + '"><input class="inp" style="max-width:130px" data-variant="' + p.id + '" placeholder="variant id" value="' + esc(p.lemonVariant || "") + '"></div>').join("") + "</div>" +
 		'<div class="field"><label>Mark-up on OpenRouter cost</label><div class="row"><span style="font-size:13px">cheap ×</span><input class="inp" id="adM1" type="number" step="0.1" value="' + c.multipliers.cheap + '"><span style="font-size:13px">mid ×</span><input class="inp" id="adM2" type="number" step="0.1" value="' + c.multipliers.mid + '"><span style="font-size:13px">top ×</span><input class="inp" id="adM3" type="number" step="0.1" value="' + c.multipliers.top + '"></div><div class="help">Cheap means under $' + c.bands.cheapBelow + ", top means $" + c.bands.topFrom + " or more per million output tokens.</div></div>" +
-		'<div class="field"><label>Free credits</label><div class="row"><input class="inp" id="adFree" type="number" min="0" step="1" value="' + ((c.free && c.free.credits) ?? 25) + '"><span style="font-size:13px">credits, all back</span><input class="inp" id="adFreeH" type="number" min="1" step="1" value="' + ((c.free && c.free.hours) ?? 24) + '"><span style="font-size:13px">hours after the first is used</span></div><div class="help">Everyone signed in gets these, used before bought credits. 25 is about Rp4,000 at Starter prices. 0 turns them off.</div></div>' +
-		'<div class="field"><label>Free credits a day, all accounts together</label><div class="row"><input class="inp" id="adFreeCap" type="number" min="0" step="50" value="' + ((c.free && c.free.dailyCap) ?? 600) + '"><span style="font-size:13px">credits at most</span></div><div class="help">Your budget for free credits: past it, nobody gets more until tomorrow (bought credits still work). 600 a day costs you at most about  (Rp50,000). 0 means no limit.</div></div>' +		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
+		'<div class="field"><label>Free credits</label><div class="row"><input class="inp" id="adFree" type="number" min="0" step="1" value="' + ((c.free && c.free.credits) ?? 100) + '"><span style="font-size:13px">credits, refilled over</span><input class="inp" id="adFreeH" type="number" min="1" step="1" value="' + ((c.free && c.free.hours) ?? 24) + '"><span style="font-size:13px">hours, a share every</span><input class="inp" id="adFreeE" type="number" min="0" step="1" value="' + ((c.free && c.free.every) ?? 6) + '"><span style="font-size:13px">hours</span></div><div class="help">Everyone signed in gets these, used before bought credits. 100 over 24 hours with a share every 6 means 25 come back every 6 hours until all 100 are there again. 0 turns them off.</div></div>' +
+		'<div class="field"><label>Free credits a day, all accounts together</label><div class="row"><input class="inp" id="adFreeCap" type="number" min="0" step="50" value="' + ((c.free && c.free.dailyCap) ?? 600) + '"><span style="font-size:13px">credits at most</span></div><div class="help">Your budget for free credits: past it, nobody gets more until tomorrow (bought credits still work). 600 a day costs you at most about $2 to $3 (Rp32,000 to Rp48,000). 0 means no limit.</div></div>' +		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
 		'<div class="field"><label>Packs and prices (advanced)</label><textarea class="inp" id="adPacks" style="height:150px;padding:10px;font-family:var(--mono);font-size:12px">' + esc(JSON.stringify(c.packs.map(({ lemonVariant, ...p }) => p), null, 1)) + '</textarea><div class="status" id="adStatus"></div></div>' +
 		'<div class="field"><label>Give or take credits by hand</label><div class="row"><input class="inp" id="adEmail" placeholder="email"><input class="inp" id="adCredits" type="number" placeholder="credits (- to take)" style="max-width:150px"><button class="btn" id="adGive">Apply</button></div></div>' +
 		'<div class="field"><label>Accounts (' + o.users.length + ')</label><table class="ptable"><tr><th>Email</th><th>Credits</th><th>Joined</th></tr>' + o.users.slice(0, 30).map((u) => "<tr><td>" + esc(u.email) + "</td><td>" + creditsText(u.balance_mc / 1000) + "</td><td>" + when(u.created_at) + "</td></tr>").join("") + "</table></div>" +
@@ -7791,7 +7800,7 @@ async function openAdmin() {
 		const links = {};
 		$$("[data-link]").forEach((i) => { if (i.value.trim()) links[i.dataset.link] = i.value.trim(); });
 		const next = { ...c, open: $("#adOpen").checked, qris: { image: $("#adQris").value.trim(), name: $("#adQrisName").value.trim() }, checkout: { ...c.checkout, links },
-			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top, media: c.multipliers.media || 2 }, free: { credits: Math.max(0, Number($("#adFree").value) || 0), hours: Math.max(1, Number($("#adFreeH").value) || 24), dailyCap: Math.max(0, Number($("#adFreeCap").value) || 0) }, support: $("#adSupport").value.trim(), packs };
+			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top, media: c.multipliers.media || 2 }, free: { credits: Math.max(0, Number($("#adFree").value) || 0), hours: Math.max(1, Number($("#adFreeH").value) || 24), every: Math.max(0, Number($("#adFreeE").value) || 0), dailyCap: Math.max(0, Number($("#adFreeCap").value) || 0) }, support: $("#adSupport").value.trim(), packs };
 		try { await call("/api/admin/config", { method: "PUT", body: JSON.stringify(next) }); pricing = null; toast("Saved"); openAdmin(); }
 		catch (e) { st.className = "status bad"; st.textContent = e.message; }
 	};

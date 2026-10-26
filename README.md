@@ -74,7 +74,7 @@ The ratings come from LMArena's public dataset. The page reads the latest boards
 
 ## Credits
 
-- Everyone gets free credits that come back every day.
+- Everyone gets free credits that come back through the day: 100 to start, and 25 more every 6 hours until it's 100 again (the owner can change all three numbers).
 - More can be bought with QRIS (and card, once it's set up).
 - Andromeda only ever shows credits, never token counts.
 
