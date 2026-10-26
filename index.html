@@ -1306,6 +1306,17 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 
 /* ---- on a phone the sidebar slides over the page: solid, so nothing shows through it */
 @media (max-width: 860px) { .sidebar, :root[data-theme="light"] .sidebar, body.has-bg .sidebar { background: var(--bg2); backdrop-filter: none; -webkit-backdrop-filter: none; } }
+
+/* ---- what's new */
+.wn h2 { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: -.015em; }
+.wn-mark { width: 44px; height: 44px; margin-bottom: 12px; color: var(--brand); filter: drop-shadow(0 4px 18px rgba(var(--brand-rgb), .5)); }
+.wn-mark svg { width: 100%; height: 100%; animation: spin 30s linear infinite; }
+.wn-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.wn-it { display: flex; gap: 12px; padding: 12px 14px; border: 1px solid var(--glass-line); border-radius: 14px; background: var(--glass); animation: rise .45s var(--ease) both; }
+.wn-it > svg { flex: none; margin-top: 2px; color: var(--brand); }
+.wn-it b { display: block; font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+.wn-it span { display: block; font-size: 13px; color: var(--muted); line-height: 1.45; }
+@media (max-width: 640px) { .wn-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -8386,6 +8397,28 @@ async function importAll(f) {
 	toast("Imported " + chats.length + " chat" + (chats.length === 1 ? "" : "s") + (sps.length ? ", " + sps.length + " project" + (sps.length === 1 ? "" : "s") : "") + (mem ? ", " + mem + " memor" + (mem === 1 ? "y" : "ies") : ""));
 }
 
+// ---------------------------------------------------------------- what's new: shown once after an update, so nothing new goes unnoticed
+const WHATS_NEW = { v: "2026-10-26", items: [
+	['<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/>', "Made things open beside the chat", "Apps, games and pages open in a panel next to the conversation, with their code a click away."],
+	['<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 16.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>', "Canvas for writing", "Edit a long answer like a document, or ask for changes to all of it or just what you select."],
+	['<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', "Projects", "Chats that share instructions and files, so Andromeda always has the background."],
+	['<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', "Tasks", "It does things by itself on a schedule, even with this page closed: a morning brief, a weekly summary."],
+	['<circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 9.5l2.6 6M16 9.5l-2.6 6"/>', "Compare AIs", "Three labs' best models answer side by side, and the best of each is combined."],
+	['<path d="M12 5v14M5 12h14"/>', "Everything in the + menu", "Deep research, pictures, video, music, apps, study sets, documents, your computer and apps."],
+	['<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', "Auto, Fast, Max, or one model", "Andromeda decides by default. Pick a style too: Concise, Explanatory, Learning…"],
+	['<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>', "Talk to it", "A voice screen that listens, thinks and speaks. Tap to interrupt."],
+	['<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>', "Run code from an answer", "Python and JavaScript run right here, with their output and charts."],
+	['<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>', "Share, Library, temporary chats", "Share any chat as a link, find everything it made, and chat without saving."],
+] };
+function showWhatsNew(force) {
+	if (!force && store.get("seenNew", "") === WHATS_NEW.v) return;
+	store.set("seenNew", WHATS_NEW.v);
+	openModal('<div class="wn"><div class="wn-mark"><svg><use href="#logo"/></svg></div><h2>What\'s new in Andromeda</h2><p class="sub">Everything the best assistants can do, and a few things they can\'t.</p><div class="wn-grid">' +
+		WHATS_NEW.items.map(([d, t, s], k) => '<div class="wn-it" style="animation-delay:' + (k * 0.04).toFixed(2) + 's">' + svgOf(d, 20) + "<div><b>" + esc(t) + "</b><span>" + esc(s) + "</span></div></div>").join("") +
+		'</div><div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn dark" id="wnOk">Start</button></div></div>', "wide");
+	$("#wnOk").onclick = () => { closeModal(); $("#input").focus(); };
+}
+
 // ---------------------------------------------------------------- the site
 function showApp(on) {
 	if (document.body.classList.contains("in-share")) closeShared();
@@ -8396,7 +8429,7 @@ function showApp(on) {
 		render();
 		setMode(mode);
 		if (!connected()) setTimeout(SERVER ? openAccount : openSettings, 350);
-		else setTimeout(() => $("#input").focus(), 50);
+		else setTimeout(() => { $("#input").focus(); showWhatsNew(); }, 50);
 	} else {
 		history.replaceState(null, "", location.pathname + location.search);
 		window.scrollTo(0, 0);
@@ -8576,6 +8609,7 @@ addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
 	if (location.hash === "#admin") openAdmin();
 	else if (location.hash === "#pricing") openPricing();
 	else if (inApp && !connected()) setTimeout(SERVER ? openAccount : openSettings, 600);
+	else if (inApp && !shareId) setTimeout(() => { if (!$("#overlay").classList.contains("show")) showWhatsNew(); }, 700);
 })();
 </script>
 </body>
