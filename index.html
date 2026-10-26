@@ -2797,7 +2797,7 @@ function sys(extra) {
 function spaceLine() {
 	const sp = current && spaceOf(current.space);
 	if (!sp) return "";
-	const text = (SPACE_FILES.get(sp.id) || []).map((f) => "--- " + f.name + " ---\n" + f.data).join("\n\n").slice(0, 150000);
+	const text = (SPACE_FILES.get(sp.id) || []).map((f) => "--- " + f.name + " ---\n" + f.data).join("\n\n").slice(0, SPACE_LIMIT);
 	return "This chat is in the user's project \"" + sp.name + "\"." + (String(sp.about || "").trim() ? "\nThe project's instructions (follow them in everything here):\n" + sp.about.slice(0, 4000) : "") + (text ? "\nThe project's files (your knowledge for this project; use them, and say which one when you rely on it):\n" + text : "");
 }
 
@@ -4889,7 +4889,7 @@ function readQuarks(raw, idx) {
 		seen.add(id);
 		const kind = kinds.includes(p.kind) ? p.kind : "write";
 		const tags = [...new Set((Array.isArray(p.tags) ? p.tags : []).map((t) => String(t).toLowerCase().trim().replace(/\s+/g, "-").slice(0, 40)).filter((t) => /^[a-z0-9][a-z0-9+#.\-]{0,39}$/.test(t)))].slice(0, 6);
-		pieces.push({ id, label: String(p.label || p.skill || "Piece " + (k + 1)).slice(0, 70), goal: String(p.goal).slice(0, 700), skill: String(p.skill || "").slice(0, 200), kind, weights, tags, needs, web: p.web === true || kind === "research" });
+		pieces.push({ id, label: String(p.label || p.skill || "Piece " + (k + 1)).slice(0, 70), goal: String(p.goal).slice(0, 700), skill: String(p.skill || "").slice(0, 200), kind, weights, tags, level: ["easy", "medium", "hard"].includes(p.level) ? p.level : "medium", needs, web: p.web === true || kind === "research" });
 	}
 	return pieces.length ? { understanding: String(j.understanding || "").slice(0, 700), check: j.check !== false, pieces } : null;
 }
@@ -4941,6 +4941,30 @@ function shareRecord(plan, steps, verdict) {
 	}).filter(Boolean);
 	if (results.length) api("/api/skills", { method: "POST", body: JSON.stringify({ results }) }).catch(() => {});
 }
+// ---------------------------------------------------------------- the team, without waste
+// A piece's model, among those that measure the same (within the ratings' margin of error), or a clearly cheaper one only
+// a hair behind: the cheapest. A measurably better model still wins. (Max always takes the top; ties there go to a
+// teammate the team isn't using yet.)
+const piecePrice = (c) => { const m = c.m || c, v = (Number(m.pin) || 0) * 3 + (Number(m.pout) || 0); return v > 0 ? v : Infinity; };
+function cheaperTie(cands, used) {
+	const top = cands[0];
+	if (!top || top.score == null) return cands;
+	const ok = cands.slice(0, 6).filter((c) => c.score != null && (top.score - c.score < TEAM_TIE || (top.score - c.score < TEAM_TIE * 1.7 && piecePrice(c) * 3 <= piecePrice(top))));
+	const low = Math.min(...ok.map(piecePrice));
+	const fair = ok.filter((c) => piecePrice(c) <= low * 1.25);
+	const chosen = fair.find((c) => !used.has(c.m.id)) || fair[0];
+	return chosen ? [chosen, ...cands.filter((c) => c !== chosen)] : cands;
+}
+function teammateTie(cands, used) {
+	const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !used.has(c.m.id));
+	return used.has((cands[0].m || cands[0]).id) && tie > 0 ? [cands[tie], ...cands.filter((_, n) => n !== tie)] : cands;
+}
+// no deeper thinking than the piece needs (never more than the model was rated at)
+const capEffort = (e, cap) => (cap && e && LEVELS.indexOf(e) > LEVELS.indexOf(cap) ? cap : e);
+// what a piece is sent: the system prompt with the project's files trimmed, and older messages kept short
+let SPACE_LIMIT = 150000;
+function leanSys() { SPACE_LIMIT = 30000; try { return sys(); } finally { SPACE_LIMIT = 150000; } }
+const trimMsg = (m) => (typeof m.content === "string" && m.content.length > 6000 ? { ...m, content: m.content.slice(0, 3000) + "\n[…]\n" + m.content.slice(-2500) } : m);
 // within this many of the board's spreads, two models measure the same: a margin smaller than the ratings' own uncertainty
 const TEAM_TIE = 0.15;
 async function runQuarks(text, atts) {
@@ -4960,7 +4984,7 @@ async function runQuarks(text, atts) {
 		msg.chips = ['<span class="chip"><span class="dot"></span>' + (pieceCount > 1 ? "Quarks · " + pieceCount + " pieces · " : "") + (names.length ? names.map(esc).join(", ") : "planning") + "</span>"];
 	};
 	// one step: the candidates in turn (a busy one is skipped), each at the effort it scored best at unless told otherwise
-	async function run(step, cands, build, onText, extra, effort) {
+	async function run(step, cands, build, onText, extra, effort, cap) {
 		let lastErr;
 		for (const c of cands.slice(0, 6)) {
 			const m = c.m || c;
@@ -4969,7 +4993,7 @@ async function runQuarks(text, atts) {
 			chip();
 			updateLast();
 			try {
-				return await stream(m.id, build(), (t) => { step.text = t; onText && onText(t); updateLast(); }, busy.signal, { ...(extra ? extra(m) : {}), ...effortFor(m.id, effort || c.effort) }, msg);
+				return await stream(m.id, build(), (t) => { step.text = t; onText && onText(t); updateLast(); }, busy.signal, { ...(extra ? extra(m) : {}), ...effortFor(m.id, effort || capEffort(c.effort, cap)) }, msg);
 			} catch (e) {
 				if (e.name === "AbortError" || e.status === 401) throw e;
 				// broke off part way: the next model does it whole
@@ -4982,9 +5006,14 @@ async function runQuarks(text, atts) {
 	}
 	const done = (s, err) => { s.running = false; s.done = true; s.open = false; if (err) { s.error = true; s.text = err; } updateLast(); };
 	// the best for a mix of skills, at the effort each scored best at; at most two from one lab near the top
+	// on free credits: the fast, low-cost models measured best at each piece (the same team, the same checks); Max and
+	// bought credits: everything
+	const lite = speed() !== "max" && creditsMode() && !!me && !(me.paid > 0);
 	const pick = (kind, w) => {
 		const out = [], perLab = {};
-		for (const x of arenaRank(kind, w)) {
+		let ranked = arenaRank(kind, w);
+		if (lite) { const cheap = ranked.filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)); if (cheap.length) ranked = cheap; }
+		for (const x of ranked) {
 			const p = provider(x.m.id);
 			if (out.some((y) => y.m.id === x.m.id)) continue;
 			if ((perLab[p] = (perLab[p] || 0) + 1) <= 2 || out.length >= 6) out.push(x);
@@ -5005,10 +5034,13 @@ async function runQuarks(text, atts) {
 				+ "- For each piece, weigh the MOST specific measured skills that apply, never just the broad ones: its exact language, its field and that field's factuality, web page vs React app, agentic work, live search, reading documents or pictures. Two pieces needing different skills must have different weights.\n"
 				+ "- No piece for writing the final answer or combining the pieces: the best writer for this answer does that afterwards, and then it's checked.\n"
 				+ "- weights: for EACH piece, how much each measured skill matters for exactly that piece (0 to 1, only the ones that matter). This is what picks each piece's model, so be precise and different per piece: a history-facts piece leans on factuality and its field, a story piece on creative writing, a write-for-a-child piece on instruction following, a maths piece on maths. From:\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n")
-				+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want, who it's for, and any hidden requirement\", \"check\": true, \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian mobile numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"tags\": [\"rust\", \"tokio\", \"async-lifetimes\"], \"needs\": [], \"web\": false}]}\n\"tags\": 2 to 6 short lowercase words for exactly what that piece involves (its language, library, framework, field, topic, audience, kind of task), the most specific that are true, e.g. [\"rust\", \"tokio\", \"async-lifetimes\"] or [\"french-revolution\", \"kids-9\", \"storytelling\"]: generic words only, never names or personal details.\n\"check\" is true when facts, numbers, code or reasoning in the answer could be wrong.\n\n"
+				+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want, who it's for, and any hidden requirement\", \"check\": true, \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian mobile numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"tags\": [\"rust\", \"tokio\", \"async-lifetimes\"], \"level\": \"easy|medium|hard\", \"needs\": [], \"web\": false}]}\n\"level\": how hard that piece is to get exactly right: easy (a known fact, a short rewrite, a simple formula), medium, or hard (a tricky bug, a proof, a subtle judgement).\n\"tags\": 2 to 6 short lowercase words for exactly what that piece involves (its language, library, framework, field, topic, audience, kind of task), the most specific that are true, e.g. [\"rust\", \"tokio\", \"async-lifetimes\"] or [\"french-revolution\", \"kids-9\", \"storytelling\"]: generic words only, never names or personal details.\n\"check\" is true when facts, numbers, code or reasoning in the answer could be wrong.\n\n"
 			+ "The request:\n" + request.slice(0, 8000) + (material ? "\n\nThe attached material begins:\n" + material.slice(0, 5000) : "");
 		// a careful plan, but not a slow one: light thinking
-		const out = await run(lead, pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights)), () => [{ role: "user", content: ask }], null, null, "medium");
+		// the split is careful structured work the fastest strong reader does well (the one that already reads every message);
+		// Max plans with the strongest
+		const planners = speed() === "max" ? pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights)) : [...bestFor("reader").slice(0, 2).map((m) => ({ m, effort: "" })), ...pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights))];
+		const out = await run(lead, planners, () => [{ role: "user", content: ask }], null, null, speed() === "max" ? "medium" : "low");
 		plan = readQuarks(out, idx);
 	} catch (e) {
 		if (e.name === "AbortError" || e.status === 401) throw e;
@@ -5047,17 +5079,21 @@ async function runQuarks(text, atts) {
 		let cands = learned(pick(p.kind, w), p.tags, record, record ? arenaRank(p.kind, w) : null);
 		// two models within the leaderboards' margin of error for this piece: the one the team isn't using yet, so each
 		// model's own strengths get a part (never a measurably weaker model, only an equal one)
-		const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !teamUsed.has(c.m.id));
-		if (teamUsed.has(cands[0].m.id) && tie > 0) cands = [cands[tie], ...cands.filter((_, n) => n !== tie)];
-		teamUsed.add(cands[0].m.id);
+		cands = speed() === "max" ? teammateTie(cands, teamUsed) : cheaperTie(cands, teamUsed);
+		teamUsed.add((cands[0].m || cands[0]).id);
+		// thinking to match the piece: light for easy ones, moderate for medium, high (past which more thinking costs far
+		// more than it adds) for hard ones; Max lets every model think as hard as it can
+		const cap = speed() === "max" ? null : p.level === "easy" ? "low" : p.level === "medium" ? "medium" : "high";
 		const inputs = p.needs.filter((n) => outs.has(n)).map((n) => "### " + label(n) + "\n" + outs.get(n)).join("\n\n");
 		const ask = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
 			+ (inputs ? "\n\nWhat your teammates already did, for you to build on (use it, don't redo it):\n" + inputs : "")
 			+ "\n\nYour piece (" + p.label + "): " + p.goal + (p.skill ? "\nIts exact skill: " + p.skill : "")
 			+ "\n\nDo only this piece, completely and exactly (code in full, numbers worked out, facts checked). Another model puts the pieces together, so give the result itself: no introduction, no summary of the other pieces.";
 		try {
-			const build = () => (single ? [sys(), ...hist] : [sys(), ...hist.slice(0, -1), withText(last, ask)]);
-			let out = await run(st, cands, build, single ? (t) => { msg.text = t; } : null, (m) => (p.web ? webExtra(m.id, true) : {}));
+			// a piece gets the recent conversation and a trimmed copy of the project's files, not everything every time (the
+			// same start for every piece, so the providers bill it at their cached price); putting it together sees it all
+			const build = () => (single ? [sys(), ...hist] : [leanSys(), ...hist.slice(0, -1).slice(-6).map(trimMsg), withText(last, ask)]);
+			let out = await run(st, cands, build, single ? (t) => { msg.text = t; } : null, (m) => (p.web ? webExtra(m.id, true) : {}), undefined, cap);
 			// code it wrote that can run here is run before anyone sees it; if it fails, the same model gets the exact error
 			// and fixes it
 			const tested = await testCode(out);
@@ -5067,7 +5103,7 @@ async function runQuarks(text, atts) {
 				const same = [cands.find((c) => (c.m || c).id === st.id) || cands[0], ...cands.filter((c) => (c.m || c).id !== st.id)];
 				const first = out;
 				try {
-					out = await run(st, same, () => [...build(), { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive your whole piece again with the code fixed. Check the fix line by line before you answer." }], single ? (t) => { msg.text = t; } : null);
+					out = await run(st, same, () => [...build(), { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive your whole piece again with the code fixed. Check the fix line by line before you answer." }], single ? (t) => { msg.text = t; } : null, null, undefined, cap);
 					st.tested = (await testCode(out) || {}).failed ? "still failing" : "fixed";
 				} catch (e) {
 					if (e.name === "AbortError" || e.status === 401) throw e;
@@ -5116,7 +5152,7 @@ async function runQuarks(text, atts) {
 		? pick("code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3))
 		: pick("write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights));
 	try {
-		msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; });
+		msg.text = await run(fin, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask)], (t) => { msg.text = t; }, null, undefined, speed() === "max" ? null : "medium");
 		done(fin);
 	} catch (e) {
 		if (e.name === "AbortError" || e.status === 401) throw e;
@@ -5137,7 +5173,12 @@ async function runQuarks(text, atts) {
 	try {
 		const field = {};
 		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
-		const checkers = (codey ? pick("code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)) : pick("reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5))).filter((x) => x.m.id !== fin.id);
+		const checkW = codey ? ["code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)] : ["reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5)];
+		let checkers = pick(...checkW).filter((x) => x.m.id !== fin.id);
+		// never skipped: on free credits with no second low-cost model, another model checks it (one call), and only if
+		// there's no other model at all, the writer checks its own work
+		if (!checkers.length) checkers = arenaRank(...checkW).filter((x) => x.m.id !== fin.id).slice(0, 4);
+		if (!checkers.length) checkers = pick(...checkW);
 		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, "medium");
 		verdict = readVerdict(raw);
 		if (verdict) { try { const pj = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).pieces; if (pj && typeof pj === "object") verdict.pieces = pj; } catch {} }
