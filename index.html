@@ -2188,6 +2188,8 @@ function effortFor(id, f) {
 // does exactly that best, blended with what this request needs on top (its field, its language)
 const FEATURE_W = {
 	app: { task: "code", w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
+	// a video's drawn shots: frame-by-frame canvas animation, a web page's craft with a storyteller's eye
+	animation: { task: "code", w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
 	appFromImage: { task: "vision", w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
 	sim: { task: "code", w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
 	spec: { task: "reasoning", w: { "text:instruction_following": 0.35, "text:hard_prompts": 0.3, "text:expert": 0.2, "text:creative_writing": 0.15 } },
@@ -6675,19 +6677,20 @@ const DIRECTOR = `You are the director and editor of a top production studio, pl
 
 Each shot is one of two kinds, and you choose for every shot:
 - "video": the video model films it. Only where movement IS the point: people or animals doing something, action, water, fire, crowds, a product being used, a transformation. It costs 10 to 30 times as much per second as a still, so use it where a viewer would miss the movement, not everywhere.
-- "still": the image model draws one perfect frame and the editor moves the camera over it ("move": push in, pull out, pan left, pan right, tilt up, tilt down, drift). Documentaries and the best explainers are mostly made this way: landscapes, places, portraits, objects, establishing shots, details, memories, quiet moments, quotes. A great still with a slow move looks expensive.
-A good film mixes them: mostly stills that breathe, and real movement where it carries the story.
+- "still": the image model draws one perfect frame and the editor moves the camera over it ("move": push in, pull out, pan left, pan right, tilt up, tilt down, drift). Documentaries are mostly made this way: landscapes, places, portraits, objects, establishing shots, details, memories, quiet moments. A great still with a slow move looks expensive.
+- "drawn": the best coding model animates it in code, every frame perfectly smooth, for almost nothing: motion graphics, kinetic typography and titles, diagrams, maps, timelines, charts and numbers, explainers, flat or 2D cut-out cartoon characters, hand-drawn or pencil looks, paper cut-outs, abstract and 3D shapes, particles. "draw" is its brief, 60-150 words: what is on screen, how everything moves through the shot, the style, palette and any words shown (spelled exactly). Text that belongs in the picture goes here, and its caption stays empty.
+Choose the medium that serves the film: a live-action look mixes stills with real movement where it carries the story; an explainer, a story about an idea, an animated short or a channel-style video can be drawn all the way through, or drawn with stills between. Whatever you choose, keep one consistent look.
 
 Write the plan so the result looks expensive and real:
 - One consistent LOOK for every shot: the medium (photoreal live action unless they ask for animation, 3D, anime, claymation...), lens and camera language, lighting, colour grade. Describe every recurring person and product IDENTICALLY each time (age, face, hair, clothes, colours, logo text), because each shot is generated separately.
-- Video shots are 4 to 8 seconds, stills 4 to 10. Each "shot" is a prompt of 50-110 words: subject, action, setting, camera move (slow dolly in, orbit, handheld follow, crane up...), framing, lighting, mood. One clear action per shot; no on-screen text in the shot itself (the editor adds captions). Never ask for a split screen or a collage.
+- Video shots are 4 to 8 seconds, stills 4 to 10, drawn shots 3 to 15. Each "shot" is a prompt of 50-110 words: subject, action, setting, camera move (slow dolly in, orbit, handheld follow, crane up...), framing, lighting, mood. One clear action per shot; no on-screen text in the shot itself (the editor adds captions). Never ask for a split screen or a collage.
 - "frame" is the shot as a still photograph (composition, pose, light): the first frame of a video shot, or the whole of a still, so it must be a beautiful picture on its own.
 - Ads: hook in the first 2 seconds, show the product/benefit, end on the brand and a call to action. Social/vertical: fast, 9:16. Films: build and pay off.
 - Voiceover: short, natural, said aloud in the time of its shot (about 2.5 words per second). Empty when the shot speaks for itself. ElevenLabs tags like [excited], [whispers], [laughs] are allowed sparingly.
 - Captions: short and punchy (max 6 words), or empty.
 
 Return ONLY JSON:
-{"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video","move":"push in","shot":"...","frame":"...","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none"}`;
+{"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none"}`;
 // how long they asked for, any length ("30s", "20 minutes", "1.5 hours"); 3 hours at most, which is past anything
 // a browser can cut in one go anyway
 function lengthOf(t) {
@@ -6751,17 +6754,21 @@ async function direct(text, atts, msg, signal) {
 }
 function cleanPlan(p, want) {
 	const MOVES = ["push in", "pull out", "pan left", "pan right", "tilt up", "tilt down", "drift"];
-	const scenes = p.scenes.slice(0, 1500).map((s) => ({
-		// a still holds a little longer than a filmed shot can
-		motion: String(s.motion || "").toLowerCase() === "still" ? "still" : "video",
-		move: MOVES.includes(String(s.move || "").toLowerCase()) ? String(s.move).toLowerCase() : "push in",
-		seconds: Math.max(3, Math.min(String(s.motion || "").toLowerCase() === "still" ? 12 : 10, Number(s.seconds) || 6)),
-		shot: String(s.shot || s.prompt || "").slice(0, 900),
-		frame: String(s.frame || s.shot || "").slice(0, 700),
-		vo: String(s.vo || "").slice(0, 400),
-		caption: String(s.caption || "").slice(0, 60),
-		sound: String(s.sound || "").slice(0, 200),
-	})).filter((s) => s.shot);
+	const scenes = p.scenes.slice(0, 1500).map((s) => {
+		const motion = ["still", "drawn"].includes(String(s.motion || "").toLowerCase()) ? String(s.motion).toLowerCase() : "video";
+		return {
+			// a still holds a little longer than a filmed shot can; a drawn one as long as its animation runs
+			motion,
+			move: MOVES.includes(String(s.move || "").toLowerCase()) ? String(s.move).toLowerCase() : "push in",
+			seconds: Math.max(3, Math.min(motion === "drawn" ? 15 : motion === "still" ? 12 : 10, Number(s.seconds) || 6)),
+			draw: String(s.draw || "").slice(0, 1500),
+			shot: String(s.shot || s.prompt || s.draw || "").slice(0, 900),
+			frame: String(s.frame || s.shot || "").slice(0, 700),
+			vo: String(s.vo || "").slice(0, 400),
+			caption: String(s.caption || "").slice(0, 60),
+			sound: String(s.sound || "").slice(0, 200),
+		};
+	}).filter((s) => s.shot);
 	const voice = VOICES[String(p.voice?.who || "").toLowerCase()] ? String(p.voice.who).toLowerCase() : "george";
 	return {
 		title: String(p.title || "Untitled").slice(0, 80), kind: String(p.kind || "film"), aspect: ["16:9", "9:16", "1:1"].includes(p.aspect) ? p.aspect : "16:9",
@@ -6774,10 +6781,15 @@ function cleanPlan(p, want) {
 const shotPrompt = (plan, sc) => sc.shot + "\n\nStyle: " + plan.look + (sc.sound ? "\nSound: " + sc.sound : "");
 const framePrompt = (plan, sc) => sc.frame + "\n\nStyle: " + plan.look + "\nA single frame from a film, " + plan.aspect + ", no text, no captions, no watermark, no borders.";
 
-// a shot the video model films (Max films every shot; otherwise only the ones the director chose to), or a still the
-// editor moves the camera over
-const filmed = (sc, tier) => tier === "max" || sc.motion !== "still";
+// a shot the video model films (the ones the director chose to, and in Max every still too), a still the editor moves
+// the camera over, or a shot drawn in code (drawn in every quality: filming can't draw a diagram or exact words)
+const filmed = (sc, tier) => sc.motion === "video" || (tier === "max" && sc.motion === "still");
 const shotSecs = (sc, tier, vm) => (filmed(sc, tier) ? fitDur(vm, sc.seconds) : sc.seconds);
+// what animating one shot in code costs: the animator writing a scene (about 6k tokens read, 7k written, some thought)
+function drawnCost() {
+	const a = bestFor("animation")[0];
+	return a && (a.pin || a.pout) ? ((a.pin || 0) * 6000 + (a.pout || 0) * 10500) / 1e6 : 0.2;
+}
 
 // ---- what it will cost, at each quality, before anything is spent
 function estimate(plan, tier) {
@@ -6788,8 +6800,11 @@ function estimate(plan, tier) {
 	let usd = 0.04 + (total > 240 ? 0.04 * Math.ceil(total / 180) : 0);
 	const audio = vm.audio !== false && vm.audio !== null;
 	for (const sc of plan.scenes) if (filmed(sc, tier)) usd += vPerSec(vm, fitRes(vm, VIDEO_TIERS[tier].res), audio) * fitDur(vm, sc.seconds);
-	const im = imageModel(VIDEO_TIERS[tier].frames);
-	usd += plan.scenes.length * ((im && im.price) || (VIDEO_TIERS[tier].frames === "quick" ? 0.04 : 0.14));
+	// a picture for every shot that isn't drawn (a still's whole shot, a filmed shot's first frame); a scene of code for
+	// every drawn one
+	const im = imageModel(VIDEO_TIERS[tier].frames), drawnN = plan.scenes.filter((s) => s.motion === "drawn").length;
+	usd += (plan.scenes.length - drawnN) * ((im && im.price) || (VIDEO_TIERS[tier].frames === "quick" ? 0.04 : 0.14));
+	usd += drawnN * drawnCost();
 	const vo = plan.scenes.reduce((n, s) => n + s.vo.length, 0), v = voiceModel();
 	usd += vo * (v?.perChar || 0.00004);
 	usd += total > 30 ? 0.08 : 0.04;
@@ -6805,9 +6820,10 @@ function chooseTier(plan, left) {
 		let pick = rich ? (tiers.some((x) => x.t === "max") ? "max" : "cinematic") : "standard";
 		const afford = (e) => left == null || e.usd <= left;
 		if (!afford(tiers.find((x) => x.t === pick)?.e || { usd: 0 })) pick = (tiers.filter((x) => afford(x.e)).pop() || tiers[0]).t;
-		const secs = Math.round(tiers[0].e.seconds), filmedN = plan.scenes.filter((s) => s.motion !== "still").length;
-		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots (" + filmedN + " filmed, " + (plan.scenes.length - filmedN) + " stills with camera moves) · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + ". Pick the quality: you only pay for what's made.</p>" +
-			'<div class="tiers" style="--n:' + tiers.length + '">' + tiers.map(({ t, e }) => '<button class="tier' + (t === pick ? " on" : "") + '" data-tier="' + t + '"' + (afford(e) ? "" : " disabled") + "><b>" + VIDEO_TIERS[t].label + "</b><span class=\"price\">≈ " + money$(e.usd) + "</span><span>" + esc(e.model.name) + " · " + esc(fitRes(e.model, VIDEO_TIERS[t].res)) + (t === "max" && filmedN < plan.scenes.length ? " · every shot filmed" : "") + "</span></button>").join("") + "</div>" +
+		const secs = Math.round(tiers[0].e.seconds), count = (k) => plan.scenes.filter((s) => s.motion === k).length;
+		const kinds = [[count("video"), "filmed"], [count("still"), "stills with camera moves"], [count("drawn"), "animated in code"]].filter(([k]) => k).map(([k, w]) => k + " " + w).join(", ");
+		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots (" + kinds + ") · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + ". Pick the quality: you only pay for what's made.</p>" +
+			'<div class="tiers" style="--n:' + tiers.length + '">' + tiers.map(({ t, e }) => '<button class="tier' + (t === pick ? " on" : "") + '" data-tier="' + t + '"' + (afford(e) ? "" : " disabled") + "><b>" + VIDEO_TIERS[t].label + "</b><span class=\"price\">≈ " + money$(e.usd) + "</span><span>" + esc(e.model.name) + " · " + esc(fitRes(e.model, VIDEO_TIERS[t].res)) + (t === "max" && count("still") ? " · stills filmed too" : "") + "</span></button>").join("") + "</div>" +
 			'<div class="field"><div class="help">' + (creditsMode() ? (me ? "You have " + creditsText(me.credits) + " credits. " : "") : (left != null ? "Balance " + money$(left) + " · " : "") + "spent today " + money$(SPEND.usd) + ". ") + "Voice by ElevenLabs, music by Lyria, cut here in your browser.</div></div>" +
 			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button><button class="btn dark" id="tierGo">Make it</button></div>');
 		$$("[data-tier]").forEach((b) => b.onclick = () => { pick = b.dataset.tier; $$("[data-tier]").forEach((x) => x.classList.toggle("on", x === b)); });
@@ -6851,12 +6867,15 @@ async function produce(msg, only, signal) {
 	RUNNING.add(msg);
 	try {
 		const vm = videoModel(tier), im = imageModel(VIDEO_TIERS[tier].frames);
-		const voice = (await aiOrder("voice", [voiceModel(), ...MEDIA.speech], "A voiceover for a video, read by " + plan.voice.who + " (" + (VOICES[plan.voice.who] || "") + "). The video: " + text))[0] || null;
+		const voice = (await aiOrder("voice", [voiceModel(), ...MEDIA.speech], "A voiceover for a video, read by " + plan.voice.who + " (" + (VOICES[plan.voice.who] || "") + "). The video: " + plan.title + ". " + plan.look.slice(0, 300)))[0] || null;
 		const mus = (await aiOrder("music", [musicModel(plan.scenes.reduce((n, s) => n + s.seconds, 0) > 30), ...MEDIA.music], "The score for a video: " + plan.music.prompt))[0] || null;
 		const note = (name, desc) => { if (!msg.used.some((x) => x.name === name && x.desc === desc)) msg.used.push({ name, desc }); };
-		if (im) note(im.name, "Frames: drew the first frame of every shot, keeping people and product the same");
-		if (vm) note(vm.name, "Video: brought each frame to life (" + VIDEO_TIERS[tier].label + ")");
+		if (im && plan.scenes.some((s) => s.motion !== "drawn")) note(im.name, "Frames: drew the pictures, keeping people and product the same in every shot");
+		if (vm && plan.scenes.some((s) => filmed(s, tier))) note(vm.name, "Video: brought the moving shots to life (" + VIDEO_TIERS[tier].label + ")");
 		const redo = (i) => !only || only.scenes?.includes(i);
+		// the drawn shots' animator, and the size they're drawn at
+		const animators = plan.scenes.some((s) => s.motion === "drawn") ? bestFor("animation") : [];
+		const [FW, FH] = plan.aspect === "9:16" ? [1080, 1920] : plan.aspect === "1:1" ? [1080, 1080] : [1920, 1080];
 		const refs = [];
 		for (const k of d.refs || []) { const b = await vault.get(k); if (b) refs.push(await blobToData(b)); }
 		const paint = () => { msg.status = statusOf(d); updateLast(); };
@@ -6882,6 +6901,27 @@ async function produce(msg, only, signal) {
 		// 2. each shot, as soon as its frame is ready; all of them render at the same time
 		const shot = async (i) => {
 			const s = d.scenes[i];
+			// a drawn shot: animated in code, nothing to draw as a picture or film
+			if (plan.scenes[i].motion === "drawn") {
+				if (s.code && !redo(i)) return;
+				note(animators[0] ? shortName(animators[0]) : "Animator", "Animation: drew the animated shots in code, frame by frame");
+				s.state = "animating";
+				paint();
+				try {
+					const html = await animateShot(plan, plan.scenes[i], i, animators, msg, signal, FW, FH);
+					s.code = await vault.put(new Blob([html], { type: "text/html" }));
+					s.drawn = true;
+					s.state = "done";
+					s.error = "";
+				} catch (e) {
+					if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+					s.code = null;
+					s.state = "failed";
+					s.error = String(e.message || e).slice(0, 200);
+				}
+				paint();
+				return;
+			}
 			if (s.clip && !redo(i)) return;
 			const fk = await frameOf(i);
 			// a still: its picture is the shot (the editor moves the camera over it), nothing to film
@@ -6946,9 +6986,12 @@ async function produce(msg, only, signal) {
 			paint();
 		};
 		// shot 1 is drawn first: every other shot is drawn with it as a reference, so they all match
-		if (!d.scenes[0].frame || redo(0)) await frameOf(0);
-		await Promise.all([Promise.all(plan.scenes.map((_, i) => shot(i))), voices(), score()]);
-		const made = (s) => s.clip || (s.still && s.frame);
+		if (plan.scenes[0].motion !== "drawn" && (!d.scenes[0].frame || redo(0))) await frameOf(0);
+		// eight shots at a time (a long film has hundreds), the voice and the score alongside
+		let nextShot = 0;
+		const shots = Array.from({ length: Math.min(8, plan.scenes.length) }, async () => { while (nextShot < plan.scenes.length) await shot(nextShot++); });
+		await Promise.all([Promise.all(shots), voices(), score()]);
+		const made = (s) => s.clip || (s.still && s.frame) || (s.drawn && s.code);
 		if (!d.scenes.some(made)) throw new Error("None of the shots could be made: " + (d.scenes.find((s) => s.error)?.error || "the video model failed"));
 		// 5. the cut
 		note("Andromeda editor", "Edit: cut it together with captions, transitions, ducked music and an end card, in your browser");
@@ -6969,7 +7012,8 @@ async function produce(msg, only, signal) {
 }
 function statusOf(d) {
 	if (d.stage === "cutting") return "Editing: " + Math.round((d.progress || 0) * 100) + "%";
-	const n = d.scenes.length, done = d.scenes.filter((s) => s.clip || (s.still && s.frame)).length, rendering = d.scenes.filter((s) => s.state === "rendering").length;
+	const n = d.scenes.length, done = d.scenes.filter((s) => s.clip || (s.still && s.frame) || (s.drawn && s.code)).length, rendering = d.scenes.filter((s) => s.state === "rendering").length;
+	if (d.scenes.some((s) => s.state === "animating")) return "Animating the shots in code (" + done + "/" + n + " done)";
 	if (d.scenes.some((s) => s.state === "drawing")) return "Drawing the shots (" + d.scenes.filter((s) => s.frame).length + "/" + n + ")";
 	return "Filming: " + done + " of " + n + " shots done" + (rendering ? ", " + rendering + " rendering" : "") + " (a few minutes)";
 }
@@ -6985,6 +7029,22 @@ async function cut(d, onProgress) {
 	const shots = [];
 	for (let i = 0; i < d.scenes.length; i++) {
 		const s = d.scenes[i];
+		// a drawn shot: its animation, asked for each moment as the film is rendered (opened when it comes on, closed after)
+		if (s.drawn && s.code && plan.scenes[i].motion === "drawn") {
+			const html = await (await vault.get(s.code)).text();
+			const sh = { i, drawn: true, clipDur: plan.scenes[i].seconds, vo: s.vo, caption: plan.scenes[i].caption, scene: null, bmp: null };
+			sh.prepare = async (local) => {
+				try {
+					if (!sh.scene) sh.scene = openScene(html, cw, ch);
+					const b = await sh.scene.frame(Math.min(local, sh.clipDur - 1 / 120));
+					if (sh.bmp && sh.bmp.close) sh.bmp.close();
+					sh.bmp = b;
+				} catch {} // a scene that stumbles on a frame holds its last one
+			};
+			sh.release = () => { if (sh.scene) sh.scene.close(); sh.scene = null; };
+			shots.push(sh);
+			continue;
+		}
 		// a still: its picture, with the camera move the director chose
 		if (s.still && s.frame) {
 			const img = new Image();
@@ -7007,10 +7067,10 @@ async function cut(d, onProgress) {
 	const decode = async (blob) => { try { return await ac.decodeAudioData(await blob.arrayBuffer()); } catch { return null; } };
 	for (const s of shots) {
 		s.voBuf = s.vo ? await decode(await vault.get(s.vo)) : null;
-		s.sfx = s.still ? null : await decode(await vault.get(d.scenes[s.i].clip));
-		// a line longer than its shot holds the last frame (slowly pushing in) until it's said; a still simply lasts as
-		// long as its line
-		s.dur = s.still ? Math.max(s.clipDur, s.voBuf ? s.voBuf.duration + 0.7 : 0) : Math.min(s.clipDur + 2.5, Math.max(s.clipDur, s.voBuf ? s.voBuf.duration + 0.7 : 0));
+		s.sfx = s.still || s.drawn ? null : await decode(await vault.get(d.scenes[s.i].clip));
+		// a line longer than its shot holds the last frame (slowly pushing in) until it's said; a still or a drawn shot
+		// simply lasts as long as its line
+		s.dur = s.still || s.drawn ? Math.max(s.clipDur, s.voBuf ? s.voBuf.duration + 0.7 : 0) : Math.min(s.clipDur + 2.5, Math.max(s.clipDur, s.voBuf ? s.voBuf.duration + 0.7 : 0));
 	}
 	let t = 0;
 	for (const s of shots) { s.start = t; t += s.dur - XF; }
@@ -7045,22 +7105,11 @@ async function cut(d, onProgress) {
 		src.start(0, 0, total);
 	}
 	const mix = await oc.startRendering();
-	// the picture, drawn frame by frame while the mix plays into the recording
+	// the picture
 	const canvas = document.createElement("canvas");
 	canvas.width = cw;
 	canvas.height = ch;
 	const g = canvas.getContext("2d");
-	const dest = ac.createMediaStreamDestination();
-	const stream = new MediaStream([...canvas.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
-	const mime = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1,mp4a", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].find((x) => window.MediaRecorder && MediaRecorder.isTypeSupported(x)) || "";
-	const rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: Math.round(cw * ch * 30 * 0.18) });
-	const chunks = [];
-	rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-	const stopped = new Promise((res) => (rec.onstop = res));
-	await ac.resume().catch(() => {});
-	const src = ac.createBufferSource();
-	src.buffer = mix;
-	src.connect(dest);
 	const font = "800 " + Math.round(ch * (plan.aspect === "9:16" ? 0.045 : 0.06)) + "px Inter, system-ui, sans-serif";
 	// a clip or a picture, filling the frame; dx and dy (-1 to 1) slide it across what overflows the frame
 	const cover = (v, alpha, zoom, dx = 0, dy = 0) => {
@@ -7109,7 +7158,8 @@ async function cut(d, onProgress) {
 		const last = shots[shots.length - 1];
 		g.save();
 		g.filter = "blur(" + Math.round(ch * 0.012) + "px) brightness(.45)";
-		if (last) cover(last.v || last.img, 1, 1.08);
+		const pic = last && (last.v || last.img || last.bmp);
+		if (pic) cover(pic, 1, 1.08);
 		g.restore();
 		const a = Math.min(1, local / 0.5);
 		g.fillStyle = plan.end.color + "55";
@@ -7129,6 +7179,42 @@ async function cut(d, onProgress) {
 		g.fillText("Made with Andromeda", cw / 2, ch * 0.93);
 		g.globalAlpha = 1;
 	};
+	// one frame of the film at time t (each clip already at its moment, each drawn shot's picture already made)
+	const frameAt = (t) => {
+		g.fillStyle = "#000";
+		g.fillRect(0, 0, cw, ch);
+		for (const s of shots) {
+			const local = t - s.start;
+			if (local < 0 || local >= s.dur) continue;
+			const fadeIn = s === shots[0] ? Math.min(1, local / 0.4) : Math.min(1, local / XF);
+			if (s.still) camera(s, local, fadeIn);
+			else if (s.drawn) { if (s.bmp) { g.globalAlpha = fadeIn; g.drawImage(s.bmp, 0, 0, cw, ch); g.globalAlpha = 1; } }
+			else cover(s.v, fadeIn, 1 + Math.max(0, local - s.clipDur) * 0.02);
+			caption(s.caption, local - 0.15);
+		}
+		const endAt = total - (endCard ? END : 0.2);
+		if (endCard && t >= endAt) endFrame(t - endAt);
+	};
+	try {
+		const film = await encodeFilm({ canvas, total, mix, shots, frameAt, onProgress });
+		if (film) return film;
+	} catch (e) {
+		if (e.name === "AbortError") throw e;
+	} finally {
+		shots.forEach((s) => { if (s.v) s.v.pause(); if (s.release) s.release(); });
+	}
+	// a browser that can't encode video itself: the film recorded as it plays
+	const dest = ac.createMediaStreamDestination();
+	const stream = new MediaStream([...canvas.captureStream(30).getVideoTracks(), ...dest.stream.getAudioTracks()]);
+	const mime = ["video/mp4;codecs=avc1.640028,mp4a.40.2", "video/mp4;codecs=avc1,mp4a", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm"].find((x) => window.MediaRecorder && MediaRecorder.isTypeSupported(x)) || "";
+	const rec = new MediaRecorder(stream, { mimeType: mime || undefined, videoBitsPerSecond: Math.round(cw * ch * 30 * 0.18) });
+	const chunks = [];
+	rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+	const stopped = new Promise((res) => (rec.onstop = res));
+	await ac.resume().catch(() => {});
+	const src = ac.createBufferSource();
+	src.buffer = mix;
+	src.connect(dest);
 	rec.start(250);
 	const t0 = ac.currentTime + 0.05;
 	src.start(t0);
@@ -7136,28 +7222,16 @@ async function cut(d, onProgress) {
 		const tick = () => {
 			const t = ac.currentTime - t0;
 			if (t >= total) { done(); return; }
-			g.fillStyle = "#000";
-			g.fillRect(0, 0, cw, ch);
 			for (const s of shots) {
 				const local = t - s.start;
 				const on = local > -0.25 && local < s.dur;
-				if (s.still) {
-					if (!on || local < 0) continue;
-					camera(s, local, s === shots[0] ? Math.min(1, local / 0.4) : Math.min(1, local / XF));
-					caption(s.caption, local - 0.15);
-					continue;
-				}
+				if (s.drawn) { if (on && local >= 0 && s.prepare && !s.busy) { s.busy = true; s.prepare(local).finally(() => (s.busy = false)); } continue; }
+				if (!s.v) continue;
 				if (!on) { if (!s.v.paused) s.v.pause(); continue; }
 				if (local >= 0 && local < s.clipDur - 0.05 && s.v.paused) { try { s.v.currentTime = Math.max(0, local); } catch {} s.v.play().catch(() => {}); }
 				if (local >= s.clipDur - 0.05 && !s.v.paused) s.v.pause();
-				if (local < 0) continue;
-				const fadeIn = s === shots[0] ? Math.min(1, local / 0.4) : Math.min(1, local / XF);
-				const hold = Math.max(0, local - s.clipDur);
-				cover(s.v, fadeIn, 1 + hold * 0.02);
-				caption(s.caption, local - 0.15);
 			}
-			const endAt = total - (endCard ? END : 0.2);
-			if (endCard && t >= endAt) endFrame(t - endAt);
+			frameAt(t);
 			onProgress && onProgress(Math.min(1, t / total));
 			setTimeout(tick, 1000 / 40);
 		};
@@ -7165,8 +7239,194 @@ async function cut(d, onProgress) {
 	});
 	rec.stop();
 	await stopped;
-	shots.forEach((s) => s.v && s.v.pause());
+	shots.forEach((s) => { if (s.v) s.v.pause(); if (s.release) s.release(); });
 	return new Blob(chunks, { type: (mime || "video/webm").split(";")[0] });
+}
+
+// The film frame by frame: every frame drawn at its exact moment (each clip sought to it, each drawn shot asked for
+// it) and encoded on the spot, H.264 with AAC in an MP4. Nothing is recorded live, so it's perfectly smooth however
+// slow the computer, and pictures and drawn shots go faster than real time. Null when this browser can't encode.
+const MUXER_JS = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.min.js";
+async function encodeFilm({ canvas, total, mix, shots, frameAt, onProgress }) {
+	if (typeof VideoEncoder === "undefined" || typeof VideoFrame === "undefined") return null;
+	const cw = canvas.width, ch = canvas.height;
+	// filmed footage is 24 to 30 frames a second; pictures and drawn motion get 60, the smoothest
+	const fps = shots.some((s) => s.v) ? 30 : 60;
+	let vcfg = null;
+	for (const codec of ["avc1.64002A", "avc1.640028", "avc1.4D4028", "avc1.42E028"]) {
+		const c = { codec, width: cw, height: ch, bitrate: Math.round(cw * ch * fps * 0.14), framerate: fps, latencyMode: "quality" };
+		try { if ((await VideoEncoder.isConfigSupported(c)).supported) { vcfg = c; break; } } catch {}
+	}
+	if (!vcfg) return null;
+	let acfg = null;
+	if (typeof AudioEncoder !== "undefined") {
+		for (const [codec, kind] of [["mp4a.40.2", "aac"], ["opus", "opus"]]) {
+			const c = { codec, sampleRate: mix.sampleRate, numberOfChannels: 2, bitrate: 192000 };
+			try { if ((await AudioEncoder.isConfigSupported(c)).supported) { acfg = { c, kind }; break; } } catch {}
+		}
+	}
+	await loadScript(MUXER_JS);
+	const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: "avc", width: cw, height: ch, frameRate: fps }, ...(acfg ? { audio: { codec: acfg.kind, numberOfChannels: 2, sampleRate: mix.sampleRate } } : {}), fastStart: "in-memory" });
+	let failed = null;
+	const venc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: (e) => (failed = e) });
+	venc.configure(vcfg);
+	const seek = (v, at) => new Promise((res) => {
+		at = Math.max(0, at);
+		if (Math.abs(v.currentTime - at) < 1 / 240 && v.readyState >= 2) return res();
+		const done = () => { v.removeEventListener("seeked", done); clearTimeout(timer); res(); };
+		const timer = setTimeout(done, 3000);
+		v.addEventListener("seeked", done);
+		v.currentTime = at;
+	});
+	const n = Math.ceil(total * fps);
+	for (let i = 0; i < n; i++) {
+		if (failed) throw failed;
+		const t = i / fps;
+		const on = shots.filter((s) => t >= s.start && t < s.start + s.dur);
+		await Promise.all(on.map((s) => (s.v ? seek(s.v, Math.min(t - s.start, s.clipDur - 0.04)) : s.prepare ? s.prepare(t - s.start) : null)));
+		frameAt(t);
+		// a drawn shot that's over is closed (a long film has hundreds)
+		for (const s of shots) if (s.release && !s.released && t >= s.start + s.dur) { s.released = true; s.release(); }
+		const f = new VideoFrame(canvas, { timestamp: Math.round((i * 1e6) / fps), duration: Math.round(1e6 / fps) });
+		venc.encode(f, { keyFrame: i % (fps * 2) === 0 });
+		f.close();
+		while (venc.encodeQueueSize > 6) await new Promise((r) => setTimeout(r, 4));
+		if (i % 10 === 0) { onProgress && onProgress((i / n) * 0.96); await new Promise((r) => setTimeout(r, 0)); }
+	}
+	await venc.flush();
+	if (acfg) {
+		const aenc = new AudioEncoder({ output: (chunk, meta) => muxer.addAudioChunk(chunk, meta), error: (e) => (failed = e) });
+		aenc.configure(acfg.c);
+		const L = mix.getChannelData(0), R = mix.numberOfChannels > 1 ? mix.getChannelData(1) : L, block = 4096;
+		for (let o = 0; o < mix.length; o += block) {
+			const k = Math.min(block, mix.length - o), data = new Float32Array(k * 2);
+			data.set(L.subarray(o, o + k), 0);
+			data.set(R.subarray(o, o + k), k);
+			const ad = new AudioData({ format: "f32-planar", sampleRate: mix.sampleRate, numberOfFrames: k, numberOfChannels: 2, timestamp: Math.round((o * 1e6) / mix.sampleRate), data });
+			aenc.encode(ad);
+			ad.close();
+			while (aenc.encodeQueueSize > 24) await new Promise((r) => setTimeout(r, 4));
+		}
+		await aenc.flush();
+	}
+	if (failed) throw failed;
+	muxer.finalize();
+	onProgress && onProgress(1);
+	return new Blob([muxer.target.buffer], { type: "video/mp4" });
+}
+
+// ---- drawn shots: animated in code, frame-perfect, by the model measured best at it
+// A scene runs sealed off (no network but fonts and three.js, no way into Andromeda) and draws any moment t on its
+// canvas when asked, so a film is rendered frame by frame with it like everything else.
+const SCENE_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com; style-src \'unsafe-inline\' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data: blob:; connect-src \'none\'">';
+function sceneDoc(html, W, H) {
+	const head = SCENE_CSP + "<script>window.W=" + W + ";window.H=" + H + ";(function(){function send(m,t){try{parent.postMessage(m,'*',t||[])}catch(e){}}" +
+		"addEventListener('error',function(e){send({sceneError:(e.message||'Error')+(e.lineno?' (line '+e.lineno+')':'')})});" +
+		"addEventListener('unhandledrejection',function(e){var r=e.reason;send({sceneError:'Unhandled rejection: '+(r&&r.message||r)})});" +
+		"addEventListener('message',async function(e){var m=e.data||{};try{" +
+		"if(m.type==='ready'){if(document.fonts)await document.fonts.ready;var until=Date.now()+4000;while(typeof window.seek!=='function'&&Date.now()<until)await new Promise(function(r){setTimeout(r,50)});send({id:m.id,ok:typeof window.seek==='function'});return}" +
+		"if(m.type==='seek'){await window.seek(m.t);var c=document.getElementById('c')||document.querySelector('canvas');if(!c)throw new Error('There is no canvas to draw on');var b=await createImageBitmap(c);send({id:m.id,bmp:b},[b])}" +
+		"}catch(err){send({id:m.id,error:String(err&&err.message||err).slice(0,500)})}})})()<\/script>";
+	return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html><head>" + head + "</head>" + html;
+}
+function openScene(html, W, H) {
+	const f = document.createElement("iframe");
+	f.setAttribute("sandbox", "allow-scripts");
+	f.setAttribute("aria-hidden", "true");
+	f.style.cssText = "position:fixed;left:-20000px;top:0;width:" + W + "px;height:" + H + "px;border:0;pointer-events:none";
+	const wait = new Map();
+	let n = 0, crash = "", up = null;
+	const on = (e) => {
+		if (e.source !== f.contentWindow) return;
+		const m = e.data || {};
+		if (m.sceneError) { crash = crash || m.sceneError; return; }
+		const w = wait.get(m.id);
+		if (!w) return;
+		wait.delete(m.id);
+		m.error ? w.rej(new Error(m.error)) : w.res(m);
+	};
+	addEventListener("message", on);
+	const ask = (msg, ms) => new Promise((res, rej) => {
+		const id = ++n;
+		wait.set(id, { res, rej });
+		f.contentWindow.postMessage({ ...msg, id }, "*");
+		setTimeout(() => { if (wait.delete(id)) rej(new Error(crash || "The animation stopped answering")); }, ms);
+	});
+	const loaded = new Promise((r) => (f.onload = r));
+	f.srcdoc = sceneDoc(html, W, H);
+	document.body.appendChild(f);
+	const api = {
+		ready: () => (up ||= loaded.then(() => ask({ type: "ready" }, 20000)).then((r) => { if (!r.ok) throw new Error(crash || "It has no window.seek(t) to draw a moment with"); })),
+		frame: async (t) => { await api.ready(); return (await ask({ type: "seek", t }, 10000)).bmp; },
+		close: () => { removeEventListener("message", on); f.remove(); },
+		crash: () => crash,
+	};
+	return api;
+}
+// one flat colour: nothing was drawn
+function blankish(bmp) {
+	const c = document.createElement("canvas");
+	c.width = 24;
+	c.height = 14;
+	const x = c.getContext("2d");
+	x.drawImage(bmp, 0, 0, 24, 14);
+	const p = x.getImageData(0, 0, 24, 14).data;
+	let lo = 255, hi = 0;
+	for (let k = 0; k < p.length; k += 4) { const l = (p[k] + p[k + 1] + p[k + 2]) / 3; lo = Math.min(lo, l); hi = Math.max(hi, l); }
+	return hi - lo < 6;
+}
+// run before it's used: it must draw its start, middle and end without an error, and not as an empty frame
+async function checkScene(html, secs, W, H) {
+	const sc = openScene(html, W, H);
+	try {
+		const frames = [];
+		for (const t of [0, secs * 0.5, Math.max(0, secs - 0.05)]) frames.push(await sc.frame(t));
+		const blank = frames.map(blankish);
+		frames.forEach((b) => b && b.close && b.close());
+		if (sc.crash()) throw new Error(sc.crash());
+		if (blank[1] && blank[2]) throw new Error("It drew an empty frame (one flat colour) in the middle and at the end");
+	} finally {
+		sc.close();
+	}
+}
+const ANIMATOR = `You animate one shot of a film in code: a motion designer and animator at the best studio in the world, writing the shot as a program that draws every frame.
+
+Write ONE complete HTML document, exactly to this contract:
+- One <canvas id="c">, sized in your script to window.W by window.H pixels (canvas.width = W; canvas.height = H), filling the page with no margin.
+- window.DURATION = the shot's length in seconds.
+- window.seek = async function (t) { ... }: draws the complete frame for time t (0 to DURATION) on the canvas. Every pixel depends only on t: no requestAnimationFrame, no timers, no Date.now or performance.now, no CSS animation or transition, and randomness only from a seeded generator you write. seek(3) and then seek(1) must give exactly the frame at 1.
+- Everything in this file. Nothing may be loaded except Google Fonts (a <link> to fonts.googleapis.com; await document.fonts.ready inside seek before drawing text) and, only for real 3D, three.js r128 from https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js (WebGLRenderer with preserveDrawingBuffer: true, drawn into the canvas #c). No images, video or files: draw everything yourself with paths, shapes, gradients, patterns and text.
+
+Make it look like a top motion-design studio made it: a strong composition; easing on every move (cubic or expo in and out, a touch of anticipation and overshoot); secondary motion and layered parallax so it never feels static; a consistent palette and lighting; typography with real hierarchy, kept inside the middle 90% of the frame; texture where the style wants it (grain, paper, hatching, halftone); motion through the whole duration (no dead stretches), settling into a clean final frame. Characters, if any, drawn with care: clear silhouettes, expressive poses, simple faces that read.
+
+Reply with the HTML only.`;
+async function animateShot(plan, sc, i, cands, msg, signal, W, H) {
+	const ask = "The film: " + plan.title + ". Its look: " + plan.look
+		+ "\nThe film's shots, for context: " + plan.scenes.map((x, k) => (k + 1) + ". " + (x.motion === "drawn" ? x.draw || x.shot : x.shot).slice(0, 110)).join(" | ").slice(0, 3500)
+		+ "\n\nAnimate shot " + (i + 1) + ": " + (sc.draw || sc.shot)
+		+ "\nIts length: " + sc.seconds + " seconds. Aspect " + plan.aspect + "."
+		+ (sc.vo ? "\nThe voiceover during it (time the visuals to it, about 2.5 words a second): \"" + sc.vo + "\"" : "")
+		+ (sc.caption ? "\nThe editor adds this caption at the bottom, so keep the bottom fifth clear: \"" + sc.caption + "\"" : "")
+		+ "\nSame style, palette and characters as the rest of the film, so the shots cut together.";
+	let lastErr;
+	for (const m of cands.slice(0, 4)) {
+		let html = "", err = "";
+		for (let attempt = 0; attempt < 2; attempt++) {
+			try {
+				const prompt = attempt ? ask + "\n\nYour last version failed when it was run:\n" + err + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nFind the cause, fix it, and send the whole file again." : ask;
+				const out = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id)), msg);
+				html = (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
+				await checkScene(html, sc.seconds, Math.round(W / 4), Math.round(H / 4));
+				return html;
+			} catch (e) {
+				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+				err = String(e.message || e).slice(0, 600);
+				lastErr = e;
+				if (!html) break;
+			}
+		}
+	}
+	throw lastErr || new Error("No model could animate this shot");
 }
 
 // ---- photos, posters, logos
