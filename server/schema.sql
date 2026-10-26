@@ -99,6 +99,24 @@ CREATE TABLE IF NOT EXISTS task_runs (
 );
 CREATE INDEX IF NOT EXISTS task_runs_user ON task_runs (user_id, created_at);
 
+-- Andromeda's own measurements: for each very specific skill (a tag like "rust-lifetimes" or "kids-9") and model, how
+-- often its piece of a checked answer held up. Only topic words and pass/fail, never what anyone wrote.
+CREATE TABLE IF NOT EXISTS skill_stats (
+	tag TEXT NOT NULL,
+	model TEXT NOT NULL,
+	ok INTEGER NOT NULL DEFAULT 0,
+	n INTEGER NOT NULL DEFAULT 0,
+	at INTEGER,
+	PRIMARY KEY (tag, model)
+);
+-- how many results each account added today (so nobody can flood them)
+CREATE TABLE IF NOT EXISTS skill_days (
+	user_id TEXT NOT NULL,
+	day TEXT NOT NULL,
+	n INTEGER NOT NULL DEFAULT 0,
+	PRIMARY KEY (user_id, day)
+);
+
 CREATE TABLE IF NOT EXISTS config (
 	k TEXT PRIMARY KEY,
 	v TEXT NOT NULL

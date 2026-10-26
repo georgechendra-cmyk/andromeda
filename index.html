@@ -2384,6 +2384,7 @@ const CAPS = {
 	study: ["Study sets", "Flashcards, quizzes, mind maps, podcasts and simulations"],
 	panel: ["Open what's made beside the chat", "Apps, games and pages open in a panel next to the conversation"],
 	computer: ["Your computer and connected apps", "Through the connector, asking you before anything changes"],
+	learn: ["Learn which models do best", "Shares anonymous results (a few topic words and whether each piece held up, never what you wrote), so every answer gets better"],
 };
 const capOn = (k) => !(settings.off || {})[k];
 const skillOn = (k) => !(settings.offSkills || {})[k];
@@ -4810,9 +4811,58 @@ function readQuarks(raw, idx) {
 		const needs = (Array.isArray(p.needs) ? p.needs : []).map(String).filter((n) => seen.has(n));
 		seen.add(id);
 		const kind = kinds.includes(p.kind) ? p.kind : "write";
-		pieces.push({ id, label: String(p.label || p.skill || "Piece " + (k + 1)).slice(0, 70), goal: String(p.goal).slice(0, 700), skill: String(p.skill || "").slice(0, 200), kind, weights, needs, web: p.web === true || kind === "research" });
+		const tags = [...new Set((Array.isArray(p.tags) ? p.tags : []).map((t) => String(t).toLowerCase().trim().replace(/\s+/g, "-").slice(0, 40)).filter((t) => /^[a-z0-9][a-z0-9+#.\-]{0,39}$/.test(t)))].slice(0, 6);
+		pieces.push({ id, label: String(p.label || p.skill || "Piece " + (k + 1)).slice(0, 70), goal: String(p.goal).slice(0, 700), skill: String(p.skill || "").slice(0, 200), kind, weights, tags, needs, web: p.web === true || kind === "research" });
 	}
 	return pieces.length ? { understanding: String(j.understanding || "").slice(0, 700), check: j.check !== false, pieces } : null;
+}
+// ---------------------------------------------------------------- Andromeda's own measurements
+// Public leaderboards measure a hundred skills; real work has far more ("Rust async lifetimes", "a story for a
+// 9-year-old"). Every checked team answer records, piece by piece, whether each model's work held up, under tags for
+// exactly what it was, added up across everyone on the server. A model with a real record on a piece's exact tags moves
+// up or down; with little evidence it moves little, with none not at all. Only tags and pass/fail are sent.
+async function skillRecord(tags) {
+	const list = [...new Set(tags || [])].slice(0, 80);
+	if (!list.length || !capOn("learn") || !creditsMode() || !account) return null;
+	try {
+		const j = await api("/api/skills?tags=" + encodeURIComponent(list.join(",")));
+		const map = new Map();
+		for (const [tag, model, ok, n] of j.stats || []) { if (!map.has(tag)) map.set(tag, new Map()); map.get(tag).set(model, { ok: +ok, n: +n }); }
+		return map;
+	} catch { return null; }
+}
+function learned(cands, tags, record, pool) {
+	if (!record || !record.size || !tags || !tags.length) return cands;
+	const rows = tags.map((t) => record.get(t)).filter((r) => r && r.size >= 2);
+	if (!rows.length) return cands;
+	// a model with a record here that the leaderboards didn't put in the first few is considered too
+	const list = cands.slice();
+	for (const row of rows) for (const id of row.keys()) if (!list.some((c) => c.m.id === id)) { const e = (pool || []).find((x) => x.m.id === id); if (e) list.push(e); }
+	// Each tag's record is a small leaderboard of its own: every model's smoothed pass rate, scored against the others'
+	// the way a board's ratings are. The more evidence a tag has, the more it decides, up to over half: a direct record
+	// on exactly this kind of piece outweighs a general rating once it's large enough, and barely counts while it's small.
+	let share = 0;
+	const zs = new Map();
+	for (const row of rows) {
+		const rates = [...row.entries()].map(([id, x]) => [id, (x.ok + 1) / (x.n + 2), x.n]);
+		const mean = rates.reduce((s, r) => s + r[1], 0) / rates.length;
+		const sd = Math.max(0.08, Math.sqrt(rates.reduce((s, r) => s + (r[1] - mean) ** 2, 0) / rates.length));
+		const total = rates.reduce((s, r) => s + r[2], 0);
+		share += Math.min(0.6, total / (total + 60));
+		for (const [id, rate, n] of rates) zs.set(id, (zs.get(id) || 0) + ((rate - mean) / sd) * Math.min(1, n / 20));
+	}
+	share /= rows.length;
+	return list.map((c) => ({ ...c, score: (1 - share) * (c.score ?? 0) + share * ((zs.get(c.m.id) || 0) / rows.length), learned: zs.get(c.m.id) || 0 })).sort((a, b) => b.score - a.score);
+}
+// what a checked team answer adds to the record: each piece's model, its tags, and whether its work held up
+function shareRecord(plan, steps, verdict) {
+	if (!verdict || !capOn("learn") || !creditsMode() || !account) return;
+	const results = plan.pieces.map((p) => {
+		const st = steps.get(p.id);
+		if (!st || !st.id || st.error || !p.tags.length) return null;
+		return { model: st.id, tags: p.tags, ok: verdict.pass || (verdict.pieces || {})[p.id] !== false };
+	}).filter(Boolean);
+	if (results.length) api("/api/skills", { method: "POST", body: JSON.stringify({ results }) }).catch(() => {});
 }
 // within this many of the board's spreads, two models measure the same: a margin smaller than the ratings' own uncertainty
 const TEAM_TIE = 0.15;
@@ -4878,7 +4928,7 @@ async function runQuarks(text, atts) {
 				+ "- For each piece, weigh the MOST specific measured skills that apply, never just the broad ones: its exact language, its field and that field's factuality, web page vs React app, agentic work, live search, reading documents or pictures. Two pieces needing different skills must have different weights.\n"
 				+ "- No piece for writing the final answer or combining the pieces: the best writer for this answer does that afterwards, and then it's checked.\n"
 				+ "- weights: for EACH piece, how much each measured skill matters for exactly that piece (0 to 1, only the ones that matter). This is what picks each piece's model, so be precise and different per piece: a history-facts piece leans on factuality and its field, a story piece on creative writing, a write-for-a-child piece on instruction following, a maths piece on maths. From:\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n")
-				+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want, who it's for, and any hidden requirement\", \"check\": true, \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian mobile numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"needs\": [], \"web\": false}]}\n\"check\" is true when facts, numbers, code or reasoning in the answer could be wrong.\n\n"
+				+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want, who it's for, and any hidden requirement\", \"check\": true, \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian mobile numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"tags\": [\"rust\", \"tokio\", \"async-lifetimes\"], \"needs\": [], \"web\": false}]}\n\"tags\": 2 to 6 short lowercase words for exactly what that piece involves (its language, library, framework, field, topic, audience, kind of task), the most specific that are true, e.g. [\"rust\", \"tokio\", \"async-lifetimes\"] or [\"french-revolution\", \"kids-9\", \"storytelling\"]: generic words only, never names or personal details.\n\"check\" is true when facts, numbers, code or reasoning in the answer could be wrong.\n\n"
 			+ "The request:\n" + request.slice(0, 8000) + (material ? "\n\nThe attached material begins:\n" + material.slice(0, 5000) : "");
 		// a careful plan, but not a slow one: light thinking
 		const out = await run(lead, pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights)), () => [{ role: "user", content: ask }], null, null, "medium");
@@ -4907,6 +4957,8 @@ async function runQuarks(text, atts) {
 
 	// 2. the pieces: whatever's ready runs now, four at once at most
 	const outs = new Map(), teamUsed = new Set();
+	// what Andromeda has measured itself on exactly these pieces' tags (one request for the whole plan)
+	const record = await skillRecord(plan.pieces.flatMap((p) => p.tags));
 	const runPiece = async (p) => {
 		const st = steps.get(p.id);
 		st.running = true;
@@ -4915,7 +4967,7 @@ async function runQuarks(text, atts) {
 		let w = blendW(Object.keys(p.weights).length ? p.weights : ROLE_W[p.kind] || ROLE_W.quick, PROFILE && PROFILE.weights, 0.15);
 		// a piece that looks things up is weighed on live search too
 		if (p.web) w = blendW(w, { "search:overall": 1 }, 0.4);
-		let cands = pick(p.kind, w);
+		let cands = learned(pick(p.kind, w), p.tags, record, record ? arenaRank(p.kind, w) : null);
 		// two models within the leaderboards' margin of error for this piece: the one the team isn't using yet, so each
 		// model's own strengths get a part (never a measurably weaker model, only an equal one)
 		const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !teamUsed.has(c.m.id));
@@ -4992,8 +5044,10 @@ async function runQuarks(text, atts) {
 		const field = {};
 		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
 		const checkers = (codey ? pick("code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)) : pick("reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5))).filter((x) => x.m.id !== fin.id);
-		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"]}" }], null, null, "medium");
+		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, "medium");
 		verdict = readVerdict(raw);
+		if (verdict) { try { const pj = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).pieces; if (pj && typeof pj === "object") verdict.pieces = pj; } catch {} }
+		shareRecord(plan, steps, verdict);
 		chk.text = verdict ? (verdict.pass ? "Passed." : "Found: " + verdict.issues.join(" · ")) : chk.text;
 		done(chk);
 	} catch (e) {

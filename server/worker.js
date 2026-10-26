@@ -79,6 +79,8 @@ async function route(req, env, ctx, url) {
 	const user = await authUser(req, env);
 	if (p === "/api/shares" && m === "POST") return shareMake(req, env, user);
 	if (sh && m === "DELETE") return shareDel(env, user, sh[1]);
+	if (p === "/api/skills" && m === "POST") return skillsAdd(req, env, user);
+	if (p === "/api/skills" && m === "GET") return skillsGet(env, url);
 	if (p === "/api/tasks" && m === "GET") return taskList(env, user);
 	if (p === "/api/tasks" && m === "POST") return taskSave(req, env, user);
 	if (p === "/api/tasks/seen" && m === "POST") return taskSeen(req, env, user);
@@ -1794,6 +1796,41 @@ async function shareGet(env, sid) {
 async function shareDel(env, user, sid) {
 	await env.DB.prepare("DELETE FROM shares WHERE id = ? AND user_id = ?").bind(sid, user.id).run();
 	return json({ ok: true });
+}
+
+// ------------------------------------------------------------------ Andromeda's own measurements
+// Every checked team answer says, piece by piece, whether that piece held up, with a few tags for exactly what the
+// piece was ("python", "pandas", "csv-cleaning"). Added up across everyone, this measures which model is best at things
+// no public leaderboard measures. Only tags and pass/fail are kept, never what anyone wrote.
+const SKILL_TAG = /^[a-z0-9][a-z0-9+#.\-]{0,39}$/;
+const cleanTag = (t) => String(t || "").toLowerCase().trim().replace(/\s+/g, "-").slice(0, 40);
+async function skillsAdd(req, env, user) {
+	const b = await body(req);
+	const results = (Array.isArray(b.results) ? b.results : []).slice(0, 64);
+	const rows = [];
+	for (const r of results) {
+		const model = String((r && r.model) || "");
+		if (!/^[\w.-]+\/[\w.:-]+$/.test(model) || model.length > 100) continue;
+		const tags = [...new Set((Array.isArray(r.tags) ? r.tags : []).map(cleanTag).filter((t) => SKILL_TAG.test(t)))].slice(0, 8);
+		for (const tag of tags) rows.push([tag, model, r.ok ? 1 : 0]);
+	}
+	if (!rows.length) return json({ ok: true, added: 0 });
+	const day = new Date().toISOString().slice(0, 10);
+	const used = await env.DB.prepare("SELECT n FROM skill_days WHERE user_id = ? AND day = ?").bind(user.id, day).first();
+	const room = 600 - ((used && used.n) || 0);
+	if (room <= 0) return json({ ok: true, added: 0 });
+	const take = rows.slice(0, room), at = now();
+	await env.DB.batch([
+		...take.map(([tag, model, ok]) => env.DB.prepare("INSERT INTO skill_stats (tag, model, ok, n, at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(tag, model) DO UPDATE SET ok = ok + excluded.ok, n = n + 1, at = excluded.at").bind(tag, model, ok, at)),
+		env.DB.prepare("INSERT INTO skill_days (user_id, day, n) VALUES (?, ?, ?) ON CONFLICT(user_id, day) DO UPDATE SET n = n + excluded.n").bind(user.id, day, take.length),
+	]);
+	return json({ ok: true, added: take.length });
+}
+async function skillsGet(env, url) {
+	const tags = [...new Set(String(url.searchParams.get("tags") || "").split(",").map(cleanTag).filter((t) => SKILL_TAG.test(t)))].slice(0, 80);
+	if (!tags.length) return json({ stats: [] });
+	const r = await env.DB.prepare("SELECT tag, model, ok, n FROM skill_stats WHERE tag IN (" + tags.map(() => "?").join(",") + ") AND n >= 3").bind(...tags).all();
+	return json({ stats: (r.results || []).map((x) => [x.tag, x.model, x.ok, x.n]) });
 }
 
 // ------------------------------------------------------------------ tasks
