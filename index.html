@@ -1418,6 +1418,91 @@ html.morphing *, html.morphing *::before, html.morphing *::after { transition: n
 .lib-th { background: color-mix(in srgb, var(--text) 5%, var(--bg3)); color: var(--text); }
 .drop > div { border-color: color-mix(in srgb, var(--text) 35%, transparent); color: var(--text); }
 .sp-i.active svg { color: var(--text); }
+
+/* ---- the app, at the front page's level: a slim rail, the chats sliding out beside it, the welcome set like the hero */
+:root { --rail: 64px; --panel: 312px; }
+@media (min-width: 861px) {
+	body .app, body.sb-closed .app { --c1: var(--rail); }
+	#sbHide, #menuBtn, body.sb-closed #menuBtn { display: none !important; }
+	body .sidebar { overflow: visible; opacity: 1; visibility: visible; align-items: stretch; background: var(--bg); border-right: 1px solid var(--line); }
+	body .sidebar .lbl, .sidebar .brand-name, .sidebar .nav-i kbd, .sidebar .acct .who, .sidebar .acct > svg { display: none; }
+	body .sidebar .brand { justify-content: center; height: 62px; padding: 0; }
+	body .sidebar .brand-link { display: flex; gap: 0; }
+	body .sidebar .brand-link .mark { width: 24px; height: 24px; }
+	body .sidebar .sb-nav { justify-items: center; gap: 4px; padding: 4px 0 10px; }
+	body .sidebar .nav-i { position: relative; width: 42px; height: 42px; padding: 0; justify-content: center; border-radius: 12px; color: var(--muted); transition: background-color .18s var(--ease), color .18s var(--ease), transform .18s var(--ease); }
+	body .sidebar .nav-i:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
+	body .sidebar .nav-i:active { transform: scale(.94); }
+	body .sidebar .nav-i.new { color: var(--onink); background: var(--ink); }
+	body .sidebar .nav-i.new .ic { margin: 0; background: none; color: inherit; }
+	body .sidebar .nav-i.on { color: var(--text); background: color-mix(in srgb, var(--text) 9%, transparent); }
+	/* what each one is, said beside it on hover */
+	.sidebar [data-tip]::after { content: attr(data-tip); position: absolute; left: calc(100% + 12px); top: 50%; z-index: 60; padding: 6px 10px; border-radius: 8px; background: var(--ink); color: var(--onink); font: 500 12.5px/1.2 var(--sans); white-space: nowrap; opacity: 0; transform: translate(-4px, -50%); pointer-events: none; transition: opacity .16s var(--ease), transform .16s var(--ease); }
+	.sidebar [data-tip]:hover::after, .sidebar [data-tip]:focus-visible::after { opacity: 1; transform: translate(0, -50%); transition-delay: .25s; }
+	body.chats-open .sidebar [data-tip]::after { display: none; }
+	body .sidebar .sb-foot { margin-top: auto; display: flex; justify-content: center; padding: 10px 0 16px; border-top: 0; }
+	body .sidebar .acct { width: auto; padding: 4px; border-radius: 50%; }
+	body .sidebar #acctPop { left: 10px; right: auto; width: 260px; }
+	/* the chats: out beside the rail when wanted, gone again when a chat is picked */
+	.sb-panel { position: fixed; top: 0; bottom: 0; left: var(--rail); z-index: 30; width: var(--panel); display: flex; flex-direction: column; background: color-mix(in srgb, var(--bg2) 92%, transparent); backdrop-filter: blur(26px) saturate(150%); -webkit-backdrop-filter: blur(26px) saturate(150%); border-right: 1px solid var(--line); box-shadow: 30px 0 70px -40px rgba(0,0,0,.45); opacity: 0; visibility: hidden; transform: translateX(-18px); transition: transform .38s var(--ease), opacity .26s var(--ease), visibility 0s linear .38s; }
+	body.chats-open .sb-panel { opacity: 1; visibility: visible; transform: none; transition: transform .38s var(--ease), opacity .26s var(--ease), visibility 0s; }
+	.chats-scrim { position: fixed; inset: 0 0 0 var(--rail); z-index: 29; background: color-mix(in srgb, var(--bg) 30%, transparent); opacity: 0; pointer-events: none; transition: opacity .3s var(--ease); }
+	body.chats-open .chats-scrim { opacity: 1; pointer-events: auto; }
+	body .sidebar .sb-panel .convos { display: block; flex: 1; min-height: 0; overflow-y: auto; padding: 2px 10px 14px; }
+	body .sidebar .sb-panel .sp-i { display: flex; }
+	body .sidebar .sb-panel .convo-group { display: block; }
+}
+.sbp-h { display: flex; align-items: center; justify-content: space-between; height: 62px; padding: 0 12px 0 20px; font-size: 15px; letter-spacing: -.01em; }
+.sbp-x { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: var(--muted); transition: background-color .15s, color .15s; }
+.sbp-x:hover { color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.sbp-search { display: flex; align-items: center; gap: 9px; height: 40px; margin: 0 12px 10px; padding: 0 12px; border-radius: 11px; background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--faint); transition: box-shadow .2s var(--ease); }
+.sbp-search:focus-within { box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--text) 40%, transparent); }
+.sbp-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); font: inherit; font-size: 14px; }
+.chats-scrim { display: block; }
+@media (max-width: 860px) {
+	#chatsNav, #searchNav, .sbp-h { display: none; }
+	.sb-panel { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+	.sb-panel .convos { flex: 1; min-height: 0; overflow-y: auto; }
+	.chats-scrim { display: none; }
+}
+/* the welcome, set like the front page's hero: the greeting in ink, the question fading out under it */
+.welcome { padding-top: 22vh; }
+.welcome .greet, :root .welcome .greet { display: grid; justify-items: center; gap: 2px; margin: 0 0 34px; font-family: var(--sans); font-weight: 650; font-size: clamp(34px, 4.4vw, 56px); line-height: 1.02; letter-spacing: -.052em; text-wrap: balance; color: var(--text); }
+.welcome .greet .g2 { background: linear-gradient(180deg, color-mix(in srgb, var(--text) 55%, transparent), color-mix(in srgb, var(--text) 28%, transparent)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; padding-bottom: .06em; }
+.welcome .greet .g1 { animation: rise .7s var(--ease) both; }
+.welcome .greet .g2 { animation: rise .7s var(--ease) .08s both; }
+.welcome .slot { animation: rise .7s var(--ease) .16s both; }
+@media (max-width: 860px) { .welcome { padding-top: 14vh; } .welcome .greet { font-size: 32px; } }
+/* the galaxy, quietly, behind the welcome (as on the front page), fading out once a chat starts */
+.main { isolation: isolate; }
+.appsky { position: absolute; inset: 0; z-index: -1; width: 100%; height: 100%; pointer-events: none; opacity: 0; transition: opacity .8s var(--ease); -webkit-mask-image: radial-gradient(60% 55% at 50% 58%, #000 25%, transparent 78%); mask-image: radial-gradient(60% 55% at 50% 58%, #000 25%, transparent 78%); }
+body.at-welcome .appsky { opacity: .55; }
+
+/* ---- nothing jumps: every change of view glides (the view is lifted out and back in; the rest stays put) */
+html.nav-vt #view { view-transition-name: view; }
+html.nav-vt .art:not([hidden]) { view-transition-name: art; }
+::view-transition-old(view) { animation: vt-out .2s var(--ease) both; }
+::view-transition-new(view) { animation: vt-in .38s var(--ease) both; }
+::view-transition-old(art) { animation: vt-art-out .26s var(--ease) both; }
+::view-transition-new(art) { animation: vt-art-in .38s var(--ease) both; }
+html.nav-vt:not(.morphing)::view-transition-old(root) { animation: vt-fade-out .28s var(--ease) both; }
+html.nav-vt:not(.morphing)::view-transition-new(root) { animation: vt-fade-in .36s var(--ease) both; }
+@keyframes vt-out { to { opacity: 0; transform: translateY(-8px); } }
+@keyframes vt-in { from { opacity: 0; transform: translateY(12px); } }
+@keyframes vt-art-out { to { opacity: 0; transform: translateX(24px); } }
+@keyframes vt-art-in { from { opacity: 0; transform: translateX(32px); } }
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+@media (min-width: 861px) { .app { transition: grid-template-columns .42s var(--ease); } }
+/* menus fade out instead of vanishing; one pop-up replacing another crossfades */
+@supports (transition-behavior: allow-discrete) {
+	.pop { transition: opacity .16s var(--ease), transform .16s var(--ease), display .16s allow-discrete; }
+	.pop[hidden] { display: none; opacity: 0; transform: translateY(4px) scale(.98); }
+}
+.modal.swap { animation: modal-swap .32s var(--ease); }
+@keyframes modal-swap { from { opacity: .35; transform: translateY(6px); } }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app { transition: none !important; } }
 </style>
 </head>
 <body>
@@ -1549,14 +1634,20 @@ html.morphing *, html.morphing *::before, html.morphing *::after { transition: n
 			<button class="sb-hide" id="sbHide" title="Close the sidebar" aria-label="Close the sidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
 		</div>
 		<nav class="sb-nav" aria-label="Andromeda">
-			<button class="nav-i new" id="newChat" title="New chat (Ctrl+K)"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
-			<label class="nav-i nav-search" title="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" class="lbl" placeholder="Search chats" aria-label="Search chats"></label>
-			<button class="nav-i" id="libNav" title="Library: everything Andromeda made for you"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span class="lbl">Library</span></button>
-			<button class="nav-i" id="tasksNav" title="Tasks: things Andromeda does by itself on a schedule"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Tasks</span></button>
-			<button class="nav-i" id="codeNav" title="Andromeda Code: build or change a project"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
-			<button class="nav-i" id="appsNav" title="Connect apps: your computer, Blender, Figma, files and more"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
+			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
+			<button class="nav-i nav-search" id="searchNav" data-tip="Search chats" aria-label="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="lbl">Search chats</span></button>
+			<button class="nav-i" id="chatsNav" data-tip="Your chats" aria-label="Your chats" aria-expanded="false" aria-controls="sbPanel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span class="lbl">Chats</span></button>
+			<button class="nav-i" id="libNav" data-tip="Library: everything made for you" aria-label="Library"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span class="lbl">Library</span></button>
+			<button class="nav-i" id="tasksNav" data-tip="Tasks it does on a schedule" aria-label="Tasks"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Tasks</span></button>
+			<button class="nav-i" id="codeNav" data-tip="Code: build or change a project" aria-label="Andromeda Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
+			<button class="nav-i" id="appsNav" data-tip="Connect apps: your computer, Blender, Figma…" aria-label="Connect apps"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
 		</nav>
-		<div class="convos" id="convos"></div>
+		<!-- your chats and projects: a panel that slides out beside the rail (inline in the drawer on a phone) -->
+		<div class="sb-panel" id="sbPanel">
+			<div class="sbp-h"><b>Chats</b><button class="sbp-x" id="sbpClose" aria-label="Close the chats"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+			<label class="sbp-search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="search" placeholder="Search chats" aria-label="Search chats"></label>
+			<div class="convos" id="convos"></div>
+		</div>
 		<div class="sb-foot">
 			<button class="acct" id="acctBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="acctPop"><span class="av-i" id="acctAv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></span><span class="who"><b id="acctLabel">Sign in</b><small id="acctSub">Free credits every day</small></span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg></button>
 			<div class="pop up" id="acctPop" role="menu" hidden>
@@ -1572,8 +1663,10 @@ html.morphing *, html.morphing *::before, html.morphing *::after { transition: n
 		</div>
 	</aside>
 	<div class="scrim" id="scrim"></div>
+	<div class="chats-scrim" id="chatsScrim"></div>
 
 	<main class="main">
+		<canvas class="appsky" id="appSky" aria-hidden="true"></canvas>
 		<header class="topbar" id="topbar">
 			<button class="menu-btn" id="menuBtn" aria-label="Menu"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h10"/></svg></button>
 			<button class="crumb" id="crumb" hidden title="Open this project"></button><button class="ttl" id="chatTitle" aria-haspopup="menu" aria-controls="chatPop" title="Rename, export or delete this chat"></button>
@@ -1701,16 +1794,6 @@ const SPEND = { usd: 0 };
 function spendLevel() { return "ok"; }
 function drawSpend() {}
 function addSpend() {}
-function confirmMax(left) {
-	return new Promise((res) => {
-		openModal("<h2>Use the top models together?</h2><p class=\"sub\">Several of the best models each build this, then one merges the best parts. It's the most capable option and uses the most credits.</p>" +
-			'<div class="field"><div class="help">You have ' + creditsText(left / creditUsd()) + " credits.</div></div>" +
-			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="mbNo">Just one model</button><button class="btn dark" id="mbYes">Use the top models</button></div>');
-		modalClose = () => res(false);
-		$("#mbYes").onclick = () => { modalClose = null; closeModal(); res(true); };
-		$("#mbNo").onclick = () => closeModal();
-	});
-}
 let mode = "auto";
 let busy = null; // AbortController while answering
 let attachments = [];
@@ -2851,7 +2934,8 @@ const TONES = {
 };
 const langLine = () => (LANGS.find((l) => l[0] === settings.lang) || LANGS[0])[2];
 function sys(extra) {
-	const base = "You are Andromeda, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable.";
+	// every word written is paid for: as long as the question needs, never padded (a big task still gets all of it)
+	const base = "You are Andromeda, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable. Make the answer exactly as long as the question needs: a quick question gets a short answer, a big task a complete one. No restating the question, no warm-up, no closing summary of what you just said, and no offers of more help unless something is truly worth offering.";
 	const safe = settings.safelock !== false ? "Safelock is on: keep every answer suitable for all ages, and politely decline sexual, graphic or hateful content." : "";
 	// their custom instructions (Settings): every answer; a build keeps to its own rules
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
@@ -3166,13 +3250,17 @@ const ideasHtml = () => (WELCOME.find((c) => c.id === welcomeCat) || WELCOME[0])
 function renderWelcome() {
 	const hour = new Date().getHours(), name = callName();
 	const part = hour < 5 ? "Up late" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-	const head = esc(name ? part + ", " + name : hour < 5 ? "Up late? What are we making?" : part + ". What are we making today?");
+	// set like the front page's headline: the greeting in ink, the question under it fading out
+	const first = name ? part + ", " + name + "." : hour < 5 ? "Up late?" : part + ".", second = hour < 5 ? "What are we making?" : "What are we making today?";
 	// the composer is about to be redrawn round: keep it safe in its dock first
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
-	if (TEMP) { $("#view").innerHTML = '<section class="welcome temp"><h1 class="greet"><span>Temporary chat</span></h1><p class="temp-note">It won\'t be saved to your chats, and Andromeda won\'t remember it or use what it remembers.</p><div class="slot" id="slot"></div></section>'; $("#slot").appendChild($("#composer")); $("#dock").classList.add("hide"); return; }
-	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="gmark" aria-hidden="true"><i></i><svg><use href="#logo"/></svg></span><span>' + head + '</span></h1><div class="slot" id="slot"></div></section>';
+	document.body.classList.add("at-welcome");
+	if (TEMP) { $("#view").innerHTML = '<section class="welcome temp"><h1 class="greet"><span class="g1">Temporary chat</span></h1><p class="temp-note">It won\'t be saved to your chats, and Andromeda won\'t remember it or use what it remembers.</p><div class="slot" id="slot"></div></section>'; $("#slot").appendChild($("#composer")); $("#dock").classList.add("hide"); return; }
+	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="g1">' + esc(first) + '</span><span class="g2">' + esc(second) + '</span></h1><div class="slot" id="slot"></div></section>';
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
+	// the galaxy, quietly behind it, thinning out round the words and the box
+	startSky($("#appSky"), { live: () => document.body.classList.contains("at-welcome") && document.body.classList.contains("in-app"), clear: () => [$(".welcome .greet"), $("#composer")] });
 }
 const ACT_IC = {
 	copy: '<path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/><rect x="3" y="8" width="13" height="13" rx="2"/>',
@@ -3198,7 +3286,8 @@ function councilHtml(m, body) {
 let SEEN = { id: null, n: 0 };
 const calm = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 function renderThread() {
-	if (!current || !current.msgs.length) { if (spaceOf(SPACE_VIEW)) renderSpace(); else renderWelcome(); return; }
+	if (!current || !current.msgs.length) { if (spaceOf(SPACE_VIEW)) { document.body.classList.remove("at-welcome"); renderSpace(); } else renderWelcome(); return; }
+	document.body.classList.remove("at-welcome");
 	const box = $("#composer"), leaving = box.parentElement !== $("#dock");
 	const was = leaving ? box.getBoundingClientRect() : null;
 	if (leaving) { $("#dock").appendChild(box); $("#dock").classList.remove("hide"); }
@@ -4188,7 +4277,7 @@ async function runAct(text, atts, resume) {
 			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + "." : "")
 			+ (skillLine() ? "\n\n" + skillLine() : "")
 			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
-			+ "\n\nBe the team, not one model: split big work into narrow pieces and give each to ask_expert with the exact skills it needs (its language, field and that field's facts, web page or app, maths, writing for whom...), so each goes to the model that measurably does exactly that best. Check what comes back, and send a piece back with the exact problem if it isn't right."
+			+ "\n\nBe the team, not one model: split big work into narrow pieces and give each to ask_expert with the exact skills it needs (its language, field and that field's facts, web page or app, maths, writing for whom...), so each goes to the model that measurably does exactly that best. Check what comes back, and send a piece back with the exact problem if it isn't right. Never have several models do the same piece to pick or merge the best: that pays several times for one result. One expert does each piece; a different specialist checks it where checking catches real mistakes."
 			+ "\n\nSpend like it's your own money; every step costs the user. ask_expert already takes the cheapest model the ratings can't tell apart from the best: a model 20 times cheaper and only a hair behind does the piece. On top of that: mark easy pieces easy (they think lightly); give an expert everything it needs in one go rather than in rounds; reuse what you already have instead of asking again; for media, pictures with a moving camera or animation drawn in code cost a fraction of filmed video (the makers choose this themselves, so describe what you want, not how); and stop when the job is done well, with no extra rounds of polish nobody asked for."
 			+ (skills.length ? "\n\nThe measured skills ask_expert can weigh (key: what it measures):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") : "")
 			+ (PLAN_NOTE ? "\n\nWhat Andromeda decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
@@ -4238,7 +4327,9 @@ async function runAct(text, atts, resume) {
 					} else if (fn === "fetch_url") {
 						log("Read " + String(args.url).replace(/^https?:\/\//, "").slice(0, 60));
 						const j = await toolCall("/api/tools/fetch", { url: args.url }, 25000);
-						out = j.text ? (j.title ? j.title + "\n\n" : "") + j.text : j.error?.message || "Couldn't read it.";
+						// a page is read again with every later step of the job: the first 20,000 characters (most pages' substance)
+						const page = String(j.text || "");
+						out = page ? (j.title ? j.title + "\n\n" : "") + page.slice(0, 20000) + (page.length > 20000 ? "\n\n(The page goes on for " + (page.length - 20000) + " more characters, left out to keep the job's reading short. If what you need is further down, search for it or fetch a more specific page.)" : "") : j.error?.message || "Couldn't read it.";
 					} else if (fn === "lookup_docs") {
 						log("Looked up " + args.library + " docs", args.topic);
 						const j = await toolCall("/api/tools/docs", { library: args.library, topic: args.topic || "", tokens: 6000 }, 25000);
@@ -5671,64 +5762,8 @@ async function askFirst(cands, messages, msg, onText) {
 }
 // a request with the pictures the user attached (a screenshot or design to build from), for a model that reads them
 const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text }, ...pics.map((url) => ({ type: "image_url", image_url: { url } }))] : text);
-// designer (best at specs) -> three builders (one per lab, each writes the whole thing) -> the best builder merges the best parts
-async function maxBuild(text, rules, ask, source, msg, pics) {
-	const used = [];
-	msg.status = "Designing it";
-	updateLast();
-	let spec = "";
-	try {
-		const r = await askFirst(bestFor("spec").slice(0, 3), [sys(), { role: "user", content: "Write the product spec for: " + text + "\n\nCover: what it is, every feature and control, the rules or mechanics, the layout and look, edge cases, and five touches that make it feel polished. Concrete and under 500 words." + (source ? "\n\nMaterial:\n" + source.slice(0, 8000) : "") }], msg);
-		spec = r.out;
-		used.push({ name: shortName(r.model), desc: "Designer: wrote the spec the builders followed" });
-	} catch (e) {
-		if (e.name === "AbortError" || e.status === 401) throw e;
-	}
-	const pool = bestFor(pics && pics.length ? "appFromImage" : "app"), labs = new Set(), builders = [];
-	for (const m of pool) {
-		if (labs.has(provider(m.id))) continue;
-		labs.add(provider(m.id));
-		builders.push(m);
-		if (builders.length === 3) break;
-	}
-	if (builders.length < 2) return null;
-	msg.status = "Building it with " + builders.map(shortName).join(", ");
-	updateLast();
-	const buildAsk = ask + (spec ? "\n\nProduct spec to follow:\n" + spec : "");
-	const results = await Promise.all(builders.map(async (m, k) => {
-		await sleep(k * 500);
-		try {
-			const r = await askFirst([m], [sys(rules), { role: "user", content: withPics(buildAsk, pics) }], msg);
-			const p = parseFiles(r.out);
-			return Object.keys(p.files).length ? { m, p, raw: r.out } : null;
-		} catch (e) {
-			if (e.name === "AbortError") throw e;
-			return null;
-		}
-	}));
-	const ok = results.filter(Boolean);
-	ok.forEach((r) => used.push({ name: shortName(r.m), desc: "Builder: wrote a complete version" }));
-	if (!ok.length) return null;
-	if (ok.length === 1) { msg.used = used; return ok[0].p; }
-	msg.status = "Merging the best parts";
-	updateLast();
-	const judge = pool[0];
-	const versions = ok.map((r, k) => "######## VERSION " + (k + 1) + " ########\n" + r.raw.slice(0, 24000)).join("\n\n");
-	try {
-		const r = await askFirst([judge], [sys(rules), { role: "user", content: "Request: " + text + "\n\n" + (spec ? "Spec:\n" + spec + "\n\n" : "") + "Several engineers each built a full version independently:\n\n" + versions +
-			"\n\nProduce the single best final project: keep the strongest structure, features and polish from each, fix every bug, and make sure it runs correctly on first load. Output the complete final files in the required format." }], msg);
-		const p = parseFiles(r.out);
-		if (Object.keys(p.files).length) {
-			used.push({ name: shortName(judge), desc: "Merger: combined the best of each version into the final one" });
-			msg.used = used;
-			return p;
-		}
-	} catch (e) {
-		if (e.name === "AbortError" || e.status === 401) throw e;
-	}
-	msg.used = used;
-	return ok[0].p;
-}
+// (one builder, the one measured best at it or the cheapest a quark from it, then the build is run and fixed: several
+// models each building the same thing to pick or merge one costs several times as much and isn't how a team works)
 async function runApp(text, atts, pick) {
 	const msgs = current.msgs;
 	const prev = pick.edit ? [...msgs].reverse().find((m) => m.kind === "app" && m.data) : null;
@@ -5752,12 +5787,7 @@ async function runApp(text, atts, pick) {
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
 	const cands = bestFor(pics.length ? "appFromImage" : "app");
 	let parsed = null, lastErr;
-	// plenty of balance and the quality setting at Best: every top lab works on a new build together
-	let left = 0;
-	if (!prev && settings.maxBuild !== false && (left = (await walletLeft()) || 0) >= MAX_BUILD_AT && await confirmMax(left)) {
-		try { parsed = await maxBuild(text, rules, ask, source, msg, pics); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; }
-	}
-	for (const m of parsed ? [] : cands.slice(0, 5)) {
+	for (const m of cands.slice(0, 5)) {
 		msg.used = [{ name: shortName(m), desc: "Code: " + (prev ? "edited the project" : "wrote the project") }];
 		try {
 			const out = await stream(m.id, [sys(rules), { role: "user", content: withPics(ask, pics) }], (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, effortExtra(m.id), msg);
@@ -7924,7 +7954,8 @@ function renderAttached() {
 }
 
 // ---------------------------------------------------------------- settings
-function openModal(html, cls) { const m = $("#modal"); m.className = "modal" + (cls ? " " + cls : ""); m.innerHTML = html; $("#overlay").classList.add("show"); }
+// (one open over another crossfades into it rather than swapping)
+function openModal(html, cls) { const m = $("#modal"), was = $("#overlay").classList.contains("show"); m.className = "modal" + (cls ? " " + cls : ""); m.innerHTML = html; if (was) { void m.offsetWidth; m.classList.add("swap"); } $("#overlay").classList.add("show"); }
 let modalClose = null;
 function closeModal() { $("#overlay").classList.remove("show"); const f = modalClose; modalClose = null; if (f) f(); }
 // backgrounds behind the app (the ones Andromeda v7 had), or your own picture or video
@@ -7981,7 +8012,6 @@ function openSettings() {
 		'<div class="field"><label>Safety</label><label class="chk"><input type="checkbox" id="safeChk"' + (settings.safelock !== false ? " checked" : "") + '> Safelock: keep every answer suitable for everyone</label><div class="help">Filters sexual, graphic and hateful content in answers, pictures and videos.</div></div>' +
 		'<div class="field"><label>Keyboard</label><div class="keys"><kbd>Enter</kbd><span>send (Shift+Enter: a new line)</span><kbd>⌘K / Ctrl+K</kbd><span>new chat</span><kbd>↑</kbd><span>in an empty box: edit your last message</span><kbd>Esc</kbd><span>stop the answer that\'s coming</span><kbd>/</kbd><span>go to the message box</span></div></div>' +
 		(installAsk ? '<div class="field"><label>App</label><button class="btn" id="installBtn">Install Andromeda</button><div class="help">Its own window and icon, on your home screen or desktop.</div></div>' : "") +
-		'<div class="field"><label>Big builds</label><label class="chk"><input type="checkbox" id="maxBuildChk"' + (settings.maxBuild !== false ? " checked" : "") + '> Ask to use the top models together when I have ' + creditsText(MAX_BUILD_AT / creditUsd()) + ' credits or more</label><div class="help">For a new app or game, the top labs each build a version and the strongest coder merges the best parts. It uses more credits.</div></div>' +
 		'<div class="field"><label>Your data</label><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="exportChats">Export everything</button><button class="btn" id="importAll">Import</button><button class="btn" id="wipeChats">Delete all chats</button></div><input type="file" id="importFile" accept=".json,application/json" hidden><div class="help">Everything stays in this browser. The export is one file with your chats, projects and their files, memory and settings: keep it as a backup, or import it in another browser.</div></div>' +
 		'<div class="row" style="justify-content:space-between;margin-top:8px">' + (creditsMode() ? '<button class="btn" data-open-account>Credits and account</button>' : "<span></span>") + '<button class="btn dark" id="closeSettings">Done</button></div>', "wide");
 	$$("[data-theme-pick]").forEach((x) => x.onclick = () => { settings.theme = x.dataset.themePick; saveSettings(); morph(applyTheme); $$("[data-theme-pick]").forEach((y) => y.classList.toggle("on", y === x)); });
@@ -8027,7 +8057,6 @@ function openSettings() {
 	$("#nameBox").oninput = (e) => { settings.name = e.target.value.trim(); saveSettings(); drawAccount(); if (!current || !current.msgs.length) renderThread(); };
 	$("#styleBox").oninput = (e) => { settings.style = e.target.value; saveSettings(); };
 	if ($("#installBtn")) $("#installBtn").onclick = async () => { const a = installAsk; if (!a) return; installAsk = null; a.prompt(); try { await a.userChoice; } catch {} closeModal(); };
-	$("#maxBuildChk").onchange = (e) => { settings.maxBuild = e.target.checked; saveSettings(); };
 	$$("[data-tone]").forEach((x) => x.onclick = () => { settings.tone = x.dataset.tone; saveSettings(); $$("[data-tone]").forEach((y) => y.classList.toggle("on", y === x)); });
 	$("#exportChats").onclick = exportAll;
 	$("#importAll").onclick = () => $("#importFile").click();
@@ -8354,6 +8383,21 @@ function morph(change) {
 	vt.finished.finally(() => document.documentElement.classList.remove("morphing"));
 	return vt.updateCallbackDone;
 }
+// Going somewhere (another chat, a new one, the home page, the panel beside the chat): the view glides out and the new
+// one in, nothing snaps. The ink of a light/dark switch keeps its own transition.
+function navTo(change) {
+	const root = document.documentElement;
+	if (!document.startViewTransition || root.classList.contains("morphing") || matchMedia("(prefers-reduced-motion: reduce)").matches) return change();
+	root.classList.add("nav-vt");
+	try {
+		const vt = document.startViewTransition(change);
+		vt.finished.finally(() => root.classList.remove("nav-vt"));
+		return vt.updateCallbackDone;
+	} catch {
+		root.classList.remove("nav-vt");
+		return change();
+	}
+}
 function download(name, text) {
 	const a = document.createElement("a");
 	a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
@@ -8373,15 +8417,21 @@ function setMode() {
 	if (!current || !current.msgs.length) renderThread();
 	updateRoute();
 }
-function openSidebar(open) { $("#sidebar").classList.toggle("open", open); $("#scrim").classList.toggle("show", open); }
+function openSidebar(open) { $("#sidebar").classList.toggle("open", open); $("#scrim").classList.toggle("show", open); if (!open) openChats(false); }
+// the chats panel beside the rail (on a phone it's part of the drawer, always there)
+function openChats(on) {
+	document.body.classList.toggle("chats-open", !!on);
+	$("#chatsNav").classList.toggle("on", !!on);
+	$("#chatsNav").setAttribute("aria-expanded", String(!!on));
+}
 
 document.addEventListener("click", (e) => {
 	const t = e.target.closest("button, a[data-go-home], .convo, .member, .step .sh, [data-open-settings], [data-open-account], [data-open-pricing], [data-pick], [data-project], [data-selffix]");
 	if (!t) { if (e.target === $("#overlay")) closeModal(); return; }
-	if (t.hasAttribute("data-open-app")) { showApp(true); return; }
-	if (t.hasAttribute("data-go-home")) { e.preventDefault(); showApp(false); return; }
+	if (t.hasAttribute("data-open-app")) { navTo(() => showApp(true)); return; }
+	if (t.hasAttribute("data-go-home")) { e.preventDefault(); navTo(() => showApp(false)); return; }
 	if (t.hasAttribute("data-theme-toggle")) { toggleTheme(); return; }
-	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { current = convos.find((c) => c.id === t.dataset.id); SPACE_VIEW = (current && current.space) || null; EDITING = -1; pinned = true; render(); stick(); openSidebar(false); }
+	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { openSidebar(false); navTo(() => { current = convos.find((c) => c.id === t.dataset.id); SPACE_VIEW = (current && current.space) || null; EDITING = -1; pinned = true; render(); stick(); }); }
 	else if (t.dataset.del) { convos = convos.filter((c) => c.id !== t.dataset.del); if (current?.id === t.dataset.del) { current = null; EDITING = -1; } save(); render(); }
 	else if (t.dataset.sug) { $("#input").value = t.dataset.sug; autosize(); updateRoute(); send(); }
 	else if (t.dataset.cat) {
@@ -8456,7 +8506,7 @@ document.addEventListener("click", (e) => {
 	else if (t.hasAttribute("data-open-pricing")) openPricing();
 	else if (t.dataset.pick) openSettings();
 });
-$("#newChat").onclick = $("#newChatTop").onclick = () => { current = null; SPACE_VIEW = null; EDITING = -1; render(); $("#input").focus(); openSidebar(false); };
+$("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; render(); }); setTimeout(() => $("#input").focus(), 60); };
 // ---------------------------------------------------------------- the open chat: export, print, rename, delete
 function closeChatMenu() { $("#chatPop").hidden = true; $("#chatMenuBtn").setAttribute("aria-expanded", "false"); }
 $("#chatMenuBtn").onclick = (e) => {
@@ -8572,7 +8622,11 @@ $("#chatTitle").onclick = (e) => { e.stopPropagation(); $("#chatMenuBtn").click(
 $("#acctBtn").onclick = () => (account ? togglePop("acctPop") : openAccount());
 $("#signOutBtn").onclick = () => { signOut(); toast("Signed out"); if (!current || !current.msgs.length) renderThread(); };
 // in the folded sidebar, search opens it first
-$(".nav-search").addEventListener("click", () => { if (document.body.classList.contains("sb-closed") && innerWidth > 860) { foldSidebar(false); setTimeout(() => $("#search").focus(), 260); } });
+// the rail: chats slide out beside it (and search lands in them); a click outside, Esc or picking one slides them away
+$("#searchNav").onclick = () => { if (innerWidth > 860) openChats(true); setTimeout(() => $("#search").focus(), innerWidth > 860 ? 120 : 0); };
+$("#chatsNav").onclick = () => openChats(!document.body.classList.contains("chats-open"));
+$("#sbpClose").onclick = $("#chatsScrim").onclick = () => openChats(false);
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("chats-open")) openChats(false); });
 // a tool: shown in the box until the message goes (click it to take it off)
 function setTool(k) {
 	TOOL = k && TOOLS[k] ? k : null;
@@ -8655,15 +8709,14 @@ function artCard(m, i) {
 }
 function openArt(a) {
 	if (!a || !current) return;
-	ART = { view: "preview", file: 0, cid: current.id, ...a };
-	drawArt();
-	markArtCards();
+	// (switching what the panel shows just swaps it; opening it glides it in)
+	const fresh = !ART;
+	const go = () => { ART = { view: "preview", file: 0, cid: current.id, ...a }; drawArt(); markArtCards(); };
+	fresh ? navTo(go) : go();
 }
 function closeArt() {
 	if (!ART) return;
-	ART = null;
-	drawArt();
-	markArtCards();
+	navTo(() => { ART = null; drawArt(); markArtCards(); });
 }
 function markArtCards() {
 	$$(".art-card").forEach((c) => {
@@ -8795,7 +8848,7 @@ async function addSpaceFiles(id, files) {
 	await vault.set("space-files:" + id, list);
 	drawSpaceFiles(id);
 }
-function openSpace(id) { SPACE_VIEW = id; current = null; EDITING = -1; render(); openSidebar(false); setTimeout(() => $("#input").focus(), 50); }
+function openSpace(id) { openSidebar(false); navTo(() => { SPACE_VIEW = id; current = null; EDITING = -1; render(); }); setTimeout(() => $("#input").focus(), 60); }
 function newSpace() {
 	openModal('<h2>New project</h2><p class="sub">Chats in a project share its instructions and files, so Andromeda always has the background.</p><div class="field"><label for="spName">Name</label><input class="inp" id="spName" maxlength="60" placeholder="e.g. Thesis, Bean There café, My Minecraft mod"></div><div class="field"><label for="spAbout0">Instructions (you can add them later)</label><textarea class="inp" id="spAbout0" rows="3" maxlength="4000" placeholder="What should Andromeda know, or always do, in this project?"></textarea></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="spNo">Cancel</button><button class="btn dark" id="spGo">Make the project</button></div>');
 	const go = () => {
@@ -8943,9 +8996,12 @@ $("#shCont").onclick = () => {
 	current = c;
 	SPACE_VIEW = null;
 	save();
-	closeShared();
-	location.hash = "#app";
-	if (!document.body.classList.contains("in-app")) showApp(true);
+	navTo(() => {
+		closeShared();
+		location.hash = "#app";
+		if (!document.body.classList.contains("in-app")) showApp(true);
+		else render();
+	});
 	toast("It's yours now: carry on below");
 };
 
@@ -9456,10 +9512,13 @@ function renderLanding() {
 }
 
 // a slow two-armed spiral of points: the Andromeda galaxy, in the page's own ink
-let skyRaf = 0, skyStars = null;
-function startSky() {
-	const c = $("#sky");
+let skyStars = null;
+// The galaxy: on the home page round the hero, and quietly behind the app's welcome. live() says when it's on screen
+// (it stops drawing otherwise); clear() gives what it thins out round, so it never sits on top of words.
+function startSky(c = $("#sky"), opts = {}) {
 	if (!c) return;
+	const live = opts.live || (() => !document.body.classList.contains("in-app"));
+	const clearEls = opts.clear || (() => [$(".hero .ctas"), $(".hero .fine")]);
 	const ctx = c.getContext("2d");
 	const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 	if (!skyStars) {
@@ -9475,19 +9534,20 @@ function startSky() {
 	// where the buttons and the small print are: the galaxy thins out round them so it never sits on top of words
 	let clear = null;
 	const findClear = () => {
-		const a = $(".hero .ctas"), f = $(".hero .fine"), cr = c.getBoundingClientRect();
-		if (!a || !f) { clear = null; return; }
-		const r1 = a.getBoundingClientRect(), r2 = f.getBoundingClientRect();
-		const x0 = Math.min(r1.left, r2.left) - cr.left, x1 = Math.max(r1.right, r2.right) - cr.left, y0 = r1.top - cr.top, y1 = r2.bottom - cr.top;
+		const els = clearEls().filter(Boolean), cr = c.getBoundingClientRect();
+		if (!els.length) { clear = null; return; }
+		const rs = els.map((e) => e.getBoundingClientRect());
+		const x0 = Math.min(...rs.map((r) => r.left)) - cr.left, x1 = Math.max(...rs.map((r) => r.right)) - cr.left, y0 = Math.min(...rs.map((r) => r.top)) - cr.top, y1 = Math.max(...rs.map((r) => r.bottom)) - cr.top;
 		clear = { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, rx: (x1 - x0) / 2 + 40, ry: (y1 - y0) / 2 + 26 };
 	};
 	const size = () => { const d = Math.min(2, devicePixelRatio || 1); c.width = c.clientWidth * d; c.height = c.clientHeight * d; ctx.setTransform(d, 0, 0, d, 0, 0); findClear(); };
 	size();
-	if (!startSky.bound) { addEventListener("resize", size); startSky.bound = true; }
-	cancelAnimationFrame(skyRaf);
+	c._size = size;
+	if (!c._bound) { addEventListener("resize", () => c._size && c._size()); c._bound = true; }
+	cancelAnimationFrame(c._raf);
 	const t0 = performance.now();
 	const frame = (now) => {
-		if (document.body.classList.contains("in-app")) return;
+		if (!live()) return;
 		const w = c.clientWidth, h = c.clientHeight;
 		ctx.clearRect(0, 0, w, h);
 		const css = getComputedStyle(document.documentElement);
@@ -9516,9 +9576,9 @@ function startSky() {
 		g.addColorStop(1, "rgba(" + rgb + ",0)");
 		ctx.fillStyle = g;
 		ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
-		if (!reduce) skyRaf = requestAnimationFrame(frame);
+		if (!reduce) c._raf = requestAnimationFrame(frame);
 	};
-	skyRaf = requestAnimationFrame(frame);
+	c._raf = requestAnimationFrame(frame);
 }
 addEventListener("scroll", () => $("#nav").classList.toggle("scrolled", scrollY > 8), { passive: true });
 const revealer = new IntersectionObserver((es) => es.forEach((en) => { if (en.isIntersecting) { en.target.classList.add("in"); revealer.unobserve(en.target); } }), { threshold: 0.1 });
