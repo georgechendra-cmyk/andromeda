@@ -910,14 +910,32 @@ html.morphing::view-transition-new(root) {
 	--edge: 34px;
 	-webkit-mask-image: radial-gradient(circle at 100% 100%, #000 var(--i1), transparent calc(var(--i1) + var(--edge))), radial-gradient(circle at 82% 97%, #000 var(--i2), transparent calc(var(--i2) + var(--edge))), radial-gradient(circle at 97% 70%, #000 var(--i3), transparent calc(var(--i3) + var(--edge))), radial-gradient(circle at 63% 100%, #000 var(--i4), transparent calc(var(--i4) + var(--edge))), radial-gradient(circle at 86% 80%, #000 var(--i5), transparent calc(var(--i5) + var(--edge)));
 	mask-image: radial-gradient(circle at 100% 100%, #000 var(--i1), transparent calc(var(--i1) + var(--edge))), radial-gradient(circle at 82% 97%, #000 var(--i2), transparent calc(var(--i2) + var(--edge))), radial-gradient(circle at 97% 70%, #000 var(--i3), transparent calc(var(--i3) + var(--edge))), radial-gradient(circle at 63% 100%, #000 var(--i4), transparent calc(var(--i4) + var(--edge))), radial-gradient(circle at 86% 80%, #000 var(--i5), transparent calc(var(--i5) + var(--edge)));
-	animation: ink 1.25s cubic-bezier(.62,.02,.28,1) both;
+	animation: ink 1.1s linear both;
 }
+/* one smooth curve over the whole spread, played evenly: an easing per keyframe step made it slow to a stop and
+   start again three times on the way */
 @keyframes ink {
-	0% { --i1: 0px; --i2: 0px; --i3: 0px; --i4: 0px; --i5: 0px; }
-	22% { --i1: 13vmax; --i2: 5vmax; --i3: 3vmax; --i4: 0px; --i5: 1vmax; }
-	50% { --i1: 40vmax; --i2: 27vmax; --i3: 24vmax; --i4: 15vmax; --i5: 23vmax; }
-	75% { --i1: 80vmax; --i2: 64vmax; --i3: 60vmax; --i4: 52vmax; --i5: 58vmax; }
-	100% { --i1: 200vmax; --i2: 180vmax; --i3: 180vmax; --i4: 180vmax; --i5: 180vmax; }
+	0% { --i1: 0vmax; --i2: 0vmax; --i3: 0vmax; --i4: 0vmax; --i5: 0vmax; }
+	5% { --i1: 1.05vmax; --i2: 0vmax; --i3: 0vmax; --i4: 0vmax; --i5: 0vmax; }
+	10% { --i1: 4.16vmax; --i2: 0.67vmax; --i3: 0.17vmax; --i4: 0vmax; --i5: 0vmax; }
+	15% { --i1: 9.26vmax; --i2: 3.37vmax; --i3: 2.13vmax; --i4: 0.05vmax; --i5: 1.14vmax; }
+	20% { --i1: 16.23vmax; --i2: 8.06vmax; --i3: 6.21vmax; --i4: 1.79vmax; --i5: 4.52vmax; }
+	25% { --i1: 24.9vmax; --i2: 14.62vmax; --i3: 12.29vmax; --i4: 5.97vmax; --i5: 10.05vmax; }
+	30% { --i1: 35.04vmax; --i2: 22.86vmax; --i3: 20.19vmax; --i4: 12.45vmax; --i5: 17.55vmax; }
+	35% { --i1: 46.41vmax; --i2: 32.55vmax; --i3: 29.68vmax; --i4: 21.01vmax; --i5: 26.79vmax; }
+	40% { --i1: 58.73vmax; --i2: 43.43vmax; --i3: 40.5vmax; --i4: 31.36vmax; --i5: 37.5vmax; }
+	45% { --i1: 71.7vmax; --i2: 55.19vmax; --i3: 52.31vmax; --i4: 43.17vmax; --i5: 49.35vmax; }
+	50% { --i1: 85vmax; --i2: 67.49vmax; --i3: 64.79vmax; --i4: 56.03vmax; --i5: 61.98vmax; }
+	55% { --i1: 98.3vmax; --i2: 80.01vmax; --i3: 77.56vmax; --i4: 69.53vmax; --i5: 75vmax; }
+	60% { --i1: 111.27vmax; --i2: 92.39vmax; --i3: 90.26vmax; --i4: 83.2vmax; --i5: 88.02vmax; }
+	65% { --i1: 123.59vmax; --i2: 104.28vmax; --i3: 102.51vmax; --i4: 96.61vmax; --i5: 100.65vmax; }
+	70% { --i1: 134.96vmax; --i2: 115.36vmax; --i3: 113.97vmax; --i4: 109.29vmax; --i5: 112.5vmax; }
+	75% { --i1: 145.1vmax; --i2: 125.31vmax; --i3: 124.29vmax; --i4: 120.84vmax; --i5: 123.21vmax; }
+	80% { --i1: 153.77vmax; --i2: 133.86vmax; --i3: 133.18vmax; --i4: 130.86vmax; --i5: 132.45vmax; }
+	85% { --i1: 160.74vmax; --i2: 140.77vmax; --i3: 140.37vmax; --i4: 139.02vmax; --i5: 139.95vmax; }
+	90% { --i1: 165.84vmax; --i2: 145.85vmax; --i3: 145.67vmax; --i4: 145.05vmax; --i5: 145.48vmax; }
+	95% { --i1: 168.95vmax; --i2: 148.96vmax; --i3: 148.91vmax; --i4: 148.75vmax; --i5: 148.86vmax; }
+	100% { --i1: 170vmax; --i2: 150vmax; --i3: 150vmax; --i4: 150vmax; --i5: 150vmax; }
 }
 @media (max-width: 860px) { .send { width: 40px; height: 40px; } .welcome { padding-top: 9vh; } .welcome .orbit { width: 62px; height: 62px; margin-bottom: 24px; } .welcome h1 { font-size: 30px; } .welcome p.lead { font-size: 15px; margin-bottom: 24px; } }
 
@@ -1320,6 +1338,10 @@ body.dropping .drop { display: grid; animation: fade .2s var(--ease) both; }
 
 /* ---- a team answer says so */
 .mu-btn.team { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 30%, transparent); background: var(--brand-soft); }
+
+/* ---- while the new look spreads in, nothing underneath animates too (the page's own colour fades, repainting it
+   every frame under the moving mask, were what made it stutter) */
+html.morphing *, html.morphing *::before, html.morphing *::after { transition: none !important; }
 </style>
 </head>
 <body>
