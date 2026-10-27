@@ -74,6 +74,13 @@ function AddGateway($n, $suggest) {
 	$ok = $LASTEXITCODE -eq 0
 	Remove-Item $f -Force -ErrorAction SilentlyContinue
 	if (-not $ok) { Fail "The gateway's address wasn't saved." }
+	# Flaz charges 15% over the labs' prices: credits are charged the same 15% more, so paid answers never cost more than they bring in
+	if ($gw -match 'flaz\.id') {
+		$f = Join-Path $env:TEMP ("andromeda-" + [guid]::NewGuid().ToString("N") + ".json")
+		[IO.File]::WriteAllText($f, (@{ ("GATEWAY" + $n + "_FEE") = "1.15" } | ConvertTo-Json -Compress), (New-Object Text.UTF8Encoding $false))
+		W secret bulk $f 2>&1 | Out-Null
+		Remove-Item $f -Force -ErrorAction SilentlyContinue
+	}
 	Write-Host "Now paste its API key:"
 	W secret put ("GATEWAY" + $n + "_KEY")
 	if ($LASTEXITCODE -ne 0) { Fail "The gateway's key wasn't saved." }
@@ -92,13 +99,13 @@ if (-not (Has "WAVESPEED_KEY")) {
 if (-not (Has "GATEWAY_KEY")) {
 	Write-Host ""
 	Write-Host "A GATEWAY YOU TOP UP IN RUPIAH (QRIS: OVO, GoPay, DANA, ShopeePay, bank apps; no card, no subscription)." -ForegroundColor Yellow
-	Write-Host "RouterKu has the big models pay-as-you-go from Rp20.000: Claude Opus 5 and Fable 5, GPT-6 Astra, GPT-5.6 Sol, Gemini 3.1 Pro, Grok 4.5. Any OpenAI-compatible gateway works the same way."
+	Write-Host "Flaz (PT Ragam Gagas Berkarya, Jakarta) has the big models pay-as-you-go from Rp10.000, at the labs' prices plus 15%: Claude Opus 5.5 and Fable 5.1, GPT-5.6, Gemini 3.8 Flash and 3.1 Pro, Grok 4.7. Chat only (no pictures, video or music). Any OpenAI-compatible gateway works the same way."
 	if (Yes "Set it up?") {
-		Start-Process "https://routerku.com"
-		AddGateway "" ""
+		Start-Process "https://flaz.id/en/ai-services"
+		AddGateway "" "https://ai.flaz.id/v1"
 		Write-Host ""
-		Write-Host "A SECOND GATEWAY (optional): asked for the models the first doesn't have (Anoman: https://api.anoman.io/v1, hundreds of models)." -ForegroundColor Yellow
-		if (Yes "Add a second one?") { AddGateway "2" "https://api.anoman.io/v1" }
+		Write-Host "A SECOND GATEWAY (optional): asked for the models the first doesn't have." -ForegroundColor Yellow
+		if (Yes "Add a second one?") { AddGateway "2" "" }
 	}
 } else { Write-Host "Rupiah gateway: already there." }
 
