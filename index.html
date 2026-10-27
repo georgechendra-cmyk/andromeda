@@ -1502,6 +1502,20 @@ html.nav-vt:not(.morphing)::view-transition-new(root) { animation: vt-fade-in .3
 .modal.swap { animation: modal-swap .32s var(--ease); }
 @keyframes modal-swap { from { opacity: .35; transform: translateY(6px); } }
 html { scroll-behavior: smooth; }
+/* the commands menu, over the message box while a "/" command is typed */
+.slash-pop { position: absolute; left: 10px; right: 10px; bottom: calc(100% + 8px); top: auto; max-height: 340px; overflow-y: auto; z-index: 40; }
+.slash-pop .mi { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 12px; text-align: left; }
+.slash-pop .mi b { font: 600 13.5px var(--mono); }
+.slash-pop .mi small { color: var(--faint); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.welcome .slash-pop { bottom: auto; top: calc(100% + 8px); }
+/* a job's to-do list: done ticked, the one in hand marked, the rest open */
+.ag-plan { list-style: none; margin: 10px 0 4px; padding: 12px 14px; display: grid; gap: 7px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--text) 2.5%, transparent); font-size: 14px; }
+.ag-plan li { display: flex; align-items: flex-start; gap: 10px; color: var(--muted); transition: color .3s var(--ease); }
+.ag-plan .pk { flex: none; width: 15px; height: 15px; margin-top: 2.5px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--text) 30%, transparent); transition: background-color .3s var(--ease), border-color .3s var(--ease); }
+.ag-plan li.doing { color: var(--text); font-weight: 500; }
+.ag-plan li.doing .pk { border-color: var(--text); box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 8px var(--text); }
+.ag-plan li.done { color: var(--faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text) 25%, transparent); }
+.ag-plan li.done .pk { background: var(--text); border-color: var(--text); -webkit-mask: none; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app { transition: none !important; } }
 </style>
 </head>
@@ -1714,6 +1728,7 @@ html { scroll-behavior: smooth; }
 					<button class="mi" role="menuitem" data-tool="app"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 11v4M5 13h4"/><circle cx="16" cy="12" r=".6"/><circle cx="18" cy="15" r=".6"/></svg><span><b>Build an app or game</b><small>Running right here, with a live preview</small></span></button>
 					<button class="mi" role="menuitem" data-tool="study"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></svg><span><b>Study</b><small>Flashcards, a quiz, a mind map or a podcast</small></span></button>
 					<button class="mi" role="menuitem" data-tool="doc"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg><span><b>A document</b><small>Word, PDF, slides or a spreadsheet to download</small></span></button>
+					<button class="mi" role="menuitem" data-tool="code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span><b>Code a project</b><small>Builds, changes, tests and reviews real code</small></span></button>
 					<button class="mi" role="menuitem" data-tool="act"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg><span><b>Use tools and your computer</b><small>Runs code, searches, works in your connected apps</small></span></button>
 					<hr>
 					<button class="mi" role="menuitem" id="projBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span><b>Andromeda Code</b><small>Build or change a whole project</small></span></button>
@@ -2552,6 +2567,7 @@ const TOOLS = {
 	app: { label: "App or game", ways: ["app", "sim"], ph: "What should I build?" },
 	study: { label: "Study", ways: ["flashcards", "quiz", "open", "mindmap", "podcast"], ph: "A topic, or attach your notes" },
 	doc: { label: "Document", ways: FILE_WAYS, ph: "What should the document, deck or spreadsheet be?" },
+	code: { label: "Code", ways: ["project"], ph: "What should I build or change in the code?" },
 	act: { label: "Tools and computer", ways: ["act"], ph: "What should I do? I can run code, search, and work in your apps" },
 };
 let TOOL = null;
@@ -2587,9 +2603,65 @@ const CAPS = {
 };
 const capOn = (k) => !(settings.off || {})[k];
 const skillOn = (k) => !(settings.offSkills || {})[k];
+// The user's own skills (written here, or imported from a link such as a SKILL.md): Andromeda picks them by itself when
+// a request fits, like its own playbooks, and /their-name uses one on purpose. Their own commands are saved prompts.
+const BUILTIN_SKILLS = new Set(Object.keys(SKILLBOOK));
+const userSkills = () => store.get("skills", []);
+const userCommands = () => store.get("commands", []);
+const slug = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+function applyUserSkills() {
+	for (const k of Object.keys(SKILLBOOK)) if (!BUILTIN_SKILLS.has(k)) delete SKILLBOOK[k];
+	for (const s of userSkills()) if (s.key && !BUILTIN_SKILLS.has(s.key)) SKILLBOOK[s.key] = [s.desc || s.name, s.text];
+}
+applyUserSkills();
 // the ways a request can go that are switched on
 const wayOn = (k) => !(k === "research" && !capOn("research")) && !(STUDIO_WAYS.includes(k) && !capOn("create")) && !(FILE_WAYS.includes(k) && !capOn("docs")) && !(STUDY_WAYS.includes(k) && !capOn("study"));
-let PROFILE_TEXT = null, PLAN_NOTE = "";
+let PROFILE_TEXT = null, PLAN_NOTE = "", MATH_NOTE = "";
+// ---- exact arithmetic: every sum in a message is worked out by code before any model answers, so no model can get
+// "3 + 12" wrong. Whole numbers of any size are exact; dates, versions, ranges and Rp 1.500.000 aren't taken for sums.
+function calc(expr) {
+	const src = String(expr).replace(/×|(?<=\d\s*)\bx\b(?=\s*[\d(])/gi, "*").replace(/÷|:(?=\s*\d)/g, "/").replace(/√/g, "sqrt").replace(/\*\*/g, "^").replace(/\s+/g, "");
+	const toks = src.match(/\d+(?:\.\d+)?|sqrt|[-+*/^()%]/gi);
+	if (!toks || toks.join("") !== src) return null;
+	const big = !/[./%]|sqrt/i.test(src);
+	let i = 0;
+	const want = (t) => (toks[i] === t ? (i++, true) : false);
+	const num = (s) => (big ? BigInt(s) : Number(s));
+	const expr_ = () => { let v = term(); for (;;) { if (want("+")) v = v + term(); else if (want("-")) v = v - term(); else return v; } };
+	const term = () => { let v = factor(); for (;;) { if (want("*")) v = v * factor(); else if (want("/")) { const d = factor(); if (d === 0) throw 0; v = v / d; } else return v; } };
+	const factor = () => { const b = unary(); if (want("^")) { const e = factor(); if (big && (e < 0n || e > 4096n)) throw 0; return big ? b ** e : Math.pow(b, e); } return b; };
+	const unary = () => (want("-") ? -unary() : want("+") ? unary() : postfix());
+	const postfix = () => { let v = primary(); while (want("%")) { if (big) throw 0; v = v / 100; } return v; };
+	const primary = () => {
+		const t = toks[i++];
+		if (t === "(") { const v = expr_(); if (!want(")")) throw 0; return v; }
+		if (/^sqrt$/i.test(t)) { const v = primary(); if (v < 0) throw 0; return Math.sqrt(v); }
+		if (t != null && /^\d/.test(t)) return num(t);
+		throw 0;
+	};
+	try {
+		const v = expr_();
+		if (i !== toks.length) return null;
+		if (big) return v.toString();
+		if (!Number.isFinite(v)) return null;
+		return Number.isInteger(v) && Math.abs(v) < 1e15 ? String(v) : String(parseFloat(v.toPrecision(12)));
+	} catch { return null; }
+}
+function mathFacts(text) {
+	const t = String(text || ""), out = [];
+	// "15% of 240", "15% dari 240"
+	for (const m of t.matchAll(/(\d+(?:\.\d+)?)\s*%\s*(?:of|dari)\s*(\d+(?:\.\d+)?)/gi)) out.push(m[1] + "% of " + m[2] + " = " + calc(m[1] + "/100*" + m[2]));
+	for (const m of t.matchAll(/(?:sqrt|√)?\(?\s*-?\d[\d\s.()+\-*/×÷^%√x:]*[\d)%]/gi)) {
+		const e = m[0].trim().replace(/[\s(]+$/, "");
+		// a sum, not a date (2026-10-27), a time (10:30), a version (1.21.11), a range (3-5) or money with dots (1.500.000)
+		if (!/[+*×÷^]|\s[-/:]\s|\d\s+x\s+\d|sqrt|√/i.test(e)) continue;
+		if (/\d{4}-\d{1,2}-\d{1,2}|\d+\.\d+\.\d+|\d:\d\d/.test(e)) continue;
+		const v = calc(e);
+		if (v != null) out.push(e.replace(/\s+/g, " ") + " = " + v);
+	}
+	const facts = [...new Set(out)].filter((x) => !/= null$/.test(x)).slice(0, 8);
+	return facts.length ? "Exact values, already worked out by code (use them as they are; don't redo them): " + facts.join("; ") : "";
+}
 // what was made just before (so "make it calmer" changes that one)
 function lastMade() {
 	const last = current.msgs[current.msgs.length - 1];
@@ -2942,7 +3014,7 @@ function sys(extra) {
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
 	const plan = (!extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
 	// what was decided for this one request goes with the newest message (placeNote), not here
-	return { role: "system", content: [extra || base, mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n"), note: [plan, skillLine()].filter(Boolean).join("\n\n") };
+	return { role: "system", content: [extra || base, mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n"), note: [plan, skillLine(), MATH_NOTE].filter(Boolean).join("\n\n") };
 }
 function spaceLine() {
 	const sp = current && spaceOf(current.space);
@@ -3746,15 +3818,14 @@ const AGENT_TOOLS = [
 	["check", "Check your work: syntax of JavaScript, JSON and HTML scripts, and small web pages are run for errors. With no paths it checks every file you changed.", { paths: { type: "array", items: { type: "string" } } }, []],
 	["finish", "End the task with a short summary for the user: what you changed and why, how to try it, and anything they must do themselves. For a question, the answer goes here.", { summary: { type: "string" } }, ["summary"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
-const AGENT_RULES = `You are Andromeda Code, a senior software engineer working directly in the user's project through tools. Work like a careful expert:
-- First find what matters: search and read the relevant files before changing anything. Never guess what a file contains or what a function is called.
-- Make precise edits with edit_file, copying old_string exactly from read_file (without the line-number prefix). Use write_file only for new files or rewriting small ones.
-- Match the project's style, naming and structure. Change only what the task needs; don't reformat or "tidy" unrelated code.
-- Before writing code against a library or API you aren't certain of, call docs; use web_search for anything recent.
-- After editing, call check and fix every problem it reports. Read back anything tricky you changed.
-- Don't ask the user questions mid-task: make sensible decisions and mention them in the summary.
-- Never write secrets, passwords or API keys into code.
-- Finish with the finish tool. Keep the summary short and plain: what changed (file names), how to try it, and anything the user must do. If they only asked a question about the code, answer it in finish without editing anything.`;
+const AGENT_RULES = `You are Andromeda Code, the lead engineer on a team, working directly in the user's project through tools. You have what the best coding agents have (files, search, the docs, the web, running code, the user's computer when it's connected) and a team on top: helpers who look into things in parallel, experts measured best at exactly one skill, and a different top model who reviews your work. Work the way the best engineers in the world do:
+1. Understand before you touch anything: search and read the relevant files (for a big codebase, send helpers to look into separate questions at once). Never guess what a file contains or what a function is called.
+2. Plan anything with three or more steps (plan), and keep the plan true as you go.
+3. Build in precise edits: edit_file with old_string copied exactly from read_file (without the line-number prefix); write_file only for new files or rewriting small ones. Match the project's style, naming and structure; change only what the task needs. Before writing code against a library or API you aren't certain of, call docs; web_search for anything recent. A hard, narrow piece (an algorithm, a tricky regex, a security-sensitive function, a migration) can go to ask_expert with its exact skills.
+4. Prove it works: call check and fix everything it reports; run the code (run_python or run_javascript for logic you can test here, the real build and tests on the user's computer when it's connected); write a quick test for anything tricky. Read back what you changed.
+5. Before you finish anything beyond a trivial change, call review: a different top model reads every change looking for real bugs. Fix what it finds that's real (it can be wrong: check before you change anything), and review again after big fixes.
+6. Don't ask the user questions mid-task: make sensible decisions and say what they were. Never write secrets, passwords or API keys into code.
+7. Finish with the finish tool: what changed (file names), what you checked and how (which tests ran, what the review found), how to try it, and anything the user must do. If they only asked a question about the code, answer it in finish without editing anything.`;
 function issuesLog() { return store.get("issues", []); }
 // only the owner works on Andromeda's own code: unlocked admin in this tab, or signed in to GitHub as the repo's owner
 function isOwner() {
@@ -3899,7 +3970,7 @@ async function runAgent(text, atts) {
 	const paths = projectPaths();
 	const notes = await readFirst(["AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md", "README.md"]);
 	const issues = P.self ? issuesLog().slice(-15) : [];
-	const system = AGENT_RULES + "\n\nThe project: " + P.name + " (" + (P.kind === "browser" ? "a project kept in the user's browser; every edit is saved straight away, and the user previews and downloads it right here (it's a web project unless they say otherwise: plain HTML, CSS and JavaScript that runs in the browser, no build step)" : P.kind === "folder" ? "a folder on the user's computer; every edit is saved to disk straight away" : "the GitHub repo " + P.repo + ", branch " + P.branch + "; your edits wait for the user to commit them") + ")." +
+	let system = AGENT_RULES + "\n\nThe project: " + P.name + " (" + (P.kind === "browser" ? "a project kept in the user's browser; every edit is saved straight away, and the user previews and downloads it right here (it's a web project unless they say otherwise: plain HTML, CSS and JavaScript that runs in the browser, no build step)" : P.kind === "folder" ? "a folder on the user's computer; every edit is saved to disk straight away" : "the GitHub repo " + P.repo + ", branch " + P.branch + "; your edits wait for the user to commit them") + ")." +
 		(P.self ? "\nThis project is Andromeda itself, the app you are running in: index.html is the whole client (one file, plain JavaScript), server/ is the Cloudflare Worker that runs credits and the tools. The user runs and approves every change, so keep each one safe and complete." +
 			(issues.length ? "\nProblems people ran into recently (fix their causes if the task allows):\n" + issues.map((x) => "- " + new Date(x.at).toISOString().slice(0, 16) + " " + x.what).join("\n") : "") : "") +
 		"\n\nFiles (" + paths.length + (P.truncated ? "+, the repo is very large" : "") + "):\n" + paths.slice(0, 500).join("\n") + (paths.length > 500 ? "\n… " + (paths.length - 500) + " more: use list_files or search" : "") +
@@ -3908,20 +3979,76 @@ async function runAgent(text, atts) {
 	const last = hist[hist.length - 1];
 	const prior = hist.slice(0, -1).slice(-6).map((m) => ({ role: m.role, content: (typeof m.content === "string" ? m.content : m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")).slice(0, 4000) }));
 	const material = sourceOf(atts, 30000);
+	// the user's computer, when it's connected and this is a folder on it: builds and tests run there for real
+	const servers = capOn("computer") && P.kind === "folder" ? liveApps().filter((s) => s.name === "computer") : [];
+	const apps = appTools(servers);
+	if (servers.length) system += "\n\nYou're also connected to the user's computer (" + (navigator.userAgent.includes("Windows") ? "Windows, PowerShell" : "bash") + "): run the project's real build and tests there (computer__run_command; long ones with computer__start_command). The browser doesn't know this folder's full path: find it once with computer__list_files or computer__search_files (the folder is named " + P.name + "), then use it as cwd. Running anything is shown to the user and asked first.";
+	if (MATH_NOTE) system += "\n\n" + MATH_NOTE;
 	const messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
-	// working through a real project with tools is its own measured skill (LMArena's agent arena), on top of the code
-	const agentic = bestFirst(arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 })).map((x) => x.m);
+	const tools = [...AGENT_TOOLS, ...BUILT_IN.filter((t) => /^(run_python|run_javascript|ask_expert)$/.test(t.function.name)), ...POWER_TOOLS, ...apps.tools];
+	// working through a real project with tools is its own measured skill (LMArena's agent arena), on top of the code;
+	// the cheapest a quark from the best (a long job is many steps)
+	const agentic = bestFirst(quarkFirst(arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 }).filter((x) => x.m.tools !== false))).map((x) => x.m);
 	const cands = [...new Set([...agentic, ...teamFor("code", new Set())])].filter((m) => m.tools !== false);
 	let ci = 0, model = cands[0];
 	if (!model) throw new Error("No coding model is available right now.");
 	let summary = null;
+	const log = (label, detail, bad) => { msg.data.log.push({ label, detail: String(detail || "").slice(0, 160), bad: !!bad }); updateLast(); };
+	// what changed so far, for the reviewer: a small file whole (the context finds bugs), a big one as its changes
+	const changes = async () => {
+		let out = "";
+		for (const [p, before] of run.before) {
+			const after = projectHas(p) ? await pRead(p).catch(() => null) : null;
+			if (before === after) continue;
+			if (after != null && (before == null || after.length < 14000)) out += "=== " + p + (before == null ? " (a new file)" : " (the whole file, after the change)") + " ===\n" + after + "\n\n";
+			else out += "=== " + p + (after == null ? " (deleted)" : " (the change)") + " ===\n" + lineDiff(before || "", after || "").lines.map(([t, s]) => (t === "@" ? s : t + " " + s)).join("\n") + "\n\n";
+		}
+		return out;
+	};
+	// the tools beyond the project's own: running code, experts, the plan, a different model's review, helpers, the computer
+	const extra = async (name, a, pics) => {
+		const basic = /^run_/.test(name) ? await basicTool(name, a, msg, log, pics) : null;
+		if (basic != null) return basic;
+		if (name === "ask_expert") {
+			log("Asked an expert", String(a.task || "").split("\n")[0].slice(0, 120));
+			const r = await askExpert(a, msg), who = shortName(r.model);
+			if (!msg.used.some((u) => u.name === who)) msg.used.push({ name: who, desc: "Expert: did a piece of the work" });
+			msg.data.log[msg.data.log.length - 1].label = "Asked " + who;
+			return "(" + who + ", measured best at this)\n" + r.text;
+		}
+		if (name === "plan") return planTool(a, msg, log);
+		if (name === "review") {
+			log("Asked for a review", String(a.what || "").slice(0, 120));
+			const work = (await changes()) || String(a.content || "");
+			if (!work) return "Nothing has changed yet: there's nothing to review.";
+			const r = await reviewWork(a.what, work, a.kind || "code", model.id, msg), who = shortName(r.model);
+			if (!msg.used.some((u) => u.name === who)) msg.used.push({ name: who, desc: "Reviewer: checked every change for real problems" });
+			msg.data.log[msg.data.log.length - 1].label = "Reviewed by " + who;
+			return "(" + who + ", reviewing)\n" + r.text;
+		}
+		if (name === "helpers") {
+			// they read the project and look things up; nothing they do changes a file
+			const ro = appTools(servers, true), keep = { before: new Map() };
+			const htools = [...AGENT_TOOLS.filter((t) => /^(list_files|read_file|search|docs|web_search|fetch_url)$/.test(t.function.name)), ...BUILT_IN.filter((t) => /^run_/.test(t.function.name)), ...ro.tools];
+			const hlog = (l, d, bad) => log("Helper · " + l, d, bad);
+			return runHelpers(a.tasks, model, htools, async (n, x) => {
+				if (/^run_/.test(n)) return basicTool(n, x, msg, hlog);
+				const hit = ro.map.get(n);
+				if (hit) return appTool(hit, x, msg, hlog);
+				return /^(list_files|read_file|search|docs|web_search|fetch_url)$/.test(n) ? runTool(n, x, keep, msg) : "There's no tool called " + n + ".";
+			}, msg, log);
+		}
+		const hit = apps.map.get(name);
+		if (hit) return appTool(hit, a, msg, log, pics);
+		return null;
+	};
 	try {
 		for (let step = 0; step < 200 && summary == null; step++) {
 			msg.status = (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
-			try { reply = await agentCall(model.id, messages, busy.signal, msg); }
+			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); }
 			catch (e) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				if (++ci < Math.min(cands.length, 3)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
@@ -3930,13 +4057,18 @@ async function runAgent(text, atts) {
 			const calls = (reply.tool_calls || []).map((c, k) => ({ ...c, id: c.id || "call_" + step + "_" + k }));
 			messages.push({ role: "assistant", content: reply.content || "", ...(calls.length ? { tool_calls: calls } : {}), ...(reply.reasoning_details ? { reasoning_details: reply.reasoning_details } : {}) });
 			if (!calls.length) { summary = reply.content || ""; break; }
+			const pics = [];
 			for (const c of calls) {
 				let args = c.function?.arguments;
 				try { args = typeof args === "string" ? JSON.parse(args || "{}") : args || {}; } catch { args = {}; }
-				const out = await runTool(c.function?.name, args, run, msg);
+				let out;
+				try { out = await extra(c.function?.name || "", args, pics); }
+				catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; out = "It failed: " + (e.message || e); log(String(c.function?.name || "").replace(/_/g, " ") + " failed", e.message || e, true); }
+				if (out == null) out = await runTool(c.function?.name, args, run, msg);
 				messages.push({ role: "tool", tool_call_id: c.id, content: String(out).slice(0, 40000) });
 				if (c.function?.name === "finish") summary = String(args.summary || "Done.");
 			}
+			if (pics.length && (model.input || []).includes("image")) messages.push({ role: "user", content: [{ type: "text", text: "What the tools showed:" }, ...pics.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] });
 			// a long session: older file contents are dropped (they can be read again), the reasoning stays
 			let size = messages.reduce((t, m) => t + JSON.stringify(m.content || "").length, 0);
 			for (let k = 1; k < messages.length - 8 && size > 360000; k++) {
@@ -3947,7 +4079,7 @@ async function runAgent(text, atts) {
 		if (summary == null) summary = "That's 200 steps, so I've paused here. Say \"keep going\" and I'll carry on.";
 	} finally {
 		// whatever happened, what changed is shown (and in a folder, can be undone)
-		msg.used = [{ name: shortName(model), desc: "Engineer: explored the code, made the changes and checked them" }];
+		msg.used = [{ name: shortName(model), desc: "Engineer: explored the code, made the changes and checked them" }, ...(msg.used || []).filter((u) => /^(Expert|Reviewer)/.test(u.desc))];
 		for (const [p, before] of run.before) {
 			const after = projectHas(p) ? await pRead(p).catch(() => null) : null;
 			if (before === after) continue;
@@ -4192,8 +4324,7 @@ async function askExpert(args, msg) {
 	const w = {};
 	for (const [k, v] of Object.entries(args.skills || {})) if (idx && idx[k] && Number(v) > 0) w[k] = Math.min(1, Number(v));
 	const cap = speed() === "max" ? null : { easy: "low", medium: "medium", hard: "high" }[args.level] || "medium";
-	let ranked = arenaRank(kind, Object.keys(w).length ? (args.web ? blendW(w, { "search:overall": 1 }, 0.4) : w) : ROLE_W[kind] || ROLE_W.quick);
-	if (liteMode()) { const cheap = ranked.filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)); if (cheap.length) ranked = cheap; }
+	const ranked = arenaRank(kind, Object.keys(w).length ? (args.web ? blendW(w, { "search:overall": 1 }, 0.4) : w) : ROLE_W[kind] || ROLE_W.quick);
 	const cands = bestFirst(quarkFirst(ranked, cap)).slice(0, 4);
 	if (!cands.length) cands.push(...rank(kind, cap).slice(0, 4).map((m) => ({ m, effort: EFFORT.get(m.id) || "" })));
 	let lastErr;
@@ -4220,6 +4351,120 @@ async function makeWith(args) {
 	const made = current.msgs.slice(mark).filter((m) => m.role === "assistant");
 	return made.map((m) => (m.kind || "answer") + ": " + (m.error ? "failed: " + m.error : (m.text || "").replace(/\*\*/g, "").slice(0, 300) || "made")).join("\n") || "Nothing came of it.";
 }
+// ---- what every Andromeda worker has, whatever the job: Claude Code's and Codex's tools, and the team on top of them
+const POWER_TOOLS = [
+	["plan", "Keep the job's to-do list, shown to the user as you work (the whole list each time; each step pending, doing or done). Make it at the start of anything with three or more steps and keep it true as you go: one step doing at a time, done as soon as it is.", { steps: { type: "array", items: { type: "object", properties: { step: { type: "string" }, status: { type: "string", enum: ["pending", "doing", "done"] } }, required: ["step", "status"] } } }, ["steps"]],
+	["review", "Before you finish, have a different top model review the work like the most exacting senior reviewer: it reads exactly what you changed or made and reports only real problems (bugs, unhandled cases that will happen, missing requirements, crashes, security holes), each with the fix. Fix the ones that are real; review again after big fixes.", { what: { type: "string", description: "What the work is meant to do: the user's request and the decisions you made" }, content: { type: "string", description: "Only when there are no project files you changed: the work to review" }, kind: { type: "string", enum: ["code", "writing", "analysis"] } }, ["what"]],
+	["helpers", "Send helpers off to look into things in parallel, each with a fresh context of its own, and get back what each found: e.g. how auth works in this codebase, every caller of a function, a library's current API, the facts on a topic. They read and report; they never change anything. Up to 4 at once; each task complete on its own.", { tasks: { type: "array", items: { type: "string" } } }, ["tasks"]],
+].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
+const REVIEWER = "You review work before it's handed over, as the most exacting senior reviewer at the best company in the world. Find only REAL problems: bugs (wrong logic, off-by-one, wrong conditions, cases that will happen and aren't handled), anything the request asked for that's missing or wrong, code that won't run (wrong imports, the wrong API for the version in use, syntax), crashes, security holes (injection, secrets, unsafe input), races, and for writing or analysis, wrong facts, numbers or reasoning. Not style, naming or taste. For each: where (the file and line, or the part), what's wrong, why it matters, and the exact fix. If there are no real problems, say exactly: No real problems.";
+// a second, different top model looks at the work: the model measured best at finding what's wrong in exactly this kind
+// of work (or the cheapest a quark from it), never the one that did it
+async function reviewWork(what, work, kind, notModel, msg) {
+	const w = kind === "code" ? { "text:coding": 0.45, "factuality:coding": 0.2, "text:hard_prompts": 0.2, "text:industry_software_and_it_services": 0.15 } : { "text:expert": 0.35, "factuality:overall": 0.35, "text:hard_prompts": 0.3 };
+	const cands = bestFirst(quarkFirst(arenaRank(kind === "code" ? "code" : "reasoning", w).filter((x) => x.m.id !== notModel), "high")).slice(0, 3);
+	let lastErr;
+	for (const x of cands) {
+		try {
+			const out = await stream(x.m.id, [{ role: "system", content: REVIEWER }, { role: "user", content: "What it's meant to do:\n" + String(what || "").slice(0, 8000) + "\n\nThe work:\n" + String(work || "").slice(0, 140000) }], () => {}, busy.signal, effortFor(x.m.id, capEffort(x.effort || "", "high", x.m.id)), msg);
+			return { model: x.m, text: out };
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+			lastErr = e;
+		}
+	}
+	throw lastErr || new Error("No reviewer could look at it");
+}
+// helpers in parallel, each its own fresh conversation with read-only tools, each back with what it found
+async function runHelpers(tasks, model, tools, exec, msg, log) {
+	const list = (Array.isArray(tasks) ? tasks : [tasks]).map((t) => String(t || "").trim()).filter(Boolean).slice(0, 4);
+	if (!list.length) return "Give each helper a task.";
+	log("Sent " + list.length + " helper" + (list.length > 1 ? "s" : "") + " to look into it", list.map((t) => t.slice(0, 50)).join(" · "));
+	const found = await Promise.all(list.map(async (task, k) => {
+		const messages = [{ role: "system", content: "You're a helper on Andromeda's team. Look into exactly what you're asked with your tools (you can read and look things up; you never change anything), then reply with what you found: precise and complete (paths, line numbers, names, versions, exact facts and sources), and nothing else." }, { role: "user", content: task }];
+		try {
+			for (let step = 0; step < 24; step++) {
+				const reply = await agentCall(model.id, messages, busy.signal, msg, tools);
+				const calls = (reply.tool_calls || []).map((c, n) => ({ ...c, id: c.id || "h" + k + "_" + step + "_" + n }));
+				messages.push({ role: "assistant", content: reply.content || "", ...(calls.length ? { tool_calls: calls } : {}) });
+				if (!calls.length) return "Helper " + (k + 1) + " (" + task.slice(0, 80) + "):\n" + (reply.content || "(nothing found)");
+				for (const c of calls) {
+					let args = c.function?.arguments;
+					try { args = typeof args === "string" ? JSON.parse(args || "{}") : args || {}; } catch { args = {}; }
+					const out = await exec(c.function?.name || "", args).catch((e) => { if (e.name === "AbortError") throw e; return "It failed: " + (e.message || e); });
+					messages.push({ role: "tool", tool_call_id: c.id, content: String(out).slice(0, 20000) });
+				}
+			}
+			return "Helper " + (k + 1) + " (" + task.slice(0, 80) + ") ran out of steps before finishing.";
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+			return "Helper " + (k + 1) + " couldn't finish: " + (e.message || e);
+		}
+	}));
+	return found.join("\n\n");
+}
+// the tools anyone can use without changing anything: running code to work something out, and looking things up
+async function basicTool(name, args, msg, log, pics) {
+	if (name === "run_python") {
+		log("Ran Python", String(args.code).split("\n").find((l) => l.trim() && !/^(import|from) /.test(l)) || "");
+		const r = await runPython(args.code, codeFiles());
+		for (const b64 of r.figs) { if (pics) pics.push("data:image/png;base64," + b64); (msg.data.shots ||= []).push(await vault.put(b64Blob(b64, "image/png"))); }
+		return r.text + (r.figs.length ? "\n(" + r.figs.length + " chart" + (r.figs.length > 1 ? "s" : "") + ", shown to the user and to you next)" : "");
+	}
+	if (name === "run_javascript") { log("Ran JavaScript", String(args.code).split("\n")[0]); return runJs(args.code); }
+	if (name === "web_search") {
+		log("Searched the web", args.query);
+		const j = await toolCall("/api/tools/search", { query: args.query, n: 6 }, 25000);
+		return (j.results || []).map((x, i) => "[" + (i + 1) + "] " + x.title + " (" + x.url + ")\n" + x.text).join("\n\n") || j.error?.message || "Nothing found.";
+	}
+	if (name === "fetch_url") {
+		log("Read " + String(args.url).replace(/^https?:\/\//, "").slice(0, 60));
+		const j = await toolCall("/api/tools/fetch", { url: args.url }, 25000);
+		// a page is read again with every later step of the job: the first 20,000 characters (most pages' substance)
+		const page = String(j.text || "");
+		return page ? (j.title ? j.title + "\n\n" : "") + page.slice(0, 20000) + (page.length > 20000 ? "\n\n(The page goes on for " + (page.length - 20000) + " more characters, left out to keep the job's reading short. If what you need is further down, search for it or fetch a more specific page.)" : "") : j.error?.message || "Couldn't read it.";
+	}
+	if (name === "lookup_docs" || name === "docs") {
+		log("Looked up " + args.library + " docs", args.topic);
+		const j = await toolCall("/api/tools/docs", { library: args.library, topic: args.topic || "", tokens: 6000 }, 25000);
+		return j.text || j.error?.message || "No docs found.";
+	}
+	return null;
+}
+// one of the user's connected apps (their computer, Blender, Figma...): anything that changes the computer is shown to
+// them exactly and asked first
+async function appTool(hit, args, msg, log, pics) {
+	if (hit.s.name === "computer" && CHANGES.test(hit.t.name)) {
+		const what = { run_command: "run a command", start_command: "start a command", stop_job: "stop a job", write_file: "write " + args.path, edit_file: "change " + args.path, open: "open " + args.target }[hit.t.name];
+		const detail = args.command ? (args.cwd ? "in " + args.cwd + "\n" : "") + args.command : hit.t.name === "edit_file" ? "- " + args.old_text + "\n+ " + args.new_text : hit.t.name === "write_file" ? String(args.content || "").slice(0, 3000) : args.target || args.id || "";
+		if (!(await approve(msg, what, detail))) { log("Not allowed: " + what, "", true); return "The user said no to this. Ask them what they want, or do it another way."; }
+	}
+	const r = await mcpPost(hit.s, { jsonrpc: "2.0", id: ++mcpId, method: "tools/call", params: { name: hit.t.name, arguments: args } }, busy.signal);
+	const parts = (r && r.content) || [];
+	for (const p of parts) if (p.type === "image" && p.data) { if (pics) pics.push("data:" + (p.mimeType || "image/png") + ";base64," + p.data); (msg.data.shots ||= []).push(await vault.put(b64Blob(p.data, p.mimeType || "image/png"))); }
+	const out = parts.filter((p) => p.type === "text").map((p) => p.text).join("\n") || (pics && pics.length ? "(it returned a picture, shown to you next)" : JSON.stringify((r && r.structuredContent) || "Done."));
+	log((hit.s.name === "computer" ? "" : hit.s.name + " · ") + hit.t.name.replace(/_/g, " ") + (args.command ? ": " + String(args.command).slice(0, 80) : args.path ? ": " + args.path : ""), r && r.isError ? out : "", r && r.isError);
+	return out;
+}
+// the connected apps' tools, as tools a worker can call (a computer's read-only ones only, for helpers)
+function appTools(servers, readOnly) {
+	const map = new Map(), tools = [];
+	for (const s of servers) for (const t of s.tools) {
+		if (readOnly && (s.name !== "computer" || !/^(read_file|list_files|search_files|read_job)$/.test(t.name))) continue;
+		const name = (s.name + "__" + t.name).replace(/[^\w-]/g, "_").slice(0, 64);
+		map.set(name, { s, t });
+		tools.push({ type: "function", function: { name, description: (s.name + ": " + (t.description || t.name)).slice(0, 1024), parameters: t.inputSchema && t.inputSchema.type === "object" ? t.inputSchema : { type: "object", properties: {} } } });
+	}
+	return { map, tools };
+}
+const planTool = (args, msg, log) => {
+	const steps = (Array.isArray(args.steps) ? args.steps : []).map((x) => ({ step: String(x.step || x.task || "").slice(0, 160), status: ["pending", "doing", "done"].includes(x.status) ? x.status : "pending" })).filter((x) => x.step).slice(0, 30);
+	const first = !msg.data.plan;
+	msg.data.plan = steps;
+	if (first) log("Made a plan", steps.length + " steps");
+	updateLast();
+	return "The plan is updated and shown to the user (" + steps.filter((x) => x.status === "done").length + " of " + steps.length + " done).";
+};
 // what changes something on the computer: asked about first (reading, listing, searching and looking are not)
 const CHANGES = /^(run_command|start_command|stop_job|write_file|edit_file|open)$/;
 const ASKS = new Map();
@@ -4252,12 +4497,8 @@ async function compact(messages, keep = 14) {
 async function runAct(text, atts, resume) {
 	const servers = capOn("computer") ? liveApps() : [];
 	const toolOn = (n) => (/^run_/.test(n) ? capOn("code") : /^(web_search|fetch_url)$/.test(n) ? capOn("web") : n === "remember" ? settings.memory !== false : true);
-	const map = new Map(), tools = BUILT_IN.filter((t) => toolOn(t.function.name));
-	for (const s of servers) for (const t of s.tools) {
-		const name = (s.name + "__" + t.name).replace(/[^\w-]/g, "_").slice(0, 64);
-		map.set(name, { s, t });
-		tools.push({ type: "function", function: { name, description: (s.name + ": " + (t.description || t.name)).slice(0, 1024), parameters: t.inputSchema && t.inputSchema.type === "object" ? t.inputSchema : { type: "object", properties: {} } } });
-	}
+	const apps = appTools(servers), map = apps.map;
+	const tools = [...BUILT_IN.filter((t) => toolOn(t.function.name)), ...POWER_TOOLS, ...apps.tools];
 	const names = servers.map((s) => s.name).join(", ");
 	const msg = resume ? resume.msg : { role: "assistant", kind: "agent", text: "", streaming: true, status: "Getting to work", data: { id: uid(), project: names || "Andromeda", pkind: "act", log: [], diffs: [], shots: [], running: true }, used: [] };
 	if (!resume) current.msgs.push(msg);
@@ -4278,6 +4519,8 @@ async function runAct(text, atts, resume) {
 			+ (skillLine() ? "\n\n" + skillLine() : "")
 			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
 			+ "\n\nBe the team, not one model: split big work into narrow pieces and give each to ask_expert with the exact skills it needs (its language, field and that field's facts, web page or app, maths, writing for whom...), so each goes to the model that measurably does exactly that best. Check what comes back, and send a piece back with the exact problem if it isn't right. Never have several models do the same piece to pick or merge the best: that pays several times for one result. One expert does each piece; a different specialist checks it where checking catches real mistakes."
+				+ "\n\nYour tools beyond that: plan keeps a to-do list the user sees (use it for anything with three or more steps); helpers look into several things at once, each in its own fresh context; and review has a different top model check what you made before you hand it over (always for code, numbers and facts that matter), and you fix what it finds that's real."
+				+ (MATH_NOTE ? "\n\n" + MATH_NOTE : "")
 			+ "\n\nSpend like it's your own money; every step costs the user. ask_expert already takes the cheapest model the ratings can't tell apart from the best: a model 20 times cheaper and only a hair behind does the piece. On top of that: mark easy pieces easy (they think lightly); give an expert everything it needs in one go rather than in rounds; reuse what you already have instead of asking again; for media, pictures with a moving camera or animation drawn in code cost a fraction of filmed video (the makers choose this themselves, so describe what you want, not how); and stop when the job is done well, with no extra rounds of polish nobody asked for."
 			+ (skills.length ? "\n\nThe measured skills ask_expert can weigh (key: what it measures):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") : "")
 			+ (PLAN_NOTE ? "\n\nWhat Andromeda decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
@@ -4313,28 +4556,26 @@ async function runAct(text, atts, resume) {
 				const fn = c.function?.name || "";
 				let out;
 				try {
-					if (fn === "run_python") {
-						log("Ran Python", String(args.code).split("\n").find((l) => l.trim() && !/^(import|from) /.test(l)) || "");
-						const r = await runPython(args.code, codeFiles());
-						out = r.text + (r.figs.length ? "\n(" + r.figs.length + " chart" + (r.figs.length > 1 ? "s" : "") + ", shown to the user and to you next)" : "");
-						for (const b64 of r.figs) { pics.push("data:image/png;base64," + b64); msg.data.shots.push(await vault.put(b64Blob(b64, "image/png"))); }
+					const basic = await basicTool(fn, args, msg, log, pics);
+					if (basic != null) out = basic;
+					else if (fn === "remember") { out = remember(args.fact) ? "Saved." : "Already remembered."; log("Remembered", args.fact); }
+					else if (fn === "plan") out = planTool(args, msg, log);
+					else if (fn === "review") {
+						log("Asked for a review", String(args.what || "").slice(0, 120));
+						let work = String(args.content || "");
+						if (!work) for (const f of msg.data.outFiles || []) work += "=== " + f.path + " ===\n" + (await (await vault.get(f.key)).text()) + "\n\n";
+						const r = await reviewWork(args.what, work || "(nothing was given to review: pass the work as content)", args.kind || "code", model.id, msg);
+						const who = shortName(r.model);
+						if (!msg.used.some((u) => u.name === who)) msg.used.push({ name: who, desc: "Expert: reviewed the work" });
+						msg.data.log[msg.data.log.length - 1].label = "Reviewed by " + who;
+						out = "(" + who + ", reviewing)\n" + r.text;
+					} else if (fn === "helpers") {
+						// they look and report: running code and reading are theirs, nothing that changes anything
+						const ro = appTools(servers, true);
+						const htools = [...BUILT_IN.filter((t) => /^(run_python|run_javascript|web_search|fetch_url|lookup_docs)$/.test(t.function.name) && toolOn(t.function.name)), ...ro.tools];
+						const hlog = (l, d, bad) => log("Helper · " + l, d, bad);
+						out = await runHelpers(args.tasks, model, htools, async (name, a) => { const b = await basicTool(name, a, msg, hlog); if (b != null) return b; const hit = ro.map.get(name); return hit ? appTool(hit, a, msg, hlog) : "There's no tool called " + name + "."; }, msg, log);
 					}
-					else if (fn === "run_javascript") { log("Ran JavaScript", String(args.code).split("\n")[0]); out = await runJs(args.code); }
-					else if (fn === "web_search") {
-						log("Searched the web", args.query);
-						const j = await toolCall("/api/tools/search", { query: args.query, n: 6 }, 25000);
-						out = (j.results || []).map((x, i) => "[" + (i + 1) + "] " + x.title + " (" + x.url + ")\n" + x.text).join("\n\n") || j.error?.message || "Nothing found.";
-					} else if (fn === "fetch_url") {
-						log("Read " + String(args.url).replace(/^https?:\/\//, "").slice(0, 60));
-						const j = await toolCall("/api/tools/fetch", { url: args.url }, 25000);
-						// a page is read again with every later step of the job: the first 20,000 characters (most pages' substance)
-						const page = String(j.text || "");
-						out = page ? (j.title ? j.title + "\n\n" : "") + page.slice(0, 20000) + (page.length > 20000 ? "\n\n(The page goes on for " + (page.length - 20000) + " more characters, left out to keep the job's reading short. If what you need is further down, search for it or fetch a more specific page.)" : "") : j.error?.message || "Couldn't read it.";
-					} else if (fn === "lookup_docs") {
-						log("Looked up " + args.library + " docs", args.topic);
-						const j = await toolCall("/api/tools/docs", { library: args.library, topic: args.topic || "", tokens: 6000 }, 25000);
-						out = j.text || j.error?.message || "No docs found.";
-					} else if (fn === "remember") { out = remember(args.fact) ? "Saved." : "Already remembered."; log("Remembered", args.fact); }
 					else if (fn === "ask_expert") {
 						log("Asked an expert", String(args.task || "").split("\n")[0].slice(0, 120));
 						const r = await askExpert(args, msg);
@@ -4370,21 +4611,9 @@ async function runAct(text, atts, resume) {
 						}
 					}
 					else {
+						// one of the user's connected apps (what changes the computer is asked about first)
 						const hit = map.get(fn);
-						if (!hit) out = "There's no tool called " + fn + ".";
-						else {
-							// something that changes the computer: the user sees exactly what and says yes first
-							if (hit.s.name === "computer" && CHANGES.test(hit.t.name)) {
-								const what = { run_command: "run a command", start_command: "start a command", stop_job: "stop a job", write_file: "write " + args.path, edit_file: "change " + args.path, open: "open " + args.target }[hit.t.name];
-								const detail = args.command ? (args.cwd ? "in " + args.cwd + "\n" : "") + args.command : hit.t.name === "edit_file" ? "- " + args.old_text + "\n+ " + args.new_text : hit.t.name === "write_file" ? String(args.content || "").slice(0, 3000) : args.target || args.id || "";
-								if (!(await approve(msg, what, detail))) { out = "The user said no to this. Ask them what they want, or do it another way."; log("Not allowed: " + what, "", true); messages.push({ role: "tool", tool_call_id: c.id, content: out }); continue; }
-							}
-							const r = await mcpPost(hit.s, { jsonrpc: "2.0", id: ++mcpId, method: "tools/call", params: { name: hit.t.name, arguments: args } }, busy.signal);
-							const parts = (r && r.content) || [];
-							for (const p of parts) if (p.type === "image" && p.data) { pics.push("data:" + (p.mimeType || "image/png") + ";base64," + p.data); msg.data.shots.push(await vault.put(b64Blob(p.data, p.mimeType || "image/png"))); }
-							out = parts.filter((p) => p.type === "text").map((p) => p.text).join("\n") || (pics.length ? "(it returned a picture, shown to you next)" : JSON.stringify((r && r.structuredContent) || "Done."));
-							log((hit.s.name === "computer" ? "" : hit.s.name + " · ") + hit.t.name.replace(/_/g, " ") + (args.command ? ": " + String(args.command).slice(0, 80) : args.path ? ": " + args.path : ""), r && r.isError ? out : "", r && r.isError);
-						}
+						out = hit ? await appTool(hit, args, msg, log, pics) : "There's no tool called " + fn + ".";
 					}
 				} catch (e) {
 					if (e.name === "AbortError") throw e;
@@ -4486,10 +4715,12 @@ function renderAgent(m, i, box) {
 		else if (P && P.pending.size) act = '<button class="btn dark" data-agpr>Open a pull request</button><button class="btn" data-agcommit>Commit to ' + esc(P.branch) + "</button>" +
 			(d.self && P.pending.get("index.html") != null ? '<button class="btn" data-agtry>Try the new Andromeda</button><button class="btn" data-agdl>Download index.html</button>' : "");
 	}
+	// the job's to-do list, as the worker keeps it
+	const plan = (d.plan || []).length ? '<ol class="ag-plan">' + d.plan.map((x) => '<li class="' + x.status + '"><span class="pk" aria-hidden="true"></span><span>' + esc(x.step) + "</span></li>").join("") + "</ol>" : "";
 	// what the job handed over: each as one download
 	const dls = (d.downloads || []).map((x, k) => '<div class="fs-card"><span class="fs-badge">ZIP</span><div class="fs-name"><b>' + esc(x.name) + "</b><span>" + x.count + " file" + (x.count === 1 ? "" : "s") + " · " + fmtSize(x.size) + '</span></div><button class="btn dark" data-agzip="' + k + '">Download</button></div>').join("");
 	box.innerHTML = '<div class="ag"><details class="ag-log"' + (m.streaming ? " open" : "") + "><summary>" + (m.streaming ? "Working in " : "Worked in ") + esc(d.project) + " · " + d.log.length + " step" + (d.log.length === 1 ? "" : "s") + (m.model ? " · " + esc(m.model) : "") + "</summary><ol>" + log + "</ol></details>" +
-		(files ? '<div class="ag-files">' + files + "</div>" : "") + dls + ask + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
+		plan + (files ? '<div class="ag-files">' + files + "</div>" : "") + dls + ask + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
 		(d.preview && !m.streaming && P ? '<div class="ag-prev">' + (m.hidePreview ? "" : '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts allow-forms allow-modals" title="Preview"></iframe></div>') +
 			'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-agprev>' + (m.hidePreview ? "Show the preview" : "Hide the preview") + '</button><button class="btn" data-agside>Open beside</button>' + (m.hidePreview ? "" : '<button class="btn" data-agfull>Full screen</button><button class="btn" data-agreload>Reload</button><button class="btn" data-agtab>Open in a new tab</button>') + "</div></div>" : "") + "</div>";
 	const q = (s) => box.querySelector(s);
@@ -4624,8 +4855,19 @@ async function projectFor(text) {
 
 // ---------------------------------------------------------------- sending
 async function send(textOverride, fork) {
-	const text = (textOverride ?? $("#input").value).trim();
+	let text = (textOverride ?? $("#input").value).trim();
 	if (busy) return;
+	// a slash command: one that just does something (a mode, the memory) clears the box; the rest shape this message
+	const sl = text.startsWith("/") ? slashCommand(text) : null;
+	slashPop.hidden = true;
+	if (sl && sl.done) { $("#input").value = ""; store.set("draft", ""); autosize(); return; }
+	if (sl) {
+		text = sl.text;
+		if (sl.tool) setTool(sl.tool);
+		if (sl.note) ONCE = { ...(ONCE || {}), note: [ONCE && ONCE.note, sl.note].filter(Boolean).join(" ") };
+		// "/code" and nothing else: the tool is chosen, ready for what to do
+		if (!text && !attachments.length) { $("#input").value = ""; autosize(); if (sl.tool) $("#input").placeholder = TOOLS[sl.tool].ph; $("#input").focus(); return; }
+	}
 	if (!text && !attachments.length) return;
 	if (!connected()) {
 		// no credits server yet: say so, instead of a settings box that can't fix it
@@ -4642,6 +4884,7 @@ async function send(textOverride, fork) {
 	ONCE_PIN = (ONCE && ONCE.pin) || "";
 	ONCE_NOTE = (ONCE && ONCE.note) || "";
 	ONCE = null;
+	MATH_NOTE = mathFacts(text);
 	const atts = attachments;
 	attachments = [];
 	renderAttached();
@@ -4743,7 +4986,7 @@ async function send(textOverride, fork) {
 			lastMsg.offerTopic = offerTopic(text);
 		}
 	}
-	ONCE_PIN = ONCE_NOTE = "";
+	ONCE_PIN = ONCE_NOTE = MATH_NOTE = "";
 	busy = null;
 	setBusy(false);
 	save();
@@ -4792,13 +5035,11 @@ async function runAuto(text, atts) {
 	const task = PROFILE ? PROFILE.kind : classify(text, atts);
 	const lite = liteMode();
 	// an everyday question gets an instant answer: light thinking (the thought a hard question gets would cost many times
-	// as much, take far longer and not make it better), on free credits the lightest; Max thinks fully
-	const light = lite ? (task === "quick" ? "minimal" : "low") : task === "quick" && speed() !== "max" ? "low" : "";
-	// the cheapest a quark from the best at that thought; on free credits, among the low-cost strong models
-	const cheapRanked = lite ? arenaRank(task).filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)) : [];
-	const cands = !lite ? rank(task, light || undefined)
-		: cheapRanked.length >= 2 ? pinFirst(diversify(bestFirst(quarkFirst(cheapRanked, light))), task)
-		: liteOnly(rank(task, light).concat(catalog.filter((m) => usable(m, task) && FAST.test(m.id))));
+	// as much, take far longer and not make it better); on free credits everything thinks lightly; Max thinks fully.
+	// What the user reads is always written by the best (or the cheapest a quark from it), never a weaker model to save:
+	// one easy question answered wrong is what people remember.
+	const light = task === "quick" && speed() !== "max" ? "low" : lite ? "low" : "";
+	const cands = rank(task, light || undefined);
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
 	const hist = [sys(), ...chatHistory()];
@@ -5205,9 +5446,9 @@ function teammateTie(cands, used) {
 	const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !used.has(c.m.id));
 	return used.has((cands[0].m || cands[0]).id) && tie > 0 ? [cands[tie], ...cands.filter((_, n) => n !== tie)] : cands;
 }
-// on free credits (nothing bought) everything runs on the low-cost strong models: the same Andromeda, a fraction of the price
+// on free credits (nothing bought) the same models think a step lighter: a fraction of the price, the same quality of
+// what's written (the cheap fast models only ever read, plan and route, never write what the user reads)
 function liteMode() { return speed() !== "max" && creditsMode() && !!me && !(me.paid > 0); }
-const liteOnly = (list) => { const cheap = list.filter((m) => FAST.test(m.id) || (m.pout > 0 && m.pout <= 6)); return cheap.length ? cheap : list; };
 // no deeper thinking than the piece needs (never more than the model was rated at); a model that thinks but wasn't rated
 // at any level would think as long as its provider likes, so it's held to the cap too
 const capEffort = (e, cap, id) => {
@@ -5258,16 +5499,14 @@ async function runQuarks(text, atts) {
 		throw lastErr || new Error("No model answered");
 	}
 	const done = (s, err) => { s.running = false; s.done = true; s.open = false; if (err) { s.error = true; s.text = err; } updateLast(); };
-	// the best for a mix of skills, at the effort each scored best at; at most two from one lab near the top
-	// on free credits: the fast, low-cost models measured best at each piece (the same team, the same checks); Max and
-	// bought credits: everything
+	// the best for a mix of skills, at the effort each scored best at; at most two from one lab near the top. On free
+	// credits the same models (what the user reads is never written by a weaker one), thinking a step lighter
 	const lite = liteMode();
 	// cap: how hard this step may think (what it would cost); seen: a piece's tags with Andromeda's own record on them, and
 	// the models already on the team. The one that does it is the cheapest a quark from the best (quarkFirst)
 	const pick = (kind, w, cap, seen) => {
 		const out = [], perLab = {};
 		let ranked = arenaRank(kind, w);
-		if (lite) { const cheap = ranked.filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)); if (cheap.length) ranked = cheap; }
 		if (seen && seen.except) ranked = ranked.filter((x) => x.m.id !== seen.except);
 		if (seen && seen.record) ranked = learned(ranked, seen.tags, seen.record, ranked);
 		ranked = quarkFirst(ranked, cap, seen && seen.used);
@@ -5328,7 +5567,7 @@ async function runQuarks(text, atts) {
 	const record = await skillRecord(plan.pieces.flatMap((p) => p.tags));
 	const CAPS_UP = ["minimal", "low", "medium", "high"];
 	// thinking to match the piece: light for easy, moderate for medium, high for hard (on free credits, a step lighter)
-	const PIECE_CAP = lite ? ["minimal", "low", "medium"] : ["low", "medium", "high"];
+	const PIECE_CAP = lite ? ["low", "low", "medium"] : ["low", "medium", "high"];
 	for (const p of plan.pieces) {
 		let w = blendW(Object.keys(p.weights).length ? p.weights : ROLE_W[p.kind] || ROLE_W.quick, PROFILE && PROFILE.weights, 0.15);
 		if (p.web) w = blendW(w, { "search:overall": 1 }, 0.4);
@@ -7529,8 +7768,7 @@ Reply with the HTML only.`;
 // cheapest a quark from it) looks at the running shot's frames against its brief, as a studio's lead would before
 // anything ships. Null if it would ship; otherwise the real problems, for the animator to fix.
 async function reviewScene(html, sc, plan, W, H, msg, signal) {
-	let ranked = arenaRank("vision", { "vision:overall": 0.4, "vision:diagram": 0.2, "vision:captioning": 0.2, "vision:ocr": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
-	if (liteMode()) { const cheap = ranked.filter((x) => FAST.test(x.m.id) || (x.m.pout > 0 && x.m.pout <= 6)); if (cheap.length) ranked = cheap; }
+	const ranked = arenaRank("vision", { "vision:overall": 0.4, "vision:diagram": 0.2, "vision:captioning": 0.2, "vision:ocr": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
 	const eye = bestFirst(quarkFirst(ranked, "low"))[0];
 	if (!eye) return null;
 	const urls = [], sh = openScene(html, W, H);
@@ -8679,6 +8917,131 @@ $("#modePop").addEventListener("click", (e) => {
 	toast(settings.pin ? shortName(catalog.find((x) => x.id === settings.pin) || { id: settings.pin }) + " answers everything until you switch back to Auto" : SPEEDS[speed()][0] + ": " + SPEEDS[speed()][1].toLowerCase());
 });
 drawMode();
+
+// ---- slash commands: "/" at the start of a message, like Claude Code's and Codex's. Andromeda's own, the user's skills
+// (/their-name uses one on purpose) and the user's commands (saved prompts, $ARGUMENTS for what follows)
+const setSpeed = (k) => { settings.speed = k; settings.pin = ""; saveSettings(); drawMode(); toast(SPEEDS[k][0] + ": " + SPEEDS[k][1].toLowerCase()); };
+const SLASH = [
+	["code", "Build or change a code project with Andromeda Code", { tool: "code" }],
+	["review", "Review code for real bugs, each with the fix", { tool: "code", note: "Review it like the most exacting senior engineer: only real problems (bugs, unhandled cases that will happen, security holes, missing requirements), each with where it is, why it matters and the exact fix. Change nothing unless asked.", empty: "Review the code in my project for real bugs" }],
+	["test", "Write tests for it, run them and fix what fails", { tool: "code", note: "Write thorough tests for it (the edge cases that matter), run them, fix what fails, and say exactly what ran.", empty: "Write tests for my project and run them" }],
+	["fix", "Find the real cause of a bug and fix it", { note: "Find the root cause (not a workaround), fix it, and prove the fix works." }],
+	["plan", "Lay out a plan first and wait for a go-ahead", { note: "Don't do it yet. Lay out the plan (the steps, the decisions and their reasons, the risks) and wait for the user to say go." }],
+	["explain", "Explain it simply, step by step", { note: "Explain it simply, step by step, with an example, for someone new to it." }],
+	["research", "Deep research: many sources, a cited report", { tool: "research" }],
+	["image", "Make or change a picture", { tool: "image" }],
+	["video", "Make a video, any length", { tool: "video" }],
+	["music", "A song, a beat, or a voiceover", { tool: "music" }],
+	["app", "An app or game, running right here", { tool: "app" }],
+	["doc", "A Word document, PDF, deck or spreadsheet", { tool: "doc" }],
+	["study", "Flashcards, a quiz, a mind map or a podcast", { tool: "study" }],
+	["act", "Do it for real with tools and your computer", { tool: "act" }],
+	["auto", "Andromeda decides everything", { run: () => setSpeed("auto") }],
+	["fast", "The quickest strong models", { run: () => setSpeed("fast") }],
+	["max", "The strongest models, thinking hardest, checked", { run: () => setSpeed("max") }],
+	["model", "Pick one model to answer everything", { run: () => openModels() }],
+	["new", "Start a new chat", { run: () => $("#newChat").click() }],
+	["memory", "See and edit what Andromeda remembers", { run: () => openMemory() }],
+	["remember", "Remember something about you", { run: (a) => toast(a ? (remember(a) ? "Remembered" : "Already remembered") : "Say what to remember: /remember …") }],
+	["skills", "Your skills and commands: write, import, edit", { run: () => openSkills() }],
+	["help", "Every command", { run: () => openSkills("help") }],
+];
+// every command there is right now, Andromeda's first
+function slashList() {
+	return [
+		...SLASH.map(([name, desc, act]) => ({ name, desc, act })),
+		...userSkills().map((s) => ({ name: s.key, desc: "Skill: " + (s.desc || s.name), skill: s })),
+		...userCommands().map((c) => ({ name: c.name, desc: c.desc || "Your command", command: c })),
+	];
+}
+// "/name the rest": what it does to this message (null: not a command; { done }: it ran and nothing is sent)
+function slashCommand(text) {
+	const m = String(text).match(/^\/([\w-]+)(?:\s+([\s\S]*))?$/);
+	if (!m) return null;
+	const c = slashList().find((x) => x.name === m[1].toLowerCase()), rest = (m[2] || "").trim();
+	if (!c) return null;
+	if (c.act && c.act.run) { c.act.run(rest); return { done: true }; }
+	if (c.skill) return { text: rest || "Use this skill on what we're working on.", note: "Use the user's skill \"" + c.skill.name + "\": " + c.skill.text };
+	if (c.command) { const t = c.command.template; return { text: /\$ARGUMENTS/.test(t) ? t.replace(/\$ARGUMENTS/g, rest) : t + (rest ? "\n\n" + rest : "") }; }
+	return { text: rest || c.act.empty || "", tool: c.act.tool, note: c.act.note };
+}
+// the menu that comes up while typing a command
+const slashPop = document.createElement("div");
+slashPop.className = "pop slash-pop";
+slashPop.id = "slashPop";
+slashPop.setAttribute("role", "listbox");
+slashPop.hidden = true;
+$("#composer").appendChild(slashPop);
+let slashSel = 0;
+function drawSlash() {
+	const v = $("#input").value, m = v.match(/^\/([\w-]*)$/);
+	const items = m ? slashList().filter((x) => x.name.startsWith(m[1].toLowerCase())).slice(0, 9) : [];
+	slashPop.hidden = !items.length;
+	if (!items.length) return;
+	slashSel = Math.min(slashSel, items.length - 1);
+	slashPop.innerHTML = items.map((x, k) => '<button class="mi' + (k === slashSel ? " on" : "") + '" role="option" data-slash="' + esc(x.name) + '"><b>/' + esc(x.name) + "</b><small>" + esc(x.desc) + "</small></button>").join("");
+}
+const pickSlash = (name) => { $("#input").value = "/" + name + " "; slashPop.hidden = true; $("#input").focus(); autosize(); };
+$("#input").addEventListener("input", () => { slashSel = 0; drawSlash(); });
+$("#input").addEventListener("keydown", (e) => {
+	if (slashPop.hidden) return;
+	const items = [...slashPop.querySelectorAll("[data-slash]")];
+	if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); slashSel = (slashSel + (e.key === "ArrowDown" ? 1 : items.length - 1)) % items.length; drawSlash(); }
+	else if ((e.key === "Enter" || e.key === "Tab") && items[slashSel]) { e.preventDefault(); e.stopImmediatePropagation(); pickSlash(items[slashSel].dataset.slash); }
+	else if (e.key === "Escape") { slashPop.hidden = true; }
+}, true);
+slashPop.addEventListener("click", (e) => { const b = e.target.closest("[data-slash]"); if (b) pickSlash(b.dataset.slash); });
+// Skills and commands: the user's own, written here or imported from a link; and every command, for /help
+async function importSkill(url) {
+	const j = await toolCall("/api/tools/fetch", { url }, 25000);
+	const t = String(j.text || "");
+	if (!t.trim()) throw new Error(j.error?.message || "Nothing could be read at that link");
+	const fm = t.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
+	const field = (k) => (fm ? (fm[1].match(new RegExp("^" + k + ":\\s*(.+)$", "mi")) || [])[1] || "" : "").replace(/^["']|["']$/g, "").trim();
+	const name = field("name") || (j.title || url.split("/").filter(Boolean).slice(-2, -1)[0] || "imported skill");
+	return { key: slug(name), name, desc: field("description").slice(0, 300), text: (fm ? fm[2] : t).trim().slice(0, 20000), from: url };
+}
+function openSkills(view) {
+	const skills = userSkills(), cmds = userCommands();
+	const row = (k, name, sub, del) => '<div class="ag-cur"><span><b>' + esc(name) + "</b><small style=\"display:block;color:var(--faint)\">" + esc(sub) + "</small></span>" + (del ? '<button class="btn" data-' + del + '="' + esc(k) + '">Remove</button>' : "") + "</div>";
+	openModal('<h2>Skills and commands</h2><p class="sub">Skills teach Andromeda how to do something your way; it uses one by itself whenever a request fits, and <b>/its-name</b> uses it on purpose. Commands are prompts you use often: <b>/name</b> and what follows ($ARGUMENTS in a command is replaced by it).</p>' +
+		(view === "help" ? '<div class="field"><label>Every command</label>' + slashList().map((x) => row(x.name, "/" + x.name, x.desc)).join("") + "</div>" : "") +
+		'<div class="field"><label>Your skills (' + skills.length + ")</label>" + (skills.map((s) => row(s.key, "/" + s.key + " · " + s.name, s.desc || (s.from ? "from " + s.from : ""), "skdel")).join("") || '<div class="help">None yet.</div>') + "</div>" +
+		'<div class="field"><label>Add a skill</label><input class="inp" id="skName" placeholder="Name, e.g. Our brand voice"><input class="inp" id="skDesc" placeholder="When to use it, e.g. anything written for customers" style="margin-top:6px"><textarea class="inp" id="skText" rows="5" placeholder="The instructions, as you\'d brief an expert" style="margin-top:6px;padding:10px"></textarea><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn dark" id="skAdd">Add the skill</button></div></div>' +
+		'<div class="field"><label>Import a skill from a link</label><div class="row"><input class="inp" id="skUrl" placeholder="https://…/SKILL.md (a raw text or Markdown file)"><button class="btn" id="skImport">Import</button></div><div class="help">A SKILL.md with name and description at the top (the format Claude\'s skills use) or any instructions page.</div></div>' +
+		'<div class="field"><label>Your commands (' + cmds.length + ")</label>" + (cmds.map((c) => row(c.name, "/" + c.name, c.template.slice(0, 120), "cmddel")).join("") || '<div class="help">None yet.</div>') + "</div>" +
+		'<div class="field"><label>Add a command</label><div class="row"><input class="inp" id="cmName" placeholder="name, e.g. standup" style="max-width:180px"><input class="inp" id="cmTpl" placeholder="The prompt, e.g. Write my standup from these notes: $ARGUMENTS"></div><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn dark" id="cmAdd">Add the command</button></div></div>' +
+		'<div class="row" style="justify-content:flex-end"><button class="btn" id="skClose">Close</button></div>', "wide");
+	const taken = (k) => SLASH.some(([n]) => n === k) || BUILTIN_SKILLS.has(k);
+	const saveSkill = (s) => {
+		if (!s.key || taken(s.key)) { toast("That name is taken by one of Andromeda's own: pick another"); return false; }
+		store.set("skills", [...userSkills().filter((x) => x.key !== s.key), s]);
+		applyUserSkills();
+		return true;
+	};
+	$("#skAdd").onclick = () => {
+		const name = $("#skName").value.trim(), text = $("#skText").value.trim();
+		if (!name || !text) { toast("A skill needs a name and its instructions"); return; }
+		if (saveSkill({ key: slug(name), name, desc: $("#skDesc").value.trim(), text })) { toast("Skill added: /" + slug(name)); openSkills(); }
+	};
+	$("#skImport").onclick = async () => {
+		const url = $("#skUrl").value.trim();
+		if (!/^https?:\/\//.test(url)) { toast("Paste the skill's link"); return; }
+		try { const s = await importSkill(url); if (saveSkill(s)) { toast("Imported: /" + s.key); openSkills(); } }
+		catch (e) { toast(e.message || "Couldn't import it"); }
+	};
+	$("#cmAdd").onclick = () => {
+		const name = slug($("#cmName").value), template = $("#cmTpl").value.trim();
+		if (!name || !template) { toast("A command needs a name and its prompt"); return; }
+		if (taken(name) || userSkills().some((s) => s.key === name)) { toast("That name is taken: pick another"); return; }
+		store.set("commands", [...userCommands().filter((c) => c.name !== name), { name, template, desc: template.slice(0, 80) }]);
+		toast("Command added: /" + name);
+		openSkills();
+	};
+	$$("[data-skdel]").forEach((b) => (b.onclick = () => { store.set("skills", userSkills().filter((s) => s.key !== b.dataset.skdel)); applyUserSkills(); openSkills(view); }));
+	$$("[data-cmddel]").forEach((b) => (b.onclick = () => { store.set("commands", userCommands().filter((c) => c.name !== b.dataset.cmddel)); openSkills(view); }));
+	$("#skClose").onclick = closeModal;
+}
 
 // ---------------------------------------------------------------- the panel beside the chat (like Claude's artifacts): what was made, big,
 // next to the conversation. Each thing runs in its own sandbox (it can't see this page or the account), with its code a

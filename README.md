@@ -46,6 +46,14 @@ Nothing about a request is decided by rules written in advance. The model that m
 
 Andromeda can use the same apps and tools Claude can, through MCP: Blender, Figma, Unity, your files, GitHub and thousands more. Double-click **CONNECT APPS.bat** (it needs [Node.js](https://nodejs.org)), paste the pairing code it shows into Andromeda under **Connect apps**, and list your apps in `tools/connections.json` (the same format as Claude Desktop, whose apps are picked up too; see `tools/connections.example.json`). Online MCP servers can be added by address. The connector only listens on your computer and only answers Andromeda with its pairing code.
 
+## Everything a coding agent has, and a team on top
+
+Andromeda's workers have what Claude Code and Codex have: files, search, the docs, the web, running Python and JavaScript, and, with your computer connected, your shell, your files and long-running jobs (each change to your computer is shown to you and asked first). On top of that they work as a team: a to-do plan you can see, helpers who look into several things in parallel, experts measured best at exactly one skill, and before anything is handed over, a different top model reviewing every change for real bugs.
+
+Type **/** in the message box for commands (/code, /review, /test, /fix, /plan, /research, /video, /max…), and add your own: **skills** (instructions Andromeda uses by itself whenever a request fits, written here or imported from a SKILL.md link) and **commands** (prompts you use often).
+
+What you read is always written by a top model: cheap fast models only route and plan behind the scenes, and every sum in your message is worked out exactly by code first, so an easy question is never answered wrong.
+
 ## Andromeda Code
 
 Start a project right here in your browser, open a folder on your computer, or connect a GitHub repo, then ask for a change. Andromeda Code:
