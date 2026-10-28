@@ -527,8 +527,9 @@ function gatewayNames(g, model) {
 	}).map(([gid]) => gid);
 	if (mine.length) return mine;
 	if (c.ids.length) {
-		// "claude-sonnet-5" may be "sonnet-5" there: the family word left off
-		const hit = c.byKey.get(k) || c.byKey.get(k.replace(/^(claude|gpt|gemini|grok)/, ""));
+		// "claude-sonnet-5" may be "sonnet-5" there: the family word left off; "qwen3.8-max-0902" may be "qwen3.8-max": its
+		// date left off (the gateway's name for the latest)
+		const hit = c.byKey.get(k) || c.byKey.get(k.replace(/^(claude|gpt|gemini|grok)/, "")) || (/[a-z]\d{4}$/.test(k) && c.byKey.get(k.slice(0, -4)));
 		return hit ? [hit] : [];
 	}
 	return [...new Set([model, name, name.replace(/(\d)\.(\d)/g, "$1-$2")])];
