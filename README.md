@@ -94,4 +94,4 @@ The site runs through a small credits server on Cloudflare (`server/`) that hold
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Proprietary: all rights reserved. Andromeda's code, design, name and logo may not be copied, reused or hosted without written permission. See [LICENSE](LICENSE).

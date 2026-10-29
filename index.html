@@ -797,7 +797,7 @@ body { letter-spacing: -.005em; }
 .welcome .orbit i::after { content: ""; position: absolute; top: -3px; left: calc(50% - 3px); width: 6px; height: 6px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 12px 2px rgba(var(--brand-rgb), .8); }
 .welcome .orbit i:nth-child(2)::after { width: 4px; height: 4px; top: -2px; background: #3cc0f6; box-shadow: 0 0 10px 2px rgba(60,192,246,.7); }
 .welcome .orbit i:nth-child(3)::after { width: 3px; height: 3px; top: -1.5px; opacity: .8; }
-.welcome .wmark { position: absolute; left: 12px; top: 12px; width: calc(100% - 24px); height: calc(100% - 24px); margin: 0; color: var(--brand); animation: spin 48s linear infinite; filter: drop-shadow(0 4px 22px rgba(var(--brand-rgb), .65)); }
+.welcome .wmark { position: absolute; left: 12px; top: 12px; width: calc(100% - 24px); height: calc(100% - 24px); margin: 0; color: var(--brand); filter: drop-shadow(0 4px 22px rgba(var(--brand-rgb), .65)); }
 @keyframes orbit { to { transform: rotate(360deg); } }
 @keyframes breathe { 50% { opacity: .55; transform: scale(.9); } }
 .welcome h1 { font-size: clamp(28px, 3.5vw, 42px); letter-spacing: -.05em; font-weight: 650; line-height: 1.04; margin: 0 0 12px; background: linear-gradient(180deg, var(--text) 35%, color-mix(in srgb, var(--text) 50%, var(--brand))); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: rise .8s .06s var(--ease) both; }
@@ -1516,11 +1516,31 @@ html { scroll-behavior: smooth; }
 .ag-plan li.doing .pk { border-color: var(--text); box-shadow: inset 0 0 0 3px var(--bg), inset 0 0 0 8px var(--text); }
 .ag-plan li.done { color: var(--faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--text) 25%, transparent); }
 .ag-plan li.done .pk { background: var(--text); border-color: var(--text); -webkit-mask: none; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app { transition: none !important; } }
+/* signing in: a page of its own on a plain background (nothing of the app behind it), the way ChatGPT and Claude do it */
+.auth { position: fixed; inset: 0; z-index: 48; display: flex; flex-direction: column; overflow-y: auto; background: var(--bg); opacity: 0; visibility: hidden; transition: opacity .3s var(--ease), visibility 0s linear .3s; }
+.auth.show { opacity: 1; visibility: visible; transition: opacity .3s var(--ease); }
+.auth-top { display: flex; align-items: center; padding: 16px 18px; }
+.auth-top .logo { display: inline-flex; align-items: center; gap: 9px; padding: 6px 8px; border: 0; border-radius: 10px; background: none; color: var(--text); font-size: 17px; font-weight: 600; letter-spacing: -.02em; cursor: pointer; transition: background-color .2s; }
+.auth-top .logo:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
+.auth-top .logo .mark { width: 24px; height: 24px; color: var(--brand); }
+.auth-main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px 16px 36px; }
+.auth-card { width: min(400px, 100%); transform: translateY(10px); transition: transform .5s var(--ease); }
+.auth.show .auth-card { transform: none; }
+.auth-card .auth-mark { display: block; width: 46px; height: 46px; margin: 0 auto 18px; color: var(--brand); filter: drop-shadow(0 6px 18px rgba(var(--brand-rgb), .45)); }
+.auth-card h1 { margin: 0 0 8px; font-size: clamp(28px, 6vw, 34px); font-weight: 600; letter-spacing: -.035em; text-align: center; }
+.auth-card .lede { margin: 0 0 26px; color: var(--muted); font-size: 15px; text-align: center; }
+.auth-card .field { margin-bottom: 14px; }
+.auth-card .inp { height: 46px; font-size: 15px; }
+.auth-card .go { width: 100%; height: 46px; justify-content: center; margin-top: 4px; font-size: 15px; font-weight: 500; }
+.auth-card .switch { display: block; margin: 18px auto 0; padding: 6px 10px; border: 0; border-radius: 8px; background: none; color: var(--muted); font-size: 14px; cursor: pointer; }
+.auth-card .switch b { color: var(--text); font-weight: 500; }
+.auth-card .swap-in { animation: rise .35s var(--ease) both; }
+.auth-foot { padding: 0 16px 20px; color: var(--faint); font-size: 12.5px; text-align: center; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app, .auth, .auth-card { transition: none !important; } }
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><g fill="currentColor" transform="translate(16 16) rotate(-22) scale(1 0.86) translate(-16 -16)"><path d="M15.07 16.82L15.08 16.71L15.1 16.61L15.13 16.52L15.17 16.45L15.21 16.39L15.25 16.35L15.3 16.32L15.34 16.31L15.38 16.31L15.41 16.32L15.43 16.34L15.44 16.37L15.44 16.41L15.42 16.46L15.39 16.51L15.34 16.56L15.27 16.61L15.18 16.65L15.08 16.68L14.96 16.71L14.82 16.71L14.66 16.7L14.49 16.66L14.32 16.6L14.13 16.51L13.94 16.38L13.76 16.23L13.57 16.04L13.4 15.82L13.24 15.56L13.11 15.26L13 14.93L12.92 14.57L12.88 14.17L12.88 13.75L12.93 13.31L13.04 12.84L13.2 12.36L13.43 11.88L13.73 11.39L14.09 10.92L14.53 10.46L15.04 10.02L15.63 9.63L16.29 9.28L17.01 8.99L17.81 8.76L18.67 8.62L19.58 8.56L20.54 8.6L21.54 8.75L22.57 9.02L23.62 9.42L24.66 9.95L25.7 10.61L26.71 11.43L27.66 12.38L28.56 13.49L29.37 14.74L30.08 16.14L30.72 15.86L30.03 14.38L29.21 13.03L28.31 11.83L27.32 10.77L26.27 9.86L25.18 9.09L24.06 8.47L22.93 7.98L21.8 7.63L20.69 7.41L19.6 7.31L18.55 7.32L17.55 7.43L16.6 7.64L15.71 7.94L14.89 8.31L14.15 8.74L13.47 9.24L12.87 9.78L12.35 10.36L11.91 10.96L11.55 11.59L11.26 12.23L11.05 12.87L10.91 13.51L10.84 14.14L10.83 14.75L10.89 15.34L11 15.91L11.17 16.44L11.38 16.94L11.63 17.4L11.93 17.82L12.25 18.2L12.61 18.53L12.98 18.82L13.37 19.06L13.78 19.26L14.19 19.41L14.61 19.51L15.03 19.57L15.44 19.58L15.84 19.56L16.23 19.49L16.61 19.39L16.97 19.25L17.3 19.07L17.61 18.87L17.9 18.64L18.15 18.38L18.38 18.11L18.57 17.81L18.73 17.51L18.86 17.18L18.96 16.85L19.02 16.52L19.04 16.18L19.04 15.85L19 15.51L18.93 15.18Z"/><path d="M16.93 15.18L16.92 15.29L16.9 15.39L16.87 15.48L16.83 15.55L16.79 15.61L16.75 15.65L16.7 15.68L16.66 15.69L16.62 15.69L16.59 15.68L16.57 15.66L16.56 15.63L16.56 15.59L16.58 15.54L16.61 15.49L16.66 15.44L16.73 15.39L16.82 15.35L16.92 15.32L17.04 15.29L17.18 15.29L17.34 15.3L17.51 15.34L17.68 15.4L17.87 15.49L18.06 15.62L18.24 15.77L18.43 15.96L18.6 16.18L18.76 16.44L18.89 16.74L19 17.07L19.08 17.43L19.12 17.83L19.12 18.25L19.07 18.69L18.96 19.16L18.8 19.64L18.57 20.12L18.27 20.61L17.91 21.08L17.47 21.54L16.96 21.98L16.37 22.37L15.71 22.72L14.99 23.01L14.19 23.24L13.33 23.38L12.42 23.44L11.46 23.4L10.46 23.25L9.43 22.98L8.38 22.58L7.34 22.05L6.3 21.39L5.29 20.57L4.34 19.62L3.44 18.51L2.63 17.26L1.92 15.86L1.28 16.14L1.97 17.62L2.79 18.97L3.69 20.17L4.68 21.23L5.73 22.14L6.82 22.91L7.94 23.53L9.07 24.02L10.2 24.37L11.31 24.59L12.4 24.69L13.45 24.68L14.45 24.57L15.4 24.36L16.29 24.06L17.11 23.69L17.85 23.26L18.53 22.76L19.13 22.22L19.65 21.64L20.09 21.04L20.45 20.41L20.74 19.77L20.95 19.13L21.09 18.49L21.16 17.86L21.17 17.25L21.11 16.66L21 16.09L20.83 15.56L20.62 15.06L20.37 14.6L20.07 14.18L19.75 13.8L19.39 13.47L19.02 13.18L18.63 12.94L18.22 12.74L17.81 12.59L17.39 12.49L16.97 12.43L16.56 12.42L16.16 12.44L15.77 12.51L15.39 12.61L15.03 12.75L14.7 12.93L14.39 13.13L14.1 13.36L13.85 13.62L13.62 13.89L13.43 14.19L13.27 14.49L13.14 14.82L13.04 15.15L12.98 15.48L12.96 15.82L12.96 16.15L13 16.49L13.07 16.82Z"/><circle cx="16" cy="16" r="3.8"/></g></symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M16 6L6.6 26.2M16 6l9.4 20.2M10.3 18.3h11.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" opacity=".68"/><g fill="currentColor"><circle cx="16" cy="6" r="2.9"/><circle cx="6.6" cy="26.2" r="2.2"/><circle cx="25.4" cy="26.2" r="2.2"/><circle cx="10.3" cy="18.3" r="1.6"/><circle cx="21.7" cy="18.3" r="1.6"/><circle cx="26.4" cy="7.6" r="1.05"/></g></symbol></defs></svg>
 
 <!-- ============================== the site ============================== -->
 <div class="site" id="site">
@@ -1636,7 +1656,7 @@ html { scroll-behavior: smooth; }
 	<div class="wrap reveal">
 		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">It already knows who should answer it.</p><button class="b pri lg" data-open-app>Try Andromeda</button></div>
 	</div>
-	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>MIT licensed · your chats stay in your browser</span></div></footer>
+	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>© 2026 Andromeda · all rights reserved · your chats stay in your browser</span></div></footer>
 </div>
 
 <!-- ============================== the app ============================== -->
@@ -1767,6 +1787,11 @@ html { scroll-behavior: smooth; }
 	<div class="v-said" id="vSaid"></div>
 	<div class="v-btns"><button class="btn" id="vChat">Show the chat</button><button class="btn dark" id="vEnd">End</button></div>
 </div>
+<section class="auth" id="auth" aria-labelledby="authTitle">
+	<header class="auth-top"><button class="logo" id="authBack" title="Back to the front page"><svg class="mark"><use href="#logo"/></svg>Andromeda</button></header>
+	<div class="auth-main" id="authMain"></div>
+	<footer class="auth-foot">Free credits every day · no card · your chats stay in your browser</footer>
+</section>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast" role="status"></div>
 <div class="sr" id="srStatus" aria-live="polite"></div>
@@ -1790,7 +1815,16 @@ const DEFAULT_SERVER = "https://andromeda-credits.georgechendra.workers.dev";
 // ---------------------------------------------------------------- storage
 const store = {
 	get(k, d) { try { const v = localStorage.getItem("andromeda." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
-	set(k, v) { try { localStorage.setItem("andromeda." + k, JSON.stringify(v)); } catch (e) { toast("Storage is full: delete a few old chats"); } },
+	set(k, v) {
+		const s = JSON.stringify(v);
+		try { localStorage.setItem("andromeda." + k, s); return; } catch {}
+		// full: what can be fetched again (the model lists) makes room, so a sign-in or a setting is never what's lost
+		for (const c of ["catalog", "media", "reach", "arenaTry"]) {
+			if (c === k) continue;
+			try { localStorage.removeItem("andromeda." + c); localStorage.setItem("andromeda." + k, s); return; } catch {}
+		}
+		toast("Storage is full: delete a few old chats");
+	},
 };
 const settings = Object.assign({ key: "", tier: "best", overrides: {}, theme: "system", synth: "", lang: "auto", tone: "default" }, store.get("settings", {}));
 const saveSettings = () => store.set("settings", settings);
@@ -2456,6 +2490,15 @@ function quarkFirst(list, cap, used, cost = callCost) {
 	const pick = (used && fair.find((x) => used.has(x.m.id))) || fair.reduce((a, b) => (cost(b, cap) < cost(a, cap) || (cost(b, cap) === cost(a, cap) && b.score > a.score) ? b : a));
 	return pick === list[0] ? list : [pick, ...list.filter((x) => x !== pick)];
 }
+// Who checks or reviews work: from another lab than the one that wrote it, when one is level with the best and costs no
+// more than half again as much. Models of one family share blind spots, so a check from another family catches more.
+function otherLabFirst(list, lab, cap) {
+	if (!lab || !list.length || provider(list[0].m.id) !== lab) return list;
+	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
+	const limit = callCost(list[0], cap) * 1.5;
+	const other = list.find((x) => provider(x.m.id) !== lab && (x === top || quarkTied(top, x)) && callCost(x, cap) <= limit);
+	return other ? [other, ...list.filter((x) => x !== other)] : list;
+}
 // best first, but no more than two from one lab near the top, so if a lab is down the next in line is someone else
 function diversify(ranked) {
 	const out = [], seen = {};
@@ -2908,10 +2951,20 @@ function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), 
 function save() {
 	if (current && !convos.includes(current)) convos.unshift(current);
 	convos = convos.filter((c) => c.msgs.length || c === current);
-	// keep storage small: drop image data from older chats (the earlier versions of an edited message too)
+	saveChats(slimChats());
+}
+// the chats as they're kept: no image data (the earlier versions of an edited message neither), no temporary chats
+function slimChats() {
 	const slimMsg = (m) => ({ ...m, atts: (m.atts || []).map((a) => ({ name: a.name, kind: a.kind })), ...(m.alts ? { alts: m.alts.map((t) => t && t.map(slimMsg)) } : {}) });
-	const slim = convos.filter((c) => !c.temp).map((c) => ({ ...c, msgs: c.msgs.map(slimMsg) }));
-	store.set("convos", slim);
+	return convos.filter((c) => !c.temp).map((c) => ({ ...c, msgs: c.msgs.map(slimMsg) }));
+}
+// Chats live in the browser's database, which has room for years of them. localStorage holds about 5 MB for everything,
+// and once chats filled it, nothing else could be saved: not even a sign-in, so the site forgot who you were.
+// (nothing is written before they've been read: an empty list then would write over them)
+let CHATS_READY = false;
+function saveChats(list) {
+	if (!CHATS_READY) return;
+	vault.open().then((db) => (db ? vault.set("chats", list) : store.set("convos", list)));
 }
 // ---------------------------------------------------------------- versions: editing a message, regenerating an answer
 // Editing one of your messages (or regenerating the answer to it) starts a new version of the chat from there. The
@@ -4362,7 +4415,7 @@ const REVIEWER = "You review work before it's handed over, as the most exacting 
 // of work (or the cheapest a quark from it), never the one that did it
 async function reviewWork(what, work, kind, notModel, msg) {
 	const w = kind === "code" ? { "text:coding": 0.45, "factuality:coding": 0.2, "text:hard_prompts": 0.2, "text:industry_software_and_it_services": 0.15 } : { "text:expert": 0.35, "factuality:overall": 0.35, "text:hard_prompts": 0.3 };
-	const cands = bestFirst(quarkFirst(arenaRank(kind === "code" ? "code" : "reasoning", w).filter((x) => x.m.id !== notModel), "high")).slice(0, 3);
+	const cands = otherLabFirst(bestFirst(quarkFirst(arenaRank(kind === "code" ? "code" : "reasoning", w).filter((x) => x.m.id !== notModel), "high")), notModel && provider(notModel), "high").slice(0, 3);
 	let lastErr;
 	for (const x of cands) {
 		try {
@@ -5707,7 +5760,7 @@ async function runQuarks(text, atts) {
 		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
 		const checkW = codey ? ["code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)] : ["reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5)];
 		const checkCap = lite ? "low" : "medium";
-		let checkers = pick(...checkW, checkCap, { except: fin.id }).filter((x) => x.m.id !== fin.id);
+		let checkers = otherLabFirst(pick(...checkW, checkCap, { except: fin.id }).filter((x) => x.m.id !== fin.id), provider(fin.id), checkCap);
 		// never skipped: on free credits with no second low-cost model, another model checks it (one call), and only if
 		// there's no other model at all, the writer checks its own work
 		if (!checkers.length) checkers = arenaRank(...checkW).filter((x) => x.m.id !== fin.id).slice(0, 4);
@@ -8302,7 +8355,7 @@ function openSettings() {
 	$("#wipeChats").onclick = () => {
 		openModal('<h2>Delete all chats?</h2><p class="sub">Every chat in this browser is deleted, with every version of it. Projects, memory and settings stay. Export first if you might want them back.</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="wpNo">Cancel</button><button class="btn dark" id="wpGo">Delete all chats</button></div>');
 		$("#wpNo").onclick = openSettings;
-		$("#wpGo").onclick = () => { convos = []; current = null; SPACE_VIEW = null; EDITING = -1; store.set("convos", []); closeArt(); render(); closeModal(); toast("All chats deleted"); };
+		$("#wpGo").onclick = () => { convos = []; current = null; SPACE_VIEW = null; EDITING = -1; saveChats([]); closeArt(); render(); closeModal(); toast("All chats deleted"); };
 	};
 	$("#closeSettings").onclick = closeModal;
 }
@@ -8341,6 +8394,7 @@ function signOut(quiet) {
 	account = null;
 	me = null;
 	store.set("account", null);
+	vault.set("account", null);
 	drawAccount();
 	updateRoute();
 }
@@ -8362,16 +8416,30 @@ function callName() {
 	return n.slice(0, 24);
 }
 
-// signed in (with a password or with Google): kept in this browser, and straight back to asking
+// signed in (with a password or with Google): kept in this browser (twice: in its database too, so it's never lost with
+// one of them), and straight into the app
 function signedIn(j, made) {
 	account = { token: j.token, email: j.me.email, ...(j.name ? { name: String(j.name).slice(0, 40) } : {}) };
 	store.set("account", account);
+	vault.set("account", account);
+	store.set("hadAccount", true);
 	me = j.me;
 	drawAccount();
 	refreshKeyDot();
 	updateRoute();
+	closeAuth();
+	if (!document.body.classList.contains("in-app")) showApp(true);
+	else setTimeout(() => $("#input").focus(), 50);
 	if (me.credits > 0) { closeModal(); toast(made ? "You have " + creditsText(me.credits) + " free credits. Ask anything." : "Signed in · " + creditsText(me.credits) + " credits"); } else openPricing();
 }
+// The sign-in page: over the front page (or the app), opaque, its own logo back to the front page; Escape too
+function openAuth() {
+	closeModal();
+	$("#auth").classList.add("show");
+}
+function closeAuth() { $("#auth").classList.remove("show"); }
+$("#authBack").onclick = () => { closeAuth(); if (document.body.classList.contains("in-app")) navTo(() => showApp(false)); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("#auth").classList.contains("show") && !$("#overlay").classList.contains("show")) $("#authBack").click(); });
 // "Continue with Google": Google's own button (its script loads the first time the window opens), its answer checked by
 // the server, which makes the account the first time
 function needGsi() {
@@ -8407,7 +8475,8 @@ async function googleDone(credential) {
 function openAccount() {
 	if (!SERVER) { openPricing(); return; }
 	if (!account) {
-		let mode = "in";
+		// someone who has signed in on this browser before is asked to sign in; anyone new, to make an account
+		let mode = store.get("hadAccount", false) ? "in" : "up";
 		const gid = pricing && pricing.google;
 		// opened before the server said whether it has Google sign-in: the button joins as soon as it does
 		if (!pricing) loadPricing().then(() => {
@@ -8416,13 +8485,16 @@ function openAccount() {
 			openAccount();
 			[$("#acEmail").value, $("#acPass").value] = typed;
 		});
-		const draw = () => {
-			openModal("<h2>" + (mode === "in" ? "Sign in" : "Create your account") + '</h2><p class="sub">' + (mode === "in" ? "Welcome back." : "Free credits straight away, and they come back every day. No card.") + "</p>" +
+		const draw = (swap) => {
+			openAuth();
+			$("#authMain").innerHTML = '<div class="auth-card' + (swap ? " swap-in" : "") + '"><svg class="auth-mark" aria-hidden="true"><use href="#logo"/></svg><h1 id="authTitle">' + (mode === "in" ? "Welcome back" : "Create your account") + '</h1><p class="lede">' + (mode === "in" ? "Sign in to Andromeda." : "Free credits straight away, and more every day. No card.") + "</p>" +
 				(gid ? '<div class="gsi" id="gsiBtn"></div><div class="or"><span>or with your email</span></div>' : "") +
 				'<div class="field"><label for="acEmail">Email</label><input class="inp" id="acEmail" type="email" autocomplete="email" inputmode="email"></div>' +
 				'<div class="field"><label for="acPass">Password</label><input class="inp" id="acPass" type="password" autocomplete="' + (mode === "in" ? "current-password" : "new-password") + '"' + (mode === "up" ? ' placeholder="At least 8 characters"' : "") + '><div class="status" id="acStatus" role="status"></div></div>' +
-				'<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><button class="btn" id="acSwitch">' + (mode === "in" ? "New here? Create an account" : "I have an account") + '</button><button class="btn dark" id="acGo">' + (mode === "in" ? "Sign in" : "Create account") + "</button></div>" );
-			$("#acSwitch").onclick = () => { mode = mode === "in" ? "up" : "in"; draw(); };
+				'<button class="btn dark go" id="acGo">' + (mode === "in" ? "Sign in" : "Create account") + "</button>" +
+				'<button class="switch" id="acSwitch">' + (mode === "in" ? "New here? <b>Create an account</b>" : "Already have an account? <b>Sign in</b>") + "</button></div>";
+			if (!matchMedia("(pointer: coarse)").matches) setTimeout(() => $("#acEmail") && $("#acEmail").focus(), 320);
+			$("#acSwitch").onclick = () => { mode = mode === "in" ? "up" : "in"; draw(true); };
 			const go = async () => {
 				const st = $("#acStatus");
 				st.className = "status";
@@ -9668,7 +9740,7 @@ async function exportAll() {
 	for (const s of sp) files[s.id] = await loadSpace(s.id);
 	// (no keys or sign-in in it)
 	const { key, ...safe } = settings;
-	const data = { app: "andromeda", version: 1, at: Date.now(), convos: store.get("convos", []), spaces: sp, spaceFiles: files, memories: memories(), settings: safe };
+	const data = { app: "andromeda", version: 1, at: Date.now(), convos: slimChats(), spaces: sp, spaceFiles: files, memories: memories(), settings: safe };
 	download("andromeda-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(data, null, 1));
 	toast("Exported");
 }
@@ -9744,6 +9816,8 @@ async function testCode(text) {
 
 // ---------------------------------------------------------------- the site
 function showApp(on) {
+	// not signed in yet: the sign-in page first, over the front page, and the app once signed in
+	if (on && SERVER && !connected()) { openAccount(); return; }
 	if (document.body.classList.contains("in-share")) closeShared();
 	document.body.classList.toggle("in-app", on);
 	if (on) {
@@ -9751,9 +9825,10 @@ function showApp(on) {
 		window.scrollTo(0, 0);
 		render();
 		setMode(mode);
-		if (!connected()) setTimeout(SERVER ? openAccount : openSettings, 350);
+		if (!connected()) setTimeout(openSettings, 350);
 		else setTimeout(() => { $("#input").focus(); showWhatsNew(); }, 50);
 	} else {
+		closeAuth();
 		history.replaceState(null, "", location.pathname + location.search);
 		window.scrollTo(0, 0);
 		startSky();
@@ -9959,17 +10034,47 @@ addEventListener("hashchange", () => {
 addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
 
 // ---------------------------------------------------------------- boot
+// The chats and the sign-in from the browser's database. The first time, the chats move there from localStorage (and
+// only once they're read back from it is the old copy removed); a sign-in that localStorage lost is restored from it.
+async function loadKept() {
+	try {
+		if (!(await vault.open())) return;
+		const kept = await vault.get("chats");
+		if (Array.isArray(kept)) convos = kept;
+		else if (convos.length) {
+			await vault.set("chats", convos);
+			vault.mem.delete("chats");
+			const back = await vault.get("chats");
+			if (!Array.isArray(back) || back.length !== convos.length) return;
+		}
+		try { localStorage.removeItem("andromeda.convos"); } catch {}
+		if (!account) {
+			const a = await vault.get("account");
+			if (a && a.token) { account = a; store.set("account", a); }
+		} else vault.set("account", account);
+	} finally {
+		CHATS_READY = true;
+		if (account && !store.get("hadAccount", false)) store.set("hadAccount", true);
+	}
+}
 (async function boot() {
 	applyTheme();
 	applyBg();
 	if (window.matchMedia) matchMedia("(prefers-color-scheme: light)").addEventListener("change", applyTheme);
 	refreshKeyDot();
-	convos = convos.filter((c) => c.msgs.length);
-	// someone already set up goes straight to the app; anyone new sees what it is first
-	const inApp = location.hash === "#app" || location.hash === "#admin" || location.hash === "#pricing" || (connected() && !location.hash);
+	// someone signed in goes straight to the app; anyone new sees what it is first, and asking for the app without being
+	// signed in shows the sign-in page over the front page (not the app behind it). Decided before the first paint, on
+	// what localStorage says; a sign-in only the database still had is caught up with just after
+	const hadAccount = connected();
+	const wantApp = () => location.hash === "#app" || location.hash === "#admin" || location.hash === "#pricing" || (connected() && !location.hash);
+	let inApp = wantApp() && (connected() || !SERVER || location.hash !== "#app");
 	const shareId = (location.hash.match(/^#share=([a-f0-9]{24})$/) || [])[1];
 	document.body.classList.toggle("in-app", inApp && !shareId);
+	await loadKept();
+	convos = convos.filter((c) => c.msgs.length);
+	if (!hadAccount && connected() && !shareId && wantApp()) { inApp = true; document.body.classList.add("in-app"); }
 	if (shareId) openShared(shareId);
+	else if (wantApp() && !inApp) { history.replaceState(null, "", location.pathname + location.search); openAccount(); }
 	render();
 	setMode("auto");
 	{
