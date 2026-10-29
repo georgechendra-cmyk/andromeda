@@ -12,6 +12,11 @@ binding = "DB"
 database_name = "andromeda"
 database_id = "06f2a301-f884-4f49-a715-6175ce84c399"
 
+# Cloudflare's own AI models (GPT-OSS, Llama, Mistral, Qwen): free within the account's daily allowance, no key needed;
+# Andromeda falls back to them when no other way carries a model
+[ai]
+binding = "AI"
+
 # scheduled tasks: every 10 minutes the ones that are due run
 [triggers]
 crons = ["*/10 * * * *"]

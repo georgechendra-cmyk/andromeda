@@ -536,6 +536,93 @@ function gatewayNames(g, model) {
 }
 const provider = (id) => String(id).split("/")[0];
 
+// Cloudflare Workers AI, through this worker's own AI binding: free every day on any Cloudflare account (no card; a daily
+// allowance, after which it says no and the next way, or the error, follows), so Andromeda answers before any paid way
+// is set up. Only these models (the ones on the free plan), never for tools (its tool format differs) or pictures.
+const WAI = {
+	"openai/gpt-oss-120b": "@cf/openai/gpt-oss-120b",
+	"openai/gpt-oss-20b": "@cf/openai/gpt-oss-20b",
+	"meta-llama/llama-3.3-70b-instruct": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+	"meta-llama/llama-4-scout": "@cf/meta/llama-4-scout-17b-16e-instruct",
+	"mistralai/mistral-small-3.1-24b-instruct": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+	"qwen/qwen3-30b-a3b": "@cf/qwen/qwen3-30b-a3b-fp8",
+};
+const WAI_SEES = /llama-4-scout|mistral-small-3\.1/;
+// A request to Workers AI, answered as an OpenAI-format Response (a stream of chat.completion.chunk events, or one
+// chat.completion), so the rest of the server treats it like any other way
+async function waiFetch(env, model, body) {
+	const fail = (status, message) => new Response(JSON.stringify({ error: { message } }), { status, headers: { "Content-Type": "application/json" } });
+	const tools = Array.isArray(body.tools) && body.tools.length ? body.tools : null;
+	const messages = [];
+	for (const m of body.messages || []) {
+		let content = m.content;
+		if (Array.isArray(content)) {
+			const pics = content.filter((p) => p && p.type && p.type !== "text");
+			// pictures only to the models that see, as data: links (it can't fetch a web address); files to none
+			if (pics.length && !(WAI_SEES.test(model) && pics.every((p) => p.type === "image_url" && /^data:image\//.test(p.image_url?.url || "")))) return fail(400, "That model can't see " + (pics.every((p) => p.type === "image_url") ? "pictures" : "files") + " on this server. Pick another.");
+			content = pics.length ? content.map((p) => (p.type === "image_url" ? { type: "image_url", image_url: { url: p.image_url.url } } : { type: "text", text: p.text || "" })) : content.map((p) => p.text || "").join("\n");
+		}
+		const x = { role: m.role === "developer" ? "system" : m.role, content: Array.isArray(content) ? content : String(content ?? "") };
+		if (m.tool_calls) x.tool_calls = m.tool_calls;
+		if (m.tool_call_id) x.tool_call_id = m.tool_call_id;
+		messages.push(x);
+	}
+	const input = { messages, max_tokens: Math.min(Number(body.max_tokens || body.max_completion_tokens) || 4096, 16000), stream: !!body.stream };
+	if (body.temperature != null) input.temperature = body.temperature;
+	if (tools) {
+		input.tools = tools;
+		if (body.tool_choice) input.tool_choice = body.tool_choice;
+	}
+	if (/gpt-oss/.test(model)) input.reasoning = { effort: ["minimal", "low"].includes(body.reasoning_effort) ? "low" : body.reasoning_effort === "high" || body.reasoning_effort === "xhigh" || body.reasoning_effort === "max" ? "high" : "medium" };
+	let out;
+	try {
+		out = await env.AI.run(model, input);
+	} catch (e) {
+		const m = String((e && e.message) || e);
+		// the day's free allowance used up, or a model this account's plan doesn't have
+		return fail(/4006|daily|neurons|quota|limit/i.test(m) ? 429 : /5035|not available|5007|no such model/i.test(m) ? 404 : 502, m.slice(0, 300));
+	}
+	const id = "wai-" + Date.now(), created = Math.floor(Date.now() / 1000);
+	// its older format gives tool calls as [{name, arguments}] beside the text
+	const oldCalls = (list) => (Array.isArray(list) ? list : []).filter((t) => t && t.name).map((t, i) => ({ index: i, id: "call_" + id + "_" + i, type: "function", function: { name: t.name, arguments: typeof t.arguments === "string" ? t.arguments : JSON.stringify(t.arguments || {}) } }));
+	if (!input.stream) {
+		const c = out && Array.isArray(out.choices) && out.choices[0];
+		let choice;
+		if (c && c.message) choice = { index: 0, message: { role: "assistant", content: c.message.content || "", ...(c.message.reasoning_content ? { reasoning_content: c.message.reasoning_content } : {}), ...(c.message.tool_calls && c.message.tool_calls.length ? { tool_calls: c.message.tool_calls } : {}) }, finish_reason: c.finish_reason || "stop" };
+		else {
+			const calls = oldCalls(out && out.tool_calls).map(({ index, ...t }) => t);
+			choice = { index: 0, message: { role: "assistant", content: typeof out === "string" ? out : (out && out.response) || "", ...(calls.length ? { tool_calls: calls } : {}) }, finish_reason: calls.length ? "tool_calls" : "stop" };
+		}
+		return new Response(JSON.stringify({ id, object: "chat.completion", created, model, choices: [choice], usage: out && out.usage }), { headers: { "Content-Type": "application/json" } });
+	}
+	// its stream, in whichever of its two formats, as OpenAI's chunks
+	let buf = "";
+	const d = new TextDecoder();
+	const conv = new TransformStream({
+		transform(chunk, ctl) {
+			buf += d.decode(chunk, { stream: true });
+			let i;
+			while ((i = buf.indexOf("\n")) >= 0) {
+				const line = buf.slice(0, i).trim();
+				buf = buf.slice(i + 1);
+				if (!line.startsWith("data:")) continue;
+				const data = line.slice(5).trim();
+				if (data === "[DONE]") { ctl.enqueue(enc.encode("data: [DONE]\n\n")); continue; }
+				let j;
+				try { j = JSON.parse(data); } catch { continue; }
+				// (only OpenAI's fields: its chunks also carry padding, the text again as "response", an empty tool_calls)
+				const calls = Array.isArray(j.choices) ? [] : oldCalls(j.tool_calls);
+				const choices = Array.isArray(j.choices) ? j.choices
+					: calls.length ? [{ index: 0, delta: { tool_calls: calls }, finish_reason: "tool_calls" }]
+					: j.response != null && j.response !== "" ? [{ index: 0, delta: { content: String(j.response) } }] : [];
+				const x = { id, object: "chat.completion.chunk", created, model, choices, ...(j.usage ? { usage: j.usage } : {}) };
+				if (x.choices.length || x.usage) ctl.enqueue(enc.encode("data: " + JSON.stringify(x) + "\n\n"));
+			}
+		},
+	});
+	return new Response(out.pipeThrough(conv), { headers: { "Content-Type": "text/event-stream" } });
+}
+
 function routes(env, model, web, tools) {
 	const out = [];
 	const lab = model.split("/")[0], name = model.slice(lab.length + 1).replace(/:.*$/, "");
@@ -553,6 +640,9 @@ function routes(env, model, web, tools) {
 		out.push({ kind: "gateway", lab, url: base + "chat/completions", headers, names, fee: 1.05, native: false });
 	}
 	if (env.OPENROUTER_KEY) out.push({ kind: "openrouter", lab, url: orBase(env) + "/chat/completions", headers: { Authorization: "Bearer " + env.OPENROUTER_KEY, "HTTP-Referer": env.SITE_URL || "https://andromeda.app", "X-Title": "Andromeda" }, names: [model], fee: 1, native: true });
+	// last: Cloudflare's own models, free within the account's daily allowance (they cost the owner nothing: fee 0)
+	const wai = WAI[model.replace(/:.*$/, "")];
+	if (env.AI && wai) out.push({ kind: "wai", lab, url: "", headers: {}, names: [wai], fee: 0, native: false });
 	// a live question goes first to a way where the model searches the web itself, the way its search was rated
 	return web ? [...out.filter((w) => w.native), ...out.filter((w) => !w.native)] : out;
 }
@@ -590,6 +680,8 @@ async function reachOf(env) {
 			out.models = ids.filter((id) => gws.some((g, i) => cats[i].ids.length && gatewayNames(g, id).length));
 		} else out.all = true; // no list could be read: every model is tried, the names a gateway doesn't know fall through
 	}
+	// and Cloudflare's free models, through this worker's AI binding
+	if (env.AI) out.models = [...new Set([...(out.models || []), ...Object.keys(WAI)])];
 	return out;
 }
 function errorText(t, fallback) {
@@ -890,7 +982,7 @@ function priceOf(way, u, price, inTokens, outChars) {
 	const out = Math.max(u.completion_tokens || 0, (u.total_tokens || 0) - (u.prompt_tokens || 0)) || Math.ceil((outChars || 0) / 4);
 	const claude = way.lab === "anthropic";
 	const list = (prompt - read - wrote) * price.pin + read * (price.pcr ?? (claude ? price.pin * 0.1 : price.pin)) + wrote * (price.pcw ?? (claude ? price.pin * 1.25 : price.pin)) + out * price.pout + (u.web_searches || 0) * 0.01;
-	return { list, real: list * (way.fee || 1) };
+	return { list, real: list * (way.fee ?? 1) };
 }
 
 // Live web search the server runs itself, for a model reached a way where it can't search on its own (Gemini and Grok
@@ -1062,7 +1154,7 @@ async function chat(req, env, ctx, user) {
 		const req = plain ? { ...b, reasoning: undefined } : b;
 		if (w.kind === "claude") return claudeBody(req, name, maxOut, web);
 		if (w.kind === "responses") return responsesBody(req, name, maxOut);
-		if ((w.kind === "gateway" || w.kind === "gw") && web) return openaiBody({ ...req, messages: await notedMessages() }, w, name, maxOut, user.id, null);
+		if ((w.kind === "gateway" || w.kind === "gw" || w.kind === "wai") && web) return openaiBody({ ...req, messages: await notedMessages() }, w, name, maxOut, user.id, null);
 		return openaiBody(req, w, name, maxOut, user.id, web);
 	};
 
@@ -1079,7 +1171,7 @@ async function chat(req, env, ctx, user) {
 				// wants the answer's length given the other way (max_tokens / max_completion_tokens)
 				for (let again = 0; again < 3; again++) {
 					try {
-						res = await fetch(w.url, { method: "POST", headers: { ...w.headers, "Content-Type": "application/json" }, body: JSON.stringify(await build(w, names[k], plain)) });
+						res = w.kind === "wai" ? await waiFetch(env, names[k], await build(w, names[k], plain)) : await fetch(w.url, { method: "POST", headers: { ...w.headers, "Content-Type": "application/json" }, body: JSON.stringify(await build(w, names[k], plain)) });
 					} catch {
 						last = { status: 502, message: "Couldn't reach the AI provider. Try again." };
 						continue ask;
@@ -1146,6 +1238,8 @@ async function chat(req, env, ctx, user) {
 		const writer = writable.getWriter();
 		const conv = way.kind === "claude" ? claudeStream(b.model) : way.kind === "responses" ? responsesStream(b.model) : null;
 		let buf = "", outChars = 0, usage = null, ended = false;
+		// (its own decoder: a character split across two chunks mustn't carry into another answer streaming meanwhile)
+		const mine = new TextDecoder();
 		const used = () => (conv ? conv.usage() : usage);
 		const end = async () => {
 			if (ended) return;
@@ -1158,7 +1252,7 @@ async function chat(req, env, ctx, user) {
 			read: for (;;) {
 				const { done, value } = await reader.read();
 				if (done) break;
-				buf += dec.decode(value, { stream: true });
+				buf += mine.decode(value, { stream: true });
 				let out = "", i;
 				while ((i = buf.indexOf("\n")) >= 0) {
 					const line = buf.slice(0, i).trim();
