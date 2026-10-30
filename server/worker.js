@@ -13,9 +13,9 @@
 
 const DEFAULT_CONFIG = {
 	creditUsd: 0.01,
-	// the model's list price x this (2x to 3x: half or more of every sale is margin). Bands are by the model's output
-	// price in dollars per million tokens.
-	multipliers: { cheap: 3, mid: 2.5, top: 2, media: 2 },
+	// the model's list price x this (2.5x to 3x: after a gateway's own fee, about half of every sale is margin). Bands are
+	// by the model's output price in dollars per million tokens.
+	multipliers: { cheap: 3, mid: 3, top: 2.5, media: 2 },
 	bands: { cheapBelow: 2, topFrom: 15 },
 	// the most one answer may write, whatever the balance (a model asked to think gets room for that on top); only what's
 	// written is charged, so this only keeps a long answer from being cut off
@@ -27,6 +27,7 @@ const DEFAULT_CONFIG = {
 	free: { credits: 100, hours: 24, every: 6, budgetIdr: 50000, usdIdr: 18000, dailyCap: 0 },
 	// round local prices, not exchange-rate conversions
 	packs: [
+		{ id: "mini", name: "Mini", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 }, lemonVariant: "" },
 		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
 		{ id: "plus", name: "Plus", credits: 1000, bonus: 100, popular: true, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
 		{ id: "pro", name: "Pro", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
@@ -35,7 +36,7 @@ const DEFAULT_CONFIG = {
 	// QRIS for rupiah: the owner's QR image (a URL, e.g. qris.png in the site) and the name it shows
 	qris: { image: "", name: "" },
 	// card / Apple Pay / PayPal for everyone else: a checkout page per pack (Lemon Squeezy, Paddle or Gumroad)
-	checkout: { provider: "Lemon Squeezy", links: { starter: "", plus: "", pro: "" } },
+	checkout: { provider: "Lemon Squeezy", links: { mini: "", starter: "", plus: "", pro: "" } },
 	support: "",
 	open: false,
 };
@@ -494,7 +495,9 @@ async function gatewayCatalog(g) {
 	if (!c.ids.length && c.failed && Date.now() - c.failed < 300e3) return c;
 	try {
 		const r = await fetch(g.base + "/models", { headers: { Authorization: "Bearer " + g.key }, signal: AbortSignal.timeout(8000) });
-		const j = await r.json();
+		const t = await r.text();
+		if (!r.ok) throw new Error(r.status + " " + errorText(t, t.replace(/\s+/g, " ").slice(0, 160) || r.statusText));
+		const j = JSON.parse(t);
 		const items = (Array.isArray(j) ? j : j.data || j.models || []).map((m) => (typeof m === "string" ? { id: m } : { id: m.id || m.name, name: m.display_name || m.name || m.title || "" })).filter((m) => m.id).map((m) => ({ id: String(m.id), name: String(m.name || "") }));
 		if (!items.length) throw new Error("no models");
 		const byKey = new Map();
@@ -506,8 +509,10 @@ async function gatewayCatalog(g) {
 		for (const m of items) put(bareKey(m.id.replace(/-(openrouter(-backup)?|or)$/i, "")), m.id);
 		for (const m of items) if (m.name && m.name !== m.id) put(bareKey(m.name), m.id);
 		c = { at: Date.now(), ids: items.map((m) => m.id), byKey, failed: 0 };
-	} catch {
-		c = { ...c, failed: Date.now() };
+	} catch (e) {
+		// why, for the admin page and the server's log (the gateway's own words; never the key)
+		c = { ...c, failed: Date.now(), error: String((e && e.message) || e).slice(0, 200) };
+		console.log("gateway " + g.n + " list unreadable: " + c.error);
 	}
 	GWS.set(g.base, c);
 	return c;
@@ -596,7 +601,8 @@ function errorText(t, fallback) {
 	try {
 		let j = JSON.parse(t);
 		if (Array.isArray(j)) j = j[0];
-		const m = j?.error?.message || j?.errors?.[0]?.message || j?.message;
+		// (FastAPI-built gateways, LiteLLM among them, say it as "detail")
+		const m = j?.error?.message || j?.errors?.[0]?.message || j?.message || (typeof j?.detail === "string" ? j.detail : j?.detail?.error || j?.detail?.[0]?.msg);
 		if (m) return String(m).slice(0, 500);
 	} catch {}
 	return String(fallback || "The AI provider said no.").slice(0, 300);

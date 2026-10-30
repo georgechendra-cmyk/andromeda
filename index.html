@@ -238,11 +238,12 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .cur { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 4px 0 22px; }
 .cur button { height: 30px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line2); font-size: 12.5px; color: var(--muted); font-family: var(--mono); transition: background .2s, color .2s, border-color .2s; }
 .cur button.on { background: var(--ink); color: var(--onink); border-color: var(--ink); }
-.plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.plans { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1200px) { .plans { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .plan { position: relative; border: 1px solid var(--line2); border-radius: 18px; padding: 18px 16px 16px; background: var(--bg); display: flex; flex-direction: column; transition: border-color .2s, transform .2s; }
 .plan:hover { border-color: var(--faint); }
 .plan.popular { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.plan .tag { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--onink); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 3px 9px; border-radius: 99px; }
+.plan .tag { position: absolute; top: -10px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--onink); font-size: 10.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
 .plan .pname { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 .plan .price { font-size: 30px; font-weight: 600; letter-spacing: -.03em; margin: 6px 0 0; line-height: 1.1; }
 .plan .once { font-size: 12.5px; color: var(--faint); margin: 2px 0 14px; }
@@ -8537,6 +8538,7 @@ function money(amount, cur) {
 const DEFAULT_PRICING = {
 	creditUsd: 0.01, open: false, free: { credits: 100, hours: 24, every: 6 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	packs: [
+		{ id: "mini", name: "Mini", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
 		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
 		{ id: "plus", name: "Plus", credits: 1000, bonus: 100, popular: true, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
 		{ id: "pro", name: "Pro", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
@@ -8555,7 +8557,7 @@ async function openPricing() {
 		const can = live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[p.id]));
 		return '<div class="plan' + (p.popular ? " popular" : "") + '">' + (p.popular ? '<span class="tag">Most popular</span>' : "") +
 			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">one-time · no subscription</div>' +
-			'<div class="tiles"><div class="tile full"><b>' + creditsText(total) + "</b><span>credits" + (p.bonus ? " · incl. +" + creditsText(p.bonus) + " bonus" : "") + '</span></div><div class="tile"><b>≈' + creditsText(Math.round(total / 1.5)) + '</b><span>answers</span></div><div class="tile"><b>≈' + creditsText(Math.max(1, Math.round(total / 150))) + "</b><span>apps built</span></div></div>" +
+			'<div class="tiles"><div class="tile full"><b>' + creditsText(total) + "</b><span>credits" + (p.bonus ? " · incl. +" + creditsText(p.bonus) + " bonus" : "") + '</span></div><div class="tile"><b>≈' + creditsText(Math.round(total / 10)) + '</b><span>everyday answers</span></div><div class="tile"><b>≈' + creditsText(Math.max(1, Math.round(total / 200))) + "</b><span>apps built</span></div></div>" +
 			'<ul class="feat"><li>Every model, the best one picked for each task</li><li>Flashcards, quizzes, podcasts and simulations</li><li>Apps and games built and run in the browser</li>' + (p.bonus ? "<li>" + Math.round((p.bonus / p.credits) * 100) + "% more credits for the same price per credit</li>" : "<li>Try everything with no commitment</li>") + "</ul>" +
 			'<button class="btn' + (p.popular ? " dark" : "") + '" data-buy="' + esc(p.id) + '"' + (can ? "" : " disabled") + ">" + (!live ? "Coming soon" : !can ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card or PayPal") + "</button></div>";
 	};
@@ -8571,7 +8573,7 @@ async function openPricing() {
 		'<div class="plans">' + free + P.packs.map(card).join("") + "</div>" +
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Credits are added as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". Credits arrive automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
-		"<details><summary>What is a credit?</summary><p>1 credit is about one everyday answer. Long answers and the top models use more: a full app build with the best models can use a few hundred. Your balance at the top shows what's left.</p></details>" +
+		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 10 credits. Long answers and big jobs use more: a full app build with the best models can use a few hundred. Your balance at the top shows what's left.</p></details>" +
 		"<details><summary>What are free credits?</summary><p>Everyone with an account gets " + (P.free || DEFAULT_PRICING.free).credits + " free credits. Once you start using them, they're all back " + (P.free || DEFAULT_PRICING.free).hours + " hours later. They're always used before credits you bought.</p></details>" +
 		"<details><summary>Which models do I get?</summary><p>All of them. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
 		"<details><summary>Do credits expire?</summary><p>No. Credits stay on your account until you use them.</p></details>" +
