@@ -7477,6 +7477,8 @@ async function produce(msg, only, signal) {
 					s.drawn = true;
 					s.state = "done";
 					s.error = "";
+					// a picture of it for the shot list, so it can be seen before the film is cut
+					try { s.poster = await vault.put(await posterOf(html, plan.scenes[i].seconds, Math.round(FW / 4), Math.round(FH / 4))); } catch {}
 				} catch (e) {
 					if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 					s.code = null;
@@ -7949,6 +7951,20 @@ function openScene(html, W, H) {
 	};
 	return api;
 }
+// a drawn shot's moment two thirds in, as a small picture
+async function posterOf(html, secs, W, H) {
+	const sc = openScene(html, W, H);
+	try {
+		const b = await sc.frame(secs * 0.66), c = document.createElement("canvas");
+		c.width = W;
+		c.height = H;
+		c.getContext("2d").drawImage(b, 0, 0, W, H);
+		if (b.close) b.close();
+		return await new Promise((r) => c.toBlob(r, "image/jpeg", 0.85));
+	} finally {
+		sc.close();
+	}
+}
 // one flat colour: nothing was drawn
 function blankish(bmp) {
 	const c = document.createElement("canvas");
@@ -8293,13 +8309,14 @@ async function renderStudio(m, i, box) {
 	}
 	const plan = d.plan;
 	const fin = d.final ? await vault.url(d.final) : null;
-	const frames = await Promise.all(d.scenes.map((s) => (s.frame ? vault.url(s.frame) : null)));
+	const frames = await Promise.all(d.scenes.map((s) => (s.frame ? vault.url(s.frame) : s.poster ? vault.url(s.poster) : null)));
 	const vertical = plan.aspect === "9:16";
 	box.innerHTML = (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button><button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' :
 		d.stage === "planned" ? '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-make>Make it</button></div>' : "") +
 		'<div class="shots' + (vertical ? " tall" : "") + '">' + d.scenes.map((s, n) => '<figure class="shot ' + (s.state || "") + '">' + (frames[n] ? '<img src="' + frames[n] + '" alt="">' : '<div class="ph"></div>') +
-			'<figcaption><b>' + (n + 1) + "</b> " + esc(plan.scenes[n].caption || plan.scenes[n].vo || plan.scenes[n].shot).slice(0, 70) + '<span class="st">' + ({ waiting: "waiting", drawing: "drawing", queued: "queued", rendering: "filming", fetching: "fetching", done: "✓", failed: "failed" }[s.state] || "") + "</span>" +
-			(fin || s.state === "failed" ? '<button class="mini" data-redo="' + n + '">Redo</button>' : "") + "</figcaption></figure>").join("") + "</div>";
+			'<figcaption><b>' + (n + 1) + "</b> " + esc(plan.scenes[n].caption || plan.scenes[n].vo || plan.scenes[n].shot).slice(0, 70) + '<span class="st">' + ({ waiting: "waiting", drawing: "drawing", animating: "animating", queued: "queued", rendering: "filming", fetching: "fetching", done: "✓", failed: "failed" }[s.state] || "") + "</span>" +
+			(fin || s.state === "failed" ? '<button class="mini" data-redo="' + n + '">Redo</button>' : "") + "</figcaption></figure>").join("") + "</div>" +
+		(d.music && d.music.state ? '<div class="help" style="margin-top:8px">Sound: ' + ({ composing: "composing the music and sound effects…", done: "music and sound effects ✓", failed: "couldn't be made this time" }[d.music.state] || esc(d.music.state)) + "</div>" : "");
 	const dl = $("[data-vdl]", box);
 	if (dl) dl.onclick = async () => { const b = await vault.get(d.final); saveBlob(b, plan.title.replace(/[^\w -]+/g, "").slice(0, 40) + "." + (b.type.includes("mp4") ? "mp4" : "webm")); };
 	const recut = $("[data-recut]", box);
