@@ -5963,10 +5963,14 @@ async function heal(files, request, msg, rules) {
 		updateLast();
 		const have = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 80000);
 		try {
+			msg.cut = false;
 			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
 				"\n\nIt was loaded in a browser and used (every button clicked, arrow keys and space pressed, every input changed). These problems came up:\n- " + problems.join("\n- ") +
 				"\n\nFind the cause of each one and fix it properly, without removing features. Output only the files you change, each complete, then the NOTES section with one line on what was wrong." }], msg);
 			const p = parseFiles(r.out);
+			// a fix that stopped early (the credits ran low): none of it is used, the project stays whole as it was
+			if (cutShort(p, msg.cut)) { delete msg.cut; msg.tested = { ok: false, fixed, rounds: round - 1, problems, short: true }; return files; }
+			delete msg.cut;
 			if (!Object.keys(p.files).length) continue;
 			Object.assign(files, p.files);
 			p.del.forEach((x) => delete files[x]);
@@ -5974,7 +5978,10 @@ async function heal(files, request, msg, rules) {
 			lastModel = r.model;
 			if (!msg.used.some((u) => u.name === shortName(r.model) && /Debugger/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Debugger: ran it, found what broke, and fixed it" });
 		} catch (e) {
+			delete msg.cut;
 			if (e.name === "AbortError" || e.status === 401) throw e;
+			// out of credits: what works so far is handed over, with what's still wrong
+			if (e.status === 402) { msg.tested = { ok: false, fixed, rounds: round - 1, problems, short: true }; return files; }
 		}
 	}
 	return files;
@@ -5982,6 +5989,7 @@ async function heal(files, request, msg, rules) {
 function testedLine(t) {
 	if (!t) return "";
 	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean.*" : "\n\n*Tested in the browser: it runs clean.*";
+	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them. Get more credits, then say \"fix it\".*";
 	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
 }
 
@@ -6017,7 +6025,17 @@ function parseFiles(out) {
 		if (cur) buf.push(line);
 	}
 	flush();
-	return { files, del, notes };
+	return { files, del, notes, ended: cur && cur.t === "NOTES" || !!notes, last: Object.keys(files).pop() };
+}
+// A build answer that stopped early (out of room: the credits ran low, or the longest answer allowed) ends in the middle
+// of its last file. Its finish says so; without one, a missing NOTES section and a script that doesn't parse do. That
+// half-written file is dropped, so it never replaces a whole one.
+function cutShort(p, cut) {
+	const tail = p.last && p.files[p.last];
+	const broken = !p.ended && tail != null && /\.m?js$/i.test(p.last) && (() => { try { new Function(tail); return false; } catch (e) { return e instanceof SyntaxError; } })();
+	if (!(cut || broken) || tail == null) return false;
+	delete p.files[p.last];
+	return true;
 }
 // the project as one page: its stylesheet and script files go inline
 function appDoc(files) {
@@ -6033,6 +6051,7 @@ function appDoc(files) {
 }
 // ---- plenty of credit: the top models work on a build together
 const WALLET = { at: 0, left: null };
+const APP_MIN_CREDITS = 20;
 const MAX_BUILD_AT = 15; // dollars of balance
 async function walletLeft() {
 	// what the credits are worth, at Andromeda's prices
@@ -6058,6 +6077,11 @@ const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text },
 // (one builder, the one measured best at it or the cheapest a quark from it, then the build is run and fixed: several
 // models each building the same thing to pick or merge one costs several times as much and isn't how a team works)
 async function runApp(text, atts, pick) {
+	// a build costs tens of credits (written, run, fixed): not started on a balance that would cut it off half-written
+	if (creditsMode()) {
+		await refreshMe();
+		if (me && me.credits < APP_MIN_CREDITS) throw fail("Building an app takes about 50 to 100 credits, and you have " + creditsText(Math.max(0, me.credits)) + " left. Get more credits, or wait for your free ones to come back.", 402);
+	}
 	const msgs = current.msgs;
 	const prev = pick.edit ? [...msgs].reverse().find((m) => m.kind === "app" && m.data) : null;
 	const msg = { role: "assistant", kind: "app", text: "", streaming: true, status: prev ? "Editing the project" : "Writing the code", data: null, used: [], spec: null };
@@ -6079,16 +6103,21 @@ async function runApp(text, atts, pick) {
 		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : ""))
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
 	const cands = bestFor(pics.length ? "appFromImage" : "app");
-	let parsed = null, lastErr;
+	let parsed = null, lastErr, unfinished = "";
 	for (const m of cands.slice(0, 5)) {
 		msg.used = [{ name: shortName(m), desc: "Code: " + (prev ? "edited the project" : "wrote the project") }];
 		try {
+			msg.cut = false;
 			const out = await stream(m.id, [sys(rules), { role: "user", content: withPics(ask, pics) }], (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, effortExtra(m.id), msg);
 			parsed = parseFiles(out);
+			// stopped early: the file it was writing is left out (not run half-written), and the person is told
+			unfinished = cutShort(parsed, msg.cut) ? parsed.last : "";
+			delete msg.cut;
 			if (Object.keys(parsed.files).length) break;
 			parsed = null;
-			lastErr = new Error("The model didn't return any files.");
+			lastErr = new Error(unfinished ? "The build was cut off before any file was finished." : "The model didn't return any files.");
 		} catch (e) {
+			delete msg.cut;
 			if (e.name === "AbortError" || e.status === 401) throw e;
 			lastErr = e;
 			if (e.status === 429) await sleep(1200);
@@ -6097,7 +6126,8 @@ async function runApp(text, atts, pick) {
 	if (!parsed) throw lastErr || new Error("No model could build that.");
 	let files = Object.assign({}, prev ? prev.data.files : {}, parsed.files);
 	parsed.del.forEach((p) => delete files[p]);
-	files = await heal(files, text, msg, rules);
+	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
+	else files = await heal(files, text, msg, rules);
 	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
 	msg.tab = "preview";
 	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested);
