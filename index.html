@@ -5944,9 +5944,93 @@ function probeApp(files, ms = 4000) {
 		document.body.appendChild(f);
 	});
 }
+// ---- looking at what was built: pictures of it running, judged the way a lead designer would before it ships
+// (html-to-image draws the page itself; html2canvas copies it into a frame first, which the sealed page can't reach)
+let SNAP_LIB = null;
+const snapLib = () => (SNAP_LIB ||= fetch("https://cdnjs.cloudflare.com/ajax/libs/html-to-image/1.11.11/html-to-image.min.js").then((r) => (r.ok ? r.text() : "")).catch(() => ""));
+// a picture of the app at the start, and one after its main button and a game's keys were pressed: drawn inside the
+// same sealed-off page the tests use (no way out to this page), which stays on the screen (so its animations run) unseen
+function snapApp(files, W = 1280, H = 800) {
+	return snapLib().then((lib) => new Promise((res) => {
+		if (!lib) { res([]); return; }
+		const id = Math.random().toString(36).slice(2), shots = [];
+		const f = document.createElement("iframe");
+		f.setAttribute("sandbox", "allow-scripts");
+		f.setAttribute("aria-hidden", "true");
+		f.style.cssText = "position:fixed;left:0;top:0;width:" + W + "px;height:" + H + "px;border:0;opacity:0;pointer-events:none;z-index:-1";
+		const done = () => { removeEventListener("message", on); clearTimeout(timer); f.remove(); res(shots.filter((s) => s && s.length > 3000)); };
+		const on = (e) => {
+			const d = e.data;
+			if (!d || d.andromedaSnap !== id) return;
+			if (d.shot) shots.push(d.shot);
+			if (d.end) done();
+		};
+		addEventListener("message", on);
+		const timer = setTimeout(done, 25000);
+		const script = "<script>" + lib.replace(/<\/script/gi, "<\\/script") + "<\/script><script>(function(){var id=" + JSON.stringify(id) + ";function send(m){m.andromedaSnap=id;try{parent.postMessage(m,'*')}catch(e){}}" +
+			// (the body's background fills the whole screen, as a browser draws it)
+			"function snap(){var h=document.documentElement,b=document.body,hs=getComputedStyle(h),bs=b?getComputedStyle(b):null;var own=hs.backgroundImage!=='none'||!/^rgba\\(0, 0, 0, 0\\)$|^transparent$/.test(hs.backgroundColor);" +
+			"var st={minHeight:'" + H + "px'};if(!own&&bs)st.background=bs.background;" +
+			"return htmlToImage.toJpeg(h,{quality:0.82,pixelRatio:0.75,width:" + W + ",height:" + H + ",backgroundColor:'#ffffff',style:st}).catch(function(){return ''})}" +
+			"function press(k){var o={key:k,code:k===' '?'Space':k,bubbles:true};try{document.dispatchEvent(new KeyboardEvent('keydown',o))}catch(e){}setTimeout(function(){try{document.dispatchEvent(new KeyboardEvent('keyup',o))}catch(e){}},90)}" +
+			"window.addEventListener('load',function(){setTimeout(function(){snap().then(function(a){send({shot:a});" +
+			"try{var b=document.querySelector('button:not([disabled]),[role=button],input[type=submit]');if(b)b.click()}catch(e){}" +
+			"var keys=[' ','ArrowRight','ArrowUp','ArrowRight','ArrowLeft'],k=0,iv=setInterval(function(){press(keys[k%keys.length]);if(++k>=10){clearInterval(iv);setTimeout(function(){snap().then(function(b){send({shot:b,end:true})})},500)}},150)})},1300)})})()<\/script>";
+		const page = appDoc(files), head = SANDBOX_CSP + script;
+		f.srcdoc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html>" + head + page;
+		document.body.appendChild(f);
+	}));
+}
+// the model measured best at reading pictures (or the cheapest a quark from it) looks at it: null if it would ship
+async function lookAtApp(files, request, msg) {
+	const ranked = arenaRank("vision", { "vision:overall": 0.4, "vision:diagram": 0.2, "vision:captioning": 0.2, "vision:ocr": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
+	const eye = bestFirst(quarkFirst(ranked, "low"))[0];
+	if (!eye) return null;
+	const shots = await snapApp(files);
+	if (!shots.length) return null;
+	const out = await stream(eye.m.id, [{ role: "user", content: [{ type: "text", text: "Pictures of an app or game that was just built, running in a browser: " + (shots.length > 1 ? "at the start, and after its main button and some keys were pressed automatically" : "as it opens") + ".\nWhat was asked for: " + String(request).slice(0, 1500) +
+		"\n\nWould a top product designer or game studio ship it as it looks? Name only real problems a person would notice: text cut off, overlapping or hard to read; low contrast; a broken, cramped or unbalanced layout; things off the screen; a game or scene that isn't visible or doesn't react; something asked for that's missing; looking generic or amateur. (The pictures are renderings of the page, so small differences in blur or shadow don't count.) Reply with ONLY JSON: {\"ship\": true or false, \"problems\": [\"what's wrong, and how to fix it\"]}" },
+		...shots.map((url) => ({ type: "image_url", image_url: { url } }))] }], () => {}, busy.signal, { max_tokens: 1500, ...effortFor(eye.m.id, capEffort(eye.effort || "", "low", eye.m.id)) }, msg);
+	if (!msg.used.some((u) => /^Designer/.test(u.desc))) msg.used.push({ name: shortName(eye.m), desc: "Designer: looked at it running, as a person would see it" });
+	const j = parseJSON(out) || {};
+	return j.ship === false && Array.isArray(j.problems) && j.problems.length ? j.problems.slice(0, 6).map((p) => String(p).slice(0, 300)) : null;
+}
+// once it runs clean: looked at, and fixed where a designer would send it back (kept only if it still runs clean)
+async function polishLook(files, request, msg, rules) {
+	const keep = { files, polished: 0 };
+	try {
+		if (creditsMode()) { await refreshMe(); if (me && me.credits < APP_MIN_CREDITS) return keep; }
+		msg.status = "Looking at it";
+		updateLast();
+		const problems = await lookAtApp(files, request, msg);
+		if (!problems) return keep;
+		msg.status = "Polishing how it looks (" + problems.length + " thing" + (problems.length === 1 ? "" : "s") + ")";
+		updateLast();
+		const have = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 80000);
+		msg.cut = false;
+		const r = await askFirst(bestFor("app").slice(0, 3), [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
+			"\n\nIt runs without errors. Looking at it in a browser (as it opens, and after its main button and keys were pressed), a lead designer found:\n- " + problems.join("\n- ") +
+			"\n\nFix each one properly, keeping every feature and everything that already works. Output only the files you change, each complete, then the NOTES section with one line on what you changed." }], msg);
+		const p = parseFiles(r.out);
+		const cut = cutShort(p, msg.cut);
+		delete msg.cut;
+		if (cut || !Object.keys(p.files).length) return keep;
+		const next = Object.assign({}, files, p.files);
+		p.del.forEach((x) => delete next[x]);
+		const t = await probeApp(next);
+		if (t.errors.length || t.blank) return keep;
+		if (!msg.used.some((u) => u.name === shortName(r.model) && /^Polish/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Polish: fixed what the designer saw" });
+		return { files: next, polished: problems.length };
+	} catch (e) {
+		delete msg.cut;
+		if (e.name === "AbortError" || e.status === 401) throw e;
+		return keep;
+	}
+}
 // up to three rounds: run it, and if anything breaks, the errors go back to a coder; the second round goes to a
-// different lab, so a blind spot in one model is not repeated
-async function heal(files, request, msg, rules) {
+// different lab, so a blind spot in one model is not repeated. Then, once it runs clean, it's looked at (look: false
+// for a change the person asked for, which shouldn't come back restyled)
+async function heal(files, request, msg, rules, look = true) {
 	const fixers = bestFor("app");
 	let fixed = 0, lastModel = null;
 	for (let round = 1; round <= 3; round++) {
@@ -5954,8 +6038,9 @@ async function heal(files, request, msg, rules) {
 		updateLast();
 		const t = await probeApp(files);
 		if (!t.errors.length && !t.blank) {
-			msg.tested = { ok: true, fixed, rounds: round - 1 };
-			return files;
+			const seen = look ? await polishLook(files, request, msg, rules) : { files, polished: 0 };
+			msg.tested = { ok: true, fixed, rounds: round - 1, polished: seen.polished };
+			return seen.files;
 		}
 		const problems = t.errors.length ? t.errors : ["The page loads blank: nothing is drawn or shown."];
 		if (round === 3) {
@@ -5993,7 +6078,8 @@ async function heal(files, request, msg, rules) {
 }
 function testedLine(t) {
 	if (!t) return "";
-	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean.*" : "\n\n*Tested in the browser: it runs clean.*";
+	const looked = t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "";
+	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean." + looked + "*" : "\n\n*Tested in the browser: it runs clean." + looked + "*";
 	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them. Get more credits, then say \"fix it\".*";
 	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
 }
@@ -6132,7 +6218,7 @@ async function runApp(text, atts, pick) {
 	let files = Object.assign({}, prev ? prev.data.files : {}, parsed.files);
 	parsed.del.forEach((p) => delete files[p]);
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
-	else files = await heal(files, text, msg, rules);
+	else files = await heal(files, text, msg, rules, !prev);
 	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
 	msg.tab = "preview";
 	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested);
