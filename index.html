@@ -2603,7 +2603,7 @@ const skillLine = () => (SKILLS_ON.length ? "Expert playbooks for this request (
 // a server with no picture, video, voice or music models (a chat-only gateway): videos are still made, every shot drawn
 // in code by the best animator and cut into a real file here
 const drawnOnly = () => creditsMode() && !!pricing && !!pricing.reach && pricing.reach.media === false;
-const DRAWN_VIDEO = "a real video file (MP4), every shot animated in code by the best animator: motion graphics, kinetic typography and titles, animated illustrations and flat or 2D characters, 3D shapes, diagrams, charts, maps, particles, cut together with captions, transitions and an end card. This server has no filmed footage, photos, AI voice or music, so the words are on screen. The way for any video, ad, trailer, explainer, intro or animation";
+const DRAWN_VIDEO = "a real video file (MP4), every shot animated in code by the best animator: motion graphics, kinetic typography and titles, animated illustrations and flat or 2D characters, 3D shapes, diagrams, charts, maps, particles, cut together with captions, transitions, an end card, and music and sound effects composed in code to the cut. This server has no filmed footage, photos or AI voice, so the words are on screen. The way for any video, ad, trailer, explainer, intro or animation";
 const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
 // The tools in the composer's + menu. Picking one says what kind of thing you want; how it's done, with which models, is
 // still Andromeda's own decision (and if that way fails, it's free to find another)
@@ -7158,7 +7158,7 @@ async function direct(text, atts, msg, signal, drawn) {
 	const want = lengthOf(text);
 	const imgs = atts.filter((a) => a.kind === "image" && a.data);
 	const ask = "Plan this: " + text + "\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
-		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). There is no voice and no music: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption." : "") +
+		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\"." : "") +
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
 		(sourceOf(atts, 1) ? "\n\nWhat they gave you about it (their page, notes or files): use the real names, products, prices, places and tone from it, never invent ones that contradict it.\n" + sourceOf(atts, 12000) : "") +
 		"\n\nVoices: " + Object.entries(VOICES).map(([k, v]) => k + " (" + v + ")").join(", ") + "." + (langLine() ? "\n" + langLine() + " (keep the JSON keys in English)" : "");
@@ -7295,10 +7295,11 @@ const drawnCredits = (usd) => Math.ceil(usd * CREDIT_CHAT() / creditUsd());
 function confirmDrawn(plan) {
 	return new Promise((res) => {
 		const secs = Math.round(plan.scenes.reduce((n, s) => n + s.seconds, 0));
-		const credits = drawnCredits(0.06 + plan.scenes.length * drawnCost());
+		// the director, every shot animated, and the soundtrack composed (about one shot's worth)
+		const credits = drawnCredits(0.06 + (plan.scenes.length + 1) * drawnCost());
 		const short = !!me && me.credits < credits;
-		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots, every one animated in code · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + " · about " + creditsText(credits) + " credits. You only pay for what's made.</p>" +
-			'<div class="field"><div class="help">' + (me ? "You have " + creditsText(Math.max(0, me.credits)) + " credits." + (short ? " That isn't enough for all of it: get more credits first. " : " ") : "") + "This server has no filmed footage, voice or music, so the words are on screen. Cut here in your browser.</div></div>" +
+		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots, every one animated in code, with music and sound effects composed to the cut · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + " · about " + creditsText(credits) + " credits. You only pay for what's made.</p>" +
+			'<div class="field"><div class="help">' + (me ? "You have " + creditsText(Math.max(0, me.credits)) + " credits." + (short ? " That isn't enough for all of it: get more credits first. " : " ") : "") + "No voiceover on this server yet, so the words are on screen. Cut here in your browser.</div></div>" +
 			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button><button class="btn dark" id="tierGo"' + (short ? " disabled" : "") + ">Make it</button></div>");
 		modalClose = () => res(null);
 		$("#tierGo").onclick = () => { try { (STUDIO_AUDIO.ctx ||= new AudioContext()).resume(); } catch {} modalClose = null; closeModal(); res("standard"); };
@@ -7449,7 +7450,23 @@ async function produce(msg, only, signal) {
 			}
 		};
 		const score = async () => {
-			if (!mus || (d.music.key && !only?.music)) return;
+			if (d.music.key && !only?.music) return;
+			// nothing on this server makes music: the score and the sound effects are written in code instead
+			if (!mus) {
+				d.music.state = "composing";
+				paint();
+				try {
+					const r = await composeSound(plan, msg, signal);
+					d.music = { key: await vault.put(r.blob), composed: true, state: "done" };
+					note(shortName(r.model), "Sound: composed the score and the sound effects in code, timed to the cut");
+				} catch (e) {
+					if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+					d.music.state = "failed";
+					d.music.error = String(e.message || e);
+				}
+				paint();
+				return;
+			}
 			note(mus.name, "Music: composed the score");
 			d.music.state = "composing";
 			paint();
@@ -7565,9 +7582,11 @@ async function cut(d, onProgress) {
 		// a long film's score is a piece that loops: round again under all of it
 		src.loop = music.duration < total;
 		src.connect(g).connect(oc.destination);
-		const base = 0.55 * plan.music.level / 0.5, duck = base * 0.32;
-		g.gain.setValueAtTime(0, 0);
-		g.gain.linearRampToValueAtTime(base, 0.6);
+		// a soundtrack composed in code shapes its own start, hits and ending: it plays as it was mixed
+		const own = !!d.music.composed;
+		const base = own ? 1 : 0.55 * plan.music.level / 0.5, duck = base * 0.32;
+		g.gain.setValueAtTime(own ? base : 0, 0);
+		if (!own) g.gain.linearRampToValueAtTime(base, 0.6);
 		for (const s of shots) {
 			if (!s.voBuf) continue;
 			const a = s.start + 0.3, b = a + s.voBuf.duration;
@@ -7576,7 +7595,7 @@ async function cut(d, onProgress) {
 			g.gain.setValueAtTime(duck, b);
 			g.gain.linearRampToValueAtTime(base, b + 0.4);
 		}
-		g.gain.setValueAtTime(base, Math.max(0.7, total - 1.6));
+		g.gain.setValueAtTime(base, Math.max(0.7, total - (own ? 0.3 : 1.6)));
 		g.gain.linearRampToValueAtTime(0, total);
 		src.start(0, 0, total);
 	}
@@ -7945,6 +7964,109 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H) {
 	throw lastErr || new Error("No model could animate this shot");
 }
 
+// ---- the sound, made in code: with no music model on the server, the best creative coder composes the score and the
+// sound design as a Web Audio program timed to the cut, rendered here (sealed off like a drawn shot) into the soundtrack
+const COMPOSER = `You are the composer and sound designer of a short film, writing its whole soundtrack as a program for the Web Audio API.
+
+Write ONE complete HTML document whose script defines window.compose = async function (ctx) { ... }. ctx is an OfflineAudioContext, stereo, 48000 Hz, exactly window.DURATION seconds long (set before your script runs). Schedule everything on ctx and return without calling ctx.startRendering: it is rendered for you. Build every sound yourself: OscillatorNode, AudioBufferSourceNode with buffers you fill (noise and textures from a seeded random generator you write), BiquadFilterNode, GainNode envelopes (setValueAtTime, linearRampToValueAtTime, exponentialRampToValueAtTime to values above 0, setTargetAtTime), DelayNode, StereoPannerNode, WaveShaperNode, a ConvolverNode reverb with an impulse response you generate, and a DynamicsCompressorNode on the master. No samples, files, network or timers: the same sound every time.
+
+What it must sound like:
+- A score that fits the film: a key, a tempo in BPM, instruments synthesized with care (warm detuned pads, plucks, a bass that moves, punchy drums, risers), an intro, a build, a peak on the film's big moment, and a clean ending on the end card.
+- Sound design locked to the picture: a whoosh or swell into each cut, hits and impacts when titles and key things appear, light ticks and shimmers under motion graphics, a final hit as the end card lands.
+- Mixed like a finished film: the master peaks below -1 dBFS and never clips; the effects sit on top of the music; nothing harsh or piercing; a solid low end that still works on a phone speaker.
+
+Reply with the HTML only.`;
+// where each shot sits once cut (the same arithmetic as the editor: each shot overlaps the next by the crossfade)
+function cutTimes(plan) {
+	let t = 0;
+	const shots = plan.scenes.map((sc) => { const s = { start: t, end: t + sc.seconds, what: sc.draw || sc.shot, caption: sc.caption, sound: sc.sound }; t += sc.seconds - XF; return s; });
+	const endCard = !!(plan.end.title || plan.end.sub);
+	const total = t + XF + (endCard ? END : 0.2);
+	return { shots, total, end: endCard ? total - END : null };
+}
+function soundDoc(html, secs, id) {
+	const send = "function send(m,t){try{parent.postMessage(m,'*',t||[])}catch(e){}}";
+	return "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; script-src 'unsafe-inline'\"><script>window.DURATION=" + secs + ";(function(){" + send +
+		"addEventListener('error',function(e){send({sound:" + id + ",error:(e.message||'Error')+(e.lineno?' (line '+e.lineno+')':'')})})})();<\/script>" + html +
+		"<script>(function(){var ID=" + id + ";" + send + "addEventListener('message',async function(e){if(!e.data||e.data.go!==ID)return;try{if(typeof window.compose!=='function')throw new Error('It has no window.compose(ctx)');" +
+		"var ctx=new OfflineAudioContext(2,Math.ceil(window.DURATION*48000),48000);var r=await window.compose(ctx);var b=r&&r.getChannelData?r:await ctx.startRendering();var L=b.getChannelData(0),R=b.numberOfChannels>1?b.getChannelData(1):L.slice();" +
+		"send({sound:ID,L:L,R:R},[L.buffer,R.buffer])}catch(err){send({sound:ID,error:String(err&&err.message||err)})}});send({sound:ID,ready:true})})();<\/script>";
+}
+function renderSound(html, secs) {
+	return new Promise((res, rej) => {
+		const id = Math.floor(Math.random() * 1e9), f = document.createElement("iframe");
+		f.setAttribute("sandbox", "allow-scripts");
+		f.setAttribute("aria-hidden", "true");
+		f.style.cssText = "position:fixed;left:-20000px;top:0;width:10px;height:10px;border:0";
+		let done = false;
+		const end = (fn, v) => { if (done) return; done = true; removeEventListener("message", on); clearTimeout(timer); f.remove(); fn(v); };
+		const on = (e) => {
+			if (e.source !== f.contentWindow) return;
+			const m = e.data || {};
+			if (m.sound !== id) return;
+			if (m.error) end(rej, new Error(m.error));
+			else if (m.ready) f.contentWindow.postMessage({ go: id }, "*");
+			else if (m.L) end(res, [m.L, m.R]);
+		};
+		addEventListener("message", on);
+		const timer = setTimeout(() => end(rej, new Error("The soundtrack took too long to render")), 90000);
+		f.srcdoc = soundDoc(html, secs, id);
+		document.body.appendChild(f);
+	});
+}
+// a soundtrack that rendered: not broken, not silent, not mostly empty; then levelled to peak at -1 dBFS
+function soundCheck(L, R) {
+	let peak = 0;
+	for (const ch of [L, R]) for (let k = 0; k < ch.length; k++) { const v = ch[k]; if (v !== v) throw new Error("The soundtrack has broken samples (NaN): some value or parameter isn't a number"); const a = v < 0 ? -v : v; if (a > peak) peak = a; }
+	if (peak < 0.003) throw new Error("The soundtrack came out silent: nothing reaches ctx.destination, or nothing starts inside the duration");
+	const k = 0.89 / peak, win = 48000;
+	let quiet = 0, wins = 0;
+	for (let s = 0; s + win <= L.length; s += win) {
+		let sum = 0;
+		for (let i = s; i < s + win; i += 8) sum += L[i] * L[i] + R[i] * R[i];
+		wins++;
+		if (Math.sqrt(sum / (win / 4)) * k < 0.004) quiet++;
+	}
+	if (wins >= 4 && quiet / wins > 0.5) throw new Error("The soundtrack is silent for " + quiet + " of its " + wins + " seconds: sounds must play through the whole film");
+	for (const ch of [L, R]) for (let i = 0; i < ch.length; i++) ch[i] *= k;
+}
+function wavOf(L, R, sr) {
+	const n = L.length, buf = new ArrayBuffer(44 + n * 4), v = new DataView(buf);
+	const w = (o, s) => { for (let k = 0; k < s.length; k++) v.setUint8(o + k, s.charCodeAt(k)); };
+	w(0, "RIFF"); v.setUint32(4, 36 + n * 4, true); w(8, "WAVE"); w(12, "fmt "); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 2, true);
+	v.setUint32(24, sr, true); v.setUint32(28, sr * 4, true); v.setUint16(32, 4, true); v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, n * 4, true);
+	for (let i = 0, o = 44; i < n; i++, o += 4) { v.setInt16(o, Math.max(-1, Math.min(1, L[i])) * 32767, true); v.setInt16(o + 2, Math.max(-1, Math.min(1, R[i])) * 32767, true); }
+	return new Blob([buf], { type: "audio/wav" });
+}
+async function composeSound(plan, msg, signal) {
+	const times = cutTimes(plan), long = times.total > 180, secs = Math.round(Math.min(180, times.total) * 100) / 100;
+	// a long film: a three-minute piece that loops under all of it, with no effects to keep in step
+	const ask = "The film: " + plan.title + " (" + plan.kind + "). Its look: " + plan.look.slice(0, 600) + "\nThe music it wants: " + plan.music.prompt +
+		(long ? "\nIt's " + Math.round(times.total / 60) + " minutes long, so write " + secs + " seconds of score that loops seamlessly (its end flows straight back into its start), even and steady under the whole film, with no sound effects."
+			: "\nDURATION: " + secs + " seconds. The cut, shot by shot (each crossfades into the next over " + XF + " s):\n" +
+			times.shots.map((s) => "- " + s.start.toFixed(2) + " to " + s.end.toFixed(2) + " s: " + String(s.what || "").slice(0, 170) + (s.caption ? " [caption: \"" + s.caption + "\"]" : "") + (s.sound ? " [sounds: " + String(s.sound).slice(0, 120) + "]" : "")).join("\n") +
+			(times.end != null ? "\n- " + times.end.toFixed(2) + " s to the end: the end card \"" + plan.end.title + "\"" + (plan.end.sub ? ", \"" + plan.end.sub + "\"" : "") : ""));
+	let lastErr;
+	for (const m of bestFor("animation").slice(0, 3)) {
+		let html = "", err = "";
+		for (let attempt = 0; attempt < 2; attempt++) {
+			try {
+				const out = await stream(m.id, [{ role: "system", content: COMPOSER }, { role: "user", content: attempt ? ask + "\n\nYour last version failed when it was rendered:\n" + err + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nFind the cause, fix it, and send the whole file again." : ask }], () => {}, signal, effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id)), msg);
+				html = (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html|<script/i)));
+				const [L, R] = await renderSound(html, secs);
+				soundCheck(L, R);
+				return { blob: wavOf(L, R, 48000), model: m };
+			} catch (e) {
+				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+				err = String(e.message || e).slice(0, 600);
+				lastErr = e;
+				if (!html) break;
+			}
+		}
+	}
+	throw lastErr || new Error("No model could compose the sound");
+}
+
 // ---- photos, posters, logos
 async function runImage(text, atts) {
 	const msg = { role: "assistant", kind: "studio", text: "", streaming: true, status: "Planning the image", used: [], data: null };
@@ -8026,13 +8148,16 @@ async function studioEdit(text, atts, pick) {
 	msg.used.push({ name: shortName(m), desc: "Director: changed the plan" });
 	// a new copy of it, so the old one stays as it was; shots that didn't change are reused as they are
 	const keep = (i) => (d.scenes[i] && JSON.stringify(d.plan.scenes[i]?.shot) === JSON.stringify(plan.scenes[i].shot) ? { ...d.scenes[i] } : { state: "waiting" });
+	// a soundtrack composed to the cut is composed again when the shots' timing changes
+	const retimed = d.music.composed && JSON.stringify(d.plan.scenes.map((s) => s.seconds)) !== JSON.stringify(plan.scenes.map((s) => s.seconds));
+	if (retimed) redo.music = true;
 	msg.data = { kind: "video", plan, tier: d.tier, drawnOnly: d.drawnOnly, refs: d.refs, scenes: plan.scenes.map((_, i) => keep(i)), music: redo.music ? {} : { ...d.music }, stage: "making" };
 	redo.scenes.forEach((i) => (msg.data.scenes[i] = { state: "waiting" }));
 	if (plan.aspect !== d.plan.aspect) msg.data.scenes = plan.scenes.map(() => ({ state: "waiting" }));
 	// what the shots to remake will cost: animation for a drawn film, footage for a filmed one
 	const remake = (s) => !(s.clip || (s.drawn && s.code));
 	const vm = d.drawnOnly ? null : videoModel(d.tier);
-	const cost = d.drawnOnly ? msg.data.scenes.filter(remake).length * drawnCost() : msg.data.scenes.reduce((n, s, i) => n + (s.clip ? 0 : vPerSec(vm, VIDEO_TIERS[d.tier].res, true) * fitDur(vm, plan.scenes[i].seconds) + 0.14), 0) + (redo.music ? 0.06 : 0);
+	const cost = d.drawnOnly ? (msg.data.scenes.filter(remake).length + (redo.music ? 1 : 0)) * drawnCost() : msg.data.scenes.reduce((n, s, i) => n + (s.clip ? 0 : vPerSec(vm, VIDEO_TIERS[d.tier].res, true) * fitDur(vm, plan.scenes[i].seconds) + 0.14), 0) + (redo.music ? 0.06 : 0);
 	if (d.drawnOnly ? cost > 0.5 : cost > 1.5) {
 		const ok = await new Promise((res) => {
 			openModal("<h2>Remake " + msg.data.scenes.filter(remake).length + " shot(s)?</h2><p class=\"sub\">That change needs new " + (d.drawnOnly ? "animation" : "footage") + ": about " + (d.drawnOnly ? creditsText(drawnCredits(cost)) + " credits" : money$(cost)) + ". Everything else is reused.</p><div class=\"row\" style=\"justify-content:flex-end;gap:8px\"><button class=\"btn\" id=\"reNo\">Cancel</button><button class=\"btn dark\" id=\"reGo\">Remake</button></div>");
