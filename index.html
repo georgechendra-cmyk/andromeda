@@ -2064,7 +2064,7 @@ function flagship(lab, task, fast) {
 // The candidates for a task, best first: the models that measurably score highest on this request's exact mix of work
 // when the leaderboards are loaded, otherwise one per lab in the order above
 function rank(task, cap) {
-	const data = bestFirst(quarkFirst(arenaRank(task), cap));
+	const data = bestFirst(quarkFirst(arenaRank(task), cap, null, callCost, STAKES[task]));
 	if (data.length >= 2) return pinFirst(diversify(data), task);
 	const out = [];
 	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
@@ -2320,30 +2320,30 @@ function effortFor(id, f) {
 // What each of Andromeda's own features needs, as the leaderboards measure it, so each goes to the model that measurably
 // does exactly that best, blended with what this request needs on top (its field, its language)
 const FEATURE_W = {
-	app: { task: "code", w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
+	app: { task: "code", out: 12000, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
 	// a video's drawn shots: frame-by-frame canvas animation, a web page's craft with a storyteller's eye
-	animation: { task: "code", w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
-	appFromImage: { task: "vision", w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
-	sim: { task: "code", w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
-	spec: { task: "reasoning", w: { "text:instruction_following": 0.35, "text:hard_prompts": 0.3, "text:expert": 0.2, "text:creative_writing": 0.15 } },
-	flashcards: { task: "write", w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
-	quiz: { task: "write", w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
-	open: { task: "write", w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
-	grade: { task: "reasoning", w: { "text:expert": 0.4, "factuality:overall": 0.3, "text:instruction_following": 0.3 } },
-	mindmap: { task: "write", w: { "text:expert": 0.3, "text:instruction_following": 0.3, "factuality:overall": 0.2, "text:creative_writing": 0.2 } },
-	podcast: { task: "write", w: { "text:creative_writing": 0.45, "factuality:overall": 0.3, "text:instruction_following": 0.25 } },
-	xlsx: { task: "reasoning", w: { "text:math": 0.3, "text:instruction_following": 0.3, "text:industry_business_and_management_and_financial_operations": 0.2, "text:coding": 0.2 } },
-	pptx: { task: "write", w: { "text:instruction_following": 0.35, "text:expert": 0.25, "factuality:overall": 0.2, "text:creative_writing": 0.2 } },
-	docx: { task: "write", w: { "text:industry_writing_and_literature_and_language": 0.35, "text:instruction_following": 0.3, "factuality:overall": 0.2, "text:expert": 0.15 } },
-	director: { task: "write", w: { "text:creative_writing": 0.45, "text:instruction_following": 0.35, "text:industry_entertainment_and_sports_and_media": 0.2 } },
-	directorFromImage: { task: "vision", w: { "vision:overall": 0.4, "vision:creative_writing_vision": 0.3, "text:creative_writing": 0.15, "text:instruction_following": 0.15 } },
-	imagePrompt: { task: "write", w: { "text:creative_writing": 0.4, "text:instruction_following": 0.4, "text:industry_entertainment_and_sports_and_media": 0.2 } },
+	animation: { task: "code", out: 9000, w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
+	appFromImage: { task: "vision", out: 12000, w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
+	sim: { task: "code", out: 9000, w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
+	spec: { task: "reasoning", out: 1500, w: { "text:instruction_following": 0.35, "text:hard_prompts": 0.3, "text:expert": 0.2, "text:creative_writing": 0.15 } },
+	flashcards: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
+	quiz: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
+	open: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
+	grade: { task: "reasoning", out: 800, w: { "text:expert": 0.4, "factuality:overall": 0.3, "text:instruction_following": 0.3 } },
+	mindmap: { task: "write", out: 2000, w: { "text:expert": 0.3, "text:instruction_following": 0.3, "factuality:overall": 0.2, "text:creative_writing": 0.2 } },
+	podcast: { task: "write", out: 4000, w: { "text:creative_writing": 0.45, "factuality:overall": 0.3, "text:instruction_following": 0.25 } },
+	xlsx: { task: "reasoning", out: 4000, w: { "text:math": 0.3, "text:instruction_following": 0.3, "text:industry_business_and_management_and_financial_operations": 0.2, "text:coding": 0.2 } },
+	pptx: { task: "write", out: 4000, w: { "text:instruction_following": 0.35, "text:expert": 0.25, "factuality:overall": 0.2, "text:creative_writing": 0.2 } },
+	docx: { task: "write", out: 4000, w: { "text:industry_writing_and_literature_and_language": 0.35, "text:instruction_following": 0.3, "factuality:overall": 0.2, "text:expert": 0.15 } },
+	director: { task: "write", out: 2500, w: { "text:creative_writing": 0.45, "text:instruction_following": 0.35, "text:industry_entertainment_and_sports_and_media": 0.2 } },
+	directorFromImage: { task: "vision", out: 2500, w: { "vision:overall": 0.4, "vision:creative_writing_vision": 0.3, "text:creative_writing": 0.15, "text:instruction_following": 0.15 } },
+	imagePrompt: { task: "write", out: 300, w: { "text:creative_writing": 0.4, "text:instruction_following": 0.4, "text:industry_entertainment_and_sports_and_media": 0.2 } },
 	// reading each request to route it runs before every answer: the fast model that's best at it (a slow one would hold
 	// every answer up)
-	reader: { task: "quick", fast: true, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
+	reader: { task: "quick", out: 300, fast: true, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
 	// splitting a request into its smallest pieces of work, and putting the pieces back together into one answer
-	planner: { task: "reasoning", w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
-	assemble: { task: "write", w: { "text:instruction_following": 0.35, "text:expert": 0.25, "text:creative_writing": 0.2, "factuality:overall": 0.2 } },
+	planner: { task: "reasoning", out: 900, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
+	assemble: { task: "write", out: 2500, w: { "text:instruction_following": 0.35, "text:expert": 0.25, "text:creative_writing": 0.2, "factuality:overall": 0.2 } },
 };
 // The models for one of those features, best first (at most two from one lab near the top, so if a lab is down the next
 // in line is another); without the leaderboards, the labs known for that kind of work
@@ -2351,7 +2351,7 @@ function bestFor(feature) {
 	const f = FEATURE_W[feature];
 	let data = arenaRank(f.task, blendW(f.w, PROFILE && PROFILE.weights, 0.6));
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
-	data = bestFirst(quarkFirst(data));
+	data = bestFirst(quarkFirst(data, undefined, undefined, (x, cap) => callCost(x, cap, f.out || 800), STAKES[f.task]));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -2457,7 +2457,7 @@ function arenaRank(task, weights) {
 				hv += (wt * h) ** 2;
 				tw += wt;
 			}
-			if (tw) out.push({ m, score: s / tw, effort: f, mid: mid / tw, hw: Math.sqrt(hv) / tw });
+			if (tw) out.push({ m, score: s / tw, effort: f, mid: mid / tw, hw: Math.sqrt(hv) / tw, task });
 		}
 	}
 	out.sort((a, b) => b.score - a.score);
@@ -2471,24 +2471,48 @@ function arenaRank(task, weights) {
 // a quarter of the cheapest, one already on the team is preferred (its pieces then go in the same call). Max: the best.
 const QUARK_MAX = 0.6;
 const THINK_TOK = { none: 0, minimal: 300, low: 1200, medium: 3500, high: 7000, xhigh: 11000, max: 16000 };
-function callCost(x, cap) {
+// (out: how much this work writes, in tokens: an everyday answer about 800, a whole app or animated shot ten thousand
+// or more, where the price of writing is nearly all of it)
+function callCost(x, cap, out = 800) {
 	const m = x.m || x, eff = capEffort(x.effort || "", cap, m.id);
 	const thinks = Array.isArray(m.efforts) && m.efforts.some((e) => e !== "none");
 	const t = eff ? THINK_TOK[eff] ?? 2000 : thinks ? 2000 : 0;
-	const v = (Number(m.pin) || 0) * 3000 + (Number(m.pout) || 0) * (800 + t);
+	const v = (Number(m.pin) || 0) * 3000 + (Number(m.pout) || 0) * (out + t);
 	return v > 0 ? v : Infinity;
 }
+// What a lead must be worth. Past a tie, a model behind the best still does the work when the best's lead is smaller than
+// its extra price has to buy: each doubling of price must buy WORTH of score (about a point of how often people prefer
+// it), less for hard work (quality first), more for easy work. Never more than WORTH_MAX behind, and never a quick, light
+// model (those only ever win tied with the best). Max ignores price.
+const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 1.2;
+// code and reasoning hold out for quality by default: the leaderboards measure which answer people preferred, and code
+// and proofs also have to be right, which a small preference gap can hide
+const STAKES = { code: WORTH.high, reasoning: WORTH.high };
 // (Andromeda's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
 // record here is clearly worse than the best's isn't level with it, whatever the ratings say)
 const quarkTied = (top, x) => x.mid != null && top.mid != null && top.mid - x.mid <= Math.min(QUARK_MAX, Math.hypot(top.hw || 0, x.hw || 0)) && (x.learned || 0) >= (top.learned || 0) - 0.25;
-function quarkFirst(list, cap, used, cost = callCost) {
+function quarkFirst(list, cap, used, cost = callCost, worth) {
 	if (speed() === "max" || list.length < 2) return list;
 	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
 	const tied = list.filter((x) => x === top || quarkTied(top, x));
 	const low = Math.min(...tied.map((x) => cost(x, cap)));
 	if (!Number.isFinite(low)) return list;
 	const fair = tied.filter((x) => cost(x, cap) <= low * 1.25);
-	const pick = (used && fair.find((x) => used.has(x.m.id))) || fair.reduce((a, b) => (cost(b, cap) < cost(a, cap) || (cost(b, cap) === cost(a, cap) && b.score > a.score) ? b : a));
+	let pick = (used && fair.find((x) => used.has(x.m.id))) || fair.reduce((a, b) => (cost(b, cap) < cost(a, cap) || (cost(b, cap) === cost(a, cap) && b.score > a.score) ? b : a));
+	// then worth its price: the tied pick counts as level with the best; one further behind wins only if the money it saves
+	// is worth more than the lead it gives up
+	if (top.mid != null) {
+		// (code and reasoning never go below their own standard, even for an easy piece or a check)
+		const stakes = worth ?? STAKES[list[0] && list[0].task];
+		const lam = Math.min(WORTH[cap] ?? Infinity, stakes ?? Infinity) === Infinity ? WORTH.medium : Math.min(WORTH[cap] ?? Infinity, stakes ?? Infinity);
+		const val = (x, mid) => mid - lam * Math.log2(cost(x, cap));
+		let bestVal = val(pick, top.mid);
+		for (const x of list) {
+			if (tied.includes(x) || x.mid == null || top.mid - x.mid > WORTH_MAX || FAST.test(x.m.id) || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
+			const v = val(x, x.mid);
+			if (v > bestVal) { bestVal = v; pick = x; }
+		}
+	}
 	return pick === list[0] ? list : [pick, ...list.filter((x) => x !== pick)];
 }
 // Who checks or reviews work: from another lab than the one that wrote it, when one is level with the best and costs no
