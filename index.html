@@ -8311,7 +8311,7 @@ async function renderStudio(m, i, box) {
 	const fin = d.final ? await vault.url(d.final) : null;
 	const frames = await Promise.all(d.scenes.map((s) => (s.frame ? vault.url(s.frame) : s.poster ? vault.url(s.poster) : null)));
 	const vertical = plan.aspect === "9:16";
-	box.innerHTML = (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button><button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' :
+	box.innerHTML = (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"' + (frames[0] ? ' poster="' + frames[0] + '"' : "") + '></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button><button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' :
 		d.stage === "planned" ? '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-make>Make it</button></div>' : "") +
 		'<div class="shots' + (vertical ? " tall" : "") + '">' + d.scenes.map((s, n) => '<figure class="shot ' + (s.state || "") + '">' + (frames[n] ? '<img src="' + frames[n] + '" alt="">' : '<div class="ph"></div>') +
 			'<figcaption><b>' + (n + 1) + "</b> " + esc(plan.scenes[n].caption || plan.scenes[n].vo || plan.scenes[n].shot).slice(0, 70) + '<span class="st">' + ({ waiting: "waiting", drawing: "drawing", animating: "animating", queued: "queued", rendering: "filming", fetching: "fetching", done: "✓", failed: "failed" }[s.state] || "") + "</span>" +
