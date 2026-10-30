@@ -8131,9 +8131,20 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 		+ (sc.caption ? "\nThe editor adds this caption at the bottom, so keep the bottom fifth clear: \"" + sc.caption + "\"" : "")
 		+ "\nSame style, palette and characters as the rest of the film, so the shots cut together."
 		+ (style ? "\n\nThe film's first shot, already made. Match its palette, fonts, textures, line weights, easing and drawing helpers exactly (reuse its code where it fits), so the cut feels like one film:\n" + style.slice(0, 14000) : "");
-	const write = async (m, prompt) => {
-		const out = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id)), msg);
-		return (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
+	const whole = (out) => (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
+	const effort = (m) => effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id));
+	const write = async (m, prompt) => whole(await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effort(m), msg));
+	// a fix to a shot that's written: only the lines that change (a whole shot is thousands of tokens for a few lines'
+	// fix); edits that don't land, or none, and it's the whole file after all
+	const change = async (m, why, html) => {
+		const said = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: ask + "\n\n" + why + "\n\nThe code, as shot.html:\n" + html.slice(0, 40000) + "\n\nThis time don't send the whole file. " + CHANGE_FORMAT.replace(/\bpath\b/g, "shot.html") }], () => {}, signal, effort(m), msg);
+		const p = parseFiles(said);
+		if (p.files["shot.html"]) return p.files["shot.html"];
+		if (Object.keys(p.edits).length) {
+			const { files, failed } = applyEdits({ "shot.html": html }, p.edits);
+			if (!failed.length) return files["shot.html"];
+		} else if (/<canvas|<script/i.test(whole(said))) return whole(said);
+		return write(m, ask + "\n\n" + why + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nSend the whole file again.");
 	};
 	// once it runs: the review, and one round of fixing what it found (kept only if the fix runs too)
 	const polish = async (m, html) => {
@@ -8141,7 +8152,7 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 		try { problems = await reviewScene(html, sc, plan, Math.round(W / 3), Math.round(H / 3), msg, signal); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 		if (!problems) return html;
 		try {
-			const fixed = await write(m, ask + "\n\nYour version runs, and a reviewer looking at its frames found:\n- " + problems.join("\n- ") + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nFix exactly these, keep everything else, and send the whole file again.");
+			const fixed = await change(m, "Your version runs, and a reviewer looking at its frames found:\n- " + problems.join("\n- ") + "\nFix exactly these and keep everything else.", html);
 			await checkScene(fixed, sc.seconds, Math.round(W / 4), Math.round(H / 4));
 			return fixed;
 		} catch (e) {
@@ -8154,7 +8165,7 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 		let html = "", err = "";
 		for (let attempt = 0; attempt < 2; attempt++) {
 			try {
-				html = await write(m, attempt ? ask + "\n\nYour last version failed when it was run:\n" + err + "\n\nThe code:\n" + html.slice(0, 40000) + "\n\nFind the cause, fix it, and send the whole file again." : ask);
+				html = attempt ? await change(m, "Your last version failed when it was run:\n" + err + "\nFind the cause and fix it.", html) : await write(m, ask);
 				await checkScene(html, sc.seconds, Math.round(W / 4), Math.round(H / 4));
 				return await polish(m, html);
 			} catch (e) {
