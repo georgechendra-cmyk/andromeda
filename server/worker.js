@@ -13,9 +13,10 @@
 
 const DEFAULT_CONFIG = {
 	creditUsd: 0.01,
-	// the model's list price x this (2.5x to 3x: after a gateway's own fee, about half of every sale is margin). Bands are
-	// by the model's output price in dollars per million tokens.
-	multipliers: { cheap: 3, mid: 3, top: 2.5, media: 2 },
+	// the model's list price x this. 3x is about where profit peaks for a new AI app with free rivals: a 10% higher price
+	// loses some 15-20% of buyers, so profit is nearly flat from 2.5x to 4x and falls past it. Bands are by the model's
+	// output price in dollars per million tokens.
+	multipliers: { cheap: 3, mid: 3, top: 3, media: 2 },
 	bands: { cheapBelow: 2, topFrom: 15 },
 	// the most one answer may write, whatever the balance (a model asked to think gets room for that on top); only what's
 	// written is charged, so this only keeps a long answer from being cut off
