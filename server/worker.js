@@ -473,7 +473,8 @@ function gateways(env) {
 		if (!url || !key) continue;
 		let aliases = {};
 		try { aliases = JSON.parse(env["GATEWAY" + n + "_ALIASES"] || "{}") || {}; } catch {}
-		out.push({ n: n || "1", base: String(url).trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, ""), key: String(key).trim(), fee: Number(env["GATEWAY" + n + "_FEE"]) || 1, aliases });
+		// (a key never holds control characters: Ctrl+V in a Windows prompt types one instead of pasting)
+		out.push({ n: n || "1", base: String(url).trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, ""), key: String(key).replace(/[\x00-\x1f\x7f]/g, "").trim(), fee: Number(env["GATEWAY" + n + "_FEE"]) || 1, aliases });
 	}
 	return out;
 }
@@ -512,7 +513,7 @@ async function gatewayCatalog(g) {
 	} catch (e) {
 		// why, for the admin page and the server's log (the gateway's own words; never the key)
 		c = { ...c, failed: Date.now(), error: String((e && e.message) || e).slice(0, 200) };
-		console.log("gateway " + g.n + " list unreadable: " + c.error);
+		console.log("gateway " + g.n + " list unreadable: " + c.error + " (its key: " + g.key.length + " characters, " + (/^sk-/.test(g.key) ? "starts sk-" : "doesn't start sk-") + ")");
 	}
 	GWS.set(g.base, c);
 	return c;
