@@ -2046,7 +2046,7 @@ async function lemonWebhook(req, env) {
 // ------------------------------------------------------------------ admin (the owner, with ADMIN_TOKEN)
 
 async function admin(req, env, p, m) {
-	if (!env.ADMIN_TOKEN || !sameString(req.headers.get("X-Admin-Token") || "", env.ADMIN_TOKEN)) throw fail(401, "Wrong admin password.");
+	if (!env.ADMIN_TOKEN || !sameString(String(req.headers.get("X-Admin-Token") || "").trim(), String(env.ADMIN_TOKEN).replace(/[\x00-\x1f\x7f]/g, "").trim())) throw fail(401, "Wrong admin password.");
 	if (p === "/api/admin/overview" && m === "GET") {
 		const q = (sql, ...a) => env.DB.prepare(sql).bind(...a).all().then((r) => r.results || []);
 		const [pending, recent, users, totals, spent, freeDays] = await Promise.all([

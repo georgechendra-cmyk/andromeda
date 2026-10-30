@@ -8670,7 +8670,9 @@ async function openAdmin() {
 	try { tok = sessionStorage.getItem("andromeda.admin") || ""; } catch {}
 	const ask = (msg) => {
 		openModal('<h2>Admin</h2><p class="sub">' + (msg || "The admin password you set on the server.") + '</p><div class="field"><input class="inp" id="adTok" type="password"></div><div class="row" style="justify-content:flex-end"><button class="btn dark" id="adGo">Open</button></div>');
-		$("#adGo").onclick = () => { try { sessionStorage.setItem("andromeda.admin", $("#adTok").value); } catch {} openAdmin(); };
+		// (pasted from the password file: its "Password:" label, spaces and line breaks don't count)
+		$("#adGo").onclick = () => { try { sessionStorage.setItem("andromeda.admin", $("#adTok").value.replace(/^\s*password\s*:\s*/i, "").replace(/\s+/g, "")); } catch {} openAdmin(); };
+		$("#adTok").onkeydown = (e) => { if (e.key === "Enter") $("#adGo").click(); };
 	};
 	if (!tok) { ask(); return; }
 	const call = async (path, opts = {}) => {
