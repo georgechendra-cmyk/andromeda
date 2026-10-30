@@ -2600,6 +2600,10 @@ const SKILLBOOK = {
 };
 let SKILLS_ON = [];
 const skillLine = () => (SKILLS_ON.length ? "Expert playbooks for this request (follow them):\n" + SKILLS_ON.filter((k) => SKILLBOOK[k]).map((k) => "- " + SKILLBOOK[k][1]).join("\n") : "");
+// a server with no picture, video, voice or music models (a chat-only gateway): videos are still made, every shot drawn
+// in code by the best animator and cut into a real file here
+const drawnOnly = () => creditsMode() && !!pricing && !!pricing.reach && pricing.reach.media === false;
+const DRAWN_VIDEO = "a real video file (MP4), every shot animated in code by the best animator: motion graphics, kinetic typography and titles, animated illustrations and flat or 2D characters, 3D shapes, diagrams, charts, maps, particles, cut together with captions, transitions and an end card. This server has no filmed footage, photos, AI voice or music, so the words are on screen. The way for any video, ad, trailer, explainer, intro or animation";
 const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
 // The tools in the composer's + menu. Picking one says what kind of thing you want; how it's done, with which models, is
 // still Andromeda's own decision (and if that way fails, it's free to find another)
@@ -2724,6 +2728,7 @@ async function conduct(text, atts, tried, only) {
 	// what this server can make right now: a studio with nothing to make pictures with isn't offered
 	const studio = !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false;
 	let ways = Object.entries(WAYS).filter(([k]) => studio || !STUDIO_WAYS.includes(k));
+	if (!studio && drawnOnly()) ways.push(["video", DRAWN_VIDEO]);
 	// the user's own connected apps (Blender, Figma, their files...), with what each can do
 	if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
 	const apps = capOn("computer") ? liveApps() : [], pc = apps.some((s) => s.name === "computer"), others = apps.filter((s) => s.name !== "computer");
@@ -6933,6 +6938,7 @@ function fitDur(m, s) {
 const fitAR = (m, ar) => (!m?.ar?.length || m.ar.includes(ar) ? ar : m.ar.includes("16:9") ? "16:9" : m.ar[0]);
 const fitRes = (m, res) => (!m?.res?.length || m.res.includes(res) ? res : m.res.find((r) => r === "720p") || m.res[0]);
 const CREDIT_MEDIA = () => (pricing && Number(pricing.media)) || 2;
+const CREDIT_CHAT = () => (pricing && Number(pricing.chat)) || 3;
 const money$ = (usd) => creditsMode() ? creditsText(Math.ceil(usd * CREDIT_MEDIA() / creditUsd())) + " credits" : "$" + usd.toFixed(2);
 
 // ---- what kind of thing they want made
@@ -7148,10 +7154,11 @@ function lengthOf(t) {
 	const secs = (h ? n(h[1]) * 3600 : 0) + (m ? n(m[1]) * 60 : 0) + (s ? n(s[1]) : 0);
 	return secs ? Math.max(5, Math.min(3 * 3600, Math.round(secs))) : null;
 }
-async function direct(text, atts, msg, signal) {
+async function direct(text, atts, msg, signal, drawn) {
 	const want = lengthOf(text);
 	const imgs = atts.filter((a) => a.kind === "image" && a.data);
 	const ask = "Plan this: " + text + "\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
+		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). There is no voice and no music: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption." : "") +
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
 		(sourceOf(atts, 1) ? "\n\nWhat they gave you about it (their page, notes or files): use the real names, products, prices, places and tone from it, never invent ones that contradict it.\n" + sourceOf(atts, 12000) : "") +
 		"\n\nVoices: " + Object.entries(VOICES).map(([k, v]) => k + " (" + v + ")").join(", ") + "." + (langLine() ? "\n" + langLine() + " (keep the JSON keys in English)" : "");
@@ -7179,7 +7186,7 @@ async function direct(text, atts, msg, signal) {
 	const hasScenes = (p) => Array.isArray(p.scenes) && p.scenes.length > 0;
 	// a long film: the outline first, in chapters, then each chapter's shots planned on their own (a few at a time),
 	// all to the same look, voice and music
-	if (!want || want <= 240) return cleanPlan(await plan(ask, hasScenes), want);
+	if (!want || want <= 240) return cleanPlan(await plan(ask, hasScenes), want, drawn);
 	const outline = await plan(ask + "\n\nIt's long, so plan it in chapters first: return the same JSON, but in place of \"scenes\" give \"chapters\": [{\"title\": \"...\", \"seconds\": 150, \"summary\": \"what this part shows and says, 2 to 4 sentences\"}], each 1 to 4 minutes, adding up to about " + want + " seconds.",
 		(p) => Array.isArray(p.chapters) && p.chapters.length > 0, "the outline");
 	const chapters = outline.chapters.slice(0, 60).map((c) => ({ title: String(c.title || "").slice(0, 120), seconds: Math.max(20, Number(c.seconds) || 120), summary: String(c.summary || "").slice(0, 900) }));
@@ -7192,26 +7199,28 @@ async function direct(text, atts, msg, signal) {
 				+ "\nAll its chapters: " + chapters.map((x, n) => (n + 1) + ". " + x.title).join("; ")
 				+ (k ? "\nThe chapter before ends with: " + chapters[k - 1].summary : "")
 				+ "\n\nPlan only the shots of chapter " + (k + 1) + " of " + chapters.length + ", \"" + c.title + "\", about " + Math.round(c.seconds) + " seconds: " + c.summary
-				+ "\nKeep the same look and the same people and products, described identically. Return the same JSON; only its \"scenes\" are used.", hasScenes, "chapter " + (k + 1) + " of " + chapters.length);
+				+ "\nKeep the same look and the same people and products, described identically. Return the same JSON; only its \"scenes\" are used."
+				+ (drawn ? "\nEvery shot is drawn in code (\"motion\": \"drawn\", with its full \"draw\" brief), and \"vo\" stays empty: the words are on screen." : ""), hasScenes, "chapter " + (k + 1) + " of " + chapters.length);
 			parts[k] = p.scenes;
 		}
 	};
 	await Promise.all([worker(), worker(), worker()]);
-	return cleanPlan({ ...outline, scenes: parts.flat() }, want);
+	return cleanPlan({ ...outline, scenes: parts.flat() }, want, drawn);
 }
-function cleanPlan(p, want) {
+// (drawn: a server with nothing to film or draw pictures with, so every shot is animated in code and nothing is read aloud)
+function cleanPlan(p, want, drawn) {
 	const MOVES = ["push in", "pull out", "pan left", "pan right", "tilt up", "tilt down", "drift"];
 	const scenes = p.scenes.slice(0, 1500).map((s) => {
-		const motion = ["still", "drawn"].includes(String(s.motion || "").toLowerCase()) ? String(s.motion).toLowerCase() : "video";
+		const motion = drawn ? "drawn" : ["still", "drawn"].includes(String(s.motion || "").toLowerCase()) ? String(s.motion).toLowerCase() : "video";
 		return {
 			// a still holds a little longer than a filmed shot can; a drawn one as long as its animation runs
 			motion,
 			move: MOVES.includes(String(s.move || "").toLowerCase()) ? String(s.move).toLowerCase() : "push in",
 			seconds: Math.max(3, Math.min(motion === "drawn" ? 15 : motion === "still" ? 12 : 10, Number(s.seconds) || 6)),
-			draw: String(s.draw || "").slice(0, 1500),
+			draw: String(s.draw || (drawn ? s.shot || s.prompt || "" : "")).slice(0, 1500),
 			shot: String(s.shot || s.prompt || s.draw || "").slice(0, 900),
 			frame: String(s.frame || s.shot || "").slice(0, 700),
-			vo: String(s.vo || "").slice(0, 400),
+			vo: drawn ? "" : String(s.vo || "").slice(0, 400),
 			caption: String(s.caption || "").slice(0, 60),
 			sound: String(s.sound || "").slice(0, 200),
 		};
@@ -7281,11 +7290,28 @@ function chooseTier(plan, left) {
 		$("#tierNo").onclick = () => closeModal();
 	});
 }
+// a film drawn in code: what it will cost before anything is spent, and a go (no qualities to pick: nothing is filmed)
+const drawnCredits = (usd) => Math.ceil(usd * CREDIT_CHAT() / creditUsd());
+function confirmDrawn(plan) {
+	return new Promise((res) => {
+		const secs = Math.round(plan.scenes.reduce((n, s) => n + s.seconds, 0));
+		const credits = drawnCredits(0.06 + plan.scenes.length * drawnCost());
+		const short = !!me && me.credits < credits;
+		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots, every one animated in code · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + " · about " + creditsText(credits) + " credits. You only pay for what's made.</p>" +
+			'<div class="field"><div class="help">' + (me ? "You have " + creditsText(Math.max(0, me.credits)) + " credits." + (short ? " That isn't enough for all of it: get more credits first. " : " ") : "") + "This server has no filmed footage, voice or music, so the words are on screen. Cut here in your browser.</div></div>" +
+			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button><button class="btn dark" id="tierGo"' + (short ? " disabled" : "") + ">Make it</button></div>");
+		modalClose = () => res(null);
+		$("#tierGo").onclick = () => { try { (STUDIO_AUDIO.ctx ||= new AudioContext()).resume(); } catch {} modalClose = null; closeModal(); res("standard"); };
+		$("#tierNo").onclick = () => closeModal();
+	});
+}
 const STUDIO_AUDIO = { ctx: null };
 const RUNNING = new Set();
 
 // ---- making it
 async function runStudio(text, atts, pick) {
+	// drawn in code: no media models to load
+	if (drawnOnly() && (pick.kind === "video" || pick.edit)) return pick.edit ? studioEdit(text, atts, pick) : runVideo(text, atts);
 	await loadMedia();
 	if (pick.edit) return studioEdit(text, atts, pick);
 	if (pick.kind === "video") return runVideo(text, atts);
@@ -7294,17 +7320,18 @@ async function runStudio(text, atts, pick) {
 	return runVoice(text, atts);
 }
 async function runVideo(text, atts, planned) {
-	if (!MEDIA.video.length) throw new Error("Couldn't load the video models. Check your connection and try again.");
+	const drawn = drawnOnly();
+	if (!drawn && !MEDIA.video.length) throw new Error("Couldn't load the video models. Check your connection and try again.");
 	const msg = { role: "assistant", kind: "studio", text: "", streaming: true, status: "Writing the shot list", used: [], data: null };
 	current.msgs.push(msg);
 	updateLast();
-	const plan = planned || await direct(text, atts, msg, busy.signal);
+	const plan = planned ? (drawn ? cleanPlan(planned, planned.want, true) : planned) : await direct(text, atts, msg, busy.signal, drawn);
 	const left = await walletLeft();
-	msg.status = "Waiting for you to pick the quality";
+	msg.status = drawn ? "Waiting for your go" : "Waiting for you to pick the quality";
 	updateLast();
-	const tier = await chooseTier(plan, left);
+	const tier = drawn ? await confirmDrawn(plan) : await chooseTier(plan, left);
 	if (!tier) { msg.text = "**" + esc(plan.title) + "**: planned " + plan.scenes.length + " shots, nothing made. Ask again whenever you want it made."; msg.data = { kind: "video", plan, tier: null, scenes: plan.scenes.map(() => ({})), stage: "planned" }; return; }
-	msg.data = { kind: "video", plan, tier, refs: [], scenes: plan.scenes.map(() => ({ state: "waiting" })), voice: {}, music: {}, stage: "making" };
+	msg.data = { kind: "video", plan, tier, drawnOnly: drawn, refs: [], scenes: plan.scenes.map(() => ({ state: "waiting" })), voice: {}, music: {}, stage: "making" };
 	for (const a of atts.filter((x) => x.kind === "image" && x.data)) msg.data.refs.push(await vault.put(b64Blob(a.data.split(",")[1], a.data.slice(5, a.data.indexOf(";")))));
 	msg.text = "**" + plan.title + "**";
 	await produce(msg, null, busy.signal);
@@ -7314,9 +7341,10 @@ async function produce(msg, only, signal) {
 	const d = msg.data, plan = d.plan, tier = d.tier;
 	RUNNING.add(msg);
 	try {
-		const vm = videoModel(tier), im = imageModel(VIDEO_TIERS[tier].frames);
-		const voice = (await aiOrder("voice", [voiceModel(), ...MEDIA.speech], "A voiceover for a video, read by " + plan.voice.who + " (" + (VOICES[plan.voice.who] || "") + "). The video: " + plan.title + ". " + plan.look.slice(0, 300)))[0] || null;
-		const mus = (await aiOrder("music", [musicModel(plan.scenes.reduce((n, s) => n + s.seconds, 0) > 30), ...MEDIA.music], "The score for a video: " + plan.music.prompt))[0] || null;
+		// (drawn only: nothing to film, draw as pictures, read aloud or score on this server)
+		const vm = d.drawnOnly ? null : videoModel(tier), im = d.drawnOnly ? null : imageModel(VIDEO_TIERS[tier].frames);
+		const voice = d.drawnOnly ? null : (await aiOrder("voice", [voiceModel(), ...MEDIA.speech], "A voiceover for a video, read by " + plan.voice.who + " (" + (VOICES[plan.voice.who] || "") + "). The video: " + plan.title + ". " + plan.look.slice(0, 300)))[0] || null;
+		const mus = d.drawnOnly ? null : (await aiOrder("music", [musicModel(plan.scenes.reduce((n, s) => n + s.seconds, 0) > 30), ...MEDIA.music], "The score for a video: " + plan.music.prompt))[0] || null;
 		const note = (name, desc) => { if (!msg.used.some((x) => x.name === name && x.desc === desc)) msg.used.push({ name, desc }); };
 		if (im && plan.scenes.some((s) => s.motion !== "drawn")) note(im.name, "Frames: drew the pictures, keeping people and product the same in every shot");
 		if (vm && plan.scenes.some((s) => filmed(s, tier))) note(vm.name, "Video: brought the moving shots to life (" + VIDEO_TIERS[tier].label + ")");
@@ -7993,18 +8021,21 @@ async function studioEdit(text, atts, pick) {
 	const m = bestFor("director")[0];
 	const out = await once(m.id, [{ role: "system", content: DIRECTOR }, { role: "user", content: "Here is the current plan:\n" + JSON.stringify(d.plan) + "\n\nThe user wants: " + text + "\n\nReturn the full updated plan as the same JSON, plus a key \"redo\": {\"scenes\":[indexes of shots whose picture must be remade, 0-based],\"voice\":true if any voiceover changed,\"music\":true if the music must be remade}. Keep everything they didn't ask to change exactly as it is. Captions, end card and order changes need no remaking." }], { response_format: { type: "json_object" } }, msg);
 	const j = parseJSON(out);
-	const plan = cleanPlan(j, d.plan.want);
+	const plan = cleanPlan(j, d.plan.want, d.drawnOnly);
 	const redo = { scenes: (j.redo?.scenes || []).map(Number).filter((n) => n >= 0 && n < plan.scenes.length), voice: !!j.redo?.voice, music: !!j.redo?.music };
 	msg.used.push({ name: shortName(m), desc: "Director: changed the plan" });
 	// a new copy of it, so the old one stays as it was; shots that didn't change are reused as they are
 	const keep = (i) => (d.scenes[i] && JSON.stringify(d.plan.scenes[i]?.shot) === JSON.stringify(plan.scenes[i].shot) ? { ...d.scenes[i] } : { state: "waiting" });
-	msg.data = { kind: "video", plan, tier: d.tier, refs: d.refs, scenes: plan.scenes.map((_, i) => keep(i)), music: redo.music ? {} : { ...d.music }, stage: "making" };
+	msg.data = { kind: "video", plan, tier: d.tier, drawnOnly: d.drawnOnly, refs: d.refs, scenes: plan.scenes.map((_, i) => keep(i)), music: redo.music ? {} : { ...d.music }, stage: "making" };
 	redo.scenes.forEach((i) => (msg.data.scenes[i] = { state: "waiting" }));
 	if (plan.aspect !== d.plan.aspect) msg.data.scenes = plan.scenes.map(() => ({ state: "waiting" }));
-	const vm = videoModel(d.tier), cost = msg.data.scenes.reduce((n, s, i) => n + (s.clip ? 0 : vPerSec(vm, VIDEO_TIERS[d.tier].res, true) * fitDur(vm, plan.scenes[i].seconds) + 0.14), 0) + (redo.music ? 0.06 : 0);
-	if (cost > 1.5) {
+	// what the shots to remake will cost: animation for a drawn film, footage for a filmed one
+	const remake = (s) => !(s.clip || (s.drawn && s.code));
+	const vm = d.drawnOnly ? null : videoModel(d.tier);
+	const cost = d.drawnOnly ? msg.data.scenes.filter(remake).length * drawnCost() : msg.data.scenes.reduce((n, s, i) => n + (s.clip ? 0 : vPerSec(vm, VIDEO_TIERS[d.tier].res, true) * fitDur(vm, plan.scenes[i].seconds) + 0.14), 0) + (redo.music ? 0.06 : 0);
+	if (d.drawnOnly ? cost > 0.5 : cost > 1.5) {
 		const ok = await new Promise((res) => {
-			openModal("<h2>Remake " + msg.data.scenes.filter((s) => !s.clip).length + " shot(s)?</h2><p class=\"sub\">That change needs new footage: about " + money$(cost) + ". Everything else is reused.</p><div class=\"row\" style=\"justify-content:flex-end;gap:8px\"><button class=\"btn\" id=\"reNo\">Cancel</button><button class=\"btn dark\" id=\"reGo\">Remake</button></div>");
+			openModal("<h2>Remake " + msg.data.scenes.filter(remake).length + " shot(s)?</h2><p class=\"sub\">That change needs new " + (d.drawnOnly ? "animation" : "footage") + ": about " + (d.drawnOnly ? creditsText(drawnCredits(cost)) + " credits" : money$(cost)) + ". Everything else is reused.</p><div class=\"row\" style=\"justify-content:flex-end;gap:8px\"><button class=\"btn\" id=\"reNo\">Cancel</button><button class=\"btn dark\" id=\"reGo\">Remake</button></div>");
 			modalClose = () => res(false);
 			$("#reGo").onclick = () => { modalClose = null; closeModal(); res(true); };
 			$("#reNo").onclick = () => closeModal();

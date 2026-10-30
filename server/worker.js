@@ -184,7 +184,7 @@ async function config(env) {
 }
 function publicConfig(c) {
 	const { every, share } = freeStep(c);
-	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share }, packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: c.checkout, support: c.support, open: !!c.open };
+	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share }, packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: c.checkout, support: c.support, open: !!c.open };
 }
 
 // ------------------------------------------------------------------ accounts
