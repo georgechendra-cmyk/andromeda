@@ -7478,7 +7478,7 @@ async function produce(msg, only, signal) {
 					s.state = "done";
 					s.error = "";
 					// a picture of it for the shot list, so it can be seen before the film is cut
-					try { s.poster = await vault.put(await posterOf(html, plan.scenes[i].seconds, Math.round(FW / 4), Math.round(FH / 4))); } catch {}
+					try { s.poster = await vault.put(await posterOf(html, plan.scenes[i].seconds, Math.round(FW / 2), Math.round(FH / 2))); } catch {}
 				} catch (e) {
 					if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 					s.code = null;
