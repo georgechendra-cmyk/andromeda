@@ -7471,7 +7471,8 @@ async function produce(msg, only, signal) {
 				s.state = "animating";
 				paint();
 				try {
-					const html = await animateShot(plan, plan.scenes[i], i, animators, msg, signal, FW, FH);
+					const first = i > 0 && plan.scenes[0].motion === "drawn" && d.scenes[0].code ? await vault.get(d.scenes[0].code) : null;
+					const html = await animateShot(plan, plan.scenes[i], i, animators, msg, signal, FW, FH, first ? await first.text() : "");
 					s.code = await vault.put(new Blob([html], { type: "text/html" }));
 					s.drawn = true;
 					s.state = "done";
@@ -7568,8 +7569,12 @@ async function produce(msg, only, signal) {
 		if (plan.scenes[0].motion !== "drawn" && (!d.scenes[0].frame || redo(0))) await frameOf(0);
 		// eight shots at a time (a long film has hundreds), the voice and the score alongside
 		let nextShot = 0;
+		const sound = Promise.all([voices(), score()]);
+		sound.catch(() => {});
+		// a drawn film's first shot is animated first: it's the style frame every other shot is made to match
+		if (plan.scenes[0].motion === "drawn" && plan.scenes.length > 1 && (!d.scenes[0].code || redo(0))) { await shot(0); nextShot = 1; }
 		const shots = Array.from({ length: Math.min(8, plan.scenes.length) }, async () => { while (nextShot < plan.scenes.length) await shot(nextShot++); });
-		await Promise.all([Promise.all(shots), voices(), score()]);
+		await Promise.all([Promise.all(shots), sound]);
 		const made = (s) => s.clip || (s.still && s.frame) || (s.drawn && s.code);
 		if (!d.scenes.some(made)) throw new Error("None of the shots could be made: " + (d.scenes.find((s) => s.error)?.error || "the video model failed"));
 		// 5. the cut
@@ -8005,14 +8010,17 @@ async function reviewScene(html, sc, plan, W, H, msg, signal) {
 	const j = parseJSON(out) || {};
 	return j.ship === false && Array.isArray(j.problems) && j.problems.length ? j.problems.slice(0, 6).map((p) => String(p).slice(0, 300)) : null;
 }
-async function animateShot(plan, sc, i, cands, msg, signal, W, H) {
+// (style: the film's first shot, already animated: the others are written with its code in front of them, the way a
+// studio works from one finished style frame, so every shot shares its palette, type, textures and motion)
+async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 	const ask = "The film: " + plan.title + ". Its look: " + plan.look
 		+ "\nThe film's shots, for context: " + plan.scenes.map((x, k) => (k + 1) + ". " + (x.motion === "drawn" ? x.draw || x.shot : x.shot).slice(0, 110)).join(" | ").slice(0, 3500)
 		+ "\n\nAnimate shot " + (i + 1) + ": " + (sc.draw || sc.shot)
 		+ "\nIts length: " + sc.seconds + " seconds. Aspect " + plan.aspect + "."
 		+ (sc.vo ? "\nThe voiceover during it (time the visuals to it, about 2.5 words a second): \"" + sc.vo + "\"" : "")
 		+ (sc.caption ? "\nThe editor adds this caption at the bottom, so keep the bottom fifth clear: \"" + sc.caption + "\"" : "")
-		+ "\nSame style, palette and characters as the rest of the film, so the shots cut together.";
+		+ "\nSame style, palette and characters as the rest of the film, so the shots cut together."
+		+ (style ? "\n\nThe film's first shot, already made. Match its palette, fonts, textures, line weights, easing and drawing helpers exactly (reuse its code where it fits), so the cut feels like one film:\n" + style.slice(0, 14000) : "");
 	const write = async (m, prompt) => {
 		const out = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id)), msg);
 		return (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
