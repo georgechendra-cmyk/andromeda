@@ -5925,7 +5925,7 @@ async function runSim(text, atts, pick) {
 		}
 	}
 	if (!html) throw lastErr || new Error("No model could build that simulation.");
-	const simRules = "You are fixing an interactive educational simulation: ONE self-contained HTML file, inline CSS and JS, no external resources.\nOUTPUT FORMAT, exactly: === FILE: index.html === then the complete file, then === NOTES === and one line.";
+	const simRules = "You are fixing an interactive educational simulation: ONE self-contained HTML file, inline CSS and JS, no external resources.\nOUTPUT FORMAT: the change format you're given (EDIT sections for the lines that change, or === FILE: index.html === whole), then === NOTES === and one line.";
 	html = (await heal({ "index.html": html }, "an interactive simulation of " + topic, msg, simRules))["index.html"] || html;
 	msg.data = { html, title: topic };
 	msg.text = "**" + topic + "**: a simulation you can play with" + testedLine(msg.tested);
@@ -6046,15 +6046,15 @@ async function polishLook(files, request, msg, rules) {
 		updateLast();
 		const have = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 80000);
 		msg.cut = false;
-		const r = await askFirst(bestFor("app").slice(0, 3), [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
+		const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
 			"\n\nIt runs without errors. Looking at it in a browser (as it opens, and after its main button and keys were pressed), a lead designer found:\n- " + problems.join("\n- ") +
-			"\n\nFix each one properly, keeping every feature and everything that already works. Output only the files you change, each complete, then the NOTES section with one line on what you changed." }], msg);
+			"\n\nFix each one properly, keeping every feature and everything that already works. " + CHANGE_FORMAT + " (In NOTES, one line on what you changed.)" }];
+		const r = await askFirst(bestFor("app").slice(0, 3), ask, msg);
 		const p = parseFiles(r.out);
 		const cut = cutShort(p, msg.cut);
 		delete msg.cut;
-		if (cut || !Object.keys(p.files).length) return keep;
-		const next = Object.assign({}, files, p.files);
-		p.del.forEach((x) => delete next[x]);
+		if (cut || !changed(p)) return keep;
+		const next = await applyChange(files, p, r.model, ask, r.out, msg);
 		const t = await probeApp(next);
 		if (t.errors.length || t.blank) return keep;
 		if (!msg.used.some((u) => u.name === shortName(r.model) && /^Polish/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Polish: fixed what the designer saw" });
@@ -6092,16 +6092,16 @@ async function heal(files, request, msg, rules, look = true) {
 		const have = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 80000);
 		try {
 			msg.cut = false;
-			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
+			const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
 				"\n\nIt was loaded in a browser and used (every button clicked, arrow keys and space pressed, every input changed). These problems came up:\n- " + problems.join("\n- ") +
-				"\n\nFind the cause of each one and fix it properly, without removing features. Output only the files you change, each complete, then the NOTES section with one line on what was wrong." }], msg);
+				"\n\nFind the cause of each one and fix it properly, without removing features. " + CHANGE_FORMAT + " (In NOTES, one line on what was wrong.)" }];
+			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), ask, msg);
 			const p = parseFiles(r.out);
 			// a fix that stopped early (the credits ran low): none of it is used, the project stays whole as it was
 			if (cutShort(p, msg.cut)) { delete msg.cut; msg.tested = { ok: false, fixed, rounds: round - 1, problems, short: true }; return files; }
 			delete msg.cut;
-			if (!Object.keys(p.files).length) continue;
-			Object.assign(files, p.files);
-			p.del.forEach((x) => delete files[x]);
+			if (!changed(p)) continue;
+			files = await applyChange(files, p, r.model, ask, r.out, msg);
 			fixed += problems.length;
 			lastModel = r.model;
 			if (!msg.used.some((u) => u.name === shortName(r.model) && /Debugger/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Debugger: ran it, found what broke, and fixed it" });
@@ -6132,34 +6132,87 @@ function appIntent(text, atts) {
 	if (/\b(build|make|create|code|develop|generate|write|program)\b/i.test(t) && /\b(app|web ?site|web ?page|webpage|landing page|game|calculator|dashboard|tool|clone|todo|to-do|portfolio|timer|tracker|quiz app|chatbot ui|form|snake|tetris|pong|platformer|page|widget)\b/i.test(t)) return { edit: false };
 	return null;
 }
+// How a change to a project comes back: only what changes. A few lines of a file as SEARCH/REPLACE edits, a new or mostly
+// rewritten file whole (every file rewritten for a two-line fix cost tens of credits a round, and far longer to write)
+const CHANGE_FORMAT = "Send only what changes. For part of a file, an EDIT section with one or more SEARCH/REPLACE pairs, in the order they come in the file:\n=== EDIT: path ===\n<<<<<<< SEARCH\n(the exact lines as they are now, with a few around the change so they're found only once)\n=======\n(what replaces them)\n>>>>>>> REPLACE\nA new file, or one you rewrite most of, whole: === FILE: path ===. To delete a file: === DELETE: path ===. Then the NOTES section.";
+const editPairs = (body) => {
+	const out = [], re = /^<{7} ?SEARCH[ \t]*\r?\n([\s\S]*?)\r?\n={7}[ \t]*\r?\n([\s\S]*?)\r?\n?>{7} ?REPLACE[ \t]*$/gm;
+	let m;
+	while ((m = re.exec(body))) if (m[1].trim()) out.push({ search: m[1], replace: m[2] });
+	return out;
+};
 function parseFiles(out) {
-	const files = {}, del = [];
-	let notes = "", cur = null, buf = [];
+	const files = {}, del = [], edits = {};
+	let notes = "", cur = null, buf = [], lastKind = "", lastEdit = null;
 	const flush = () => {
 		if (!cur) return;
 		const body = buf.join("\n").replace(/^\s*```[\w-]*\n?/, "").replace(/\n?```\s*$/, "").replace(/^\n+|\n+$/g, "");
 		if (cur.t === "FILE") files[cur.p] = body;
+		else if (cur.t === "EDIT") (edits[cur.p] ||= []).push(...editPairs(body));
 		else if (cur.t === "NOTES") notes = body;
 		buf = [];
 	};
 	for (const line of String(out).split("\n")) {
-		const m = line.match(/^===\s*(FILE|DELETE|NOTES)\s*:?\s*(.*?)\s*===\s*$/);
+		const m = line.match(/^===\s*(FILE|EDIT|DELETE|NOTES)\s*:?\s*(.*?)\s*===\s*$/);
 		if (m) {
 			flush();
 			cur = m[1] === "DELETE" ? null : { t: m[1], p: m[2].replace(/^\.?\//, "") };
 			if (m[1] === "DELETE") del.push(m[2].replace(/^\.?\//, ""));
+			if (m[1] === "FILE" || m[1] === "EDIT") lastKind = m[1];
+			if (m[1] === "EDIT") lastEdit = cur.p;
 			buf = [];
 			continue;
 		}
 		if (cur) buf.push(line);
 	}
 	flush();
-	return { files, del, notes, ended: cur && cur.t === "NOTES" || !!notes, last: Object.keys(files).pop() };
+	return { files, del, edits, notes, ended: cur && cur.t === "NOTES" || !!notes, last: Object.keys(files).pop(), lastKind, lastEdit };
 }
+// The edits put in: each pair's lines found as they are (or with the spaces at their ends ignored) and replaced. A file
+// with a pair whose lines aren't there is left as it was, and named
+function applyEdits(files, edits) {
+	const out = Object.assign({}, files), failed = [];
+	const bare = (s) => s.split("\n").map((l) => l.replace(/\s+$/, "")).join("\n");
+	for (const [path, pairs] of Object.entries(edits || {})) {
+		let text = out[path];
+		for (const e of pairs) {
+			if (text == null) break;
+			const at = text.indexOf(e.search);
+			if (at >= 0) { text = text.slice(0, at) + e.replace + text.slice(at + e.search.length); continue; }
+			const t = bare(text), s = bare(e.search), j = t.indexOf(s);
+			text = j >= 0 ? t.slice(0, j) + e.replace + t.slice(j + s.length) : null;
+		}
+		if (text == null) failed.push(path);
+		else out[path] = text;
+	}
+	return { files: out, failed };
+}
+// A change put into the project: whole files as they came, deletions, edits. A file whose edits didn't match (the model
+// remembered its lines wrong) is asked for whole from the same model, once, so a change never half-lands
+async function applyChange(files, p, model, messages, said, msg) {
+	const next = Object.assign({}, files, p.files);
+	p.del.forEach((x) => delete next[x]);
+	const { files: done, failed } = applyEdits(next, p.edits);
+	if (!failed.length || !model) return done;
+	try {
+		const out = await stream(model.id, [...messages, { role: "assistant", content: said }, { role: "user", content: "These edits didn't match the files as they are now: " + failed.join(", ") + ". Send each of those files whole, with your change in it, as === FILE: path === sections, then NOTES." }], () => {}, busy.signal, effortExtra(model.id), msg);
+		const again = parseFiles(out);
+		for (const f of failed) if (again.files[f] != null && !cutShort({ ...again, last: f, lastKind: "FILE" }, false)) done[f] = again.files[f];
+	} catch (e) {
+		if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+	}
+	return done;
+}
+const changed = (p) => Object.keys(p.files).length > 0 || Object.keys(p.edits || {}).length > 0 || p.del.length > 0;
 // A build answer that stopped early (out of room: the credits ran low, or the longest answer allowed) ends in the middle
 // of its last file. Its finish says so; without one, a missing NOTES section and a script that doesn't parse do. That
-// half-written file is dropped, so it never replaces a whole one.
+// half-written file is dropped, so it never replaces a whole one (a half-written edit, the same)
 function cutShort(p, cut) {
+	if (p.lastKind === "EDIT" && p.lastEdit && p.edits) {
+		if (!cut) return false;
+		delete p.edits[p.lastEdit];
+		return true;
+	}
 	const tail = p.last && p.files[p.last];
 	const broken = !p.ended && tail != null && /\.m?js$/i.test(p.last) && (() => { try { new Function(tail); return false; } catch (e) { return e instanceof SyntaxError; } })();
 	if (!(cut || broken) || tail == null) return false;
@@ -6224,25 +6277,29 @@ async function runApp(text, atts, pick) {
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
 		"- Don't store anything the app can't lose (no localStorage needed).\n" +
 		"OUTPUT FORMAT, exactly, nothing before or after:\n=== FILE: index.html ===\n(full file)\n=== FILE: style.css ===\n(full file)\n=== NOTES ===\n(2-4 short plain sentences: what you built or changed and how to use it)\n" +
-		"Write each file COMPLETE. No markdown fences around files.";
+		"Write each file COMPLETE. No markdown fences around files.\n" +
+		"Changing a project that already exists: the change format you're given instead (only what changes).";
 	// a screenshot or design attached: the model best at building a site from a picture builds it, looking at it
 	const pics = atts.filter((a) => a.kind === "image" && a.data).map((a) => a.data);
 	const ask = (prev
-		? "The project right now:\n\n" + have + "\n\nThe user asks: " + text + (source ? "\n\nReference material:\n" + source : "") + "\n\nApply the change. Output only the files you changed or created, each complete (a file you don't output stays as it is). To delete a file output a line: === DELETE: path ===. Then the NOTES section."
+		? "The project right now:\n\n" + have + "\n\nThe user asks: " + text + (source ? "\n\nReference material:\n" + source : "") + "\n\nApply the change. " + CHANGE_FORMAT
 		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : ""))
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
 	const cands = bestFor(pics.length ? "appFromImage" : "app");
-	let parsed = null, lastErr, unfinished = "";
+	let parsed = null, lastErr, unfinished = "", said = "", by = null;
+	const asked = [sys(rules), { role: "user", content: withPics(ask, pics) }];
 	for (const m of cands.slice(0, 5)) {
 		msg.used = [{ name: shortName(m), desc: "Code: " + (prev ? "edited the project" : "wrote the project") }];
 		try {
 			msg.cut = false;
-			const out = await stream(m.id, [sys(rules), { role: "user", content: withPics(ask, pics) }], (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, effortExtra(m.id), msg);
+			const out = await stream(m.id, asked, (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, effortExtra(m.id), msg);
 			parsed = parseFiles(out);
 			// stopped early: the file it was writing is left out (not run half-written), and the person is told
-			unfinished = cutShort(parsed, msg.cut) ? parsed.last : "";
+			unfinished = cutShort(parsed, msg.cut) ? (parsed.lastKind === "EDIT" ? parsed.lastEdit : parsed.last) : "";
 			delete msg.cut;
-			if (Object.keys(parsed.files).length) break;
+			said = out;
+			by = m;
+			if (prev ? changed(parsed) : Object.keys(parsed.files).length) break;
 			parsed = null;
 			lastErr = new Error(unfinished ? "The build was cut off before any file was finished." : "The model didn't return any files.");
 		} catch (e) {
@@ -6253,8 +6310,7 @@ async function runApp(text, atts, pick) {
 		}
 	}
 	if (!parsed) throw lastErr || new Error("No model could build that.");
-	let files = Object.assign({}, prev ? prev.data.files : {}, parsed.files);
-	parsed.del.forEach((p) => delete files[p]);
+	let files = prev ? await applyChange(prev.data.files, parsed, by, asked, said, msg) : Object.assign({}, parsed.files);
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
 	else files = await heal(files, text, msg, rules, !prev);
 	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
