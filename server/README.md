@@ -30,11 +30,6 @@ the next way is asked, so people only ever see an answer.
    own web search.
 2. **OpenRouter** (`OPENROUTER_KEY`, optional). Every other model (DeepSeek, Qwen, Kimi, GLM, Perplexity...), plus the
    studio: pictures, video, voice and music.
-3. **Cloudflare's own free models** (nothing to set: the `[ai]` binding in wrangler.toml). GPT-OSS 120B and 20B, Llama
-   3.3 70B, Llama 4 Scout, Mistral Small 3.1 and Qwen3 30B, free within the Cloudflare account's daily allowance (no
-   card; on the Workers Free plan nothing is ever billed, it just says "busy" once the day's allowance is used). Tools
-   work on all six, and Llama 4 Scout and Mistral Small see pictures. Asked last, so with nothing else set up Andromeda
-   still answers, and with a gateway they catch what it can't.
 
 The site only routes to models the server can reach. With Cloudflare alone it picks among OpenAI, Anthropic, Google and
 xAI, which is where the top-rated models are anyway.
