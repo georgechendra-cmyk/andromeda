@@ -8486,7 +8486,8 @@ function openAccount() {
 			openAccount();
 			[$("#acEmail").value, $("#acPass").value] = typed;
 		});
-		const draw = (swap) => {
+		// (what was typed stays when the form switches between signing in and making an account)
+		const draw = (swap, keep, say) => {
 			openAuth();
 			$("#authMain").innerHTML = '<div class="auth-card' + (swap ? " swap-in" : "") + '"><svg class="auth-mark" aria-hidden="true"><use href="#logo"/></svg><h1 id="authTitle">' + (mode === "in" ? "Welcome back" : "Create your account") + '</h1><p class="lede">' + (mode === "in" ? "Sign in to Andromeda." : "Free credits straight away, and more every day. No card.") + "</p>" +
 				(gid ? '<div class="gsi" id="gsiBtn"></div><div class="or"><span>or with your email</span></div>' : "") +
@@ -8494,15 +8495,33 @@ function openAccount() {
 				'<div class="field"><label for="acPass">Password</label><input class="inp" id="acPass" type="password" autocomplete="' + (mode === "in" ? "current-password" : "new-password") + '"' + (mode === "up" ? ' placeholder="At least 8 characters"' : "") + '><div class="status" id="acStatus" role="status"></div></div>' +
 				'<button class="btn dark go" id="acGo">' + (mode === "in" ? "Sign in" : "Create account") + "</button>" +
 				'<button class="switch" id="acSwitch">' + (mode === "in" ? "New here? <b>Create an account</b>" : "Already have an account? <b>Sign in</b>") + "</button></div>";
-			if (!matchMedia("(pointer: coarse)").matches) setTimeout(() => $("#acEmail") && $("#acEmail").focus(), 320);
-			$("#acSwitch").onclick = () => { mode = mode === "in" ? "up" : "in"; draw(true); };
+			if (keep) [$("#acEmail").value, $("#acPass").value] = keep;
+			if (say) { $("#acStatus").className = "status bad"; $("#acStatus").textContent = say; }
+			if (!matchMedia("(pointer: coarse)").matches) setTimeout(() => $("#acEmail") && $(keep && keep[0] ? "#acPass" : "#acEmail").focus(), 320);
+			$("#acSwitch").onclick = () => { mode = mode === "in" ? "up" : "in"; draw(true, [$("#acEmail").value, $("#acPass").value]); };
 			const go = async () => {
 				const st = $("#acStatus");
 				st.className = "status";
 				st.textContent = mode === "in" ? "Signing in…" : "Creating your account…";
+				const body = JSON.stringify({ email: $("#acEmail").value, password: $("#acPass").value });
 				try {
-					const j = await api(mode === "in" ? "/api/login" : "/api/signup", { method: "POST", body: JSON.stringify({ email: $("#acEmail").value, password: $("#acPass").value }) });
-					signedIn(j, mode === "up");
+					let j, made = mode === "up";
+					try {
+						j = await api(mode === "in" ? "/api/login" : "/api/signup", { method: "POST", body });
+					} catch (e) {
+						// making an account with an email that already has one: signed in with what was typed instead, so
+						// nobody has to find the switch; a different password lands on signing in, the email kept
+						if (mode !== "up" || e.status !== 409) throw e;
+						made = false;
+						try { j = await api("/api/login", { method: "POST", body }); }
+						catch (e2) {
+							if (e2.status !== 401) throw e2;
+							mode = "in";
+							draw(true, [$("#acEmail").value, ""], "This email already has an account, and that isn't its password. Type its password to sign in.");
+							return;
+						}
+					}
+					signedIn(j, made);
 				} catch (e) {
 					st.className = "status bad";
 					// a server that couldn't be reached at all (offline, blocked) says so plainly instead of "Failed to fetch"
