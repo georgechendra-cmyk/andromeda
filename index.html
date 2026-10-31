@@ -2077,8 +2077,10 @@ function flagship(lab, task, fast) {
 }
 // The candidates for a task, best first: the models that measurably score highest on this request's exact mix of work
 // when the leaderboards are loaded, otherwise one per lab in the order above
+// how much an answer of each kind writes, in tokens (code and research run long, where the price of writing is most of it)
+const OUT_BY = { code: 3000, reasoning: 2000, research: 2500, write: 1500, brainstorm: 1200, vision: 800, quick: 500 };
 function rank(task, cap) {
-	const data = bestFirst(quarkFirst(arenaRank(task), cap, null, callCost, STAKES[task]));
+	const data = bestFirst(quarkFirst(arenaRank(task), cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800), STAKES[task]));
 	if (data.length >= 2) return pinFirst(diversify(data), task);
 	const out = [];
 	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
@@ -2499,9 +2501,10 @@ function callCost(x, cap, out = 800) {
 // it), less for hard work (quality first), more for easy work. Never more than WORTH_MAX behind, and never a quick, light
 // model (those only ever win tied with the best). Max ignores price.
 const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 1.2;
-// code and reasoning hold out for quality by default: the leaderboards measure which answer people preferred, and code
-// and proofs also have to be right, which a small preference gap can hide
-const STAKES = { code: WORTH.high, reasoning: WORTH.high };
+// code and reasoning hold out for quality: the leaderboards measure which answer people preferred, and code and proofs
+// also have to be right, which a small preference gap can hide. How far by how hard the work is: a short script can go
+// to a strong coder at a twentieth of the price, a hard system goes to the best
+const STAKES = { code: WORTH.high, reasoning: WORTH.high }, STAKES_AT = { low: 0.35, medium: 0.25, high: 0.2 };
 // (Andromeda's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
 // record here is clearly worse than the best's isn't level with it, whatever the ratings say)
 const quarkTied = (top, x) => x.mid != null && top.mid != null && top.mid - x.mid <= Math.min(QUARK_MAX, Math.hypot(top.hw || 0, x.hw || 0)) && (x.learned || 0) >= (top.learned || 0) - 0.25;
@@ -2516,9 +2519,9 @@ function quarkFirst(list, cap, used, cost = callCost, worth) {
 	// then worth its price: the tied pick counts as level with the best; one further behind wins only if the money it saves
 	// is worth more than the lead it gives up
 	if (top.mid != null) {
-		// (code and reasoning never go below their own standard, even for an easy piece or a check)
+		// (code and reasoning never go below their own standard for how hard the piece is, checks included)
 		const stakes = worth ?? STAKES[list[0] && list[0].task];
-		const lam = Math.min(WORTH[cap] ?? Infinity, stakes ?? Infinity) === Infinity ? WORTH.medium : Math.min(WORTH[cap] ?? Infinity, stakes ?? Infinity);
+		const lam = stakes != null ? Math.min(WORTH[cap] ?? WORTH.medium, STAKES_AT[cap] ?? stakes) : WORTH[cap] ?? WORTH.medium;
 		const val = (x, mid) => mid - lam * Math.log2(cost(x, cap));
 		let bestVal = val(pick, top.mid);
 		for (const x of list) {
@@ -2789,8 +2792,9 @@ async function conduct(text, atts, tried, only) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
+		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
 		+ (mem ? " \"remember\": lasting facts about the user that this request states, worth knowing in future chats (who they are, their projects and goals, their preferences and rules for how things should be done, decisions they made), each written about the user; not the topic of a one-off question, never secrets or passwords, nothing already remembered; [] if none." : "") + "\n"
 		+ (only ? "\nThe person picked this themselves from Andromeda's tools: deliver it that way.\n" : "")
 		+ (spaceOf(current && current.space) ? "\nThis chat is in the user's project \"" + spaceOf(current.space).name + "\"" + (String(spaceOf(current.space).about || "").trim() ? ", whose instructions say: " + spaceOf(current.space).about.slice(0, 600) : "") + ((SPACE_FILES.get(current.space) || []).length ? ". Its files: " + SPACE_FILES.get(current.space).map((f) => f.name).join(", ").slice(0, 300) : "") + ".\n" : "")
@@ -2825,7 +2829,7 @@ async function conduct(text, atts, tried, only) {
 		}
 		if (imgs && !Object.keys(weights).some((k) => k.startsWith("vision:"))) weights["vision:overall"] = 0.5;
 		const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
-		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), weights, check: j.check === true, language: lang };
+		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), level: ["easy", "medium", "hard"].includes(j.level) ? j.level : "medium", weights, check: j.check === true, language: lang };
 	}
 	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [] };
 }
@@ -5133,9 +5137,11 @@ async function runAuto(text, atts) {
 	const lite = liteMode();
 	// an everyday question gets an instant answer: light thinking (the thought a hard question gets would cost many times
 	// as much, take far longer and not make it better); on free credits everything thinks lightly; Max thinks fully.
-	// What the user reads is always written by the best (or the cheapest a quark from it), never a weaker model to save:
-	// one easy question answered wrong is what people remember.
-	const light = task === "quick" && speed() !== "max" ? "low" : lite ? "low" : "";
+	// Otherwise how hard the conductor read it to be decides: easy work to a strong model close to the best at a fraction of
+	// its price, thinking lightly; hard work to the best, thinking as hard as it scored best at. Never a quick, light model
+	// unless it's level with the best: one easy question answered wrong is what people remember.
+	const level = PROFILE && PROFILE_TEXT === text ? PROFILE.level : "";
+	const light = speed() === "max" ? "" : task === "quick" || lite ? "low" : { easy: "low", medium: "medium" }[level] || "";
 	const cands = rank(task, light || undefined);
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
