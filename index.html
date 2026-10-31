@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Andromeda — the right model for every message</title>
-<meta name="description" content="Andromeda makes anything from one message: answers, research, code, apps and games, and videos with sound, each step by the AI model rated best at it. Free credits every day.">
+<meta name="description" content="Andromeda makes anything from one message: answers, research, code, apps and games, documents and study sets, each step by the AI model rated best at it. Free credits every day.">
 <!-- the card a shared link shows (X, WhatsApp, Discord, Telegram...) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Andromeda">
 <meta property="og:title" content="Andromeda: every AI's best, working as one">
-<meta property="og:description" content="One message, and each part goes to the AI rated best at exactly that: answers, research, code, apps and games, videos with sound. Free credits every day.">
+<meta property="og:description" content="One message, and each part goes to the AI rated best at exactly that: answers, research, code, apps and games. Free credits every day.">
 <meta property="og:url" content="https://georgechendra-cmyk.github.io/andromeda/">
 <meta property="og:image" content="https://georgechendra-cmyk.github.io/andromeda/docs/og.png">
 <meta property="og:image:width" content="1200">
@@ -1600,8 +1600,8 @@ html { scroll-behavior: smooth; }
 			<div class="grid3">
 				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><h3>Answers you can check</h3><p>Live web search, with the sources read and cited. Deep research when being thorough matters.</p></div>
 				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 11v4M5 13h4"/><circle cx="16" cy="12" r=".6"/><circle cx="18" cy="15" r=".6"/></svg></div><h3>Apps and games</h3><p>Built and running right here, beside the chat, with the code one click away.</p></div>
-				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg></div><h3>Pictures and video</h3><p>Photos, posters, ads and short films, with voiceover and music.</p></div>
-				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div><h3>Music and voice</h3><p>Songs, beats and voiceovers, in any style or language.</p></div>
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg></div><h3>Pictures and video <small style="font-weight:500;opacity:.6">coming soon</small></h3><p>Photos, posters, ads and short films, by the models rated best at them, as soon as they're connected.</p></div>
+				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg></div><h3>Music and voice <small style="font-weight:500;opacity:.6">coming soon</small></h3><p>Songs, beats and voiceovers, in any style or language, as soon as their models are connected.</p></div>
 				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg></div><h3>Documents</h3><p>Word, PDF, slides and spreadsheets, ready to download.</p></div>
 				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9l10-5 10 5-10 5z"/><path d="M6 11v5c3 2 9 2 12 0v-5"/></svg></div><h3>Study</h3><p>Flashcards, quizzes, mind maps and podcasts, from any topic or your own notes.</p></div>
 			</div>
@@ -2346,6 +2346,8 @@ function pinFirst(list, task) { const p = pinModel(task); return p ? [p, ...list
 // the same, for an effort given (a piece's own best, or a light one for planning)
 function effortFor(id, f) {
 	if (!f) return {};
+	// Claude has no minimal thinking: the nearest is not thinking at all (left out, it doesn't)
+	if (f === "minimal" && /^anthropic\//.test(id)) return {};
 	const m = catalog.find((x) => x.id === id);
 	const has = m && Array.isArray(m.efforts) && m.efforts.length ? m.efforts.filter((e) => e !== "none") : null;
 	if (!has || has.includes(f)) return { reasoning: { effort: f } };
@@ -2864,7 +2866,26 @@ let SKILLS_ON = [];
 const skillLine = () => (SKILLS_ON.length ? "Expert playbooks for this request (follow them):\n" + SKILLS_ON.filter((k) => SKILLBOOK[k]).map((k) => "- " + SKILLBOOK[k][1]).join("\n") : "");
 // a server with no picture, video, voice or music models (a chat-only gateway): videos are still made, every shot drawn
 // in code by the best animator and cut into a real file here
-const drawnOnly = () => creditsMode() && !!pricing && !!pricing.reach && pricing.reach.media === false;
+// (only when the server offers it: the owner's rule is pictures and films by the models best at them, and until those are
+// connected, a plain "not yet" that costs nobody anything)
+const drawnOnly = () => creditsMode() && !!pricing && pricing.drawn === true && !!pricing.reach && pricing.reach.media === false;
+// whether this server can make pictures, videos, music and voice at all
+const mediaReady = () => !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false || drawnOnly();
+const MEDIA_WHAT = { image: "pictures", video: "videos", music: "music", voice: "voiceovers" };
+const mediaSoon = (kind, free) => Object.assign(new Error("Andromeda can't make " + (MEDIA_WHAT[kind] || "pictures, videos, music or voiceovers") + " yet: the AI models for this aren't connected to its server. They're coming." + (free ? " Nothing was charged." : "")), { plain: true, quiet: true });
+// A request that plainly asks to make one ("make a 10 second trailer", "buatkan logo kedai kopi"), told before anything
+// is read or spent; not one that only mentions one ("write a script for my video", "explain how film cameras work")
+function makesMedia(text, atts) {
+	const t = String(text || "");
+	if (/\b(script|scripts|plan|essay|article|outline|storyboard|story|lyrics?|captions?|descriptions?|ideas?|prompts?|review|summary|summari[sz]e|explain|history|about|how (to|do|does)|tips|strategy|post|email|naskah|ide|rencana|lirik|deskripsi|cara|jelaskan|tentang|sejarah)\b/i.test(t)) return null;
+	if (!/\b(make|create|generate|produce|render|draw|paint|animate|film|shoot|design|compose|record|buat|buatkan|bikin|bikinin|ciptakan|hasilkan|gambarkan|lukiskan|rekam)\b/i.test(t)) return null;
+	const id = { video: /\b(video|iklan|film|animasi|trailer|klip)\b/i, music: /\b(lagu|musik|jingle|beat)\b/i, voice: /\b(suara|narasi|dubbing|sulih suara)\b/i, image: /\b(gambar|foto|logo|poster|ilustrasi|lukisan|stiker|sampul|wallpaper|banner)\b/i };
+	const m = mediaIntent(t, atts);
+	if (m && !m.edit) return m.kind;
+	if (/\b(interactive|game|app|website|web ?page|html|css|svg|canvas|code|kode|aplikasi|situs)\b/i.test(t)) return null;
+	for (const k of ["video", "music", "voice", "image"]) if (id[k].test(t)) return k;
+	return null;
+}
 const DRAWN_VIDEO = "a real video file (MP4), every shot animated in code by the best animator: motion graphics, kinetic typography and titles, animated illustrations and flat or 2D characters, 3D shapes, diagrams, charts, maps, particles, cut together with captions, transitions, an end card, and music and sound effects composed in code to the cut. This server has no filmed footage, photos or AI voice, so the words are on screen. The way for any video, ad, trailer, explainer, intro or animation";
 const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
 // The tools in the composer's + menu. Picking one says what kind of thing you want; how it's done, with which models, is
@@ -2988,9 +3009,10 @@ async function conduct(text, atts, tried, only) {
 	const idx = arenaIndex();
 	const skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
 	// what this server can make right now: a studio with nothing to make pictures with isn't offered
-	const studio = !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false;
-	let ways = Object.entries(WAYS).filter(([k]) => studio || !STUDIO_WAYS.includes(k));
-	if (!studio && drawnOnly()) ways.push(["video", DRAWN_VIDEO]);
+	// (pictures, films, music and voice are always offered: a request for one is one, whether or not this server can make
+	// it yet; one it can't is told so before anything is spent, not turned into something else)
+	let ways = Object.entries(WAYS).filter(([k]) => !(drawnOnly() && STUDIO_WAYS.includes(k)));
+	if (drawnOnly()) ways.push(["video", DRAWN_VIDEO]);
 	// the user's own connected apps (Blender, Figma, their files...), with what each can do
 	if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
 	const apps = capOn("computer") ? liveApps() : [], pc = apps.some((s) => s.name === "computer"), others = apps.filter((s) => s.name !== "computer");
@@ -5230,6 +5252,11 @@ async function send(textOverride, fork) {
 		if (catalog.length && !catalog.some((m) => usable(m, "quick"))) throw Object.assign(new Error(isOwner()
 			? "Your server has no AI provider yet. Add your WaveSpeed key: double-click server/SET UP SERVER.bat, or in the server folder run: npx wrangler secret put WAVESPEED_KEY. Then reload this page."
 			: "Andromeda isn't connected to its AI models just now. Try again a little later."), { plain: true });
+		// a picture, film, song or voiceover this server can't make yet: said before anything is read or spent
+		if (!mediaReady()) {
+			const asked = tool === "image" || tool === "video" ? tool : tool === "music" ? (makesMedia(text, atts) === "voice" ? "voice" : "music") : makesMedia(text, atts);
+			if (asked) throw mediaSoon(asked, true);
+		}
 		await useTools(text, atts);
 		// Andromeda reads it and decides how to serve it (the strongest fast reader, by measurement)
 		const hold = { role: "assistant", text: "", streaming: true, status: "Working out the best way to do this" };
@@ -5260,7 +5287,8 @@ async function send(textOverride, fork) {
 				const mark = current.msgs.length;
 				try { await runWay(plan, text, atts); break; }
 				catch (e) {
-					if (e.name === "AbortError" || e.status === 401 || e.status === 402 || round >= 2) throw e;
+					// (something this server can't make yet isn't made into something else)
+					if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.quiet || round >= 2) throw e;
 					// that way didn't work: told why, it chooses again (another way, or the same one if the error won't repeat)
 					current.msgs.splice(mark);
 					tried.push({ way: plan.way, error: String(e.message || e).slice(0, 240) });
@@ -5297,7 +5325,7 @@ async function send(textOverride, fork) {
 			if (last.role === "assistant" && !last.text && !last.kind) current.msgs.pop();
 			const shown = niceError(e);
 			current.msgs.push({ role: "assistant", error: shown });
-			if (e.status !== 401 && e.status !== 402) noteIssue(shown + " (while answering: " + text.slice(0, 80) + ")");
+			if (e.status !== 401 && e.status !== 402 && !e.quiet) noteIssue(shown + " (while answering: " + text.slice(0, 80) + ")");
 		}
 	}
 	current.msgs.forEach((m) => { m.streaming = false; delete m._shown; });
@@ -5371,7 +5399,9 @@ async function runAuto(text, atts) {
 	// its price, thinking lightly; hard work to the best, thinking as hard as it scored best at. Never a quick, light model
 	// unless it's level with the best: one easy question answered wrong is what people remember.
 	const level = PROFILE && PROFILE_TEXT === text ? PROFILE.level : "";
-	const light = speed() === "max" ? "" : task === "quick" || lite ? "low" : { easy: "low", medium: "medium" }[level] || "";
+	// (an everyday question thinks minimally: LMArena rates what people prefer in chat barely any higher for more thought
+	// than that, about 4 Elo, and it's a third of the price)
+	const light = speed() === "max" ? "" : task === "quick" ? "minimal" : lite ? "low" : { easy: "low", medium: "medium" }[level] || "";
 	// what Andromeda measured itself on exactly this kind of work (never held up waiting for it)
 	const tags = PROFILE && PROFILE_TEXT === text && PROFILE.tags || [];
 	const record = tags.length && PROFILE.record ? await Promise.race([PROFILE.record, sleep(800).then(() => null)]) : null;
@@ -6415,7 +6445,7 @@ function testedLine(t) {
 	if (!t) return "";
 	const looked = t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "";
 	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean." + looked + "*" : "\n\n*Tested in the browser: it runs clean." + looked + "*";
-	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them" + (t.need ? " (fixing them takes about " + creditsText(t.need) + " credits)" : "") + ". Get more credits, then say \"fix it\".*";
+	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them. Get more credits, then say \"fix it\".*";
 	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
 }
 
@@ -6589,7 +6619,7 @@ async function runApp(text, atts, pick) {
 		const have = me ? me.credits : Infinity;
 		let k = steps.findIndex((cap, n) => need[n] * 1.5 <= have);
 		if (k < 0) k = steps.findIndex((cap, n) => need[n] <= have);
-		if (k < 0) throw fail("Building this app takes about " + creditsText(need[0]) + " credits" + (need[need.length - 1] < need[0] ? " at its best, " + creditsText(need[need.length - 1]) + " at the lightest," : "") + " and you have " + creditsText(Math.max(0, have)) + " left. Get more credits, or wait for your free ones to come back.", 402);
+		if (k < 0) throw fail("Building this app takes more credits than you have left. Get more credits, or wait for your free ones to come back.", 402);
 		buildCap = steps[k];
 	}
 	const msgs = current.msgs;
@@ -7803,8 +7833,8 @@ function chooseTier(plan, left) {
 		const secs = Math.round(tiers[0].e.seconds), count = (k) => plan.scenes.filter((s) => s.motion === k).length;
 		const kinds = [[count("video"), "filmed"], [count("still"), "stills with camera moves"], [count("drawn"), "animated in code"]].filter(([k]) => k).map(([k, w]) => k + " " + w).join(", ");
 		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots (" + kinds + ") · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + ". Pick the quality: you only pay for what's made.</p>" +
-			'<div class="tiers" style="--n:' + tiers.length + '">' + tiers.map(({ t, e }) => '<button class="tier' + (t === pick ? " on" : "") + '" data-tier="' + t + '"' + (afford(e) ? "" : " disabled") + "><b>" + VIDEO_TIERS[t].label + "</b><span class=\"price\">≈ " + money$(e.usd) + "</span><span>" + esc(e.model.name) + " · " + esc(fitRes(e.model, VIDEO_TIERS[t].res)) + (t === "max" && count("still") ? " · stills filmed too" : "") + "</span></button>").join("") + "</div>" +
-			'<div class="field"><div class="help">' + (creditsMode() ? (me ? "You have " + creditsText(me.credits) + " credits. " : "") : (left != null ? "Balance " + money$(left) + " · " : "") + "spent today " + money$(SPEND.usd) + ". ") + "Voice by ElevenLabs, music by Lyria, cut here in your browser.</div></div>" +
+			'<div class="tiers" style="--n:' + tiers.length + '">' + tiers.map(({ t, e }) => '<button class="tier' + (t === pick ? " on" : "") + '" data-tier="' + t + '"' + (afford(e) ? "" : " disabled") + "><b>" + VIDEO_TIERS[t].label + "</b>" + (creditsMode() ? "" : "<span class=\"price\">≈ " + money$(e.usd) + "</span>") + "<span>" + esc(e.model.name) + " · " + esc(fitRes(e.model, VIDEO_TIERS[t].res)) + (t === "max" && count("still") ? " · stills filmed too" : "") + "</span></button>").join("") + "</div>" +
+			'<div class="field"><div class="help">' + (creditsMode() ? "" : (left != null ? "Balance " + money$(left) + " · " : "") + "spent today " + money$(SPEND.usd) + ". ") + "Voice by ElevenLabs, music by Lyria, cut here in your browser.</div></div>" +
 			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button><button class="btn dark" id="tierGo">Make it</button></div>');
 		$$("[data-tier]").forEach((b) => b.onclick = () => { pick = b.dataset.tier; $$("[data-tier]").forEach((x) => x.classList.toggle("on", x === b)); });
 		modalClose = () => res(null);
@@ -7826,9 +7856,9 @@ function confirmDrawn(plan) {
 		const cost = (finest) => drawnCredits(0.06 + (shots + 1) * drawnCost(finest));
 		const credits = cost(speed() === "max"), gain = speed() === "max" ? null : finestGain(), fine = gain ? cost(true) : 0;
 		const short = !!me && me.credits < credits, fineShort = !!me && me.credits < fine;
-		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots, every one animated in code, with music and sound effects composed to the cut · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + " · about " + creditsText(credits) + " credits. You only pay for what's made.</p>" +
-			(gain ? '<div class="field"><div class="help"><b>Finest</b>: the animator thinks as hard as it can, about ' + creditsText(fine) + " credits (" + (fine / credits).toFixed(1) + "× the price). People pick the finer version about " + gain + " times in 10 when they compare web designs made both ways; films haven't been measured yet.</div></div>" : "") +
-			'<div class="field"><div class="help">' + (me ? "You have " + creditsText(Math.max(0, me.credits)) + " credits." + (short ? " That isn't enough for all of it: get more credits first. " : " ") : "") + "No voiceover on this server yet, so the words are on screen. Cut here in your browser.</div></div>" +
+		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots, every one animated in code, with music and sound effects composed to the cut · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + ". You only pay for what's made.</p>" +
+			(gain ? '<div class="field"><div class="help"><b>Finest</b>: the animator thinks as hard as it can, at about ' + (fine / credits).toFixed(1) + "× the price. People pick the finer version about " + gain + " times in 10 when they compare web designs made both ways; films haven't been measured yet.</div></div>" : "") +
+			'<div class="field"><div class="help">' + (short ? "There aren't enough credits left for all of it: get more credits first. " : "") + "No voiceover on this server yet, so the words are on screen. Cut here in your browser.</div></div>" +
 			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button>' + (gain ? '<button class="btn" id="tierFine"' + (fineShort ? " disabled" : "") + ">Finest</button>" : "") + '<button class="btn dark" id="tierGo"' + (short ? " disabled" : "") + ">Make it</button></div>");
 		modalClose = () => res(null);
 		const go = (finest) => { try { (STUDIO_AUDIO.ctx ||= new AudioContext()).resume(); } catch {} if (finest) plan.finest = true; modalClose = null; closeModal(); res("standard"); };
@@ -7842,6 +7872,8 @@ const RUNNING = new Set();
 
 // ---- making it
 async function runStudio(text, atts, pick) {
+	// nothing to make it with on this server yet: said before the director or anyone else is asked
+	if (!mediaReady()) throw mediaSoon(pick.kind);
 	// drawn in code: no media models to load
 	if (drawnOnly() && (pick.kind === "video" || pick.edit)) return pick.edit ? studioEdit(text, atts, pick) : runVideo(text, atts);
 	await loadMedia();
@@ -8746,7 +8778,7 @@ async function studioEdit(text, atts, pick) {
 	const cost = d.drawnOnly ? (msg.data.scenes.filter(remake).length + (redo.music ? 1 : 0)) * drawnCost() : msg.data.scenes.reduce((n, s, i) => n + (s.clip ? 0 : vPerSec(vm, VIDEO_TIERS[d.tier].res, true) * fitDur(vm, plan.scenes[i].seconds) + 0.14), 0) + (redo.music ? 0.06 : 0);
 	if (d.drawnOnly ? cost > 0.5 : cost > 1.5) {
 		const ok = await new Promise((res) => {
-			openModal("<h2>Remake " + msg.data.scenes.filter(remake).length + " shot(s)?</h2><p class=\"sub\">That change needs new " + (d.drawnOnly ? "animation" : "footage") + ": about " + (d.drawnOnly ? creditsText(drawnCredits(cost)) + " credits" : money$(cost)) + ". Everything else is reused.</p><div class=\"row\" style=\"justify-content:flex-end;gap:8px\"><button class=\"btn\" id=\"reNo\">Cancel</button><button class=\"btn dark\" id=\"reGo\">Remake</button></div>");
+			openModal("<h2>Remake " + msg.data.scenes.filter(remake).length + " shot(s)?</h2><p class=\"sub\">That change needs new " + (d.drawnOnly ? "animation" : "footage") + (creditsMode() ? "" : ": about " + money$(cost)) + ". Everything else is reused.</p><div class=\"row\" style=\"justify-content:flex-end;gap:8px\"><button class=\"btn\" id=\"reNo\">Cancel</button><button class=\"btn dark\" id=\"reGo\">Remake</button></div>");
 			modalClose = () => res(false);
 			$("#reGo").onclick = () => { modalClose = null; closeModal(); res(true); };
 			$("#reNo").onclick = () => closeModal();
@@ -8817,7 +8849,7 @@ async function renderStudio(m, i, box) {
 	};
 	$$("[data-redo]", box).forEach((b) => b.onclick = () => {
 		const n = Number(b.dataset.redo);
-		openModal("<h2>Redo shot " + (n + 1) + "</h2><p class=\"sub\">Say what to change, or leave it empty for another take. About " + money$(vPerSec(videoModel(d.tier), VIDEO_TIERS[d.tier].res, true) * fitDur(videoModel(d.tier), plan.scenes[n].seconds) + 0.14) + '.</p><div class="field"><textarea class="inp" id="redoT" rows="3" placeholder="e.g. at night, closer on her face"></textarea></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="rNo">Cancel</button><button class="btn dark" id="rGo">Redo</button></div>');
+		openModal("<h2>Redo shot " + (n + 1) + "</h2><p class=\"sub\">Say what to change, or leave it empty for another take." + (creditsMode() ? "" : " About " + money$(vPerSec(videoModel(d.tier), VIDEO_TIERS[d.tier].res, true) * fitDur(videoModel(d.tier), plan.scenes[n].seconds) + 0.14) + ".") + '</p><div class="field"><textarea class="inp" id="redoT" rows="3" placeholder="e.g. at night, closer on her face"></textarea></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="rNo">Cancel</button><button class="btn dark" id="rGo">Redo</button></div>');
 		$("#rNo").onclick = closeModal;
 		$("#rGo").onclick = () => {
 			try { (STUDIO_AUDIO.ctx ||= new AudioContext()).resume(); } catch {}
@@ -9349,7 +9381,7 @@ async function openPricing() {
 		const can = live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[p.id]));
 		return '<div class="plan' + (p.popular ? " popular" : "") + '">' + (p.popular ? '<span class="tag">Most popular</span>' : "") +
 			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">one-time · no subscription</div>' +
-			'<div class="tiles"><div class="tile full"><b>' + creditsText(total) + "</b><span>credits" + (p.bonus ? " · incl. +" + creditsText(p.bonus) + " bonus" : "") + '</span></div><div class="tile"><b>≈' + creditsText(Math.round(total / 12)) + '</b><span>everyday answers</span></div><div class="tile"><b>≈' + creditsText(Math.max(1, Math.round(total / 200))) + "</b><span>apps built</span></div></div>" +
+			'<div class="tiles"><div class="tile full"><b>' + creditsText(total) + "</b><span>credits" + (p.bonus ? " · incl. +" + creditsText(p.bonus) + " bonus" : "") + '</span></div><div class="tile"><b>≈' + creditsText(Math.round(total / 5)) + '</b><span>everyday answers</span></div><div class="tile"><b>≈' + creditsText(Math.max(1, Math.round(total / 200))) + "</b><span>apps built</span></div></div>" +
 			'<ul class="feat"><li>Every model, the best one picked for each task</li><li>Flashcards, quizzes, podcasts and simulations</li><li>Apps and games built and run in the browser</li>' + (p.bonus ? "<li>" + Math.round((p.bonus / p.credits) * 100) + "% more credits for the same price per credit</li>" : "<li>Try everything with no commitment</li>") + "</ul>" +
 			'<button class="btn' + (p.popular ? " dark" : "") + '" data-buy="' + esc(p.id) + '"' + (can ? "" : " disabled") + ">" + (!live ? "Coming soon" : !can ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card or PayPal") + "</button></div>";
 	};
@@ -9365,7 +9397,7 @@ async function openPricing() {
 		'<div class="plans">' + free + P.packs.map(card).join("") + "</div>" +
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Credits are added as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". Credits arrive automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
-		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 12 credits. Long answers and big jobs use more: a full app build with the best models can use a few hundred. Your balance at the top shows what's left.</p></details>" +
+		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 5 credits. Long answers and big jobs use more: a hard question checked by a second top model about 50, a full app built by the best builder about 200. Your account shows what's left.</p></details>" +
 		"<details><summary>What are free credits?</summary><p>Everyone with an account gets " + (P.free || DEFAULT_PRICING.free).credits + " free credits. Once you start using them, they're all back " + (P.free || DEFAULT_PRICING.free).hours + " hours later. They're always used before credits you bought.</p></details>" +
 		"<details><summary>Which models do I get?</summary><p>All of them. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
 		"<details><summary>Do credits expire?</summary><p>No. Credits stay on your account until you use them.</p></details>" +
