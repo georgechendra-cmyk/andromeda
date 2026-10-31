@@ -6338,8 +6338,11 @@ async function polishLook(files, request, msg, rules) {
 		const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
 			"\n\nIt runs without errors. Looking at it in a browser (as it opens, and after its main button and keys were pressed), a lead designer found:\n- " + problems.join("\n- ") +
 			"\n\nFix each one properly, keeping every feature and everything that already works. " + CHANGE_FORMAT + " (In NOTES, one line on what you changed.)" }];
-		// (what to fix is named: the build's full thought isn't needed again)
-		const r = await askFirst(bestFor("app").slice(0, 3), ask, msg, undefined, "high");
+		// (what to fix is named: the build's full thought isn't needed again; and it already runs clean, so a polish the
+		// credits left don't cover is left out rather than started)
+		const polishers = bestFor("app").slice(0, 3), room = await roundCap(polishers[0], files, "high");
+		if (room.need) return keep;
+		const r = await askFirst(polishers, ask, msg, undefined, room.cap);
 		const p = parseFiles(r.out);
 		const cut = cutShort(p, msg.cut);
 		delete msg.cut;
@@ -6377,6 +6380,9 @@ async function heal(files, request, msg, rules, look = true) {
 		}
 		const pick = round === 1 ? fixers[0] : fixers.find((m) => lastModel && provider(m.id) !== provider(lastModel.id)) || fixers[0];
 		if (!pick) { msg.tested = { ok: false, fixed, rounds: round - 1, problems }; return files; }
+		// what this round costs against what's left: a light app finishes lighter, a big one stops and says what it needs
+		const room = await roundCap(pick, files, "high");
+		if (room.need) { msg.tested = { ok: false, fixed, rounds: round - 1, problems, short: true, need: room.need }; return files; }
 		msg.status = "Found " + problems.length + " problem" + (problems.length === 1 ? "" : "s") + ", fixing them (round " + round + ")";
 		updateLast();
 		const have = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 80000);
@@ -6386,7 +6392,7 @@ async function heal(files, request, msg, rules, look = true) {
 				"\n\nIt was loaded in a browser and used (every button clicked, arrow keys and space pressed, every input changed). These problems came up:\n- " + problems.join("\n- ") +
 				"\n\nFind the cause of each one and fix it properly, without removing features. " + CHANGE_FORMAT + " (In NOTES, one line on what was wrong.)" }];
 			// (the errors are named: finding their cause takes careful thought, not the build's most)
-			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), ask, msg, undefined, "high");
+			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), ask, msg, undefined, room.cap);
 			const p = parseFiles(r.out);
 			// a fix that stopped early (the credits ran low): none of it is used, the project stays whole as it was
 			if (cutShort(p, msg.cut)) { delete msg.cut; msg.tested = { ok: false, fixed, rounds: round - 1, problems, short: true }; return files; }
@@ -6409,7 +6415,7 @@ function testedLine(t) {
 	if (!t) return "";
 	const looked = t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "";
 	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean." + looked + "*" : "\n\n*Tested in the browser: it runs clean." + looked + "*";
-	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them. Get more credits, then say \"fix it\".*";
+	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them" + (t.need ? " (fixing them takes about " + creditsText(t.need) + " credits)" : "") + ". Get more credits, then say \"fix it\".*";
 	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
 }
 
@@ -6525,6 +6531,23 @@ function appDoc(files) {
 // ---- plenty of credit: the top models work on a build together
 const WALLET = { at: 0, left: null };
 const APP_MIN_CREDITS = 20;
+// what one call by a builder costs in credits: at the thought it's held to, writing `out` tokens after reading `inTok`
+function appCredits(m, cap, out, inTok) {
+	return Math.ceil(drawnCredits(callCost({ m, effort: EFFORT.get(m.id) || "" }, cap, out, inTok) / 1e6));
+}
+// A round of fixes or the design pass, on what's left: the round at `cap` when it's covered. When it isn't: a light
+// project (most of the work done, little code) finishes at a lighter effort, the most that's still covered; a big one
+// stops, with what works handed over and what finishing would take said. { cap } to go, { need } to stop
+async function roundCap(m, files, cap) {
+	if (!creditsMode() || !m) return { cap };
+	await refreshMe();
+	const have = me ? me.credits : Infinity;
+	const size = Object.values(files).reduce((n, c) => n + String(c).length, 0), inTok = Math.round(size / 4) + 2000;
+	const at = (c) => appCredits(m, c, 2500, inTok);
+	if (at(cap) <= have) return { cap };
+	if (size <= 40000) for (const c of ["medium", "low"]) if (LEVELS.indexOf(c) < LEVELS.indexOf(cap) && at(c) <= have) return { cap: c, lighter: true };
+	return { need: at(cap) };
+}
 const MAX_BUILD_AT = 15; // dollars of balance
 async function walletLeft() {
 	// what the credits are worth, at Andromeda's prices
@@ -6553,11 +6576,21 @@ const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text },
 async function runApp(text, atts, pick) {
 	// a build is written whole by the best builder at the thought it's run at: not started on a balance that would cut it
 	// off half-written (what this build will cost, worked out from that builder and how much an app writes)
+	// The whole job is priced before anything is spent: the build, and about half again for a round of fixes and the
+	// design pass. The best builder at its full effort when the balance covers it; when it doesn't, the same builder
+	// thinking a step less (never another model), the most it can and still finish; and when not even its lightest would
+	// finish, nothing starts and the person sees what it costs. A build never stops half-made
+	let buildCap;
 	if (creditsMode()) {
 		await refreshMe();
 		const builder = bestFor(atts.some((a) => a.kind === "image" && a.data) ? "appFromImage" : "app")[0];
-		const need = builder ? Math.max(APP_MIN_CREDITS, Math.ceil(drawnCredits(callCost({ m: builder, effort: EFFORT.get(builder.id) || "" }, undefined, FEATURE_W.app.out) / 1e6))) : APP_MIN_CREDITS;
-		if (me && me.credits < need) throw fail("Building this app takes about " + creditsText(need) + " credits, and you have " + creditsText(Math.max(0, me.credits)) + " left. Get more credits, or wait for your free ones to come back.", 402);
+		const steps = speed() === "max" ? [undefined] : [undefined, "xhigh", "high", "medium"];
+		const need = steps.map((cap) => (builder ? Math.max(APP_MIN_CREDITS, appCredits(builder, cap, FEATURE_W.app.out)) : APP_MIN_CREDITS));
+		const have = me ? me.credits : Infinity;
+		let k = steps.findIndex((cap, n) => need[n] * 1.5 <= have);
+		if (k < 0) k = steps.findIndex((cap, n) => need[n] <= have);
+		if (k < 0) throw fail("Building this app takes about " + creditsText(need[0]) + " credits" + (need[need.length - 1] < need[0] ? " at its best, " + creditsText(need[need.length - 1]) + " at the lightest," : "") + " and you have " + creditsText(Math.max(0, have)) + " left. Get more credits, or wait for your free ones to come back.", 402);
+		buildCap = steps[k];
 	}
 	const msgs = current.msgs;
 	const prev = pick.edit ? [...msgs].reverse().find((m) => m.kind === "app" && m.data) : null;
@@ -6587,7 +6620,9 @@ async function runApp(text, atts, pick) {
 		msg.used = [{ name: shortName(m), desc: "Code: " + (prev ? "edited the project" : "wrote the project") }];
 		try {
 			msg.cut = false;
-			const out = await stream(m.id, asked, (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, effortExtra(m.id), msg);
+			const lighter = !!buildCap && capEffort(EFFORT.get(m.id) || "", buildCap, m.id) !== (EFFORT.get(m.id) || "");
+			const out = await stream(m.id, asked, (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, buildCap ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", buildCap, m.id)) : effortExtra(m.id), msg);
+			msg.lighter = lighter;
 			parsed = parseFiles(out);
 			// stopped early: the file it was writing is left out (not run half-written), and the person is told
 			unfinished = cutShort(parsed, msg.cut) ? (parsed.lastKind === "EDIT" ? parsed.lastEdit : parsed.last) : "";
@@ -6610,7 +6645,9 @@ async function runApp(text, atts, pick) {
 	else files = await heal(files, text, msg, rules, !prev);
 	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
 	msg.tab = "preview";
-	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested);
+	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested)
+		+ (msg.lighter ? "\n\n*Built thinking a little less than the builder's most, so it finishes within your credits.*" : "");
+	delete msg.lighter;
 }
 async function runStudy(text, atts, pick) {
 	if (pick.kind === "sim") return runSim(text, atts, pick);
@@ -7633,7 +7670,7 @@ async function direct(text, atts, msg, signal, drawn) {
 	const want = lengthOf(text);
 	const imgs = atts.filter((a) => a.kind === "image" && a.data);
 	const ask = "Plan this: " + text + "\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
-		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\"." : "") +
+		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\"." : "") +
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
 		(sourceOf(atts, 1) ? "\n\nWhat they gave you about it (their page, notes or files): use the real names, products, prices, places and tone from it, never invent ones that contradict it.\n" + sourceOf(atts, 12000) : "") +
 		"\n\nVoices: " + Object.entries(VOICES).map(([k, v]) => k + " (" + v + ")").join(", ") + "." + (langLine() ? "\n" + langLine() + " (keep the JSON keys in English)" : "");
@@ -7675,7 +7712,7 @@ async function direct(text, atts, msg, signal, drawn) {
 				+ (k ? "\nThe chapter before ends with: " + chapters[k - 1].summary : "")
 				+ "\n\nPlan only the shots of chapter " + (k + 1) + " of " + chapters.length + ", \"" + c.title + "\", about " + Math.round(c.seconds) + " seconds: " + c.summary
 				+ "\nKeep the same look and the same people and products, described identically. Return the same JSON; only its \"scenes\" are used."
-				+ (drawn ? "\nEvery shot is drawn in code (\"motion\": \"drawn\", with its full \"draw\" brief), and \"vo\" stays empty: the words are on screen." : ""), hasScenes, "chapter " + (k + 1) + " of " + chapters.length);
+				+ (drawn ? "\nEvery shot is drawn in code (\"motion\": \"drawn\", with its full \"draw\" brief, its beats in order), one shot for every 6 to 8 seconds, and \"vo\" stays empty: the words are on screen." : ""), hasScenes, "chapter " + (k + 1) + " of " + chapters.length);
 			parts[k] = p.scenes;
 		}
 	};
@@ -7718,9 +7755,20 @@ const filmed = (sc, tier) => sc.motion === "video" || (tier === "max" && sc.moti
 const shotSecs = (sc, tier, vm) => (filmed(sc, tier) ? fitDur(vm, sc.seconds) : sc.seconds);
 // what animating one shot in code costs: the animator writing a scene (about 6k tokens read, 7k written, some thought),
 // and the reviewer looking at three of its frames
-function drawnCost() {
+// one drawn shot: the animator reading its brief and the film's kit, writing the shot at medium thought (finest: as hard
+// as it thinks best), and a look at its frames
+function drawnCost(finest) {
 	const a = bestFor("animation")[0];
-	return (a && (a.pin || a.pout) ? ((a.pin || 0) * 6000 + (a.pout || 0) * 10500) / 1e6 : 0.2) + 0.02;
+	if (!a || !(a.pin || a.pout)) return 0.22;
+	return callCost({ m: a, effort: EFFORT.get(a.id) || "" }, finest ? undefined : "medium", 5000, 5000) / 1e6 + 0.01;
+}
+// how much the finest thought is likely to show: the levels between medium and the animator's best, at what a level of
+// thought buys on LMArena's web design board, as how often people pick it (null when there's nothing above medium)
+function finestGain() {
+	const a = bestFor("animation")[0];
+	const steps = a ? LEVELS.indexOf(EFFORT.get(a.id) || "") - LEVELS.indexOf("medium") : 0;
+	if (!(steps > 0)) return null;
+	return Math.round(10 / (1 + Math.pow(10, (-steps * (STEP.webdev ?? 35)) / 400)));
 }
 
 // ---- what it will cost, at each quality, before anything is spent
@@ -7770,14 +7818,22 @@ const drawnCredits = (usd) => Math.ceil(usd * CREDIT_CHAT() / creditUsd());
 function confirmDrawn(plan) {
 	return new Promise((res) => {
 		const secs = Math.round(plan.scenes.reduce((n, s) => n + s.seconds, 0));
-		// the director, every shot animated, and the soundtrack composed (about one shot's worth)
-		const credits = drawnCredits(0.06 + (plan.scenes.length + 1) * drawnCost());
-		const short = !!me && me.credits < credits;
+		// the director, every shot animated, and the soundtrack composed (about one shot's worth); and the same at the
+		// animator's finest thought, offered with how much it's likely to show (Max: always the finest)
+		// (a film of several shots: every shot after the first writes only its scene, the film's kit already made, about
+		// two thirds of a whole shot)
+		const shots = plan.scenes.length > 1 ? 1 + (plan.scenes.length - 1) * 0.7 : 1;
+		const cost = (finest) => drawnCredits(0.06 + (shots + 1) * drawnCost(finest));
+		const credits = cost(speed() === "max"), gain = speed() === "max" ? null : finestGain(), fine = gain ? cost(true) : 0;
+		const short = !!me && me.credits < credits, fineShort = !!me && me.credits < fine;
 		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots, every one animated in code, with music and sound effects composed to the cut · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + " · about " + creditsText(credits) + " credits. You only pay for what's made.</p>" +
+			(gain ? '<div class="field"><div class="help"><b>Finest</b>: the animator thinks as hard as it can, about ' + creditsText(fine) + " credits (" + (fine / credits).toFixed(1) + "× the price). People pick the finer version about " + gain + " times in 10 when they compare web designs made both ways; films haven't been measured yet.</div></div>" : "") +
 			'<div class="field"><div class="help">' + (me ? "You have " + creditsText(Math.max(0, me.credits)) + " credits." + (short ? " That isn't enough for all of it: get more credits first. " : " ") : "") + "No voiceover on this server yet, so the words are on screen. Cut here in your browser.</div></div>" +
-			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button><button class="btn dark" id="tierGo"' + (short ? " disabled" : "") + ">Make it</button></div>");
+			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button>' + (gain ? '<button class="btn" id="tierFine"' + (fineShort ? " disabled" : "") + ">Finest</button>" : "") + '<button class="btn dark" id="tierGo"' + (short ? " disabled" : "") + ">Make it</button></div>");
 		modalClose = () => res(null);
-		$("#tierGo").onclick = () => { try { (STUDIO_AUDIO.ctx ||= new AudioContext()).resume(); } catch {} modalClose = null; closeModal(); res("standard"); };
+		const go = (finest) => { try { (STUDIO_AUDIO.ctx ||= new AudioContext()).resume(); } catch {} if (finest) plan.finest = true; modalClose = null; closeModal(); res("standard"); };
+		$("#tierGo").onclick = () => go(false);
+		if (gain) $("#tierFine").onclick = () => go(true);
 		$("#tierNo").onclick = () => closeModal();
 	});
 }
@@ -8418,6 +8474,13 @@ async function reviewScene(html, sc, plan, W, H, msg, signal) {
 // (style: the film's first shot, already animated: the others are written with its code in front of them, the way a
 // studio works from one finished style frame, so every shot shares its palette, type, textures and motion)
 async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
+	// The film's kit: the first shot of a film of several writes what every shot reuses (palette, fonts, easing, seeded
+	// randomness, the film's drawing helpers) once, in its own script; every later shot has it put in for it and writes
+	// only its own scene. A studio's shared library: the same look in every shot, and each shot about half the code
+	const many = plan.scenes.filter((x) => x.motion === "drawn").length > 1;
+	const kit = style ? (style.match(/<script[^>]*\bid=["']?kit["']?[^>]*>([\s\S]*?)<\/script>/i) || [])[1] || "" : "";
+	const fonts = style ? (style.match(/<link[^>]+fonts\.googleapis[^>]*>/gi) || []).join("") : "";
+	const own = kit ? style.replace(/<script[^>]*\bid=["']?kit["']?[^>]*>[\s\S]*?<\/script>/i, "<!-- the film's kit -->") : "";
 	const ask = "The film: " + plan.title + ". Its look: " + plan.look
 		+ "\nThe film's shots, for context: " + plan.scenes.map((x, k) => (k + 1) + ". " + (x.motion === "drawn" ? x.draw || x.shot : x.shot).slice(0, 110)).join(" | ").slice(0, 3500)
 		+ "\n\nAnimate shot " + (i + 1) + ": " + (sc.draw || sc.shot)
@@ -8425,16 +8488,27 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 		+ (sc.vo ? "\nThe voiceover during it (time the visuals to it, about 2.5 words a second): \"" + sc.vo + "\"" : "")
 		+ (sc.caption ? "\nThe editor adds this caption at the bottom, so keep the bottom fifth clear: \"" + sc.caption + "\"" : "")
 		+ "\nSame style, palette and characters as the rest of the film, so the shots cut together."
-		+ (style ? "\n\nThe film's first shot, already made. Match its palette, fonts, textures, line weights, easing and drawing helpers exactly (reuse its code where it fits), so the cut feels like one film:\n" + style.slice(0, 14000) : "");
-	const whole = (out) => (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
-	const effort = (m) => effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id));
+		+ (!style && many ? "\n\nThis is the film's first shot: every other shot is made to match it. Put everything the others will reuse in its own <script id=\"kit\">, before the shot's own script: it only defines window.KIT (the palette, fonts, easing functions, a seeded random generator, and drawing helpers for the film's recurring shapes, characters, backgrounds and type, each taking the canvas context and what it needs as arguments), and draws nothing by itself. The shot's own script then uses window.KIT." : "")
+		+ (kit ? "\n\nThe film's kit is already in your document, loaded before your script" + (fonts ? " with its fonts" : "") + ": use window.KIT for everything it covers, so the cut feels like one film, and don't write any of it again. Send the document without the kit; it's put in for you. The kit:\n" + kit.slice(0, 12000) + "\n\nThe first shot's own part, for how it uses the kit:\n" + own.slice(0, 5000)
+			: style ? "\n\nThe film's first shot, already made. Match its palette, fonts, textures, line weights, easing and drawing helpers exactly (reuse its code where it fits), so the cut feels like one film:\n" + style.slice(0, 14000) : "");
+	// the kit (and its fonts) put into a later shot that left it out
+	const withKit = (html) => {
+		if (!kit || !html || /\bid=["']?kit["']?/i.test(html)) return html;
+		const tag = fonts + "<script id=\"kit\">" + kit + "<\/script>";
+		const at = html.search(/<script\b/i);
+		return at >= 0 ? html.slice(0, at) + tag + html.slice(at) : html.replace(/<\/head>|<body[^>]*>/i, (m) => (m[1] === "/" ? tag + m : m + tag));
+	};
+	const whole = (out) => withKit((String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i))));
+	// medium thought for a shot unless the film was asked for at its finest (or in Max); a fix to one, a step less
+	const finest = plan.finest || speed() === "max";
+	const effort = (m, fix) => (finest && !fix ? effortExtra(m.id) : effortFor(m.id, capEffort(EFFORT.get(m.id) || "", finest ? "high" : "medium", m.id)));
 	const write = async (m, prompt) => whole(await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effort(m), msg));
 	// a fix to a shot that's written: only the lines that change (a whole shot is thousands of tokens for a few lines'
 	// fix); edits that don't land, or none, and it's the whole file after all
 	const change = async (m, why, html) => {
-		const said = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: ask + "\n\n" + why + "\n\nThe code, as shot.html:\n" + html.slice(0, 40000) + "\n\nThis time don't send the whole file. " + CHANGE_FORMAT.replace(/\bpath\b/g, "shot.html") }], () => {}, signal, effort(m), msg);
+		const said = await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: ask + "\n\n" + why + "\n\nThe code, as shot.html:\n" + html.slice(0, 40000) + "\n\nThis time don't send the whole file. " + CHANGE_FORMAT.replace(/\bpath\b/g, "shot.html") }], () => {}, signal, effort(m, true), msg);
 		const p = parseFiles(said);
-		if (p.files["shot.html"]) return p.files["shot.html"];
+		if (p.files["shot.html"]) return withKit(p.files["shot.html"]);
 		if (Object.keys(p.edits).length) {
 			const { files, failed } = applyEdits({ "shot.html": html }, p.edits);
 			if (!failed.length) return files["shot.html"];
