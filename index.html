@@ -2381,16 +2381,18 @@ const FEATURE_W = {
 	// every answer up)
 	// (every route is its decision: held to a higher standard than any answer; a cheaper fast reader only when it reads
 	// about as well)
-	reader: { task: "quick", out: 300, in: 4500, fast: true, bench: 0.15, stakes: 0.1, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
+	// (own: picked on reading and planning alone, not on what the request is about: reading a coding request well is
+	// still reading)
+	reader: { task: "quick", out: 300, in: 4500, fast: true, own: true, bench: 0.15, stakes: 0.1, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
 	// splitting a request into its smallest pieces of work, and putting the pieces back together into one answer
-	planner: { task: "reasoning", out: 900, in: 3500, bench: 0.3, stakes: 0.1, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
+	planner: { task: "reasoning", out: 900, in: 3500, own: true, bench: 0.3, stakes: 0.1, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
 	assemble: { task: "write", out: 2500, w: { "text:instruction_following": 0.35, "text:expert": 0.25, "text:creative_writing": 0.2, "factuality:overall": 0.2 } },
 };
 // The models for one of those features, best first (at most two from one lab near the top, so if a lab is down the next
 // in line is another); without the leaderboards, the labs known for that kind of work
 function bestFor(feature) {
 	const f = FEATURE_W[feature];
-	let data = arenaRank(f.task, blendW(f.w, PROFILE && PROFILE.weights, 0.6), f.bench);
+	let data = arenaRank(f.task, f.own ? f.w : blendW(f.w, PROFILE && PROFILE.weights, 0.6), f.bench);
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
 	data = bestFirst(quarkFirst(data, undefined, undefined, (x, cap) => callCost(x, cap, f.out || 800, f.in), f.stakes ?? STAKES[f.task]));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
@@ -6080,7 +6082,9 @@ async function runQuarks(text, atts) {
 		const field = {};
 		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
 		const checkW = codey ? ["code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)] : ["reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5)];
-		const checkCap = lite ? "low" : "medium";
+		// spotting a wrong fact or broken code takes light thought on everyday work, more on hard work (Max: as hard as the
+		// checker can); its thinking was most of what a check cost
+		const checkCap = speed() === "max" ? null : lite ? "low" : PROFILE && PROFILE.level === "hard" ? "medium" : "low";
 		let checkers = otherLabFirst(pick(...checkW, checkCap, { except: fin.id }).filter((x) => x.m.id !== fin.id), provider(fin.id), checkCap);
 		// never skipped: on free credits with no second low-cost model, another model checks it (one call), and only if
 		// there's no other model at all, the writer checks its own work
@@ -6108,7 +6112,9 @@ async function runQuarks(text, atts) {
 	for (const x of arenaRank(...fixW).slice().sort((a, b) => b.score - a.score)) if (!strongest.some((y) => y.m.id === x.m.id) && strongest.push(x) >= 4) break;
 	const fixers = strongest.length ? [...strongest, ...writers.filter((w) => !strongest.some((s) => s.m.id === w.m.id))] : writers;
 	try {
-		msg.text = await run(fix, fixers, () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nThe first version:\n" + first + "\n\nAn expert checker found these real problems. Write the corrected answer the user reads, fixing exactly these and keeping everything else:\n- " + verdict.issues.join("\n- "))], (t) => { msg.text = t; });
+		// (the problems are named, so fixing them takes the thought the work itself took, not the fixer's most)
+		const fixCap = speed() === "max" ? null : PROFILE && PROFILE.level === "hard" ? "high" : "medium";
+		msg.text = await run(fix, fixers, () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nThe first version:\n" + first + "\n\nAn expert checker found these real problems. Write the corrected answer the user reads, fixing exactly these and keeping everything else:\n- " + verdict.issues.join("\n- "))], (t) => { msg.text = t; }, null, undefined, fixCap);
 		done(fix);
 	} catch (e) {
 		if (e.name === "AbortError" || e.status === 401) throw e;
