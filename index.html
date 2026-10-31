@@ -6008,11 +6008,16 @@ async function runQuarks(text, atts) {
 	}
 	// one model does it all: its one call writes the finished answer, nothing to put together
 	const solo = groups.length === 1;
+	// The same when the others only feed it: when every piece the user will read (one no other piece builds on) is the
+	// last model's, the others' work (the facts it found, the numbers it worked out) goes to that model, which writes the
+	// finished answer on it; a call to put it all together would only write the same answer again
+	const fed = new Set(plan.pieces.flatMap((p) => p.needs)), lastG = groups[groups.length - 1];
+	const writer = solo ? groups[0] : plan.pieces.filter((p) => !fed.has(p.id)).every((p) => lastG.ids.has(p.id)) ? lastG : null;
 	const codey = (PROFILE && PROFILE.kind === "code") || plan.pieces.filter((p) => p.kind === "code").length * 2 >= plan.pieces.length;
 	// Putting the pieces together is writing more than working things out: light thought, a little more for code (whose
 	// pieces must fit exactly). One model doing it all writes with at least that much.
 	const joinCap = speed() === "max" ? null : codey && !lite ? "medium" : "low";
-	if (solo && plan.pieces.length > 1 && groups[0].cap && CAPS_UP.indexOf(groups[0].cap) < CAPS_UP.indexOf(joinCap)) groups[0].cap = joinCap;
+	if (writer && plan.pieces.length > 1 && writer.cap && CAPS_UP.indexOf(writer.cap) < CAPS_UP.indexOf(joinCap)) writer.cap = joinCap;
 	if (codey) plan.check = true;
 	const outline = plan.pieces.map((p, k) => (k + 1) + ". " + p.label + ": " + p.goal + (p.skill ? " (" + p.skill + ")" : "")).join("\n");
 	let fin = null, writers = null, parts = "", ask = "";
@@ -6029,14 +6034,15 @@ async function runQuarks(text, atts) {
 		const inputs = g.needs.filter((n) => outs.has(n)).map((n) => "### " + label(n) + "\n" + outs.get(n)).join("\n\n");
 		const head = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
 			+ (inputs ? "\n\nWhat your teammates already did, for you to build on (use it, don't redo it):\n" + inputs : "");
-		const gAsk = solo
-			? head + "\n\nThe plan, in order:\n" + outline + "\n\nWork through every part of the plan, each building on the last (code in full, numbers worked out, facts checked), and write the one finished answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Don't mention the plan or its parts."
+		const writes = g === writer;
+		const gAsk = writes
+			? head + "\n\nThe plan, in order:\n" + outline + "\n\n" + (inputs ? "Your teammates' work above already covers part of it: build on it as it is, don't redo it. " : "") + "Work through every part of the plan, each building on the last (code in full, numbers worked out, facts checked), and write the one finished answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Don't mention the plan or its parts."
 			: head + "\n\nYour pieces of the work, in order (each may build on the ones before it):\n\n" + g.pieces.map((p) => "### " + p.id + ": " + p.label + "\n" + p.goal + (p.skill ? "\nIts exact skill: " + p.skill : "")).join("\n\n")
 				+ "\n\nDo only these pieces, completely and exactly (code in full, numbers worked out, facts checked). Another model puts everything together, so give the results themselves, each under its own heading exactly as given (" + g.pieces.map((p) => "### " + p.id).join(", ") + "): no introduction, no summary.";
 		// the finished answer sees the whole chat; a piece gets the recent part and a trimmed copy of the project's files
 		// (the same start for every piece, so the providers bill it at their cached price)
-		const build = () => (solo ? [sys(), ...hist.slice(0, -1), withText(last, gAsk)] : [leanSys(), ...hist.slice(0, -1).slice(-6).map(trimMsg), withText(last, gAsk)]);
-		const live = solo ? (t) => { msg.text = t; } : null;
+		const build = () => (writes ? [sys(), ...hist.slice(0, -1), withText(last, gAsk)] : [leanSys(), ...hist.slice(0, -1).slice(-6).map(trimMsg), withText(last, gAsk)]);
+		const live = writes ? (t) => { msg.text = t; } : null;
 		try {
 			let out = await run(st, g.cands, build, live, (m) => (g.web ? webExtra(m.id, true) : {}), undefined, g.cap);
 			// code it wrote that can run here is run before anyone sees it; if it fails, the same model gets the exact error
@@ -6057,10 +6063,10 @@ async function runQuarks(text, atts) {
 					out = firstOut;
 				}
 			} else if (tested) { st.tested = "ran"; shareRun(g.pieces, st.id, true); }
-			const each = g.pieces.length > 1 && !solo ? splitGroup(out, g.pieces) : null;
+			const each = g.pieces.length > 1 && !writes ? splitGroup(out, g.pieces) : null;
 			g.pieces.forEach((p, k) => outs.set(p.id, each ? each[k] : k === 0 ? out : "(in " + g.pieces[0].label + ", above)"));
 			sts.forEach((s) => { s.model = st.model; s.id = st.id; done(s); });
-			if (solo) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; }
+			if (writes) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; }
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
 			sts.forEach((s) => done(s, niceError(e)));
@@ -6083,8 +6089,10 @@ async function runQuarks(text, atts) {
 	if (!outs.size) throw new Error("None of the models answered");
 
 	// 3. one answer from every piece, by the model best at writing this answer (when more than one model did the work)
-	if (solo) {
-		parts = "The plan it followed:\n" + outline;
+	if (writer) {
+		// (the work the others did is what the check holds the answer to)
+		const fedWork = plan.pieces.filter((p) => !writer.ids.has(p.id) && outs.has(p.id)).map((p) => "### " + p.label + "\n" + outs.get(p.id)).join("\n\n");
+		parts = "The plan it followed:\n" + outline + (fedWork ? "\n\nThe team's work it was built on:\n\n" + fedWork : "");
 		if (!msg.text) throw new Error("None of the models answered");
 	} else {
 		fin = { label: "Put it together", goal: "One answer from every piece", text: "", model: "", id: "", done: false, running: true, open: false, role: "write" };
@@ -6152,12 +6160,14 @@ async function runQuarks(text, atts) {
 	msg.steps.push(fix);
 	msg.status = "Fixing what the check found";
 	const first = msg.text;
-	// an answer that didn't hold up is fixed by the model measured best at it, price aside: a cheaper writer is tried first
-	// because it's usually right, and what that saves is only kept when it is (the same model when it already was the best)
+	// The problems are named, so the model that wrote it fixes them: it was picked level with the best at this work (never
+	// more than a hair behind), it knows its answer, and another model would read it all again to rewrite it at its own
+	// price. The strongest only when the writer can't be reached
 	const fixW = codey ? ["code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3)] : ["write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights)];
 	const strongest = [];
 	for (const x of arenaRank(...fixW).slice().sort((a, b) => b.score - a.score)) if (!strongest.some((y) => y.m.id === x.m.id) && strongest.push(x) >= 4) break;
-	const fixers = strongest.length ? [...strongest, ...writers.filter((w) => !strongest.some((s) => s.m.id === w.m.id))] : writers;
+	const wrote = writers.find((w) => (w.m || w).id === fin.id);
+	const fixers = [...(wrote ? [wrote] : []), ...writers.filter((w) => w !== wrote), ...strongest.filter((s) => !writers.some((w) => (w.m || w).id === s.m.id))];
 	try {
 		// (the problems are named, so fixing them takes the thought the work itself took, not the fixer's most)
 		const fixCap = speed() === "max" ? null : "medium";
