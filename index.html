@@ -2450,7 +2450,8 @@ function standIn(e, f, board) {
 	const g = lv.sort((a, b) => Math.abs(LEVELS.indexOf(a) - at) - Math.abs(LEVELS.indexOf(b) - at) || LEVELS.indexOf(b) - LEVELS.indexOf(a))[0];
 	const lower = Math.max(0, LEVELS.indexOf(g) - at);
 	const lose = lower * (STEP[board] ?? 3) + (f === "none" ? NOTHINK[board] ?? 6 : f === "minimal" ? (NOTHINK[board] ?? 6) * 0.67 : 0);
-	return { z: e.eff[g] - lose / ELO_UNIT - 0.3, w: e.hw[g] || 0 };
+	// (what each level loses is measured; a little more, a point and a half, for not being rated itself)
+	return { z: e.eff[g] - lose / ELO_UNIT - 0.1, w: e.hw[g] || 0 };
 }
 // What a capability point buys in preference: across the models rated on both, how far LMArena's overall rating spreads
 // against how far the Epoch Capabilities Index does (about two and a half Elo a point). A capability gap then counts as
@@ -2738,8 +2739,16 @@ function quarkFirst(list, cap, used, cost = callCost, worth) {
 	const tied = list.filter((x) => x === top || quarkTied(top, x, most));
 	const low = Math.min(...tied.map((x) => cost(x, cap)));
 	if (!Number.isFinite(low)) return list;
+	// A model already on the team, level with the best, does this piece too, whatever another would save on it: a second
+	// model on a team means a call to put their work together, which rewrites the whole answer and costs far more than any
+	// piece's saving (a short chart piece given to another model to save a fraction of a credit cost 23 more to combine)
+	const mate = used && tied.filter((x) => used.has(x.m.id) && Number.isFinite(cost(x, cap)));
+	if (mate && mate.length) {
+		const pick = mate.reduce((a, b) => (cost(b, cap) < cost(a, cap) ? b : a));
+		return [pick, ...list.filter((x) => x !== pick)];
+	}
 	const fair = tied.filter((x) => cost(x, cap) <= low * 1.25);
-	let pick = (used && fair.find((x) => used.has(x.m.id))) || fair.reduce((a, b) => (cost(b, cap) < cost(a, cap) || (cost(b, cap) === cost(a, cap) && b.score > a.score) ? b : a));
+	let pick = fair.reduce((a, b) => (cost(b, cap) < cost(a, cap) || (cost(b, cap) === cost(a, cap) && b.score > a.score) ? b : a));
 	// then worth its price: the tied pick counts as level with the best; one further behind wins only if the money it saves
 	// is worth more than the lead it gives up
 	if (top.mid != null) {
@@ -6111,7 +6120,15 @@ async function runQuarks(text, atts) {
 	try {
 		const field = {};
 		for (const [k, v] of Object.entries((PROFILE && PROFILE.weights) || {})) field[k.startsWith("text:industry_") ? "factuality:" + k.slice(5) : k] = v;
-		const checkW = codey ? ["code", blendW({ "text:coding": 0.45, "factuality:coding": 0.3, "text:hard_prompts": 0.25 }, field, 0.3)] : ["reasoning", blendW({ "factuality:overall": 0.45, "text:expert": 0.3, "text:hard_prompts": 0.25 }, field, 0.5)];
+		// Who checks is picked by how often it gets this field right (Epoch AI's benchmarks), not by which answers people
+		// prefer: finding the mistake is the whole job. The answer itself was written by the best writer; a checker level
+		// with the best at getting it right does the check, at its price (Sonnet 5.5 checks a proof as well as Opus 5.5)
+		const sure = {};
+		for (const [k, v] of Object.entries(codey ? { "text:coding": 1 } : { "factuality:overall": 0.5, "text:hard_prompts": 0.5, ...field })) { const b = benchOf(k); if (b) sure[b] = (sure[b] || 0) + v; }
+		const st = Object.values(sure).reduce((a, b) => a + b, 0) || 1;
+		for (const k of Object.keys(sure)) sure[k] = (sure[k] / st) * 0.85;
+		sure["bench:overall"] = 0.15;
+		const checkW = codey ? ["code", sure] : ["reasoning", sure];
 		// spotting a wrong fact or broken code takes light thought on everyday work, more on hard work (Max: as hard as the
 		// checker can); its thinking was most of what a check cost
 		const checkCap = speed() === "max" ? null : lite ? "low" : PROFILE && PROFILE.level === "hard" ? "medium" : "low";
@@ -6143,7 +6160,7 @@ async function runQuarks(text, atts) {
 	const fixers = strongest.length ? [...strongest, ...writers.filter((w) => !strongest.some((s) => s.m.id === w.m.id))] : writers;
 	try {
 		// (the problems are named, so fixing them takes the thought the work itself took, not the fixer's most)
-		const fixCap = speed() === "max" ? null : PROFILE && PROFILE.level === "hard" ? "high" : "medium";
+		const fixCap = speed() === "max" ? null : "medium";
 		msg.text = await run(fix, fixers, () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nThe first version:\n" + first + "\n\nAn expert checker found these real problems. Write the corrected answer the user reads, fixing exactly these and keeping everything else:\n- " + verdict.issues.join("\n- "))], (t) => { msg.text = t; }, null, undefined, fixCap);
 		done(fix);
 	} catch (e) {
