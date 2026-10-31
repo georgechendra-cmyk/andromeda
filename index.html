@@ -2079,8 +2079,11 @@ function flagship(lab, task, fast) {
 // when the leaderboards are loaded, otherwise one per lab in the order above
 // how much an answer of each kind writes, in tokens (code and research run long, where the price of writing is most of it)
 const OUT_BY = { code: 3000, reasoning: 2000, research: 2500, write: 1500, brainstorm: 1200, vision: 800, quick: 500 };
-function rank(task, cap) {
-	const data = bestFirst(quarkFirst(arenaRank(task), cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800), STAKES[task]));
+function rank(task, cap, seen) {
+	// (seen: this request's tags and Andromeda's own record on them, which moves a model where it has real evidence)
+	let list = arenaRank(task);
+	if (seen && seen.record && seen.tags) list = learned(list, seen.tags, seen.record, list);
+	const data = bestFirst(quarkFirst(list, cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800), STAKES[task]));
 	if (data.length >= 2) return pinFirst(diversify(data), task);
 	const out = [];
 	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
@@ -2918,9 +2921,10 @@ async function conduct(text, atts, tried, only) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
+		+ " \"tags\": 2 to 6 short lowercase words for exactly what the work involves (its language, library, framework, field, topic, kind of task), the most specific that are true: generic words only, never names or personal details."
 		+ (mem ? " \"remember\": lasting facts about the user that this request states, worth knowing in future chats (who they are, their projects and goals, their preferences and rules for how things should be done, decisions they made), each written about the user; not the topic of a one-off question, never secrets or passwords, nothing already remembered; [] if none." : "") + "\n"
 		+ (only ? "\nThe person picked this themselves from Andromeda's tools: deliver it that way.\n" : "")
 		+ (spaceOf(current && current.space) ? "\nThis chat is in the user's project \"" + spaceOf(current.space).name + "\"" + (String(spaceOf(current.space).about || "").trim() ? ", whose instructions say: " + spaceOf(current.space).about.slice(0, 600) : "") + ((SPACE_FILES.get(current.space) || []).length ? ". Its files: " + SPACE_FILES.get(current.space).map((f) => f.name).join(", ").slice(0, 300) : "") + ".\n" : "")
@@ -2955,7 +2959,9 @@ async function conduct(text, atts, tried, only) {
 		}
 		if (imgs && !Object.keys(weights).some((k) => k.startsWith("vision:"))) weights["vision:overall"] = 0.5;
 		const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
-		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), level: ["easy", "medium", "hard"].includes(j.level) ? j.level : "medium", weights, check: j.check === true, language: lang };
+		// (its tags are what Andromeda's own record of which models' work held up is kept under)
+		const tags = [...new Set((Array.isArray(j.tags) ? j.tags : []).map((t) => String(t).toLowerCase().trim().replace(/\s+/g, "-").slice(0, 40)).filter((t) => /^[a-z0-9][a-z0-9+#.\-]{0,39}$/.test(t)))].slice(0, 6);
+		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), level: ["easy", "medium", "hard"].includes(j.level) ? j.level : "medium", weights, check: j.check === true, language: lang, tags };
 	}
 	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [] };
 }
@@ -5150,6 +5156,9 @@ async function send(textOverride, fork) {
 		// what this request reads (the whole chat, what's attached, the project's files): what each model would cost to read
 		// it decides as much as what it writes
 		try { IN_TOK = Math.max(1000, tokensOf([sys(), ...chatHistory()])); } catch { IN_TOK = 3000; }
+		// Andromeda's own record on exactly this kind of work, fetched while the work starts (it only moves a model where
+		// there's real evidence)
+		if (PROFILE && PROFILE.tags && PROFILE.tags.length) PROFILE.record = skillRecord(PROFILE.tags).catch(() => null);
 		// Max: a second expert checks the work; Fast: straight to the answer
 		if (PROFILE && speed() === "max") PROFILE.check = true;
 		if (PROFILE && speed() === "fast") PROFILE.check = false;
@@ -5271,7 +5280,12 @@ async function runAuto(text, atts) {
 	// unless it's level with the best: one easy question answered wrong is what people remember.
 	const level = PROFILE && PROFILE_TEXT === text ? PROFILE.level : "";
 	const light = speed() === "max" ? "" : task === "quick" || lite ? "low" : { easy: "low", medium: "medium" }[level] || "";
-	const cands = rank(task, light || undefined);
+	// what Andromeda measured itself on exactly this kind of work (never held up waiting for it)
+	const tags = PROFILE && PROFILE_TEXT === text && PROFILE.tags || [];
+	const record = tags.length && PROFILE.record ? await Promise.race([PROFILE.record, sleep(800).then(() => null)]) : null;
+	const cands = rank(task, light || undefined, record ? { tags, record } : null);
+	// what running its code showed, added to that record: whose code ran first time, on exactly this
+	const share = (results) => { if (tags.length && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results: results.map((r) => ({ ...r, tags })) }) }).catch(() => {}); };
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
 	const hist = [sys(), ...chatHistory()];
@@ -5295,11 +5309,13 @@ async function runAuto(text, atts) {
 				msg.status = "Its code failed when run: fixing it";
 				updateLast();
 				const strongest = bestFirst(arenaRank(task).slice().sort((a, b) => b.score - a.score)).map((x) => x.m);
+				let fixer = null;
 				for (const f of [...strongest.slice(0, 3), m].filter((x, k, a) => a.findIndex((y) => y.id === x.id) === k)) {
 					try {
 						msg.model = f.id;
 						msg.chips = [routeChip(f, task)];
 						await stream(f.id, [...hist, { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive the whole answer again with the code fixed. Check the fix line by line before you answer." }], (t) => { msg.text = t; updateLast(); }, busy.signal, effortExtra(f.id), msg);
+						fixer = f;
 						break;
 					} catch (e) {
 						msg.text = first;
@@ -5308,9 +5324,11 @@ async function runAuto(text, atts) {
 						if (e.status === 402) break;
 					}
 				}
-				msg.tested = (await testCode(msg.text) || {}).failed ? "still failing" : "fixed";
+				const still = fixer ? !!(await testCode(msg.text) || {}).failed : true;
+				msg.tested = still ? "still failing" : "fixed";
 				msg.status = "";
-			} else if (tested) msg.tested = "ran";
+				share([{ model: m.id, ok: false }, ...(fixer ? [{ model: fixer.id, ok: !still }] : [])]);
+			} else if (tested) { msg.tested = "ran"; share([{ model: m.id, ok: true }]); }
 			return;
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
@@ -5758,6 +5776,11 @@ async function runQuarks(text, atts) {
 		throw lastErr || new Error("No model answered");
 	}
 	const done = (s, err) => { s.running = false; s.done = true; s.open = false; if (err) { s.error = true; s.text = err; } updateLast(); };
+	// what running a piece's code showed goes into Andromeda's own record too: whose code ran first time, on exactly that
+	const shareRun = (pieces, model, ok) => {
+		const results = pieces.filter((p) => p.tags && p.tags.length).map((p) => ({ model, tags: p.tags, ok }));
+		if (results.length && model && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results }) }).catch(() => {});
+	};
 	// the best for a mix of skills, at the effort each scored best at; at most two from one lab near the top. On free
 	// credits the same models (what the user reads is never written by a weaker one), thinking a step lighter
 	const lite = liteMode();
@@ -5891,16 +5914,18 @@ async function runQuarks(text, atts) {
 			if (tested && tested.failed) {
 				msg.status = "Its code failed when run: fixing it";
 				updateLast();
+				shareRun(g.pieces, st.id, false);
 				const same = [g.cands.find((c) => (c.m || c).id === st.id) || g.cands[0], ...g.cands.filter((c) => (c.m || c).id !== st.id)];
 				const firstOut = out;
 				try {
 					out = await run(st, same, () => [...build(), { role: "assistant", content: firstOut }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive your whole answer again with the code fixed. Check the fix line by line before you answer." }], live, null, undefined, g.cap);
 					st.tested = (await testCode(out) || {}).failed ? "still failing" : "fixed";
+					shareRun(g.pieces, st.id, st.tested === "fixed");
 				} catch (e) {
 					if (e.name === "AbortError" || e.status === 401) throw e;
 					out = firstOut;
 				}
-			} else if (tested) st.tested = "ran";
+			} else if (tested) { st.tested = "ran"; shareRun(g.pieces, st.id, true); }
 			const each = g.pieces.length > 1 && !solo ? splitGroup(out, g.pieces) : null;
 			g.pieces.forEach((p, k) => outs.set(p.id, each ? each[k] : k === 0 ? out : "(in " + g.pieces[0].label + ", above)"));
 			sts.forEach((s) => { s.model = st.model; s.id = st.id; done(s); });
