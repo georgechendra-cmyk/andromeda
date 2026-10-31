@@ -2258,21 +2258,24 @@ function nameMatcher(models) {
 		return look(parts) || (parts.length > 2 && BRAND.test(parts[0]) ? look(parts.slice(1)) : null);
 	};
 }
-// How far above or below a board's top 20 a rating is, in that board's spread (so a coding lead and a German lead weigh
-// alike), held back a little by how unsure the rating still is. The top of a board is often packed within a few points:
-// never less than 15 Elo to a unit, so a gap inside the margin of error can't make one model look far ahead (the agent
-// board is a 0-1 score, not Elo)
-function boardIndex(cats, find) {
+// How far above or below a board's top 20 a rating is, read the way people feel it: in Elo, how often one model's answer
+// is preferred to the other's, 15 Elo to a unit (about two points of preference). A board with a wide spread keeps its
+// wide gaps: Claude Opus 5.5 is 130 Elo ahead of Gemini 4 Argon at building web apps, people choose its app about two
+// times in three, and that's a real difference, not one unit like a 15 Elo lead in chat. Held back a little by how
+// unsure the rating still is. (The agent board is a 0-1 score, not Elo: read in its own spread. Epoch AI's benchmarks
+// are in capability points: read at the rate a capability point buys preference on LMArena, `unit` points to 15 Elo)
+const ELO_UNIT = 15;
+function boardIndex(cats, find, unit = 6) {
 	const idx = {};
 	for (const [cat, list] of Object.entries(cats)) {
 		const top = list.slice(0, 20).map((x) => x[2]);
 		if (top.length < 3) continue;
-		// Epoch AI's benchmark boards (bench:...) are in the Epoch Capabilities Index's points, a few of which separate
-		// the leaders; each already shrunk toward the model's general ability for how little evidence it has, so it isn't
-		// held back again; and a model's best effort, so it counts at every effort
+		// Epoch AI's benchmark boards (bench:...) are in the Epoch Capabilities Index's points; each already shrunk toward
+		// the model's general ability for how little evidence it has, so it isn't held back again; and a model's best
+		// effort, so it counts at every effort
 		const bench = cat.startsWith("bench:");
 		const mean = top.reduce((a, b) => a + b, 0) / top.length;
-		const sd = Math.max(Math.sqrt(top.reduce((a, b) => a + (b - mean) ** 2, 0) / top.length), bench ? 3 : top[0] > 10 ? 15 : 0) || 1;
+		const sd = bench ? unit : top[0] > 10 ? ELO_UNIT : Math.sqrt(top.reduce((a, b) => a + (b - mean) ** 2, 0) / top.length) || 1;
 		const per = new Map();
 		for (const [name, , v, ci] of list) {
 			const m = find(name);
@@ -2396,7 +2399,70 @@ function bestFor(feature) {
 function arenaIndex() {
 	if (ARENA_IDX || !ARENA || !ARENA.cats || !catalog.length) return ARENA_IDX;
 	VERB = CURVES = null;
-	return (ARENA_IDX = inherit(boardIndex(ARENA.cats, nameMatcher(catalog))));
+	const find = nameMatcher(catalog);
+	BENCH_U = benchUnit(find);
+	effortValue(find);
+	return (ARENA_IDX = inherit(boardIndex(ARENA.cats, find, BENCH_U)));
+}
+// What thinking more buys in preference, board by board, from the models LMArena rated at more than one effort: in chat
+// next to nothing from one thinking level to the next (thinking at all against not is about 6 Elo), on web apps about
+// 35 Elo a level. An effort a model wasn't rated at is judged from the nearest one it was, less what each level lower
+// loses on that board
+let STEP = {}, NOTHINK = {};
+function effortValue(find) {
+	const step = {}, none = {};
+	for (const [cat, list] of Object.entries(ARENA.cats)) {
+		const board = cat.split(":")[0];
+		if (board === "bench" || !(list[0] && list[0][2] > 10)) continue;
+		const by = new Map();
+		for (const [name, , v] of list) {
+			const m = find(String(name));
+			if (!m) continue;
+			const f = effortOf(String(name), m);
+			if (!by.has(m.id)) by.set(m.id, new Map());
+			const e = by.get(m.id);
+			if (!e.has(f) || v > e.get(f)) e.set(f, v);
+		}
+		for (const e of by.values()) {
+			const lv = [...e].filter(([f]) => f && LEVELS.includes(f));
+			for (const [f1, v1] of lv) for (const [f2, v2] of lv) {
+				const d = LEVELS.indexOf(f1) - LEVELS.indexOf(f2);
+				if (d > 0) (step[board] = step[board] || []).push((v1 - v2) / d);
+			}
+			if (e.has("")) for (const [, v] of lv) (none[board] = none[board] || []).push(v - e.get(""));
+		}
+	}
+	const med = (xs) => xs.slice().sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+	STEP = {}; NOTHINK = {};
+	for (const [b, xs] of Object.entries(step)) if (xs.length >= 3) STEP[b] = Math.min(50, Math.max(1, med(xs)));
+	for (const [b, xs] of Object.entries(none)) if (xs.length >= 3) NOTHINK[b] = Math.min(30, Math.max(2, med(xs)));
+}
+// A model rated on a board at other efforts than this one: where its nearest rated effort sits, less what thinking less
+// loses there, and a little for not being rated itself (where it would sit, and that rating's margin)
+function standIn(e, f, board) {
+	const lv = Object.keys(e.eff).filter((k) => k && LEVELS.includes(k));
+	if (!f || !LEVELS.includes(f) || !lv.length) return { z: e.z - 0.3, w: e.w || 0 };
+	const at = LEVELS.indexOf(f);
+	const g = lv.sort((a, b) => Math.abs(LEVELS.indexOf(a) - at) - Math.abs(LEVELS.indexOf(b) - at) || LEVELS.indexOf(b) - LEVELS.indexOf(a))[0];
+	const lower = Math.max(0, LEVELS.indexOf(g) - at);
+	const lose = lower * (STEP[board] ?? 3) + (f === "none" ? NOTHINK[board] ?? 6 : f === "minimal" ? (NOTHINK[board] ?? 6) * 0.67 : 0);
+	return { z: e.eff[g] - lose / ELO_UNIT - 0.3, w: e.hw[g] || 0 };
+}
+// What a capability point buys in preference: across the models rated on both, how far LMArena's overall rating spreads
+// against how far the Epoch Capabilities Index does (about two and a half Elo a point). A capability gap then counts as
+// the preference gap it predicts, so a benchmark lead people wouldn't notice doesn't outweigh one they would
+let BENCH_U = 6;
+function benchUnit(find) {
+	const a = ARENA && ARENA.cats && ARENA.cats["text:overall"], b = ARENA && ARENA.cats && ARENA.cats["bench:overall"];
+	if (!a || !b) return 6;
+	const pref = new Map(), cap = new Map();
+	for (const [n, , v] of a) { const m = find(String(n)); if (m && !(pref.get(m.id) >= v)) pref.set(m.id, v); }
+	for (const [n, , v] of b) { const m = find(String(n)); if (m && !cap.has(m.id)) cap.set(m.id, v); }
+	const pts = [...pref].filter(([id]) => cap.has(id)).map(([id, v]) => [cap.get(id), v]);
+	if (pts.length < 8) return 6;
+	const sd = (xs) => { const mu = xs.reduce((s, x) => s + x, 0) / xs.length; return Math.sqrt(xs.reduce((s, x) => s + (x - mu) ** 2, 0) / xs.length); };
+	const perPoint = sd(pts.map((p) => p[1])) / (sd(pts.map((p) => p[0])) || 1);
+	return Math.min(10, Math.max(3, ELO_UNIT / (perPoint || 1)));
 }
 // How much a model really thinks, against the others at the same effort (Epoch AI's coding benchmarks count the tokens
 // each writes per step): a model's price per token isn't its price per answer when it thinks three times as long. And
@@ -2516,9 +2582,11 @@ function benchOf(k) {
 	if (/^agent/.test(k)) return "bench:agents";
 	return null;
 }
-// How much whether it's right weighs against which answer people preferred, by kind of work: people can't run the code
-// or check the proof they vote on, the benchmarks do; for writing, what people prefer is what's good
-const BENCH_SHARE = { code: 0.45, reasoning: 0.5, research: 0.15, quick: 0.2, vision: 0.1, write: 0, brainstorm: 0 };
+// How much whether it's right weighs against which answer people preferred, by kind of work. Code goes with what people
+// like (the owner's rule: there isn't one right way to write it): the benchmarks only keep out a model people like whose
+// code fails. Maths and reasoning have right answers people can't check when they vote, so the benchmarks weigh half;
+// for writing, what people prefer is what's good
+const BENCH_SHARE = { code: 0.15, reasoning: 0.5, research: 0.15, quick: 0.2, vision: 0.1, write: 0, brainstorm: 0 };
 function withBench(w, task, share) {
 	share = share ?? BENCH_SHARE[task] ?? 0.2;
 	if (!share || !w || Object.keys(w).some((k) => k.startsWith("bench:"))) return w;
@@ -2572,11 +2640,29 @@ function arenaRank(task, weights, share) {
 				// Never borrowed from another board: a model nobody has measured on search doesn't outrank the ones that have.
 				// Rated on it, but not at this effort: its best there, held back a little
 				const o = e ? null : idx[board + ":overall"]?.get(id) || (board === "factuality" ? idx["text:overall"]?.get(id) : null);
-				const z = e ? (f in e.eff ? e.eff[f] : e.any ? e.z + effortLoss(curve, f) / 3 : e.z - 0.3) : o ? o.z - 0.75 + (board === "bench" ? effortLoss(curve, f) / 3 : 0) : -2.5;
-				const h = e && (f in e.eff || e.any) ? (f in e.hw ? e.hw[f] : e.w) || 0 : 0;
+				// z: where the rating's lower end sits (what ranks); at: where its middle sits (what's compared); h: its margin,
+				// only where it was actually rated at this effort (a stand-in has no margin of its own to count on)
+				let z, at, h = 0;
+				if (board === "bench") {
+					// a benchmark board's estimate already is where it sits; a lower effort gives up what its curve says
+					const loss = effortLoss(curve, f) / BENCH_U;
+					z = at = e ? e.z + loss : o ? o.z - 0.75 + loss : -2.5;
+					h = e ? e.w || 0 : 0;
+				} else if (e && f in e.eff) {
+					z = e.eff[f];
+					h = e.hw[f] || 0;
+					at = z + h / 2;
+				} else if (e) {
+					const near = standIn(e, f, board);
+					z = near.z;
+					at = z + near.w / 2;
+				} else if (o) {
+					const near = f in o.eff ? { z: o.eff[f], w: o.hw[f] || 0 } : standIn(o, f, board);
+					z = near.z - 0.75;
+					at = z + near.w / 2;
+				} else z = at = -2.5;
 				s += wt * z;
-				// (a benchmark board's estimate is already where it sits, not its lower end)
-				mid += wt * (z + (board === "bench" ? 0 : h / 2));
+				mid += wt * at;
 				hv += (wt * h) ** 2;
 				tw += wt;
 			}
@@ -2620,11 +2706,12 @@ function tokensOf(messages) {
 	return Math.round(n);
 }
 // What a lead must be worth. Past a tie, a model behind the best still does the work when the best's lead is smaller than
-// its extra price has to buy: each doubling of price must buy WORTH of score (about a point of how often people prefer
-// it), less for hard work (quality first), more for easy work. Never more than WORTH_MAX behind, and never a quick, light
-// model when the best isn't one (those win tied with the best), except on easy work when the benchmarks have measured it
-// getting things right. Max ignores price.
-const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 1.2;
+// its extra price has to buy: each doubling of price must buy WORTH of score (a unit is 15 Elo, about two points of how
+// often people prefer it), less for hard work (quality first), more for easy work. Never more than WORTH_MAX behind: 10
+// Elo, a gap nobody notices (51 in 100); Claude Opus 5.5 to Sonnet 5.5, 20 to 40 Elo, is a different class of answer and
+// is never traded for money. And never a quick, light model when the best isn't one: the owner's rule, they read, plan
+// and route, they don't write what people read. Max ignores price.
+const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 0.67;
 // code and reasoning hold out for quality: the leaderboards measure which answer people preferred, and code and proofs
 // also have to be right, which a small preference gap can hide. How far by how hard the work is: a short script can go
 // to a strong coder at a twentieth of the price, a hard system goes to the best
@@ -2635,12 +2722,15 @@ const quarkTied = (top, x, most = QUARK_MAX) => x.mid != null && top.mid != null
 // Code and reasoning that must be right count a smaller gap as a real one, the harder the work: thinking a step less
 // that the benchmarks measure costing nothing (Gemini 4 Argon coding at medium) is still taken on hard work, one that
 // costs a few points of getting it right isn't. (cap: the piece's own level; without one, how hard the request was read)
-const TIE_AT = { low: QUARK_MAX, medium: 0.45, high: 0.3 };
+const TIE_AT = { low: QUARK_MAX, medium: 0.45, high: 0.2 };
 function quarkFirst(list, cap, used, cost = callCost, worth) {
 	if (speed() === "max" || list.length < 2) return list;
 	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
 	const stakes = worth ?? STAKES[list[0] && list[0].task];
 	const most = stakes == null ? QUARK_MAX : cap ? TIE_AT[cap] ?? QUARK_MAX : PROFILE && PROFILE.level === "hard" ? TIE_AT.high : QUARK_MAX;
+	// (a light model never writes the answer when the best isn't light: not tied, not cheaper, not as the next in line)
+	const light = (x) => FAST.test(x.m.id) && !FAST.test(top.m.id);
+	list = list.filter((x) => !light(x));
 	const tied = list.filter((x) => x === top || quarkTied(top, x, most));
 	const low = Math.min(...tied.map((x) => cost(x, cap)));
 	if (!Number.isFinite(low)) return list;
@@ -2654,7 +2744,7 @@ function quarkFirst(list, cap, used, cost = callCost, worth) {
 		const val = (x, mid) => mid - lam * Math.log2(cost(x, cap));
 		let bestVal = val(pick, top.mid);
 		for (const x of list) {
-			if (tied.includes(x) || x.mid == null || top.mid - x.mid > WORTH_MAX || (FAST.test(x.m.id) && !FAST.test(top.m.id) && !(cap === "low" && x.measured)) || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
+			if (tied.includes(x) || x.mid == null || top.mid - x.mid > WORTH_MAX || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
 			const v = val(x, x.mid);
 			if (v > bestVal) { bestVal = v; pick = x; }
 		}
