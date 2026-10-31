@@ -1,6 +1,6 @@
 name: Refresh model leaderboards
-# Once a day: read LMArena's latest leaderboards and commit arena.json, which Andromeda uses to pick the best model
-# for each request. Nothing to set up: GitHub runs it on its own.
+# Once a day: read LMArena's latest leaderboards and Epoch AI's benchmarks and commit arena.json, which Andromeda uses
+# to pick the best model for each request. Nothing to set up: GitHub runs it on its own.
 on:
   schedule:
     - cron: "17 3 * * *"
@@ -15,7 +15,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --no-save hyparquet@1
+      - run: npm install --no-save hyparquet@1 fflate@0.8
       - run: node tools/arena.mjs arena.json
       - name: Commit if it changed
         run: |

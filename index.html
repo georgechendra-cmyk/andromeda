@@ -1639,7 +1639,7 @@ html { scroll-behavior: smooth; }
 
 	<section class="block reveal" id="models">
 		<div class="wrap">
-			<div class="eyebrow">Who handles what <span class="live"><i></i>measured daily, LMArena</span></div>
+			<div class="eyebrow">Who handles what <span class="live"><i></i>measured daily, LMArena and Epoch AI</span></div>
 			<h2>Today's best model for each kind of work.</h2>
 			<p class="sub2">Read from the leaderboards every day. A new model counts the day it's rated, and no lab is favoured by hand.</p>
 			<div class="table" id="modelTable"><div class="tr th"><span>Task</span><span>Model</span><span>Lab</span></div><div class="tr"><span class="task">Loading the catalog…</span></div></div>
@@ -1660,7 +1660,7 @@ html { scroll-behavior: smooth; }
 			<div class="eyebrow">FAQ</div>
 			<h2>Questions</h2>
 			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher or the best writer. Andromeda keeps track so you don't have to.</p></details>
-			<details><summary>How does it decide?</summary><p>A fast model reads every request and decides what would serve you (an answer, an app, a video, research...) and how to do it. Then each part goes to the models that score highest on exactly that work on LMArena's leaderboards. You can also choose Fast, Max, or one model yourself.</p></details>
+			<details><summary>How does it decide?</summary><p>A fast model reads every request and decides what would serve you (an answer, an app, a video, research...) and how to do it. Then each part goes to the models that score highest on exactly that work: on LMArena's leaderboards (which answer people prefer) and on <a href="https://epoch.ai/benchmarks" target="_blank" rel="noopener">Epoch AI's benchmarks</a> (whether the code passes its tests, the maths is right, the facts are true), at the price that buys that quality and no more. You can also choose Fast, Max, or one model yourself.</p></details>
 			<details><summary>Can it use my computer?</summary><p>Only if you run its small connector on your computer, and it asks before it changes anything. Without it, Andromeda still runs code, searches and builds right in your browser.</p></details>
 			<details><summary>What does it cost?</summary><p>Everyone with an account gets free credits that come back every day. When you want more, buy a pack once: no subscription.</p></details>
 			<details><summary>Is my data safe?</summary><p>Your chats, projects and memory stay in this browser. What you ask goes through Andromeda's server to the model answering it, and isn't kept there.</p></details>
@@ -2111,11 +2111,21 @@ async function loadArena() {
 	// what this page read from LMArena itself, when that's newer
 	try {
 		const fresh = await vault.get("arena-fresh");
-		if (fresh && fresh.cats && (!ARENA || String(fresh.updated) > String(ARENA.updated))) { ARENA = fresh; ARENA_IDX = null; }
+		if (fresh && fresh.cats && (!ARENA || String(fresh.updated) > String(ARENA.updated))) { ARENA = keepBench(fresh, ARENA); ARENA_IDX = null; }
 	} catch {}
 	// more than a day old: read the latest now, in the background (a model that takes the lead is used the day it's rated)
-	if (!ARENA || Date.now() - Date.parse(ARENA.updated || 0) > 20 * 3600e3) setTimeout(() => freshArena().then((f) => { if (f) { ARENA = f; ARENA_IDX = null; try { renderLanding(); } catch {} } }).catch(() => {}), 6000);
+	if (!ARENA || Date.now() - Date.parse(ARENA.updated || 0) > 20 * 3600e3) setTimeout(() => freshArena().then((f) => { if (f) { ARENA = keepBench(f, ARENA); ARENA_IDX = null; try { renderLanding(); } catch {} } }).catch(() => {}), 6000);
 	return ARENA;
+}
+// Epoch AI's benchmarks (bench:...) and how much each model thinks come only with arena.json, refreshed daily; a newer
+// read of LMArena by this page keeps them
+function keepBench(to, from) {
+	if (!to || !to.cats || !from || from === to || !from.cats) return to;
+	for (const [k, v] of Object.entries(from.cats)) if (k.startsWith("bench:")) to.cats[k] = v;
+	if (from.verbosity) to.verbosity = from.verbosity;
+	if (from.efforts) to.efforts = from.efforts;
+	if (from.published && from.published.bench) to.published = { ...(to.published || {}), bench: from.published.bench };
+	return to;
 }
 // The same as tools/arena.mjs, run by the page: LMArena's public leaderboard dataset, every board Andromeda routes on
 const LMARENA = "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset/resolve/main/";
@@ -2254,16 +2264,20 @@ function boardIndex(cats, find) {
 	for (const [cat, list] of Object.entries(cats)) {
 		const top = list.slice(0, 20).map((x) => x[2]);
 		if (top.length < 3) continue;
+		// Epoch AI's benchmark boards (bench:...) are in the Epoch Capabilities Index's points, a few of which separate
+		// the leaders; each already shrunk toward the model's general ability for how little evidence it has, so it isn't
+		// held back again; and a model's best effort, so it counts at every effort
+		const bench = cat.startsWith("bench:");
 		const mean = top.reduce((a, b) => a + b, 0) / top.length;
-		const sd = Math.max(Math.sqrt(top.reduce((a, b) => a + (b - mean) ** 2, 0) / top.length), top[0] > 10 ? 15 : 0) || 1;
+		const sd = Math.max(Math.sqrt(top.reduce((a, b) => a + (b - mean) ** 2, 0) / top.length), bench ? 3 : top[0] > 10 ? 15 : 0) || 1;
 		const per = new Map();
 		for (const [name, , v, ci] of list) {
 			const m = find(name);
 			if (!m) continue;
-			const z = (v - ci / 2 - mean) / sd;
+			const z = (v - (bench ? 0 : ci / 2) - mean) / sd;
 			// the same model is rated once per reasoning effort ("(High)", "-xhigh"): each kept, and its best, with how
 			// uncertain that rating is (its 95% margin, in the same units)
-			const e = per.get(m.id) || { m, z: -Infinity, eff: {}, hw: {} };
+			const e = per.get(m.id) || { m, z: -Infinity, eff: {}, hw: {}, any: bench };
 			const f = effortOf(name, m);
 			if (!(f in e.eff) || z > e.eff[f]) { e.eff[f] = z; e.hw[f] = (Number(ci) || 0) / sd; }
 			if (z > e.z) { e.z = z; e.w = (Number(ci) || 0) / sd; }
@@ -2335,12 +2349,15 @@ function effortFor(id, f) {
 }
 // What each of Andromeda's own features needs, as the leaderboards measure it, so each goes to the model that measurably
 // does exactly that best, blended with what this request needs on top (its field, its language)
+// (bench: how much getting it right on Epoch AI's benchmarks weighs here, where it isn't the kind of work's own share: a
+// web app is judged best by people building and using web apps, which the WebDev board measures directly. stakes: the
+// standard a cheaper model must meet, for what the rest depends on. in: what it reads, when that's known)
 const FEATURE_W = {
-	app: { task: "code", out: 12000, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
+	app: { task: "code", out: 12000, bench: 0.25, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
 	// a video's drawn shots: frame-by-frame canvas animation, a web page's craft with a storyteller's eye
-	animation: { task: "code", out: 9000, w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
-	appFromImage: { task: "vision", out: 12000, w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
-	sim: { task: "code", out: 9000, w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
+	animation: { task: "code", out: 9000, bench: 0.15, w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
+	appFromImage: { task: "vision", out: 12000, bench: 0.15, w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
+	sim: { task: "code", out: 9000, bench: 0.3, w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
 	spec: { task: "reasoning", out: 1500, w: { "text:instruction_following": 0.35, "text:hard_prompts": 0.3, "text:expert": 0.2, "text:creative_writing": 0.15 } },
 	flashcards: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
 	quiz: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
@@ -2356,24 +2373,70 @@ const FEATURE_W = {
 	imagePrompt: { task: "write", out: 300, w: { "text:creative_writing": 0.4, "text:instruction_following": 0.4, "text:industry_entertainment_and_sports_and_media": 0.2 } },
 	// reading each request to route it runs before every answer: the fast model that's best at it (a slow one would hold
 	// every answer up)
-	reader: { task: "quick", out: 300, fast: true, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
+	// (every route is its decision: held to a higher standard than any answer; a cheaper fast reader only when it reads
+	// about as well)
+	reader: { task: "quick", out: 300, in: 4500, fast: true, bench: 0.15, stakes: 0.1, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
 	// splitting a request into its smallest pieces of work, and putting the pieces back together into one answer
-	planner: { task: "reasoning", out: 900, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
+	planner: { task: "reasoning", out: 900, in: 3500, bench: 0.3, stakes: 0.1, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
 	assemble: { task: "write", out: 2500, w: { "text:instruction_following": 0.35, "text:expert": 0.25, "text:creative_writing": 0.2, "factuality:overall": 0.2 } },
 };
 // The models for one of those features, best first (at most two from one lab near the top, so if a lab is down the next
 // in line is another); without the leaderboards, the labs known for that kind of work
 function bestFor(feature) {
 	const f = FEATURE_W[feature];
-	let data = arenaRank(f.task, blendW(f.w, PROFILE && PROFILE.weights, 0.6));
+	let data = arenaRank(f.task, blendW(f.w, PROFILE && PROFILE.weights, 0.6), f.bench);
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
-	data = bestFirst(quarkFirst(data, undefined, undefined, (x, cap) => callCost(x, cap, f.out || 800), STAKES[f.task]));
+	data = bestFirst(quarkFirst(data, undefined, undefined, (x, cap) => callCost(x, cap, f.out || 800, f.in), f.stakes ?? STAKES[f.task]));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
 function arenaIndex() {
 	if (ARENA_IDX || !ARENA || !ARENA.cats || !catalog.length) return ARENA_IDX;
+	VERB = CURVES = null;
 	return (ARENA_IDX = inherit(boardIndex(ARENA.cats, nameMatcher(catalog))));
+}
+// How much a model really thinks, against the others at the same effort (Epoch AI's coding benchmarks count the tokens
+// each writes per step): a model's price per token isn't its price per answer when it thinks three times as long. And
+// what thinking buys it, field by field: the same model run at several efforts on the same benchmarks, each effort's
+// points below its best (Gemini 4 Argon codes as well at medium as at high; Claude Sonnet 5.5 needs its full effort)
+let VERB = null, CURVES = null;
+function verbosity(id) {
+	if (!VERB) {
+		VERB = new Map();
+		if (ARENA && Array.isArray(ARENA.verbosity) && catalog.length) {
+			const find = nameMatcher(catalog);
+			for (const [name, f] of ARENA.verbosity) { const m = find(String(name)); if (m && !VERB.has(m.id) && Number(f) > 0) VERB.set(m.id, Math.min(2.5, Math.max(0.5, Number(f)))); }
+		}
+	}
+	return VERB.get(id) || 1;
+}
+function curveOf(domain, id) {
+	if (!CURVES) {
+		CURVES = {};
+		if (ARENA && ARENA.efforts && catalog.length) {
+			const find = nameMatcher(catalog);
+			for (const [d, rows] of Object.entries(ARENA.efforts)) {
+				const map = (CURVES[d] = new Map());
+				for (const [name, c] of rows || []) { const m = find(String(name)); if (m && !map.has(m.id) && c && typeof c === "object") map.set(m.id, c); }
+			}
+		}
+	}
+	return (CURVES[domain] && CURVES[domain].get(id)) || (CURVES.all && CURVES.all.get(id)) || null;
+}
+// the points an effort gives up against the model's best, from its curve: measured, or between the two measured either
+// side of it (nothing past the ends: an effort above the highest measured is taken as good as it)
+function effortLoss(curve, f) {
+	if (!curve || !f) return 0;
+	if (f in curve) return Number(curve[f]) || 0;
+	const at = LEVELS.indexOf(f);
+	const known = Object.keys(curve).filter((k) => LEVELS.includes(k)).sort((a, b) => LEVELS.indexOf(a) - LEVELS.indexOf(b));
+	if (!known.length || at < 0) return 0;
+	let lo = null, hi = null;
+	for (const k of known) { if (LEVELS.indexOf(k) < at) lo = k; else if (hi == null) hi = k; }
+	if (lo == null) return Number(curve[hi]) || 0;
+	if (hi == null) return Number(curve[lo]) || 0;
+	const t = (at - LEVELS.indexOf(lo)) / (LEVELS.indexOf(hi) - LEVELS.indexOf(lo));
+	return (Number(curve[lo]) || 0) * (1 - t) + (Number(curve[hi]) || 0) * t;
 }
 // A lab's new version the day it comes out, before a leaderboard has rated it (that takes days or weeks): on every
 // board where its own line's last version is rated and it isn't yet, it stands just behind that version, next in line.
@@ -2396,7 +2459,7 @@ function inherit(idx) {
 			const eff = {};
 			for (const [f, z] of Object.entries(prev.eff)) eff[f] = z - 0.05;
 			// (not rated itself: no margin of its own to be counted level with the best by)
-			per.set(m.id, { m, z: prev.z - 0.05, eff, hw: {}, w: 0, from: prev.m.id });
+			per.set(m.id, { m, z: prev.z - 0.05, eff, hw: {}, w: 0, from: prev.m.id, any: prev.any });
 		}
 	}
 	return idx;
@@ -2439,41 +2502,83 @@ function blendW(a, b, share = 0.4) {
 	for (const [k, v] of Object.entries(b)) out[k] = (out[k] || 0) + v * share;
 	return out;
 }
+// What each measured preference has as a check of the answer itself, on Epoch AI's benchmarks: code that passes its
+// tests, maths that's right, science that holds, facts that are true, agents that finish the job
+function benchOf(k) {
+	if (/^(text:coding|text:industry_software|factuality:coding|webdev:)/.test(k)) return "bench:code";
+	if (/^(text:math|text:industry_mathematical|factuality:math)/.test(k)) return "bench:math";
+	if (/^(text:expert|text:industry_life|factuality:industry_life)/.test(k)) return "bench:science";
+	if (/^text:hard_prompts/.test(k)) return "bench:reasoning";
+	if (/^(factuality:|searchfact:|search:|document:)/.test(k)) return "bench:facts";
+	if (/^agent/.test(k)) return "bench:agents";
+	return null;
+}
+// How much whether it's right weighs against which answer people preferred, by kind of work: people can't run the code
+// or check the proof they vote on, the benchmarks do; for writing, what people prefer is what's good
+const BENCH_SHARE = { code: 0.45, reasoning: 0.5, research: 0.15, quick: 0.2, vision: 0.1, write: 0, brainstorm: 0 };
+function withBench(w, task, share) {
+	share = share ?? BENCH_SHARE[task] ?? 0.2;
+	if (!share || !w || Object.keys(w).some((k) => k.startsWith("bench:"))) return w;
+	const b = {};
+	for (const [k, v] of Object.entries(w)) { const t = benchOf(k); if (t && v > 0) b[t] = (b[t] || 0) + v; }
+	const bt = Object.values(b).reduce((s, v) => s + v, 0), at = Object.values(w).reduce((s, v) => s + (v > 0 ? v : 0), 0);
+	if (!at) return w;
+	// and general ability under it all
+	for (const k of Object.keys(b)) b[k] = (b[k] / bt) * 0.85;
+	b["bench:overall"] = bt ? 0.15 : 1;
+	const out = {};
+	for (const [k, v] of Object.entries(w)) if (v > 0) out[k] = (v / at) * (1 - share);
+	for (const [k, v] of Object.entries(b)) out[k] = (out[k] || 0) + v * share;
+	return out;
+}
 // Every model rated on any of the skills this work needs, scored on the weighted mix, best first: [{ m, score }]
-function arenaRank(task, weights) {
+function arenaRank(task, weights, share) {
 	const idx = arenaIndex();
 	if (!idx) return [];
-	const w = weights || (PROFILE && PROFILE.kind === task ? PROFILE.weights : blendW(ROLE_W[task] || ROLE_W.quick, PROFILE && PROFILE.weights));
+	const w = withBench(weights || (PROFILE && PROFILE.kind === task ? PROFILE.weights : blendW(ROLE_W[task] || ROLE_W.quick, PROFILE && PROFILE.weights)), task, share);
 	const ids = new Map();
 	for (const cat of Object.keys(w)) for (const [id, e] of idx[cat] || []) ids.set(id, e.m);
 	const out = [];
+	const benched = idx["bench:overall"];
+	// the field this work is mostly in, for what thinking buys in it
+	const field = (Object.entries(w).filter(([k]) => k.startsWith("bench:") && k !== "bench:overall").sort((a, b) => b[1] - a[1])[0] || ["bench:all"])[0].slice(6);
 	for (const [id, m] of ids) {
 		// the best, fast or not, even for an everyday question
 		if (!usable(m, task)) continue;
-		// each effort it was rated at, scored on its own (a model rated only at "(High)" is only that)
+		// each effort it was rated at, scored on its own (a model rated only at "(High)" is only that), and each effort the
+		// benchmarks measured it at (its best is what they rate; a lower one gives up what its curve says)
+		const curve = curveOf(field, id);
 		const efforts = new Set();
-		for (const cat of Object.keys(w)) for (const f of Object.keys(idx[cat]?.get(id)?.eff || {})) efforts.add(f);
+		for (const cat of Object.keys(w)) if (!cat.startsWith("bench:")) for (const f of Object.keys(idx[cat]?.get(id)?.eff || {})) efforts.add(f);
+		if (curve) for (const f of Object.keys(curve)) if (LEVELS.includes(f) && f !== "none") efforts.add(f);
 		if (!efforts.size) efforts.add("");
+		// never run on any benchmark (a lab Epoch hasn't tested): judged on what people preferred, held back a little for
+		// having nothing to show it's right
+		const unmeasured = !!benched && !benched.has(id);
 		for (const f of efforts) {
 			// the score, and what's needed to tell it apart from another: where the rating sits, and its margin (only
 			// where it was actually rated at this effort; a stand-in from elsewhere has no margin to count on)
-			let s = 0, tw = 0, mid = 0, hv = 0;
+			let s = 0, tw = 0, mid = 0, hv = 0, skipped = 0, measured = false;
 			for (const [cat, wt] of Object.entries(w)) {
 				if (!idx[cat] || !(wt > 0)) continue;
+				const board = cat.split(":")[0];
+				if (board === "bench" && unmeasured) { skipped += wt; continue; }
 				const e = idx[cat].get(id);
+				if (board === "bench" && e && !e.from) measured = true;
 				// not rated on this one: what it's rated overall on that same board, held back (an unknown isn't a strength).
 				// Never borrowed from another board: a model nobody has measured on search doesn't outrank the ones that have.
 				// Rated on it, but not at this effort: its best there, held back a little
-				const board = cat.split(":")[0];
 				const o = e ? null : idx[board + ":overall"]?.get(id) || (board === "factuality" ? idx["text:overall"]?.get(id) : null);
-				const z = e ? (f in e.eff ? e.eff[f] : e.z - 0.3) : o ? o.z - 0.75 : -2.5;
-				const h = e && f in e.eff ? e.hw?.[f] || 0 : 0;
+				const z = e ? (f in e.eff ? e.eff[f] : e.any ? e.z + effortLoss(curve, f) / 3 : e.z - 0.3) : o ? o.z - 0.75 + (board === "bench" ? effortLoss(curve, f) / 3 : 0) : -2.5;
+				const h = e && (f in e.eff || e.any) ? (f in e.hw ? e.hw[f] : e.w) || 0 : 0;
 				s += wt * z;
-				mid += wt * (z + h / 2);
+				// (a benchmark board's estimate is already where it sits, not its lower end)
+				mid += wt * (z + (board === "bench" ? 0 : h / 2));
 				hv += (wt * h) ** 2;
 				tw += wt;
 			}
-			if (tw) out.push({ m, score: s / tw, effort: f, mid: mid / tw, hw: Math.sqrt(hv) / tw, task });
+			if (skipped && tw) { const a = s / tw, am = mid / tw; s += skipped * (a - 0.5); mid += skipped * (am - 0.5); tw += skipped; }
+			if (tw) out.push({ m, score: s / tw, effort: f, mid: mid / tw, hw: Math.sqrt(hv) / tw, task, measured });
 		}
 	}
 	out.sort((a, b) => b.score - a.score);
@@ -2486,20 +2591,36 @@ function arenaRank(task, weights) {
 // least for this work does it: often the same model thinking less, or another lab's at a fraction of the price. Within
 // a quarter of the cheapest, one already on the team is preferred (its pieces then go in the same call). Max: the best.
 const QUARK_MAX = 0.6;
-const THINK_TOK = { none: 0, minimal: 300, low: 1200, medium: 3500, high: 7000, xhigh: 11000, max: 16000 };
+// (the thinking an effort takes, in tokens: what Epoch AI's coding benchmarks count, each effort about half again or
+// twice the one below)
+const THINK_TOK = { none: 0, minimal: 400, low: 1500, medium: 3000, high: 5000, xhigh: 7500, max: 11000 };
 // (out: how much this work writes, in tokens: an everyday answer about 800, a whole app or animated shot ten thousand
-// or more, where the price of writing is nearly all of it)
-function callCost(x, cap, out = 800) {
+// or more, where the price of writing is nearly all of it. inTok: how much it reads, the conversation and what's
+// attached as this request sends it, where a long chat or a whole file makes the price of reading count. The thinking
+// is as long as this model really thinks at that effort)
+let IN_TOK = 3000;
+function callCost(x, cap, out = 800, inTok = IN_TOK) {
 	const m = x.m || x, eff = capEffort(x.effort || "", cap, m.id);
 	const thinks = Array.isArray(m.efforts) && m.efforts.some((e) => e !== "none");
-	const t = eff ? THINK_TOK[eff] ?? 2000 : thinks ? 2000 : 0;
-	const v = (Number(m.pin) || 0) * 3000 + (Number(m.pout) || 0) * (out + t);
+	const t = (eff ? THINK_TOK[eff] ?? 2000 : thinks ? 2000 : 0) * verbosity(m.id);
+	const v = (Number(m.pin) || 0) * inTok + (Number(m.pout) || 0) * (out + t);
 	return v > 0 ? v : Infinity;
+}
+// what a request reads, in tokens (about four characters each; a picture about a thousand)
+function tokensOf(messages) {
+	let n = 0;
+	for (const m of messages || []) {
+		if (!m) continue;
+		if (typeof m.content === "string") n += m.content.length / 4;
+		else for (const p of m.content || []) n += p.type === "text" ? String(p.text || "").length / 4 : 1000;
+	}
+	return Math.round(n);
 }
 // What a lead must be worth. Past a tie, a model behind the best still does the work when the best's lead is smaller than
 // its extra price has to buy: each doubling of price must buy WORTH of score (about a point of how often people prefer
 // it), less for hard work (quality first), more for easy work. Never more than WORTH_MAX behind, and never a quick, light
-// model (those only ever win tied with the best). Max ignores price.
+// model when the best isn't one (those win tied with the best), except on easy work when the benchmarks have measured it
+// getting things right. Max ignores price.
 const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 1.2;
 // code and reasoning hold out for quality: the leaderboards measure which answer people preferred, and code and proofs
 // also have to be right, which a small preference gap can hide. How far by how hard the work is: a short script can go
@@ -2507,11 +2628,17 @@ const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 1.2;
 const STAKES = { code: WORTH.high, reasoning: WORTH.high }, STAKES_AT = { low: 0.35, medium: 0.25, high: 0.2 };
 // (Andromeda's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
 // record here is clearly worse than the best's isn't level with it, whatever the ratings say)
-const quarkTied = (top, x) => x.mid != null && top.mid != null && top.mid - x.mid <= Math.min(QUARK_MAX, Math.hypot(top.hw || 0, x.hw || 0)) && (x.learned || 0) >= (top.learned || 0) - 0.25;
+const quarkTied = (top, x, most = QUARK_MAX) => x.mid != null && top.mid != null && top.mid - x.mid <= Math.min(most, Math.hypot(top.hw || 0, x.hw || 0)) && (x.learned || 0) >= (top.learned || 0) - 0.25;
+// Code and reasoning that must be right count a smaller gap as a real one, the harder the work: thinking a step less
+// that the benchmarks measure costing nothing (Gemini 4 Argon coding at medium) is still taken on hard work, one that
+// costs a few points of getting it right isn't. (cap: the piece's own level; without one, how hard the request was read)
+const TIE_AT = { low: QUARK_MAX, medium: 0.45, high: 0.3 };
 function quarkFirst(list, cap, used, cost = callCost, worth) {
 	if (speed() === "max" || list.length < 2) return list;
 	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
-	const tied = list.filter((x) => x === top || quarkTied(top, x));
+	const stakes = worth ?? STAKES[list[0] && list[0].task];
+	const most = stakes == null ? QUARK_MAX : cap ? TIE_AT[cap] ?? QUARK_MAX : PROFILE && PROFILE.level === "hard" ? TIE_AT.high : QUARK_MAX;
+	const tied = list.filter((x) => x === top || quarkTied(top, x, most));
 	const low = Math.min(...tied.map((x) => cost(x, cap)));
 	if (!Number.isFinite(low)) return list;
 	const fair = tied.filter((x) => cost(x, cap) <= low * 1.25);
@@ -2520,12 +2647,11 @@ function quarkFirst(list, cap, used, cost = callCost, worth) {
 	// is worth more than the lead it gives up
 	if (top.mid != null) {
 		// (code and reasoning never go below their own standard for how hard the piece is, checks included)
-		const stakes = worth ?? STAKES[list[0] && list[0].task];
 		const lam = stakes != null ? Math.min(WORTH[cap] ?? WORTH.medium, STAKES_AT[cap] ?? stakes) : WORTH[cap] ?? WORTH.medium;
 		const val = (x, mid) => mid - lam * Math.log2(cost(x, cap));
 		let bestVal = val(pick, top.mid);
 		for (const x of list) {
-			if (tied.includes(x) || x.mid == null || top.mid - x.mid > WORTH_MAX || FAST.test(x.m.id) || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
+			if (tied.includes(x) || x.mid == null || top.mid - x.mid > WORTH_MAX || (FAST.test(x.m.id) && !FAST.test(top.m.id) && !(cap === "low" && x.measured)) || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
 			const v = val(x, x.mid);
 			if (v > bestVal) { bestVal = v; pick = x; }
 		}
@@ -2897,7 +3023,7 @@ function specFor(task) {
 // the skills that weighed most, said the way people say them
 function profileWhy(p) {
 	const top = Object.entries(p.weights).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k]) => SKILLS[k] || k);
-	return "highest measured on " + top.join(", ") + " (LMArena)";
+	return "highest measured on " + top.join(", ") + " (LMArena" + (ARENA && ARENA.cats && ARENA.cats["bench:overall"] ? ", and Epoch AI's benchmarks for getting it right" : "") + ")";
 }
 
 // ---------------------------------------------------------------- OpenRouter calls
@@ -5021,6 +5147,9 @@ async function send(textOverride, fork) {
 		PLAN_NOTE = plan ? plan.how : "";
 		SKILLS_ON = plan ? plan.skills.slice() : [];
 		for (const k of SKILLS_ON) noteTool("Skill: " + k, "Followed the " + k + " playbook (" + SKILLBOOK[k][0] + ")");
+		// what this request reads (the whole chat, what's attached, the project's files): what each model would cost to read
+		// it decides as much as what it writes
+		try { IN_TOK = Math.max(1000, tokensOf([sys(), ...chatHistory()])); } catch { IN_TOK = 3000; }
 		// Max: a second expert checks the work; Fast: straight to the answer
 		if (PROFILE && speed() === "max") PROFILE.check = true;
 		if (PROFILE && speed() === "fast") PROFILE.check = false;
@@ -5158,6 +5287,30 @@ async function runAuto(text, atts) {
 		updateLast();
 		try {
 			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", light, m.id)) : effortExtra(m.id)) }, msg);
+			// code in it that can run here is run before it's done; if it fails, the model measured best at this work fixes it
+			// (price aside: the cheaper model was tried first because it's usually right)
+			const tested = task === "code" ? await testCode(msg.text) : null;
+			if (tested && tested.failed) {
+				const first = msg.text;
+				msg.status = "Its code failed when run: fixing it";
+				updateLast();
+				const strongest = bestFirst(arenaRank(task).slice().sort((a, b) => b.score - a.score)).map((x) => x.m);
+				for (const f of [...strongest.slice(0, 3), m].filter((x, k, a) => a.findIndex((y) => y.id === x.id) === k)) {
+					try {
+						msg.model = f.id;
+						msg.chips = [routeChip(f, task)];
+						await stream(f.id, [...hist, { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive the whole answer again with the code fixed. Check the fix line by line before you answer." }], (t) => { msg.text = t; updateLast(); }, busy.signal, effortExtra(f.id), msg);
+						break;
+					} catch (e) {
+						msg.text = first;
+						if (e.name === "AbortError" || e.status === 401) throw e;
+						// out of credits: the first answer stands, as it is
+						if (e.status === 402) break;
+					}
+				}
+				msg.tested = (await testCode(msg.text) || {}).failed ? "still failing" : "fixed";
+				msg.status = "";
+			} else if (tested) msg.tested = "ran";
 			return;
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
@@ -5227,6 +5380,9 @@ async function runSmart(text, atts) {
 	}
 	if (PROFILE) kind = PROFILE.kind;
 	if (kind === "quick" && !atts.length) return runAuto(text, atts);
+	// easy work, as the conductor read it: one strong model answers it straight away. A planner, a team and a checker would
+	// cost more than the work itself; code it writes is still run here, and fixed by the best if it fails. Max: the team
+	if (PROFILE && PROFILE_TEXT === text && PROFILE.level === "easy" && !atts.length && speed() !== "max") return runAuto(text, atts);
 	// Fast: straight to the best quick model; Auto and Max: the team
 	if (speed() === "fast" && kind !== "code") return runAuto(text, atts);
 	// everything else, code included, is made by the team: the most specific pieces, each by the model measured best at
