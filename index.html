@@ -294,6 +294,17 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .badge-s.rejected { color: #e5484d; border-color: #e5484d; }
 @media (max-width: 900px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .plans { grid-template-columns: 1fr; } .qris { grid-template-columns: 1fr; } }
+/* the shop: plans (Free, Plus, Max) in a row, credit packs as small top-ups under them */
+.plans.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.plans.packs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.plans.packs .plan { padding: 14px 14px 12px; }
+.plans.packs .price { font-size: 22px; }
+.plans.packs .once { margin-bottom: 12px; }
+.plans.packs .btn { height: 36px; }
+.shop-h { display: flex; align-items: baseline; justify-content: space-between; gap: 6px 14px; margin: 24px 0 10px; flex-wrap: wrap; }
+.shop-h h3 { margin: 0; font-size: 15px; font-weight: 600; }
+.shop-h span { font-size: 13px; color: var(--muted); }
+@media (max-width: 760px) { .plans.three { grid-template-columns: 1fr; } .plans.packs { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .spendbar { position: fixed; top: 0; left: 0; right: 0; height: 4px; z-index: 80; pointer-events: none; opacity: 0; transition: opacity .3s; }
 body.in-app .spendbar { opacity: 1; }
 .spendbar i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .6s var(--ease), background .4s; }
@@ -1650,7 +1661,7 @@ html { scroll-behavior: smooth; }
 		<div class="wrap">
 			<div class="split">
 				<div class="card big"><h3>Private by design</h3><p>Your chats, projects and memory stay on your device and export to a file whenever you want. No keys of yours to look after.</p><div class="kv"><div>Where chats live<b>this browser</b></div><div>Keys to manage<b>none</b></div><div>Card needed<b>no</b></div></div></div>
-				<div class="card big"><h3>Credits, not bills</h3><p>Free credits every day. Need more? Buy a pack once, no subscription. You only ever see credits.</p><div class="kv"><div>Every day<b>free credits</b></div><div>Packs<b>one-time</b></div><div>Subscription<b>none</b></div></div></div>
+				<div class="card big"><h3>Credits, not bills</h3><p>Free credits that come back every few hours. Plus and Max give you far more for a month, and a credit pack keeps you going whenever you don't want to wait.</p><div class="kv"><div>Free<b>every 5 hours</b></div><div>Plans<b>Plus, Max</b></div><div>Packs<b>instant</b></div></div></div>
 			</div>
 		</div>
 	</section>
@@ -1662,7 +1673,7 @@ html { scroll-behavior: smooth; }
 			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher or the best writer. Andromeda keeps track so you don't have to.</p></details>
 			<details><summary>How does it decide?</summary><p>A fast model reads every request and decides what would serve you (an answer, an app, a video, research...) and how to do it. Then each part goes to the models that score highest on exactly that work: on LMArena's leaderboards (which answer people prefer) and on <a href="https://epoch.ai/benchmarks" target="_blank" rel="noopener">Epoch AI's benchmarks</a> (whether the code passes its tests, the maths is right, the facts are true), at the price that buys that quality and no more. You can also choose Fast, Max, or one model yourself.</p></details>
 			<details><summary>Can it use my computer?</summary><p>Only if you run its small connector on your computer, and it asks before it changes anything. Without it, Andromeda still runs code, searches and builds right in your browser.</p></details>
-			<details><summary>What does it cost?</summary><p>Everyone with an account gets free credits that come back every day. When you want more, buy a pack once: no subscription.</p></details>
+			<details><summary>What does it cost?</summary><p>Everyone with an account gets free credits that come back every 5 hours. For more, Plus or Max gives you far more for a month (no auto-renewal), and a credit pack tops you up instantly.</p></details>
 			<details><summary>Is my data safe?</summary><p>Your chats, projects and memory stay in this browser. What you ask goes through Andromeda's server to the model answering it, and isn't kept there.</p></details>
 			<details><summary>Which model answered me?</summary><p>The best one for each part, picked for you. "Show models used" on any answer shows who did what, and why.</p></details>
 		</div>
@@ -3886,7 +3897,7 @@ function jumpToEnd() { pinned = true; const s = $("#scroller"); s.scrollTo({ top
 function updateRoute() {
 	const text = $("#input").value;
 	const el = $("#route");
-	if (!connected()) { el.innerHTML = '<span class="chip click" data-open-account><span class="dot" style="background:var(--warn)"></span>' + (SERVER ? "Sign in to start · free credits every day" : "Opening soon") + "</span>"; return; }
+	if (!connected()) { el.innerHTML = '<span class="chip click" data-open-account><span class="dot" style="background:var(--warn)"></span>' + (SERVER ? "Sign in to start · it's free" : "Opening soon") + "</span>"; return; }
 	if (!catalog.length) { el.innerHTML = '<span class="chip">Loading models…</span>'; return; }
 	const proj = PROJECT ? '<span class="chip click" data-project title="Change or close the project"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(PROJECT.name) + (PROJECT.asleep ? " · click to reopen" : "") + "</span>" : "";
 	// the owner is told when problems pile up, and one click has Andromeda fix itself
@@ -5379,14 +5390,18 @@ function niceError(e) {
 	return "Something went wrong: " + s;
 }
 function untilText(ts) {
-	const mins = Math.max(1, Math.ceil((ts - Date.now()) / 60e3)), h = Math.floor(mins / 60), m = mins % 60;
-	return h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
+	const mins = Math.max(1, Math.ceil((ts - Date.now()) / 60e3)), d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
+	return d ? d + "d" + (h ? " " + h + "h" : "") : h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
 }
+// the plan's credits for now (or for the week) are used: when they're back, and what keeps them going meanwhile
 function outOfCredits(msg) {
-	const f = me && me.free, back = f && f.backAt && f.backAt > Date.now();
-	openModal('<h2>' + (back && !(me.paid > 0) ? "That's your free credits for now" : "Not enough credits") + '</h2><p class="sub">' + esc(msg || "") + "</p>" +
-		(back ? '<div class="acct-bal">' + untilText(f.backAt) + '</div><div class="help" style="font-size:13px;color:var(--faint)">until ' + (f.share || f.of) + " free credits come back</div>" : "") +
-		'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:18px"><button class="btn" id="ocWait">' + (back ? "I'll wait" : "OK") + '</button><button class="btn dark" data-open-pricing>Buy credits</button></div>');
+	const w = me && (me.window || me.free), wk = me && me.week;
+	const weekOut = !!(wk && wk.backAt && wk.backAt > Date.now() && wk.left < 1);
+	const at = weekOut ? wk.backAt : w && w.backAt && w.backAt > Date.now() ? w.backAt : 0;
+	const paidPlan = !!(me && me.plan && me.plan.paid);
+	openModal('<h2>' + (at && !(me.paid > 0) ? (weekOut ? "That's this week's credits" : "That's your credits for now") : "Not enough credits") + '</h2><p class="sub">' + esc(msg || "") + "</p>" +
+		(at ? '<div class="acct-bal">' + untilText(at) + '</div><div class="help" style="font-size:13px;color:var(--faint)">until ' + (weekOut ? "a new week starts" : w.share && w.share < w.of ? w.share + " come back" : "they're all back") + "</div>" : "") +
+		'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:18px"><button class="btn" id="ocWait">' + (at ? "I'll wait" : "OK") + '</button><button class="btn dark" data-open-pricing>' + (paidPlan ? "Get a credit pack" : "See plans") + "</button></div>");
 	$("#ocWait").onclick = closeModal;
 }
 function setBusy(on) {
@@ -5854,9 +5869,10 @@ function teammateTie(cands, used) {
 	const tie = cands.findIndex((c, n) => n > 0 && n < 4 && c.score != null && cands[0].score - c.score < TEAM_TIE && !used.has(c.m.id));
 	return used.has((cands[0].m || cands[0]).id) && tie > 0 ? [cands[tie], ...cands.filter((_, n) => n !== tie)] : cands;
 }
-// on free credits (nothing bought) the same models think a step lighter: a fraction of the price, the same quality of
-// what's written (the cheap fast models only ever read, plan and route, never write what the user reads)
-function liteMode() { return speed() !== "max" && creditsMode() && !!me && !(me.paid > 0); }
+// on Free with nothing bought, the same models think a step lighter: a fraction of the price, the same quality of
+// what's written (the cheap fast models only ever read, plan and route, never write what the user reads). A paid plan
+// or a credit pack thinks fully.
+function liteMode() { return speed() !== "max" && creditsMode() && !!me && !(me.paid > 0) && !(me.plan && me.plan.paid); }
 // no deeper thinking than the piece needs (never more than the model was rated at); a model that thinks but wasn't rated
 // at any level would think as long as its provider likes, so it's held to the cap too
 const capEffort = (e, cap, id) => {
@@ -6646,7 +6662,11 @@ async function runApp(text, atts, pick) {
 		const have = me ? me.credits : Infinity;
 		let k = steps.findIndex((cap, n) => need[n] * 1.5 <= have);
 		if (k < 0) k = steps.findIndex((cap, n) => need[n] <= have);
-		if (k < 0) throw fail("Building this app takes more credits than you have left. Get more credits, or wait for your free ones to come back.", 402);
+		if (k < 0) {
+			// (when they come back, and what builds it now; never what it costs)
+			const w = me && (me.window || me.free), paidPlan = !!(me && me.plan && me.plan.paid);
+			throw fail("Building this app takes more credits than you have right now." + (w && w.backAt > Date.now() ? " Yours come back in " + untilText(w.backAt) + "." : "") + (paidPlan ? " A credit pack builds it now." : " Plus builds apps and games by the best builder at full effort, or a credit pack builds this one now."), 402);
+		}
 		buildCap = steps[k];
 	}
 	const msgs = current.msgs;
@@ -9369,10 +9389,21 @@ function openAccount() {
 	}
 	const draw = () => {
 		const pays = (me && me.payments) || [];
-		openModal('<h2>Your credits</h2><p class="sub">' + esc(account.email) + '</p>' +
-			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:' + (me && me.free && me.free.of ? 8 : 18) + 'px"><div><div class="acct-bal">' + (me ? creditsText(me.credits) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">credits</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>Buy credits</button></div></div>' +
-			(me && me.free && me.free.of ? '<div class="help" style="font-size:13px;margin-bottom:18px">' + creditsText(me.free.left) + " of your " + me.free.of + " free credits left" + (me.free.backAt && me.free.backAt > Date.now() ? " · " + (me.free.share || me.free.of) + " more in " + untilText(me.free.backAt) : " · used first; " + (me.free.share && me.free.share < me.free.of ? me.free.share + " come back every " + me.free.every + " hours" : "back " + me.free.hours + " hours after you start")) + (me.paid > 0 ? " · " + creditsText(me.paid) + " bought" : "") + "</div>" : "") +
-			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>Pack</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(p.pack || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + creditsText(p.credits) + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status) + "</span></td></tr>").join("") + "</table></div>" : "") +
+		// the plan, its window (what's left for these hours, and when it's all back), its week, and bought credits
+		const plan = me && me.plan, win = me && (me.window || me.free), wk = me && me.week, lines = [];
+		if (win && win.of) lines.push(creditsText(win.left) + " of " + creditsText(win.of) + (win.backAt && win.backAt > Date.now() ? " for these " + win.hours + " hours · " + (win.share && win.share < win.of ? win.share + " more" : "all back") + " in " + untilText(win.backAt) : " ready · the " + win.hours + " hours start with your first message"));
+		if (wk && wk.of) lines.push(creditsText(wk.left) + " of " + creditsText(wk.of) + " left this week" + (wk.backAt && wk.backAt > Date.now() ? " · a new week in " + untilText(wk.backAt) : ""));
+		if (me && me.paid > 0) lines.push(creditsText(me.paid) + " from credit packs · used when the plan's run out");
+		// what a payment was for: a month of a plan, or a pack by its name
+		const planName = (pk) => {
+			const P = pricing || DEFAULT_PRICING, plan = /^plan:/.test(pk || "") && (P.plans || DEFAULT_PRICING.plans).find((x) => "plan:" + x.id === pk), pack = !plan && (P.packs || []).find((x) => x.id === pk);
+			return plan ? plan.name + " · a month" : pack ? pack.name + " pack" : pk;
+		};
+		openModal('<h2>Your account</h2><p class="sub">' + esc(account.email) + '</p>' +
+			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:' + (lines.length || plan ? 8 : 18) + 'px"><div><div class="acct-bal">' + (me ? creditsText(me.credits) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">credits you can use now</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>' + (plan && plan.paid ? "Plans and packs" : "Get more") + "</button></div></div>" +
+			(plan ? '<div class="help" style="font-size:13px;margin-bottom:4px"><b style="color:var(--text)">' + esc(plan.name) + "</b>" + (plan.paid && plan.until ? " · until " + new Date(plan.until).toLocaleDateString() : "") + "</div>" : "") +
+			(lines.length ? '<div class="help" style="font-size:13px;margin-bottom:18px;line-height:1.6">' + lines.join("<br>") + "</div>" : "") +
+			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>For</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(planName(p.pack) || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + (p.credits ? creditsText(p.credits) : "") + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status) + "</span></td></tr>").join("") + "</table></div>" : "") +
 			'<div class="row" style="justify-content:space-between;margin-top:6px"><button class="btn" id="acOut">Sign out</button><button class="btn" id="acDone">Done</button></div>');
 		$("#acRefresh").onclick = async () => { await refreshMe(); draw(); };
 		$("#acOut").onclick = () => { signOut(); closeModal(); };
@@ -9387,12 +9418,16 @@ function money(amount, cur) {
 	catch { return (cur || "") + " " + amount; }
 }
 const DEFAULT_PRICING = {
-	creditUsd: 0.01, open: false, free: { credits: 100, hours: 24, every: 6 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
+	creditUsd: 0.01, open: false, free: { credits: 50, hours: 5, every: 5, week: 200 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
+	plans: [
+		{ id: "plus", name: "Plus", credits: 300, hours: 5, week: 900, days: 30, popular: true, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "max", name: "Max", credits: 1000, hours: 5, week: 2800, days: 30, prices: { USD: 60, IDR: 949000, EUR: 56, GBP: 48, SGD: 80, AUD: 92 } },
+	],
 	packs: [
 		{ id: "mini", name: "Mini", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
-		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
-		{ id: "plus", name: "Plus", credits: 1000, bonus: 100, popular: true, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
-		{ id: "pro", name: "Pro", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "starter", name: "Small", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
+		{ id: "plus", name: "Medium", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
+		{ id: "pro", name: "Large", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 	],
 };
 let payCur = store.get("payCur", "") || (/^id\b/i.test(navigator.language || "") || /Jakarta|Makassar|Jayapura|Pontianak/.test(Intl.DateTimeFormat().resolvedOptions().timeZone || "") ? "IDR" : "USD");
@@ -9402,52 +9437,73 @@ async function openPricing() {
 	if (!P.currencies.includes(payCur)) payCur = P.currencies[0];
 	const live = !!(SERVER && pricing && pricing.open);
 	const idr = payCur === "IDR";
-	const card = (p) => {
-		const total = p.credits + (p.bonus || 0);
-		const price = p.prices[payCur];
-		const can = live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[p.id]));
-		return '<div class="plan' + (p.popular ? " popular" : "") + '">' + (p.popular ? '<span class="tag">Most popular</span>' : "") +
-			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">one-time · no subscription</div>' +
-			'<div class="tiles"><div class="tile full"><b>' + creditsText(total) + "</b><span>credits" + (p.bonus ? " · incl. +" + creditsText(p.bonus) + " bonus" : "") + '</span></div><div class="tile"><b>≈' + creditsText(Math.round(total / 5)) + '</b><span>everyday answers</span></div><div class="tile"><b>≈' + creditsText(Math.max(1, Math.round(total / 200))) + "</b><span>apps built</span></div></div>" +
-			'<ul class="feat"><li>Every model, the best one picked for each task</li><li>Flashcards, quizzes, podcasts and simulations</li><li>Apps and games built and run in the browser</li>' + (p.bonus ? "<li>" + Math.round((p.bonus / p.credits) * 100) + "% more credits for the same price per credit</li>" : "<li>Try everything with no commitment</li>") + "</ul>" +
-			'<button class="btn' + (p.popular ? " dark" : "") + '" data-buy="' + esc(p.id) + '"' + (can ? "" : " disabled") + ">" + (!live ? "Coming soon" : !can ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card or PayPal") + "</button></div>";
+	const plans = P.plans || DEFAULT_PRICING.plans, fp = P.free || DEFAULT_PRICING.free;
+	// the plan this account is on (a bought one), and where it sits among the plans
+	const mine = me && me.plan && me.plan.paid ? me.plan : null;
+	const rank = (id) => plans.findIndex((p) => p.id === id);
+	// card checkout links are per pack id, and "plan:<id>" per plan
+	const canPay = (key, price) => live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[key]));
+	const payLabel = (key, price) => (!live ? "Coming soon" : !canPay(key, price) ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card");
+	// a plan's window and week, and what a week comes to in everyday answers (about 5 credits each)
+	const tiles = (x) => '<div class="tiles"><div class="tile full"><b>' + creditsText(x.credits) + "</b><span>credits every " + x.hours + " hours</span></div>" +
+		(x.week ? '<div class="tile"><b>' + creditsText(x.week) + '</b><span>at most a week</span></div><div class="tile"><b>≈' + creditsText(Math.round(x.week / 5)) + "</b><span>answers a week</span></div>" : "") + "</div>";
+	const times = (a, b) => { const r = a / b; return (Math.abs(r - Math.round(r)) < 0.05 ? String(Math.round(r)) : r.toFixed(1)) + "×"; };
+	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">just an account, no card</div>' + tiles(fp) +
+		'<ul class="feat"><li>Every model: the best one for each part of what you ask</li><li>Apps, study sets, documents and research</li><li>All back ' + fp.hours + " hours after you start</li></ul>" +
+		(SERVER && !account ? '<button class="btn" data-open-account>Create a free account</button>' : '<button class="btn" disabled>' + (account ? (mine ? "Included" : "Your plan") : "Coming soon") + "</button>") + "</div>";
+	const planCard = (p, i) => {
+		const price = p.prices[payCur], key = "plan:" + p.id, prev = i ? plans[i - 1] : fp;
+		const cur = !!mine && mine.id === p.id, lower = !!mine && rank(mine.id) > i;
+		const feats = [times(p.credits, prev.credits) + " " + (i ? prev.name + "'s" : "Free's") + " credits" + (p.week && prev.week ? ", " + times(p.week, prev.week) + " its week" : ""),
+			i ? "For building big apps and games all day" : "Every answer thought through fully (Free thinks a step lighter)",
+			"Big apps and games built by the best builder at full effort", "Credit packs on top whenever you need more"];
+		const tag = cur ? "Your plan" : p.popular && !mine ? "Most popular" : "";
+		return '<div class="plan' + (tag ? " popular" : "") + '">' + (tag ? '<span class="tag">' + tag + "</span>" : "") +
+			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">a month · ' + (cur && mine.until ? "yours until " + new Date(mine.until).toLocaleDateString() : "no auto-renewal") + "</div>" + tiles(p) +
+			'<ul class="feat">' + feats.map((f) => "<li>" + esc(f) + "</li>").join("") + "</ul>" +
+			'<button class="btn' + (tag ? " dark" : "") + '" data-plan="' + esc(p.id) + '"' + (canPay(key, price) && !lower ? "" : " disabled") + ">" + (lower ? "You're on " + esc(mine.name) : cur && canPay(key, price) ? "Add a month" : payLabel(key, price)) + "</button></div>";
 	};
-	const fp = P.free || DEFAULT_PRICING.free;
-	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">no card, just an account</div>' +
-		'<div class="tiles"><div class="tile full"><b>' + creditsText(fp.credits) + "</b><span>free credits, back every " + fp.hours + " hours</span></div></div>" +
-		'<ul class="feat"><li>Everything in Andromeda</li><li>Free credits are always used first</li><li>Used them up? Wait for them to come back, or buy more</li></ul>' +
-		(SERVER && !account ? '<button class="btn" data-open-account>Create a free account</button>' : '<button class="btn" disabled>' + (account ? "On your account" : "Coming soon") + "</button>") + "</div>";
+	const packCard = (p) => {
+		const total = p.credits + (p.bonus || 0), price = p.prices[payCur];
+		return '<div class="plan"><div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">' + creditsText(total) + " credits" + (p.bonus ? " (+" + creditsText(p.bonus) + " bonus)" : "") + "</div>" +
+			'<button class="btn" data-buy="' + esc(p.id) + '"' + (canPay(p.id, price) ? "" : " disabled") + ">" + payLabel(p.id, price) + "</button></div>";
+	};
 	const methods = idr ? ["QRIS", "GoPay", "DANA", "OVO", "ShopeePay", "Bank apps"] : ["Visa", "Mastercard", "Apple Pay", "PayPal"];
-	openModal('<div style="text-align:center"><h2>Credits</h2><p class="sub" style="margin-bottom:14px">Free credits every day. Buy a pack once when you want more: no subscription.</p></div>' +
+	openModal('<div style="text-align:center"><h2>Plans</h2><p class="sub" style="margin-bottom:14px">Every plan gets every model, the best one for each part of what you ask. Credits come back every ' + fp.hours + " hours; a credit pack keeps you going in between.</p></div>" +
 		'<div class="cur">' + P.currencies.map((c) => '<button data-cur="' + c + '"' + (c === payCur ? ' class="on"' : "") + ">" + c + "</button>").join("") + "</div>" +
-		(live ? "" : '<div class="notice">' + (SERVER ? "Credits aren't on sale yet." : "Credits are coming soon.") + " Your free credits work in the meantime.</div>") +
-		'<div class="plans">' + free + P.packs.map(card).join("") + "</div>" +
-		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Credits are added as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". Credits arrive automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
+		(live ? "" : '<div class="notice">' + (SERVER ? "Plans and packs aren't on sale yet." : "Plans and packs are coming soon.") + " Your free credits work in the meantime.</div>") +
+		'<div class="plans three">' + free + plans.map(planCard).join("") + "</div>" +
+		'<div class="shop-h"><h3>Credit packs</h3><span>Instant, never expire: used when your plan\'s credits run out, so there\'s no waiting</span></div>' +
+		'<div class="plans packs">' + P.packs.map(packCard).join("") + "</div>" +
+		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Your plan or credits start as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". It arrives automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
-		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 5 credits. Long answers and big jobs use more: a hard question checked by a second top model about 50, a full app built by the best builder about 200. Your account shows what's left.</p></details>" +
-		"<details><summary>What are free credits?</summary><p>Everyone with an account gets " + (P.free || DEFAULT_PRICING.free).credits + " free credits. Once you start using them, they're all back " + (P.free || DEFAULT_PRICING.free).hours + " hours later. They're always used before credits you bought.</p></details>" +
-		"<details><summary>Which models do I get?</summary><p>All of them. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
-		"<details><summary>Do credits expire?</summary><p>No. Credits stay on your account until you use them.</p></details>" +
+		"<details><summary>How do plans work?</summary><p>Each plan gives you credits that all come back " + fp.hours + " hours after you start using them, the way Claude's limits work, up to a most per week. " + plans.map((p, i) => p.name + " gives you " + times(p.credits, (i ? plans[i - 1] : fp).credits) + " " + (i ? plans[i - 1].name + "'s" : "Free's")).join(", ") + ". Ran out? Wait for them to come back, or use a credit pack to keep going right away.</p></details>" +
+		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 to 5 credits. Big jobs use more: a hard question checked by a second top model about 40, a full app built by the best builder about 200. Your account shows what's left.</p></details>" +
+		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
+		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +
+		"<details><summary>Which models do I get?</summary><p>All of them, on every plan. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
 		"<details><summary>My payment hasn't shown up</summary><p>QRIS payments are confirmed by hand, usually within a few hours. Card payments arrive within a minute. If anything goes wrong" + (P.support ? ", contact " + esc(P.support) : ", contact us") + " and we'll sort it out.</p></details></div>" +
 		'<div class="row" style="justify-content:flex-end;margin-top:14px">' + (SERVER && !account ? '<button class="btn" data-open-account>Sign in</button>' : "") + '<button class="btn" id="prClose">Close</button></div>', "wide");
 	$("#prClose").onclick = closeModal;
 	$$("[data-cur]").forEach((b) => b.onclick = () => { payCur = b.dataset.cur; store.set("payCur", payCur); openPricing(); });
 	$$("[data-buy]").forEach((b) => b.onclick = () => buy(P.packs.find((p) => p.id === b.dataset.buy), P));
+	$$("[data-plan]").forEach((b) => b.onclick = () => buy(plans.find((p) => p.id === b.dataset.plan), P, true));
 }
-function buy(pack, P) {
-	if (!pack) return;
-	if (!account) { toast("Create an account first, so the credits have somewhere to go"); openAccount(); return; }
-	if (payCur === "IDR") { openQris(pack, P); return; }
-	const link = P.checkout.links[pack.id];
+// a pack, or (plan) a month of a plan
+function buy(item, P, plan) {
+	if (!item) return;
+	if (!account) { toast("Create an account first, so it has somewhere to go"); openAccount(); return; }
+	if (payCur === "IDR") { openQris(item, P, plan); return; }
+	const link = P.checkout.links[(plan ? "plan:" : "") + item.id];
 	const u = new URL(link);
 	u.searchParams.set("checkout[custom][user_id]", me ? me.id : "");
 	if (account.email) u.searchParams.set("checkout[email]", account.email);
 	window.open(u.toString(), "_blank", "noopener");
-	toast("Complete the payment in the new tab. Your credits appear here automatically.");
+	toast("Complete the payment in the new tab. " + (plan ? "Your plan starts" : "Your credits appear") + " here automatically.");
 }
-function openQris(pack, P) {
+function openQris(pack, P, plan) {
 	const total = pack.credits + (pack.bonus || 0);
-	openModal("<h2>Pay with QRIS</h2><p class=\"sub\">" + esc(pack.name) + " · " + creditsText(total) + " credits</p>" +
+	openModal("<h2>Pay with QRIS</h2><p class=\"sub\">" + esc(pack.name) + " · " + (plan ? "a month" : creditsText(total) + " credits") + "</p>" +
 		'<div class="qris"><img src="' + esc(P.qris.image) + '" alt="QRIS code"><div><div class="help" style="font-size:12.5px;color:var(--faint)">Amount, exactly</div><div class="amt">' + money(pack.prices.IDR, "IDR") + "</div>" +
 		(P.qris.name ? '<p style="font-size:13.5px;color:var(--muted);margin:6px 0 14px">to <b style="color:var(--text)">' + esc(P.qris.name) + "</b></p>" : "<p></p>") +
 		'<ol style="font-size:13.5px;color:var(--muted);padding-left:18px;line-height:1.6;margin:0 0 14px"><li>Open any e-wallet or bank app and scan the code.</li><li>Pay the exact amount above.</li><li>Write the name your payment came from below and press I\'ve paid.</li></ol>' +
@@ -9458,8 +9514,8 @@ function openQris(pack, P) {
 		st.className = "status";
 		st.textContent = "Sending…";
 		try {
-			await api("/api/payments/qris", { method: "POST", body: JSON.stringify({ pack: pack.id, reference: $("#qrRef").value }) });
-			openModal("<h2>Thanks, that's in</h2><p class=\"sub\">Your " + creditsText(total) + " credits are added as soon as the payment is confirmed, usually within a few hours. You'll see them in your account.</p><div class=\"row\" style=\"justify-content:flex-end\"><button class=\"btn dark\" data-open-account>See my account</button></div>");
+			await api("/api/payments/qris", { method: "POST", body: JSON.stringify({ ...(plan ? { plan: pack.id } : { pack: pack.id }), reference: $("#qrRef").value }) });
+			openModal("<h2>Thanks, that's in</h2><p class=\"sub\">" + (plan ? "Your month of " + esc(pack.name) + " starts" : "Your " + creditsText(total) + " credits are added") + " as soon as the payment is confirmed, usually within a few hours. You'll see it in your account.</p><div class=\"row\" style=\"justify-content:flex-end\"><button class=\"btn dark\" data-open-account>See my account</button></div>");
 			refreshMe();
 		} catch (e) { st.className = "status bad"; st.textContent = e.message; }
 	};
@@ -9487,6 +9543,8 @@ async function openAdmin() {
 	try { o = await call("/api/admin/overview"); }
 	catch (e) { try { sessionStorage.removeItem("andromeda.admin"); } catch {} ask(e.status === 401 ? "That password didn't work." : e.message); return; }
 	const c = o.config;
+	const plans = c.plans || DEFAULT_PRICING.plans;
+	const planName = (pk) => { const p = plans.find((x) => "plan:" + x.id === pk); return p ? p.name : String(pk || "").replace(/^plan:/, ""); };
 	const when = (t) => (t ? new Date(t).toLocaleString() : "");
 	const totals = o.totals.map((t) => money(t.amount, t.currency) + " (" + t.n + ")").join(" · ") || "nothing yet";
 	const spent = o.spent || {};
@@ -9494,20 +9552,26 @@ async function openAdmin() {
 	const rate = (c.free && Number(c.free.usdIdr)) || 18000;
 	const freeSpentText = (o.freeDays || []).length ? "Free use cost you: " + o.freeDays.slice(0, 7).map((d) => d.day.slice(5) + " Rp" + Math.round(d.usd * rate).toLocaleString("id-ID")).join(" · ") + ". " : "";
 	openModal('<h2>Admin</h2><p class="sub">Sold: ' + totals + " · AI cost so far $" + (Number(spent.cost) || 0).toFixed(2) + " for " + creditsText((spent.charged_mc || 0) / 1000) + " credits used (" + (spent.n || 0) + " answers)</p>" +
-		'<div class="field"><label>Waiting for confirmation (' + o.pending.length + ")</label>" + (o.pending.length ? '<table class="ptable"><tr><th>When</th><th>Who</th><th>Paid</th><th>Name on payment</th><th>Credits</th><th></th></tr>' + o.pending.map((p) => "<tr><td>" + when(p.created_at) + "</td><td>" + esc(p.email) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + esc(p.note || "") + "</td><td>" + creditsText(p.credits_mc / 1000) + '</td><td class="row"><button class="btn dark" data-ok="' + p.id + '">Approve</button><button class="btn" data-no="' + p.id + '">Reject</button></td></tr>').join("") + "</table>" : '<div class="help">Nothing waiting. Check your e-wallet for a payment before approving one.</div>') + "</div>" +
-		'<div class="field"><label>Sales</label><label class="chk"><input type="checkbox" id="adOpen"' + (c.open ? " checked" : "") + "> Credits are on sale</label></div>" +
+		'<div class="field"><label>Waiting for confirmation (' + o.pending.length + ")</label>" + (o.pending.length ? '<table class="ptable"><tr><th>When</th><th>Who</th><th>Paid</th><th>Name on payment</th><th>For</th><th></th></tr>' + o.pending.map((p) => "<tr><td>" + when(p.created_at) + "</td><td>" + esc(p.email) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + esc(p.note || "") + "</td><td>" + (/^plan:/.test(p.pack || "") ? esc(planName(p.pack)) + " · a month" : creditsText(p.credits_mc / 1000) + " credits") + '</td><td class="row"><button class="btn dark" data-ok="' + p.id + '">Approve</button><button class="btn" data-no="' + p.id + '">Reject</button></td></tr>').join("") + "</table>" : '<div class="help">Nothing waiting. Check your e-wallet for a payment before approving one.</div>') + "</div>" +
+		'<div class="field"><label>Sales</label><label class="chk"><input type="checkbox" id="adOpen"' + (c.open ? " checked" : "") + "> Plans and credit packs are on sale</label></div>" +
 		'<div class="field"><label>QRIS image address</label><input class="inp" id="adQris" placeholder="e.g. qris.png (upload it next to index.html)" value="' + esc((c.qris && c.qris.image) || "") + '"></div>' +
 		'<div class="field"><label>Name shown on QRIS</label><input class="inp" id="adQrisName" value="' + esc((c.qris && c.qris.name) || "") + '"></div>' +
-		'<div class="field"><label>Card checkout links (one per pack)</label>' + c.packs.map((p) => '<div class="row" style="margin-bottom:6px"><span style="width:80px;font-size:13px">' + esc(p.name) + '</span><input class="inp" data-link="' + p.id + '" placeholder="https://…lemonsqueezy.com/checkout/buy/…" value="' + esc((c.checkout.links || {})[p.id] || "") + '"><input class="inp" style="max-width:130px" data-variant="' + p.id + '" placeholder="variant id" value="' + esc(p.lemonVariant || "") + '"></div>').join("") + "</div>" +
+		'<div class="field"><label>Card checkout links (one per plan and pack)</label>' + [...plans.map((p) => ({ key: "plan:" + p.id, name: p.name + " (a month)", variant: p.lemonVariant })), ...c.packs.map((p) => ({ key: p.id, name: p.name + " pack", variant: p.lemonVariant }))].map((x) => '<div class="row" style="margin-bottom:6px"><span style="width:110px;font-size:13px">' + esc(x.name) + '</span><input class="inp" data-link="' + esc(x.key) + '" placeholder="https://…lemonsqueezy.com/checkout/buy/…" value="' + esc((c.checkout.links || {})[x.key] || "") + '"><input class="inp" style="max-width:130px" data-variant="' + esc(x.key) + '" placeholder="variant id" value="' + esc(x.variant || "") + '"></div>').join("") + "</div>" +
 		'<div class="field"><label>Mark-up on OpenRouter cost</label><div class="row"><span style="font-size:13px">cheap ×</span><input class="inp" id="adM1" type="number" step="0.1" value="' + c.multipliers.cheap + '"><span style="font-size:13px">mid ×</span><input class="inp" id="adM2" type="number" step="0.1" value="' + c.multipliers.mid + '"><span style="font-size:13px">top ×</span><input class="inp" id="adM3" type="number" step="0.1" value="' + c.multipliers.top + '"></div><div class="help">Cheap means under $' + c.bands.cheapBelow + ", top means $" + c.bands.topFrom + " or more per million output tokens.</div></div>" +
-		'<div class="field"><label>Free credits</label><div class="row"><input class="inp" id="adFree" type="number" min="0" step="1" value="' + ((c.free && c.free.credits) ?? 100) + '"><span style="font-size:13px">credits, refilled over</span><input class="inp" id="adFreeH" type="number" min="1" step="1" value="' + ((c.free && c.free.hours) ?? 24) + '"><span style="font-size:13px">hours, a share every</span><input class="inp" id="adFreeE" type="number" min="0" step="1" value="' + ((c.free && c.free.every) ?? 6) + '"><span style="font-size:13px">hours</span></div><div class="help">Everyone signed in gets these, used before bought credits. 100 over 24 hours with a share every 6 means 25 come back every 6 hours until all 100 are there again. 0 turns them off.</div></div>' +
+		'<div class="field"><label>Free plan</label><div class="row"><input class="inp" id="adFree" type="number" min="0" step="1" value="' + ((c.free && c.free.credits) ?? 50) + '"><span style="font-size:13px">credits, all back</span><input class="inp" id="adFreeH" type="number" min="1" step="1" value="' + ((c.free && c.free.hours) ?? 5) + '"><span style="font-size:13px">hours after they start (a share every</span><input class="inp" id="adFreeE" type="number" min="0" step="1" value="' + ((c.free && c.free.every) ?? 5) + '"><span style="font-size:13px">hours), at most</span><input class="inp" id="adFreeW" type="number" min="0" step="10" value="' + ((c.free && c.free.week) ?? 200) + '"><span style="font-size:13px">a week</span></div><div class="help">Everyone on Free gets these, used before bought credits. 50 back 5 hours after they start, at most 200 a week, is about 10 everyday answers a session, and costs you at most about Rp14,000 a week for someone who uses all of it. A share every fewer hours hands it back in parts. 0 turns them off (for the week: no weekly limit).</div></div>' +
 		'<div class="field"><label>The most you spend on free use a day</label><div class="row"><span style="font-size:13px">Rp</span><input class="inp" id="adFreeBudget" type="number" min="0" step="5000" value="' + ((c.free && c.free.budgetIdr) ?? 50000) + '"><span style="font-size:13px">at 1 US$ = Rp</span><input class="inp" id="adUsdIdr" type="number" min="1000" step="100" value="' + ((c.free && c.free.usdIdr) ?? 18000) + '"></div><div class="help">What free credits really cost you (the AI labs\' prices), added up each day (UTC). Past it, nobody\'s free credits refill until tomorrow; bought credits still work. ' + freeSpentText + '0 means no limit: then a crowd arriving at once costs whatever they use.</div></div>' +		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
+		'<div class="field"><label>Plans and prices (advanced)</label><textarea class="inp" id="adPlans" style="height:150px;padding:10px;font-family:var(--mono);font-size:12px">' + esc(JSON.stringify(plans.map(({ lemonVariant, ...p }) => p), null, 1)) + '</textarea><div class="help">credits: what comes back each window; hours: until it\'s all back; week: the most a week (0: no limit); days: how long a payment lasts. A credit costs you about Rp69 at the labs\' prices, so Plus used to its very limit (900 a week, about 3,900 a month) is about Rp270,000 of AI for Rp319,000.</div></div>' +
 		'<div class="field"><label>Packs and prices (advanced)</label><textarea class="inp" id="adPacks" style="height:150px;padding:10px;font-family:var(--mono);font-size:12px">' + esc(JSON.stringify(c.packs.map(({ lemonVariant, ...p }) => p), null, 1)) + '</textarea><div class="status" id="adStatus"></div></div>' +
+		'<div class="field"><label>Give a plan by hand</label><div class="row"><input class="inp" id="adPEmail" placeholder="email"><select class="inp" id="adPPlan" style="max-width:120px">' + plans.map((p) => '<option value="' + esc(p.id) + '">' + esc(p.name) + "</option>").join("") + '</select><input class="inp" id="adPDays" type="number" min="1" max="400" value="30" style="max-width:80px"><span style="font-size:13px">days</span><button class="btn" id="adPGive">Give</button></div><div class="help">From today, or added to the end of the plan they\'re on.</div></div>' +
 		'<div class="field"><label>Give or take credits by hand</label><div class="row"><input class="inp" id="adEmail" placeholder="email"><input class="inp" id="adCredits" type="number" placeholder="credits (- to take)" style="max-width:150px"><button class="btn" id="adGive">Apply</button></div></div>' +
-		'<div class="field"><label>Accounts (' + o.users.length + ')</label><table class="ptable"><tr><th>Email</th><th>Credits</th><th>Joined</th></tr>' + o.users.slice(0, 30).map((u) => "<tr><td>" + esc(u.email) + "</td><td>" + creditsText(u.balance_mc / 1000) + "</td><td>" + when(u.created_at) + "</td></tr>").join("") + "</table></div>" +
+		'<div class="field"><label>Accounts (' + o.users.length + ')</label><table class="ptable"><tr><th>Email</th><th>Plan</th><th>Bought credits</th><th>Joined</th></tr>' + o.users.slice(0, 30).map((u) => "<tr><td>" + esc(u.email) + "</td><td>" + (u.plan && u.plan_until > Date.now() ? esc(planName("plan:" + u.plan)) + " until " + new Date(u.plan_until).toLocaleDateString() : "Free") + "</td><td>" + creditsText(u.balance_mc / 1000) + "</td><td>" + when(u.created_at) + "</td></tr>").join("") + "</table></div>" +
 		'<div class="row" style="justify-content:space-between"><button class="btn" id="adLock">Lock admin</button><div class="row"><button class="btn" id="adClose">Close</button><button class="btn dark" id="adSave">Save settings</button></div></div>', "wide");
-	$$("[data-ok]").forEach((b) => b.onclick = async () => { await call("/api/admin/payments/" + b.dataset.ok + "/approve", { method: "POST" }); toast("Approved: the credits are on their account"); openAdmin(); });
+	$$("[data-ok]").forEach((b) => b.onclick = async () => { await call("/api/admin/payments/" + b.dataset.ok + "/approve", { method: "POST" }); toast("Approved: it's on their account"); openAdmin(); });
 	$$("[data-no]").forEach((b) => b.onclick = async () => { await call("/api/admin/payments/" + b.dataset.no + "/reject", { method: "POST" }); toast("Rejected"); openAdmin(); });
+	$("#adPGive").onclick = async () => {
+		try { await call("/api/admin/plan", { method: "POST", body: JSON.stringify({ email: $("#adPEmail").value, plan: $("#adPPlan").value, days: Number($("#adPDays").value) }) }); toast("Done"); openAdmin(); }
+		catch (e) { toast(e.message); }
+	};
 	$("#adGive").onclick = async () => {
 		try { await call("/api/admin/credits", { method: "POST", body: JSON.stringify({ email: $("#adEmail").value, credits: Number($("#adCredits").value), note: "by hand" }) }); toast("Done"); openAdmin(); }
 		catch (e) { toast(e.message); }
@@ -9517,10 +9581,13 @@ async function openAdmin() {
 		let packs;
 		try { packs = JSON.parse($("#adPacks").value); } catch { st.className = "status bad"; st.textContent = "The packs text isn't valid JSON."; return; }
 		packs = packs.map((p) => ({ ...p, lemonVariant: ($("[data-variant=\"" + p.id + "\"]") || {}).value || "" }));
+		let plansNext;
+		try { plansNext = JSON.parse($("#adPlans").value); } catch { st.className = "status bad"; st.textContent = "The plans text isn't valid JSON."; return; }
+		plansNext = plansNext.map((p) => ({ ...p, lemonVariant: ($("[data-variant=\"plan:" + p.id + "\"]") || {}).value || "" }));
 		const links = {};
 		$$("[data-link]").forEach((i) => { if (i.value.trim()) links[i.dataset.link] = i.value.trim(); });
 		const next = { ...c, open: $("#adOpen").checked, qris: { image: $("#adQris").value.trim(), name: $("#adQrisName").value.trim() }, checkout: { ...c.checkout, links },
-			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top, media: c.multipliers.media || 2 }, free: { credits: Math.max(0, Number($("#adFree").value) || 0), hours: Math.max(1, Number($("#adFreeH").value) || 24), every: Math.max(0, Number($("#adFreeE").value) || 0), budgetIdr: Math.max(0, Number($("#adFreeBudget").value) || 0), usdIdr: Math.max(1000, Number($("#adUsdIdr").value) || 18000), dailyCap: 0 }, support: $("#adSupport").value.trim(), packs };
+			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top, media: c.multipliers.media || 2 }, free: { credits: Math.max(0, Number($("#adFree").value) || 0), hours: Math.max(1, Number($("#adFreeH").value) || 24), every: Math.max(0, Number($("#adFreeE").value) || 0), week: Math.max(0, Number($("#adFreeW").value) || 0), budgetIdr: Math.max(0, Number($("#adFreeBudget").value) || 0), usdIdr: Math.max(1000, Number($("#adUsdIdr").value) || 18000), dailyCap: 0 }, support: $("#adSupport").value.trim(), plans: plansNext, packs };
 		try { await call("/api/admin/config", { method: "PUT", body: JSON.stringify(next) }); pricing = null; toast("Saved"); openAdmin(); }
 		catch (e) { st.className = "status bad"; st.textContent = e.message; }
 	};

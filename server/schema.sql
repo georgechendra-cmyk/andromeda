@@ -5,11 +5,16 @@ CREATE TABLE IF NOT EXISTS users (
 	id TEXT PRIMARY KEY,
 	email TEXT UNIQUE NOT NULL,
 	pass TEXT NOT NULL,
-	balance_mc INTEGER NOT NULL DEFAULT 0, -- thousandths of a credit (bought)
-	free_mc INTEGER NOT NULL DEFAULT 0, -- the free credits left this session
-	free_reset_at INTEGER NOT NULL DEFAULT 0, -- when they're full again (0 = full, the clock hasn't started)
+	balance_mc INTEGER NOT NULL DEFAULT 0, -- thousandths of a credit (bought: packs, never expire)
+	free_mc INTEGER NOT NULL DEFAULT 0, -- what's left in the plan's window (Free's or a bought plan's)
+	free_reset_at INTEGER NOT NULL DEFAULT 0, -- when the window is full again (0 = full, the clock hasn't started)
+	plan TEXT, -- a bought plan (plus, max), or NULL for Free
+	plan_until INTEGER NOT NULL DEFAULT 0, -- when its month runs out
+	week_mc INTEGER NOT NULL DEFAULT 0, -- spent from windows this week
+	week_at INTEGER NOT NULL DEFAULT 0, -- when this week ends (0 = no week running)
 	created_at INTEGER NOT NULL
 );
+-- (an older database gets plan, plan_until, week_mc and week_at added by the server itself)
 
 CREATE TABLE IF NOT EXISTS sessions (
 	token_hash TEXT PRIMARY KEY,

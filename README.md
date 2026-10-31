@@ -4,7 +4,7 @@
 
 There are hundreds of strong AI models now. Each lab leads at something different, and the lead changes every few weeks. People shouldn't have to track that, set up tools, or pay for five subscriptions to get the best of each.
 
-With Andromeda you just type. It sends each part of your request to the strongest model for that kind of work. Nothing to install and no keys: sign in and you get free credits every day.
+With Andromeda you just type. It sends each part of your request to the strongest model for that kind of work. Nothing to install and no keys: sign in and you get free credits that come back every 5 hours.
 
 ![Andromeda](docs/welcome.png)
 
@@ -96,9 +96,13 @@ The ratings come from LMArena's public dataset and Epoch AI's benchmarking hub (
 
 ## Credits
 
-- Everyone gets free credits that come back through the day: 100 to start, and 25 more every 6 hours until it's 100 again (the owner can change all three numbers).
-- More can be bought with QRIS (and card, once it's set up).
-- Andromeda only ever shows credits, never token counts.
+- **Plans, like Claude's limits.** Everyone is on a plan, and a plan is a window of credits that all comes back 5 hours after you start using them, up to a most per week:
+  - **Free:** 50 every 5 hours, at most 200 a week (about 10 everyday answers a session).
+  - **Plus**, Rp 319.000 a month: 300 every 5 hours, at most 900 a week. Answers think fully, and apps and games are built by the best builder at full effort.
+  - **Max**, Rp 949.000 a month: 1,000 every 5 hours, at most 2,800 a week.
+- **Credit packs** are bought credits that never expire. They're used only when the plan's credits for now are gone, so there's no waiting. A credit costs more in a pack than in a plan.
+- Plans and packs are paid with QRIS (and card, once it's set up). A plan lasts 30 days, and paying early adds a month to the end. The owner can change every number in Admin, and sees what free use really costs each day; a daily budget caps it.
+- Andromeda only ever shows credits, never token counts or what one answer cost.
 
 The site runs through a small credits server on Cloudflare (`server/`) that holds the AI keys, so no one using the site ever needs or sees a key. Models are reached through WaveSpeed first (chat models, pictures, video, voice and music, with web search built in), then any OpenAI-compatible gateway, Cloudflare AI Gateway or OpenRouter. To set it up, double-click `server/SET UP SERVER.bat`.
 

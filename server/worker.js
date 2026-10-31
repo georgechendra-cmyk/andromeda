@@ -21,17 +21,28 @@ const DEFAULT_CONFIG = {
 	// the most one answer may write, whatever the balance (a model asked to think gets room for that on top); only what's
 	// written is charged, so this only keeps a long answer from being cut off
 	maxTokens: 32000,
-	// free credits for everyone signed in, spent before anything paid for: a bucket of "credits" that refills through the
-	// day, a share every "every" hours (25 every 6 hours) until it's full, so the whole bucket takes "hours" to come back.
-	// budgetIdr: the most the owner spends on free use a day (the real cost of what free credits paid for, in rupiah at
-	// usdIdr); past it, no bucket refills until tomorrow. dailyCap: an older limit on credits handed out (0 = off)
-	free: { credits: 100, hours: 24, every: 6, budgetIdr: 50000, usdIdr: 18000, dailyCap: 0 },
-	// round local prices, not exchange-rate conversions
+	// (the shape of these settings: 2 since plans; an older saved copy is brought up to it in config())
+	v: 2,
+	// Everyone is on a plan: Free, or one bought for a month. A plan is a window of credits that all comes back "hours"
+	// after it's first used (Claude's 5-hour limit), and at most "week" credits in 7 days, so a month's cost is known
+	// before anyone uses it. Free's "every" can hand the window back in shares instead (every 0 or = hours: all at once).
+	// budgetIdr: the most the owner spends on free use a day (the real cost of what free windows paid for, in rupiah at
+	// usdIdr); past it, no free window refills until tomorrow. dailyCap: an older limit on credits handed out (0 = off)
+	free: { credits: 50, hours: 5, every: 5, week: 200, budgetIdr: 25000, usdIdr: 18000, dailyCap: 0 },
+	// a month of a plan (QRIS, confirmed by hand like a pack; renewing early adds a month to the end). At the labs' list
+	// price plus the gateway's 15%, a credit costs the owner about Rp69, so a plan used to its very limit every week still
+	// leaves 12-15% (Plus: 900 a week, ~3,900 a month, Rp270k of AI for Rp319k), and an average subscriber uses far less
+	plans: [
+		{ id: "plus", name: "Plus", credits: 300, hours: 5, week: 900, days: 30, popular: true, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "max", name: "Max", credits: 1000, hours: 5, week: 2800, days: 30, prices: { USD: 60, IDR: 949000, EUR: 56, GBP: 48, SGD: 80, AUD: 92 }, lemonVariant: "" },
+	],
+	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
+	// Round local prices, not exchange-rate conversions; a credit costs more this way than in a plan
 	packs: [
 		{ id: "mini", name: "Mini", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 }, lemonVariant: "" },
-		{ id: "starter", name: "Starter", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
-		{ id: "plus", name: "Plus", credits: 1000, bonus: 100, popular: true, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
-		{ id: "pro", name: "Pro", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "starter", name: "Small", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
+		{ id: "plus", name: "Medium", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
+		{ id: "pro", name: "Large", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 	],
 	currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"],
 	// QRIS for rupiah: the owner's QR image (a URL, e.g. qris.png in the site) and the name it shows
@@ -69,6 +80,7 @@ export default {
 async function route(req, env, ctx, url) {
 	const p = url.pathname.replace(/\/+$/, "");
 	const m = req.method;
+	await columns(env);
 	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "" });
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login" && m === "POST") return login(req, env);
@@ -178,13 +190,20 @@ async function config(env) {
 	try {
 		saved = row ? JSON.parse(row.v) : {};
 	} catch {}
+	// saved before plans: the old free bucket (100 a day) and the packs' old names give way to the new ones; the owner's
+	// own budget, sales switch, QRIS and checkout links stay
+	if (!(saved.v >= 2)) {
+		const { budgetIdr, usdIdr } = saved.free || {};
+		saved = { ...saved, free: { ...(budgetIdr != null ? { budgetIdr } : {}), ...(usdIdr != null ? { usdIdr } : {}) } };
+		delete saved.packs;
+	}
 	// 8192 was the old default answer length, saved by any admin page that was saved back then: it cut long answers off
 	const maxTokens = !saved.maxTokens || saved.maxTokens === 8192 ? DEFAULT_CONFIG.maxTokens : saved.maxTokens;
-	return { ...DEFAULT_CONFIG, ...saved, maxTokens, multipliers: { ...DEFAULT_CONFIG.multipliers, ...(saved.multipliers || {}) }, bands: { ...DEFAULT_CONFIG.bands, ...(saved.bands || {}) }, free: { ...DEFAULT_CONFIG.free, ...(saved.free || {}) } };
+	return { ...DEFAULT_CONFIG, ...saved, v: 2, maxTokens, multipliers: { ...DEFAULT_CONFIG.multipliers, ...(saved.multipliers || {}) }, bands: { ...DEFAULT_CONFIG.bands, ...(saved.bands || {}) }, free: { ...DEFAULT_CONFIG.free, ...(saved.free || {}) }, plans: Array.isArray(saved.plans) ? saved.plans : DEFAULT_CONFIG.plans };
 }
 function publicConfig(c) {
 	const { every, share } = freeStep(c);
-	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share }, packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: c.checkout, support: c.support, open: !!c.open };
+	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share, week: Number(c.free.week) || 0 }, plans: c.plans.map(({ lemonVariant, ...p }) => p), packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: c.checkout, support: c.support, open: !!c.open };
 }
 
 // ------------------------------------------------------------------ accounts
@@ -308,21 +327,67 @@ async function authUser(req, env) {
 	return refill(env, row, await config(env));
 }
 
-// ------------------------------------------------------------------ free credits
-// A bucket of free credits per person. The clock starts when the first one is spent; every "every" hours a share comes
-// back (credits x every / hours), until the bucket is full and the clock stops. So someone who uses it all at breakfast
-// has some again by lunch, instead of nothing until tomorrow. Free credits are always spent before paid ones, and
-// nobody is shown tokens or money, only credits.
+// ------------------------------------------------------------------ plans: Free, Plus, Max
+// Everyone has a window of credits from their plan (the free_mc and free_reset_at columns, named from when only Free
+// had one). The clock starts when the first one is spent; "hours" later the window is full again (Free can hand it back
+// in shares instead, every "every" hours). On top of that, at most "week" credits come out of windows in 7 days (the
+// week starts with the first credit, like the window). Windows are always spent before bought credits (packs), and
+// bought credits are what keeps someone going when the window or the week has run out. Nobody is shown tokens or money,
+// only credits.
 //
-// All of it together stays inside the owner's budget: what free credits really cost (at the labs' prices) is added up
-// each day (UTC), and once it reaches free.budgetIdr no bucket refills and no new account gets its first until tomorrow.
-// Bought credits still work, and what's already in a bucket can still be used, so a crowd arriving at once (a post going
-// viral) costs about the day's budget, never the owner's savings.
+// Free windows together stay inside the owner's budget: what they really cost (at the labs' prices) is added up each day
+// (UTC), and once it reaches free.budgetIdr no free window refills and no new account gets its first until tomorrow.
+// Paid plans and bought credits still work, and what's already in a window can still be used, so a crowd arriving at
+// once (a post going viral) costs about the day's budget, never the owner's savings.
+
+// the plan someone is on now: one they bought (until its month runs out), or Free
+function planOf(u, c) {
+	const plans = c.plans || [];
+	// (a plan the owner has since taken off sale still runs out its month, as the first plan on sale)
+	const bought = u && u.plan && Number(u.plan_until) > now() ? plans.find((p) => p.id === u.plan) || plans[0] : null;
+	const p = bought || c.free;
+	const credits = Number(p.credits) || 0, hours = Number(p.hours) || 24;
+	const every = !bought && Number(c.free.every) > 0 && Number(c.free.every) < hours ? Number(c.free.every) : hours;
+	return { id: bought ? bought.id : "free", name: bought ? bought.name : "Free", paid: !!bought, credits, hours, every, share: Math.round(credits * every / hours * 1000) / 1000, stepMs: every * 3600e3, week: Math.max(0, Number(p.week) || 0), until: bought ? Number(u.plan_until) : 0 };
+}
+// what's been spent from windows this week (a week that's over counts nothing)
+const weekUsed = (u) => (u.week_at && now() < u.week_at ? Math.max(0, u.week_mc || 0) : 0);
+// what can come out of the window right now: what's left in it, no more than the week has left
+function windowLeft(u, c) {
+	const plan = planOf(u, c), win = Math.max(0, u.free_mc || 0);
+	return plan.week ? Math.min(win, Math.max(0, plan.week * 1000 - weekUsed(u))) : win;
+}
+// a month of a plan, from today or from the end of the one running (renewing early loses nothing). A plan that wasn't
+// running starts with a full window and a fresh week.
+async function startPlan(env, userId, plan, days) {
+	const u = await env.DB.prepare("SELECT plan, plan_until FROM users WHERE id = ?").bind(userId).first();
+	if (!u) return false;
+	const running = u.plan && Number(u.plan_until) > now();
+	const until = (running ? Number(u.plan_until) : now()) + (Number(days ?? plan.days) || 30) * 86400e3;
+	if (running && u.plan === plan.id) await env.DB.prepare("UPDATE users SET plan_until = ? WHERE id = ?").bind(until, userId).run();
+	else await env.DB.prepare("UPDATE users SET plan = ?, plan_until = ?, free_mc = ?, free_reset_at = 0, week_mc = 0, week_at = 0 WHERE id = ?").bind(plan.id, until, Math.round((Number(plan.credits) || 0) * 1000), userId).run();
+	return true;
+}
+// the columns plans added, put on an older database once (the first request after the deploy)
+let COLS = null;
+function columns(env) {
+	if (!COLS) COLS = (async () => {
+		const have = new Set(((await env.DB.prepare("PRAGMA table_info(users)").all()).results || []).map((r) => r.name));
+		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"]]) {
+			if (have.has(k)) continue;
+			// (two requests at once: the other one added it)
+			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
+		}
+	})().catch((e) => { COLS = null; throw e; });
+	return COLS;
+}
 const nextDay = () => { const d = new Date(); d.setUTCHours(24, 0, 0, 0); return d.getTime(); };
 const spentKey = () => "spent:" + new Date().toISOString().slice(0, 10);
 const budgetUsd = (c) => (Number(c.free.budgetIdr) || 0) / (Number(c.free.usdIdr) || 18000);
-// the share of a charge that free credits paid for, at its real cost, added to today's total (a statement for the batch)
+// the share of a charge that a free window paid for, at its real cost, added to today's total (a statement for the
+// batch; a paid plan's window isn't free use)
 function freeSpend(env, held, charged, usd) {
+	if (held.free === false) return [];
 	const fromFree = Math.min(Math.max(0, held.fromFree || 0), charged);
 	if (!(fromFree > 0) || !(usd > 0)) return [];
 	const micro = Math.round(usd * 1e6 * fromFree / Math.max(1, charged));
@@ -347,29 +412,39 @@ function freeStep(c) {
 	return { every, share: Math.round(credits * every / hours * 1000) / 1000, stepMs: every * 3600e3 };
 }
 async function refill(env, user, c) {
-	const full = Math.round((Number(c.free.credits) || 0) * 1000);
-	const { share, stepMs } = freeStep(c);
+	// a bought plan whose month is over: back on Free, with what's left of its window up to Free's, and a fresh week (a
+	// week spent on the plan doesn't lock them out of Free's)
+	if (user.plan && !(Number(user.plan_until) > now())) {
+		const cap = Math.round((Number(c.free.credits) || 0) * 1000);
+		await env.DB.prepare("UPDATE users SET plan = NULL, free_mc = MIN(free_mc, ?), week_mc = 0, week_at = 0 WHERE id = ? AND plan = ?").bind(cap, user.id, user.plan).run();
+		user.plan = null;
+		user.free_mc = Math.min(user.free_mc || 0, cap);
+		user.week_mc = 0;
+		user.week_at = 0;
+	}
+	const plan = planOf(user, c);
+	const full = Math.round(plan.credits * 1000);
 	const due = user.free_reset_at && now() >= user.free_reset_at;
-	// a full bucket that's never been touched since the amount went up (or an account from before free credits)
+	// a full window that's never been touched since the amount went up (or an account from before free credits)
 	const topUp = !user.free_reset_at && (user.free_mc || 0) < full;
 	if (!due && !topUp) {
-		// an empty bucket that fills at midnight UTC is one the day's pool couldn't fill (a used one fills a day after use)
-		if (!(user.free_mc > 0) && user.free_reset_at === nextDay()) user.free_capped = true;
+		// an empty free window that fills at midnight UTC is one the day's pool couldn't fill (a used one fills hours after use)
+		if (!plan.paid && !(user.free_mc > 0) && user.free_reset_at === nextDay()) user.free_capped = true;
 		return user;
 	}
 	const have = Math.max(0, user.free_mc || 0);
-	// every share that's come due since the clock's last tick (someone away a day gets a full bucket, not more)
-	const ticks = due ? 1 + Math.floor((now() - user.free_reset_at) / stepMs) : 0;
-	const add = Math.max(0, topUp ? full - have : Math.min(full - have, Math.round(ticks * share * 1000)));
-	if (add && !(await grantFree(env, c, add))) {
-		// today's free credits are all given out: this bucket fills tomorrow
+	// every share that's come due since the clock's last tick (someone away a day gets a full window, not more)
+	const ticks = due ? 1 + Math.floor((now() - user.free_reset_at) / plan.stepMs) : 0;
+	const add = Math.max(0, topUp ? full - have : Math.min(full - have, Math.round(ticks * plan.share * 1000)));
+	if (add && !plan.paid && !(await grantFree(env, c, add))) {
+		// today's free credits are all given out: this window fills tomorrow
 		await env.DB.prepare("UPDATE users SET free_reset_at = ? WHERE id = ?").bind(nextDay(), user.id).run();
 		user.free_reset_at = nextDay();
 		user.free_capped = true;
 		return user;
 	}
 	// not full yet: the clock keeps going, the next share on the same beat
-	const next = have + add >= full ? 0 : user.free_reset_at + ticks * stepMs;
+	const next = have + add >= full ? 0 : user.free_reset_at + ticks * plan.stepMs;
 	await env.DB.prepare("UPDATE users SET free_mc = MIN(free_mc + ?, ?), free_reset_at = ? WHERE id = ? AND free_reset_at = ?").bind(add, full, next, user.id, user.free_reset_at || 0).run();
 	user.free_mc = Math.min(have + add, full);
 	user.free_reset_at = next;
@@ -381,44 +456,62 @@ async function firstFree(env, c) {
 	const got = await grantFree(env, c, full);
 	return { free_mc: got, free_reset_at: got || !full ? 0 : nextDay() };
 }
-const spendable = (u) => Math.max(0, u.free_mc || 0) + Math.max(0, u.balance_mc || 0);
+// what someone can spend right now: their window (as far as the week allows), then what they bought
+const spendable = (u, c) => windowLeft(u, c) + Math.max(0, u.balance_mc || 0);
+const waitText = (t) => {
+	const mins = Math.max(1, Math.ceil(Math.max(0, t - now()) / 60e3)), d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
+	return d ? d + "d" + (h ? " " + h + "h" : "") : h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
+};
+// why there's nothing to spend, and when there will be (never what anything costs)
 function outOfCredits(u, c) {
-	const left = u.free_reset_at ? Math.max(0, u.free_reset_at - now()) : 0;
-	const mins = Math.max(1, Math.ceil(left / 60e3)), h = Math.floor(mins / 60), m = mins % 60, when = h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
-	if (u.free_capped && left) return fail(402, "Andromeda's free credits for today are all used up. Yours come back in " + when + ", or buy credits to keep going.");
-	return fail(402, left && Number(c.free.credits) > 0
-		? "You've used your free credits for now. " + freeStep(c).share + " more come back in " + when + ", or buy credits to keep going."
-		: "You're out of credits. Buy credits to keep going.");
+	const plan = planOf(u, c);
+	const more = plan.paid ? " A credit pack keeps you going right now." : " A plan gives you far more, or a credit pack keeps you going right now.";
+	if (plan.week && u.week_at > now() && weekUsed(u) >= plan.week * 1000 - 999) return fail(402, "You've used this week's credits" + (plan.paid ? " on " + plan.name : "") + ". They're back in " + waitText(u.week_at) + "." + more);
+	if (u.free_capped && u.free_reset_at > now()) return fail(402, "Andromeda's free credits for today are all used up. Yours come back in " + waitText(u.free_reset_at) + "." + more);
+	if (u.free_reset_at > now() && plan.credits > 0) return fail(402, (plan.share < plan.credits ? "You've used your free credits for now. " + plan.share + " more come back in " : "You've used " + (plan.paid ? "your " + plan.name + " credits" : "your free credits") + " for these " + plan.hours + " hours. They're back in ") + waitText(u.free_reset_at) + "." + more);
+	return fail(402, "You're out of credits. A plan or a credit pack keeps you going.");
 }
-// Hold mc: free credits first, then paid. Null if there isn't enough. The free clock starts on the first free credit.
+// Hold mc: the window first (as far as the week allows), then bought credits. Null if there isn't enough. The window's
+// clock and the week's start with their first credit.
 async function take(env, userId, mc, c) {
 	for (let tries = 0; tries < 6; tries++) {
-		const u = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at FROM users WHERE id = ?").bind(userId).first();
-		const fromFree = Math.min(Math.max(0, u.free_mc || 0), mc), fromPaid = mc - fromFree;
+		const u = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan, plan_until FROM users WHERE id = ?").bind(userId).first();
+		const plan = planOf(u, c), t = now();
+		const fromFree = Math.min(windowLeft(u, c), mc), fromPaid = mc - fromFree;
 		if (fromPaid > Math.max(0, u.balance_mc)) return null;
-		const resetAt = fromFree > 0 && !u.free_reset_at ? now() + freeStep(c).stepMs : u.free_reset_at || 0;
-		// only if nothing else spent them in between: a race simply goes round again
-		const r = await env.DB.prepare("UPDATE users SET free_mc = free_mc - ?, balance_mc = balance_mc - ?, free_reset_at = ? WHERE id = ? AND free_mc >= ? AND balance_mc >= ?").bind(fromFree, fromPaid, resetAt, userId, fromFree, fromPaid).run();
-		if (r.meta && r.meta.changes) return { fromFree, fromPaid };
+		// one statement, so requests running at once (a team's pieces) can't overspend the window, the week or the balance,
+		// and don't trip over each other's week either: the window's clock and the week start with their first credit, a
+		// week that's over starts again from nothing, and only a real shortfall goes round again
+		const r = await env.DB.prepare("UPDATE users SET free_mc = free_mc - ?1, balance_mc = balance_mc - ?2, free_reset_at = CASE WHEN free_reset_at = 0 AND ?1 > 0 THEN ?3 ELSE free_reset_at END, week_mc = (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1, week_at = CASE WHEN week_at > ?4 THEN week_at WHEN ?1 > 0 THEN ?5 ELSE 0 END WHERE id = ?6 AND free_mc >= ?1 AND balance_mc >= ?2 AND (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1 <= ?7")
+			.bind(fromFree, fromPaid, t + plan.stepMs, t, t + 7 * 86400e3, userId, plan.week ? plan.week * 1000 : Number.MAX_SAFE_INTEGER).run();
+		if (r.meta && r.meta.changes) return { fromFree, fromPaid, free: !plan.paid };
 	}
 	return null;
 }
-// What wasn't used goes back where it came from: the free credits are counted as spent first.
+// What wasn't used goes back where it came from (and out of the week's count): the window is counted as spent first.
 function giveBack(env, userId, held, charged) {
-	const usedFree = Math.min(held.fromFree, charged);
-	return env.DB.prepare("UPDATE users SET free_mc = free_mc + ?, balance_mc = balance_mc + ? WHERE id = ?").bind(held.fromFree - usedFree, held.fromPaid - (charged - usedFree), userId);
+	const usedFree = Math.min(held.fromFree, charged), back = held.fromFree - usedFree;
+	return env.DB.prepare("UPDATE users SET free_mc = free_mc + ?, balance_mc = balance_mc + ?, week_mc = MAX(0, week_mc - ?) WHERE id = ?").bind(back, held.fromPaid - (charged - usedFree), back, userId);
 }
 async function meOf(env, user) {
 	const c = await config(env);
-	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at FROM users WHERE id = ?").bind(user.id).first();
-	const u = fresh || user;
+	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan, plan_until FROM users WHERE id = ?").bind(user.id).first();
+	const u = { ...user, ...(fresh || {}) };
+	const plan = planOf(u, c);
 	const pays = await env.DB.prepare("SELECT id, method, pack, amount, currency, credits_mc, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 10").bind(user.id).all();
+	const win = { left: windowLeft(u, c) / 1000, of: plan.credits, hours: plan.hours, every: plan.every, share: plan.share, backAt: u.free_reset_at || null };
 	return {
 		id: user.id,
 		email: user.email,
-		credits: (Math.max(0, u.balance_mc || 0) + Math.max(0, u.free_mc || 0)) / 1000,
+		// what can be spent right now
+		credits: spendable(u, c) / 1000,
+		// bought credits (packs)
 		paid: Math.max(0, u.balance_mc || 0) / 1000,
-		free: { left: Math.max(0, u.free_mc || 0) / 1000, of: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every: freeStep(c).every, share: freeStep(c).share, backAt: u.free_reset_at || null },
+		plan: { id: plan.id, name: plan.name, paid: plan.paid, until: plan.until || null },
+		window: win,
+		week: plan.week ? { left: Math.max(0, plan.week * 1000 - weekUsed(u)) / 1000, of: plan.week, backAt: weekUsed(u) ? u.week_at : null } : null,
+		// (the window, as pages from before plans read it)
+		free: win,
 		payments: (pays.results || []).map((x) => ({ ...x, credits: x.credits_mc / 1000 })),
 	};
 }
@@ -1009,7 +1102,7 @@ async function chat(req, env, ctx, user) {
 	if (typeof b.model !== "string" || b.model.startsWith("openrouter/")) throw fail(400, "Pick a specific model.");
 	const price = (await prices(env)).get(b.model);
 	if (!price) throw fail(400, "That model isn't available.");
-	if (spendable(user) < 1000) throw outOfCredits(user, c);
+	if (spendable(user, c) < 1000) throw outOfCredits(user, c);
 	// a live web search, when the site asks for one: the model's own search where the way allows it (how the search
 	// leaderboard rates them), otherwise the server's own search results as numbered sources
 	const plug = (Array.isArray(b.plugins) ? b.plugins : []).find((x) => x && x.id === "web");
@@ -1027,7 +1120,7 @@ async function chat(req, env, ctx, user) {
 	const inTokens = Math.ceil((JSON.stringify(b.messages || []).length + (b.tools ? JSON.stringify(b.tools).length : 0)) / 3);
 	// a search is held at its worst case too: a few searches, and what they read
 	const inUsd = inTokens * price.pin + (web ? web.n * 0.01 + 20000 * price.pin : 0);
-	const room = toUsd(spendable(user)) - inUsd;
+	const room = toUsd(spendable(user, c)) - inUsd;
 	if (room <= 0) throw fail(402, "Not enough credits for a message this long. Buy credits or start a new chat.");
 	const effort = b.reasoning && b.reasoning.effort;
 	const thinkRoom = THINK_ROOM[effort] || 0;
@@ -1232,8 +1325,8 @@ const media = (c) => {
 async function hold(env, user, mc, c) {
 	const held = await take(env, user.id, mc, c);
 	if (!held) {
-		if (spendable(user) < 1000) throw outOfCredits(user, c);
-		throw fail(402, "This needs about " + Math.ceil(mc / 1000) + " credits and you have " + Math.floor(spendable(user) / 1000) + ". Buy credits, or pick a cheaper quality.");
+		if (spendable(user, c) < 1000) throw outOfCredits(user, c);
+		throw fail(402, "You don't have enough credits for this right now. A credit pack keeps you going, or pick a cheaper quality.");
 	}
 	return held;
 }
@@ -1326,7 +1419,7 @@ async function videoPoll(env, user, jobId) {
 		const mine = await env.DB.prepare("UPDATE jobs SET settled = 1 WHERE id = ? AND settled = 0").bind(jobId).run();
 		if (mine.meta && mine.meta.changes) {
 			const usd = done ? Number(j.usage?.cost) : 0;
-			const held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0) };
+			const held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !planOf(user, c).paid };
 			const charged = await charge(env, user.id, job.model, held, Number.isFinite(usd) ? usd : mt.toUsd(job.reserve_mc), mt);
 			j.usage = { ...(j.usage || {}), cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 };
 		}
@@ -1748,7 +1841,7 @@ async function wsVideoPoll(env, user, job, c, mt) {
 		// only one check gets to settle it
 		const mine = await env.DB.prepare("UPDATE jobs SET settled = 1 WHERE id = ? AND settled = 0").bind(job.id).run();
 		if (mine.meta && mine.meta.changes) {
-			const held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0) };
+			const held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !planOf(user, c).paid };
 			const charged = await charge(env, user.id, job.model, held, done ? mt.toUsd(job.reserve_mc) : 0, mt);
 			usage = { cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 };
 		}
@@ -1997,13 +2090,16 @@ async function qrisPayment(req, env, user) {
 	const c = await config(env);
 	if (!c.open) throw fail(403, "Credits aren't on sale yet.");
 	const b = await body(req);
-	const pack = c.packs.find((p) => p.id === b.pack);
-	if (!pack || !pack.prices.IDR) throw fail(400, "Pick a pack.");
+	// a month of a plan, or a pack of credits (a plan's payment is "plan:<id>" and carries no credits of its own)
+	const plan = b.plan ? c.plans.find((p) => p.id === b.plan) : null;
+	const pack = plan ? null : c.packs.find((p) => p.id === b.pack);
+	const item = plan || pack;
+	if (!item || !item.prices || !item.prices.IDR) throw fail(400, b.plan ? "Pick a plan." : "Pick a pack.");
 	const reference = String(b.reference || "").trim().slice(0, 120);
 	if (reference.length < 2) throw fail(400, "Write the name on your payment so it can be matched.");
 	const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM payments WHERE user_id = ? AND status = 'pending'").bind(user.id).first();
 	if (open && open.n >= 3) throw fail(429, "You already have payments waiting to be confirmed.");
-	const pay = { id: id(), user_id: user.id, method: "qris", pack: pack.id, amount: pack.prices.IDR, currency: "IDR", credits_mc: (pack.credits + (pack.bonus || 0)) * 1000, status: "pending", note: reference };
+	const pay = { id: id(), user_id: user.id, method: "qris", pack: plan ? "plan:" + plan.id : pack.id, amount: item.prices.IDR, currency: "IDR", credits_mc: plan ? 0 : (pack.credits + (pack.bonus || 0)) * 1000, status: "pending", note: reference };
 	await env.DB.prepare("INSERT INTO payments (id, user_id, method, pack, amount, currency, credits_mc, status, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 		.bind(pay.id, pay.user_id, pay.method, pay.pack, pay.amount, pay.currency, pay.credits_mc, pay.status, pay.note, now()).run();
 	return json({ ok: true, payment: { ...pay, credits: pay.credits_mc / 1000 } });
@@ -2014,6 +2110,11 @@ async function addCredits(env, paymentId) {
 	if (!p) return false;
 	const ok = await env.DB.prepare("UPDATE payments SET status = 'approved', decided_at = ? WHERE id = ? AND status = 'pending'").bind(now(), paymentId).run();
 	if (!ok.meta || !ok.meta.changes) return false;
+	// a plan's month starts (or is added to the one running); a pack's credits are added
+	if (/^plan:/.test(p.pack || "")) {
+		const plan = (await config(env)).plans.find((x) => "plan:" + x.id === p.pack);
+		if (plan) return startPlan(env, p.user_id, plan);
+	}
 	await env.DB.prepare("UPDATE users SET balance_mc = balance_mc + ? WHERE id = ?").bind(p.credits_mc, p.user_id).run();
 	return true;
 }
@@ -2036,11 +2137,12 @@ async function lemonWebhook(req, env) {
 	if (await env.DB.prepare("SELECT id FROM payments WHERE ref = ?").bind(ref).first()) return json({ ok: true, duplicate: true });
 	const c = await config(env);
 	const variant = String(a.first_order_item?.variant_id || "");
-	const pack = c.packs.find((p) => p.lemonVariant && String(p.lemonVariant) === variant);
-	const credits = pack ? pack.credits + (pack.bonus || 0) : Math.floor(((Number(a.total_usd) || 0) / 100) / c.creditUsd);
+	const plan = c.plans.find((p) => p.lemonVariant && String(p.lemonVariant) === variant);
+	const pack = plan ? null : c.packs.find((p) => p.lemonVariant && String(p.lemonVariant) === variant);
+	const credits = plan ? 0 : pack ? pack.credits + (pack.bonus || 0) : Math.floor(((Number(a.total_usd) || 0) / 100) / c.creditUsd);
 	const pid = id();
 	await env.DB.prepare("INSERT INTO payments (id, user_id, method, pack, amount, currency, credits_mc, status, ref, created_at) VALUES (?, ?, 'card', ?, ?, ?, ?, 'pending', ?, ?)")
-		.bind(pid, user.id, pack ? pack.id : null, (Number(a.total) || 0) / 100, a.currency || "USD", credits * 1000, ref, now()).run();
+		.bind(pid, user.id, plan ? "plan:" + plan.id : pack ? pack.id : null, (Number(a.total) || 0) / 100, a.currency || "USD", credits * 1000, ref, now()).run();
 	await addCredits(env, pid);
 	return json({ ok: true });
 }
@@ -2054,7 +2156,7 @@ async function admin(req, env, p, m) {
 		const [pending, recent, users, totals, spent, freeDays] = await Promise.all([
 			q("SELECT p.*, u.email FROM payments p JOIN users u ON u.id = p.user_id WHERE p.status = 'pending' ORDER BY p.created_at"),
 			q("SELECT p.*, u.email FROM payments p JOIN users u ON u.id = p.user_id WHERE p.status != 'pending' ORDER BY p.decided_at DESC LIMIT 30"),
-			q("SELECT id, email, balance_mc, free_mc, created_at FROM users ORDER BY created_at DESC LIMIT 100"),
+			q("SELECT id, email, balance_mc, free_mc, plan, plan_until, created_at FROM users ORDER BY created_at DESC LIMIT 100"),
 			q("SELECT currency, SUM(amount) AS amount, SUM(credits_mc) AS credits_mc, COUNT(*) AS n FROM payments WHERE status = 'approved' GROUP BY currency"),
 			q("SELECT SUM(cost_usd) AS cost, SUM(charged_mc) AS charged_mc, COUNT(*) AS n FROM usage"),
 			// what free use really cost, day by day (dollars)
@@ -2077,6 +2179,18 @@ async function admin(req, env, p, m) {
 		const pid = id();
 		await env.DB.prepare("INSERT INTO payments (id, user_id, method, amount, currency, credits_mc, status, note, created_at) VALUES (?, ?, 'manual', 0, 'USD', ?, 'pending', ?, ?)").bind(pid, u.id, mc, String(b.note || "").slice(0, 200), now()).run();
 		await addCredits(env, pid);
+		return json({ ok: true });
+	}
+	// a plan given by hand (a gift, a payment that came another way): days of it, from today or the end of the one running
+	if (p === "/api/admin/plan" && m === "POST") {
+		const b = await body(req);
+		const u = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(cleanEmail(b.email)).first();
+		if (!u) throw fail(404, "No account with that email.");
+		const plan = (await config(env)).plans.find((x) => x.id === b.plan);
+		if (!plan) throw fail(400, "Which plan?");
+		const days = Math.round(Number(b.days) || plan.days || 30);
+		if (!(days > 0 && days <= 400)) throw fail(400, "How many days?");
+		await startPlan(env, u.id, plan, days);
 		return json({ ok: true });
 	}
 	if (p === "/api/admin/config") {
