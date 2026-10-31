@@ -8501,7 +8501,9 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 	const whole = (out) => withKit((String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i))));
 	// medium thought for a shot unless the film was asked for at its finest (or in Max); a fix to one, a step less
 	const finest = plan.finest || speed() === "max";
-	const effort = (m, fix) => (finest && !fix ? effortExtra(m.id) : effortFor(m.id, capEffort(EFFORT.get(m.id) || "", finest ? "high" : "medium", m.id)));
+	// (the animator's own effort read again right before each shot: other parts of the film pick models meanwhile, and
+	// each picking notes its own effort for a model)
+	const effort = (m, fix) => { bestFor("animation"); return finest && !fix ? effortExtra(m.id) : effortFor(m.id, capEffort(EFFORT.get(m.id) || "", finest ? "high" : "medium", m.id)); };
 	const write = async (m, prompt) => whole(await stream(m.id, [{ role: "system", content: ANIMATOR }, { role: "user", content: prompt }], () => {}, signal, effort(m), msg));
 	// a fix to a shot that's written: only the lines that change (a whole shot is thousands of tokens for a few lines'
 	// fix); edits that don't land, or none, and it's the whole file after all
