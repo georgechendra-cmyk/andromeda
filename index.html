@@ -6338,7 +6338,8 @@ async function polishLook(files, request, msg, rules) {
 		const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
 			"\n\nIt runs without errors. Looking at it in a browser (as it opens, and after its main button and keys were pressed), a lead designer found:\n- " + problems.join("\n- ") +
 			"\n\nFix each one properly, keeping every feature and everything that already works. " + CHANGE_FORMAT + " (In NOTES, one line on what you changed.)" }];
-		const r = await askFirst(bestFor("app").slice(0, 3), ask, msg);
+		// (what to fix is named: the build's full thought isn't needed again)
+		const r = await askFirst(bestFor("app").slice(0, 3), ask, msg, undefined, "high");
 		const p = parseFiles(r.out);
 		const cut = cutShort(p, msg.cut);
 		delete msg.cut;
@@ -6384,7 +6385,8 @@ async function heal(files, request, msg, rules, look = true) {
 			const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
 				"\n\nIt was loaded in a browser and used (every button clicked, arrow keys and space pressed, every input changed). These problems came up:\n- " + problems.join("\n- ") +
 				"\n\nFind the cause of each one and fix it properly, without removing features. " + CHANGE_FORMAT + " (In NOTES, one line on what was wrong.)" }];
-			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), ask, msg);
+			// (the errors are named: finding their cause takes careful thought, not the build's most)
+			const r = await askFirst([pick, ...fixers.filter((m) => m !== pick)].slice(0, 3), ask, msg, undefined, "high");
 			const p = parseFiles(r.out);
 			// a fix that stopped early (the credits ran low): none of it is used, the project stays whole as it was
 			if (cutShort(p, msg.cut)) { delete msg.cut; msg.tested = { ok: false, fixed, rounds: round - 1, problems, short: true }; return files; }
@@ -6529,11 +6531,12 @@ async function walletLeft() {
 	if (creditsMode()) await refreshMe();
 	return me ? me.credits * creditUsd() : 0;
 }
-async function askFirst(cands, messages, msg, onText) {
+// (cap: no more thought than this, for work whose problems are already named; Max thinks fully)
+async function askFirst(cands, messages, msg, onText, cap) {
 	let lastErr;
 	for (const m of cands) {
 		try {
-			const out = await stream(m.id, messages, onText || (() => {}), busy.signal, effortExtra(m.id), msg);
+			const out = await stream(m.id, messages, onText || (() => {}), busy.signal, cap && speed() !== "max" ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", cap, m.id)) : effortExtra(m.id), msg);
 			return { out, model: m };
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
@@ -6548,10 +6551,13 @@ const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text },
 // (one builder, the one measured best at it or the cheapest a quark from it, then the build is run and fixed: several
 // models each building the same thing to pick or merge one costs several times as much and isn't how a team works)
 async function runApp(text, atts, pick) {
-	// a build costs tens of credits (written, run, fixed): not started on a balance that would cut it off half-written
+	// a build is written whole by the best builder at the thought it's run at: not started on a balance that would cut it
+	// off half-written (what this build will cost, worked out from that builder and how much an app writes)
 	if (creditsMode()) {
 		await refreshMe();
-		if (me && me.credits < APP_MIN_CREDITS) throw fail("Building an app takes about 50 to 100 credits, and you have " + creditsText(Math.max(0, me.credits)) + " left. Get more credits, or wait for your free ones to come back.", 402);
+		const builder = bestFor(atts.some((a) => a.kind === "image" && a.data) ? "appFromImage" : "app")[0];
+		const need = builder ? Math.max(APP_MIN_CREDITS, Math.ceil(drawnCredits(callCost({ m: builder, effort: EFFORT.get(builder.id) || "" }, undefined, FEATURE_W.app.out) / 1e6))) : APP_MIN_CREDITS;
+		if (me && me.credits < need) throw fail("Building this app takes about " + creditsText(need) + " credits, and you have " + creditsText(Math.max(0, me.credits)) + " left. Get more credits, or wait for your free ones to come back.", 402);
 	}
 	const msgs = current.msgs;
 	const prev = pick.edit ? [...msgs].reverse().find((m) => m.kind === "app" && m.data) : null;
