@@ -5830,8 +5830,14 @@ async function runQuarks(text, atts) {
 	msg.steps.push(fix);
 	msg.status = "Fixing what the check found";
 	const first = msg.text;
+	// an answer that didn't hold up is fixed by the model measured best at it, price aside: a cheaper writer is tried first
+	// because it's usually right, and what that saves is only kept when it is (the same model when it already was the best)
+	const fixW = codey ? ["code", blendW({ "text:coding": 0.5, "factuality:coding": 0.2, "text:instruction_following": 0.15, "text:hard_prompts": 0.15 }, PROFILE && PROFILE.weights, 0.3)] : ["write", blendW(FEATURE_W.assemble.w, PROFILE && PROFILE.weights)];
+	const strongest = [];
+	for (const x of arenaRank(...fixW).slice().sort((a, b) => b.score - a.score)) if (!strongest.some((y) => y.m.id === x.m.id) && strongest.push(x) >= 4) break;
+	const fixers = strongest.length ? [...strongest, ...writers.filter((w) => !strongest.some((s) => s.m.id === w.m.id))] : writers;
 	try {
-		msg.text = await run(fix, writers, () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nYour first version:\n" + first + "\n\nAn expert checker found these real problems. Write the corrected answer the user reads, fixing exactly these and keeping everything else:\n- " + verdict.issues.join("\n- "))], (t) => { msg.text = t; });
+		msg.text = await run(fix, fixers, () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nThe first version:\n" + first + "\n\nAn expert checker found these real problems. Write the corrected answer the user reads, fixing exactly these and keeping everything else:\n- " + verdict.issues.join("\n- "))], (t) => { msg.text = t; });
 		done(fix);
 	} catch (e) {
 		if (e.name === "AbortError" || e.status === 401) throw e;
