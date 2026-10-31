@@ -511,6 +511,8 @@ async function gatewayCatalog(g) {
 		for (const m of items) put(bareKey(m.id.replace(/-(openrouter(-backup)?|or)$/i, "")), m.id);
 		for (const m of items) if (m.name && m.name !== m.id) put(bareKey(m.name), m.id);
 		c = { at: Date.now(), ids: items.map((m) => m.id), byKey, failed: 0 };
+		// everything it lists, as it names them (the server's log: what the gateway has, media models included)
+		console.log("gateway " + g.n + " lists " + items.length + ": " + items.map((m) => m.id).join(", "));
 	} catch (e) {
 		// why, for the admin page and the server's log (the gateway's own words; never the key)
 		c = { ...c, failed: Date.now(), error: String((e && e.message) || e).slice(0, 200) };
