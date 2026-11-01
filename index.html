@@ -1881,6 +1881,21 @@ const store = {
 		toast("Storage is full: delete a few old chats");
 	},
 };
+// The owner key: the demo shortcut on the owner's own computer opens Celestin with it after the # (never sent to any
+// server in an address). It's kept in this browser and taken out of the address at once; with it, the owner's account
+// is unlimited here, and only here.
+try {
+	const ok = /[#&]ownerkey=([A-Za-z0-9_-]{32,128})/.exec(location.hash);
+	if (ok) {
+		store.set("ownerKey", ok[1]);
+		history.replaceState(null, "", location.pathname + location.search + location.hash.replace(/[#&]?ownerkey=[A-Za-z0-9_-]+/, "").replace(/^#$/, ""));
+	}
+} catch {}
+// (sent only to Celestin's server: toServer for calls that always go there, else only while signed in, when they all do)
+function ownerHeader(toServer) {
+	const k = (toServer || (SERVER && account && account.token)) && store.get("ownerKey", "");
+	return k ? { "X-Owner-Key": String(k) } : {};
+}
 const settings = Object.assign({ key: "", tier: "best", overrides: {}, theme: "system", synth: "", lang: "auto", tone: "default" }, store.get("settings", {}));
 const saveSettings = () => store.set("settings", settings);
 let convos = store.get("convos", []);
@@ -3197,7 +3212,7 @@ function profileWhy(p) {
 
 // ---------------------------------------------------------------- OpenRouter calls
 function headers() {
-	return { "Authorization": "Bearer " + (account && account.token || ""), "Content-Type": "application/json" };
+	return { "Authorization": "Bearer " + (account && account.token || ""), "Content-Type": "application/json", ...ownerHeader() };
 }
 // Claude bills what it has read before at a tenth of the price, if it's marked to be kept: the system prompt, and the
 // conversation up to the newest message (the same at the start of every call in a chat, and in every round of a
@@ -9610,7 +9625,7 @@ function creditsText(n) {
 	return Math.abs(v) >= 100 ? Math.floor(v).toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 async function api(path, opts = {}) {
-	const r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", ...(account && account.token ? { Authorization: "Bearer " + account.token } : {}), ...(opts.headers || {}) } });
+	const r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", ...(account && account.token ? { Authorization: "Bearer " + account.token } : {}), ...ownerHeader(true), ...(opts.headers || {}) } });
 	let j = {};
 	try { j = await r.json(); } catch {}
 	if (!r.ok) throw fail((j.error && j.error.message) || r.statusText, r.status);
@@ -9851,7 +9866,8 @@ function openAccount() {
 		const pays = (me && me.payments) || [];
 		// the plan, its window (what's left for these hours, and when it's all back), its week, and bought credits
 		const plan = me && me.plan, win = me && (me.window || me.free), wk = me && me.week, mo = me && me.month, lines = [];
-		if (me && me.owner) lines.push("No limits: this is the owner's account");
+		if (me && me.owner) lines.push("No limits: the owner's account, on the owner's own computer");
+		else if (me && me.ownerAway) lines.push("The owner's account: unlimited only on your own computer, opened with the demo shortcut");
 		if (win && win.of) lines.push(creditsText(win.left) + " of " + creditsText(win.of) + (win.backAt && win.backAt > Date.now() ? " for these " + win.hours + " hours · " + (win.share && win.share < win.of ? win.share + " more" : "all back") + " in " + untilText(win.backAt) : " ready · the " + win.hours + " hours start with your first message"));
 		if (wk && wk.of) lines.push(creditsText(wk.left) + " of " + creditsText(wk.of) + " left this week" + (wk.backAt && wk.backAt > Date.now() ? " · a new week in " + untilText(wk.backAt) : ""));
 		if (mo && mo.of) lines.push(creditsText(mo.left) + " of " + creditsText(mo.of) + " left this month" + (mo.backAt && mo.backAt > Date.now() ? " · a new month in " + untilText(mo.backAt) : ""));

@@ -59,6 +59,7 @@ CREATE TABLE IF NOT EXISTS jobs (
 	reserve_mc INTEGER NOT NULL,
 	from_free INTEGER NOT NULL DEFAULT 0, -- how much of what was held were free credits
 	settled INTEGER NOT NULL DEFAULT 0,
+	owner INTEGER NOT NULL DEFAULT 0, -- started on the owner's computer (the owner key): nothing was held
 	created_at INTEGER NOT NULL
 );
 

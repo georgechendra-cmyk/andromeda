@@ -72,12 +72,19 @@ const DEFAULT_CONFIG = {
 	refund: { days: 7, usedShare: 0.2 },
 };
 
-// The owner's own account: no limits at all (what it uses is still counted). Named by its account id, never its email: a
-// password account's email isn't checked, so an email alone would let anyone who signs up with it in.
+// The owner's own account: no limits at all (what it uses is still counted), but only on the owner's own computer (the
+// owner key, below). Named by its account id, never its email: a password account's email isn't checked, so an email
+// alone would let anyone who signs up with it in.
 const OWNER_IDS = new Set(["36c872cb39f4da74877b3207"]);
 const isOwner = (userId) => OWNER_IDS.has(String(userId || ""));
 // the most the owner's own use may really cost in 24 hours (about one full app build, or a hundred everyday answers)
 const OWNER_DAY_IDR = 0; // (0: no limit, the owner's choice)
+// Unlimited only with the owner key too (the OWNER_KEY secret, sent as X-Owner-Key): it's kept only in the browser of the
+// owner's own computer, put there by the demo shortcut that lives on it. Someone who got into the owner's account any
+// other way (a stolen password, a stolen sign-in) gets the normal limits, so it can't run up the owner's bill. (No
+// OWNER_KEY set: nobody is unlimited.)
+const ownerKeyOk = (req, env) => !!(req && env && env.OWNER_KEY && String(env.OWNER_KEY).trim().length >= 32 && sameString(String(req.headers.get("X-Owner-Key") || "").trim(), String(env.OWNER_KEY).trim()));
+const ownerHere = (req, env, userId) => isOwner(userId) && ownerKeyOk(req, env);
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -182,7 +189,7 @@ function corsHeaders(req, env) {
 	return {
 		"Access-Control-Allow-Origin": ok ? origin || "*" : allowed[0],
 		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-		"Access-Control-Allow-Headers": "Authorization, Content-Type, HTTP-Referer, X-Title",
+		"Access-Control-Allow-Headers": "Authorization, Content-Type, HTTP-Referer, X-Title, X-Owner-Key",
 		"Access-Control-Max-Age": "86400",
 		Vary: "Origin",
 	};
@@ -299,6 +306,7 @@ async function loginVerify(req, env) {
 	const b = await body(req);
 	const u = await useCode(env, cleanEmail(b.email), b.code, "login");
 	await env.DB.prepare("UPDATE users SET email_ok = 1 WHERE id = ?").bind(u.id).run();
+	u.owner = ownerHere(req, env, u.id);
 	const token = await newSession(env, u.id);
 	return json({ token, me: await meOf(env, u) });
 }
@@ -321,6 +329,7 @@ async function passwordReset(req, env) {
 		env.DB.prepare("UPDATE users SET pass = ?, email_ok = 1 WHERE id = ?").bind(await hashPassword(password, env), u.id),
 		env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id),
 	]);
+	u.owner = ownerHere(req, env, u.id);
 	const token = await newSession(env, u.id);
 	return json({ token, me: await meOf(env, u) });
 }
@@ -357,6 +366,7 @@ async function login(req, env) {
 		await sendCode(env, email, "login:" + u.id);
 		return json({ verify: true, email });
 	}
+	u.owner = ownerHere(req, env, u.id);
 	const token = await newSession(env, u.id);
 	return json({ token, me: await meOf(env, u) });
 }
@@ -452,6 +462,7 @@ async function googleSignIn(req, env) {
 			env.DB.prepare("UPDATE users SET email_ok = 1 WHERE id = ?").bind(u.id),
 		]);
 	}
+	u.owner = ownerHere(req, env, u.id);
 	const token = await newSession(env, u.id);
 	// the first name Google has, so the app can greet you by it (kept in your browser, not here)
 	return json({ token, me: await meOf(env, u), made, name: String(g.given_name || g.name || "").slice(0, 40) });
@@ -461,7 +472,7 @@ async function authUser(req, env) {
 	if (!token) throw fail(401, "Sign in to use Celestin credits.");
 	const row = await env.DB.prepare("SELECT u.* , s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?").bind(await sha256hex(token)).first();
 	if (!row || row.expires_at < now()) throw fail(401, "Your session ended. Sign in again.");
-	row.owner = isOwner(row.id);
+	row.owner = ownerHere(req, env, row.id);
 	return refill(env, row, await config(env));
 }
 
@@ -527,6 +538,8 @@ function columns(env) {
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
 		}
+		const jcols = new Set(((await env.DB.prepare("PRAGMA table_info(jobs)").all()).results || []).map((r) => r.name));
+		if (jcols.size && !jcols.has("owner")) { try { await env.DB.prepare("ALTER TABLE jobs ADD COLUMN owner INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		const ucols = new Set(((await env.DB.prepare("PRAGMA table_info(usage)").all()).results || []).map((r) => r.name));
 		for (const k of ["in_tok", "cached_tok", "out_tok"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS support (id TEXT PRIMARY KEY, user_id TEXT, email TEXT NOT NULL, category TEXT, subject TEXT, message TEXT NOT NULL, details TEXT, status TEXT NOT NULL DEFAULT 'open', ip TEXT, created_at INTEGER NOT NULL)").run();
@@ -630,11 +643,11 @@ function outOfCredits(u, c) {
 }
 // Hold mc: the window first (as far as the week allows), then bought credits. Null if there isn't enough. The window's
 // clock and the week's start with their first credit.
-async function take(env, userId, mc, c) {
+async function take(env, userId, mc, c, owner = false) {
 	for (let tries = 0; tries < 6; tries++) {
-		// the owner: nothing is held (what's used is still written down when it's charged), but their own use is kept inside
-		// a daily budget of real money, so testing can never eat into their savings (OWNER_DAY_IDR, the last 24 hours)
-		if (isOwner(userId)) {
+		// the owner on their own computer (owner: the request had the owner key): nothing is held (what's used is still
+		// written down when it's charged), inside a daily budget of real money if one is set (OWNER_DAY_IDR, the last 24 hours)
+		if (owner && isOwner(userId)) {
 			const day = OWNER_DAY_IDR > 0 && await env.DB.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage WHERE user_id = ? AND created_at > ?").bind(userId, now() - 86400e3).first();
 			if (OWNER_DAY_IDR > 0 && (Number(day && day.usd) || 0) * (Number(c.free.usdIdr) || 18000) >= OWNER_DAY_IDR) throw fail(402, "Your own testing budget for today (Rp" + OWNER_DAY_IDR.toLocaleString("id-ID") + ") is used up, so nothing more is spent. It frees up over the next 24 hours.");
 			return { fromFree: 0, fromPaid: 0, free: false, owner: true };
@@ -666,7 +679,7 @@ async function meOf(env, user) {
 	const c = await config(env);
 	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until FROM users WHERE id = ?").bind(user.id).first();
 	const u = { ...user, ...(fresh || {}) };
-	u.owner = isOwner(u.id);
+	u.owner = !!user.owner && isOwner(u.id);
 	const plan = planOf(u, c);
 	const pays = await env.DB.prepare("SELECT id, method, pack, amount, currency, credits_mc, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 10").bind(user.id).all();
 	const win = plan.owner ? null : { left: windowLeft(u, c) / 1000, of: plan.credits, hours: plan.hours, every: plan.every, share: plan.share, backAt: u.free_reset_at || null };
@@ -679,6 +692,8 @@ async function meOf(env, user) {
 		paid: Math.max(0, u.balance_mc || 0) / 1000,
 		plan: { id: plan.id, name: plan.name, paid: plan.paid, until: plan.until || null, ...(plan.owner ? { unlimited: true } : {}) },
 		owner: !!plan.owner,
+		// the owner's account somewhere without the owner key: told where its unlimited is
+		...(isOwner(u.id) && !plan.owner ? { ownerAway: true } : {}),
 		window: win,
 		week: plan.week ? { left: Math.max(0, plan.week * 1000 - weekUsed(u)) / 1000, of: plan.week, backAt: weekUsed(u) ? u.week_at : null } : null,
 		// a bought plan's month of credits (what's left of every month paid for)
@@ -1244,7 +1259,7 @@ async function searchFor(env, user, q, n) {
 	const keyed = await searchWeb(env, q, n);
 	if (keyed.length || !user) return keyed;
 	const c = await config(env), mt = media(c);
-	const held = await take(env, user.id, mt.toMc(0.06), c);
+	const held = await take(env, user.id, mt.toMc(0.06), c, !!user.owner);
 	if (!held) return [];
 	let got = { results: [], usd: 0 };
 	try { got = await modelSearch(env, q, n); }
@@ -1334,7 +1349,7 @@ async function chat(req, env, ctx, user) {
 
 	// reserve the worst case first; only one statement can win, so parallel requests can't overspend
 	const reserve = toMc(inUsd + maxOut * price.pout);
-	const held = await take(env, user.id, reserve, c);
+	const held = await take(env, user.id, reserve, c, !!user.owner);
 	if (!held) throw outOfCredits(user, c);
 
 	let settled = false;
@@ -1534,7 +1549,7 @@ const media = (c) => {
 	};
 };
 async function hold(env, user, mc, c) {
-	const held = await take(env, user.id, mc, c);
+	const held = await take(env, user.id, mc, c, !!user.owner);
 	if (!held) {
 		if (spendable(user, c) < 1000) throw outOfCredits(user, c);
 		throw fail(402, "You don't have enough credits for this right now. A credit pack keeps you going, or pick a cheaper quality.");
@@ -1609,7 +1624,7 @@ async function videoSubmit(req, env, user) {
 		await charge(env, user.id, b.model, held, 0, mt);
 		return json({ error: { message: j?.error?.message || "The video couldn't be started.", code: r.status } }, r.ok ? 502 : r.status);
 	}
-	await env.DB.prepare("INSERT INTO jobs (id, user_id, model, reserve_mc, from_free, settled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)").bind(j.id, user.id, b.model, reserve, held.fromFree, now()).run();
+	await env.DB.prepare("INSERT INTO jobs (id, user_id, model, reserve_mc, from_free, settled, created_at, owner) VALUES (?, ?, ?, ?, ?, 0, ?, ?)").bind(j.id, user.id, b.model, reserve, held.fromFree, now(), held.owner ? 1 : 0).run();
 	return json({ id: j.id, status: j.status || "pending" }, 202);
 }
 async function ownJob(env, user, jobId) {
@@ -1630,7 +1645,7 @@ async function videoPoll(env, user, jobId) {
 		const mine = await env.DB.prepare("UPDATE jobs SET settled = 1 WHERE id = ? AND settled = 0").bind(jobId).run();
 		if (mine.meta && mine.meta.changes) {
 			const usd = done ? Number(j.usage?.cost) : 0;
-			const pl = planOf(user, c), held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !pl.paid, owner: !!user.owner, month: !!(pl.paid && pl.month && job.from_free) };
+			const pl = planOf(user, c), held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !pl.paid, owner: !!job.owner, month: !!(pl.paid && pl.month && job.from_free) };
 			const charged = await charge(env, user.id, job.model, held, Number.isFinite(usd) ? usd : mt.toUsd(job.reserve_mc), mt);
 			j.usage = { ...(j.usage || {}), cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 };
 		}
@@ -2040,7 +2055,7 @@ async function wsVideoSubmit(env, user, f, b, c, mt) {
 		throw e;
 	}
 	const id = "ws-" + d.id;
-	await env.DB.prepare("INSERT INTO jobs (id, user_id, model, reserve_mc, from_free, settled, created_at) VALUES (?, ?, ?, ?, ?, 0, ?)").bind(id, user.id, b.model, reserve, held.fromFree, now()).run();
+	await env.DB.prepare("INSERT INTO jobs (id, user_id, model, reserve_mc, from_free, settled, created_at, owner) VALUES (?, ?, ?, ?, ?, 0, ?, ?)").bind(id, user.id, b.model, reserve, held.fromFree, now(), held.owner ? 1 : 0).run();
 	return json({ id, status: "pending" }, 202);
 }
 async function wsVideoPoll(env, user, job, c, mt) {
@@ -2052,7 +2067,7 @@ async function wsVideoPoll(env, user, job, c, mt) {
 		// only one check gets to settle it
 		const mine = await env.DB.prepare("UPDATE jobs SET settled = 1 WHERE id = ? AND settled = 0").bind(job.id).run();
 		if (mine.meta && mine.meta.changes) {
-			const pl = planOf(user, c), held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !pl.paid, owner: !!user.owner, month: !!(pl.paid && pl.month && job.from_free) };
+			const pl = planOf(user, c), held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !pl.paid, owner: !!job.owner, month: !!(pl.paid && pl.month && job.from_free) };
 			const charged = await charge(env, user.id, job.model, held, done ? mt.toUsd(job.reserve_mc) : 0, mt);
 			usage = { cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 };
 		}
