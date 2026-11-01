@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS usage (
 	model TEXT,
 	cost_usd REAL, -- what OpenRouter charged
 	charged_mc INTEGER, -- what the user paid, in thousandths of a credit
+	in_tok INTEGER NOT NULL DEFAULT 0, -- tokens read
+	cached_tok INTEGER NOT NULL DEFAULT 0, -- of those, read from the cache (cheaper, when the gateway passes it on)
+	out_tok INTEGER NOT NULL DEFAULT 0, -- tokens written (thinking included)
 	created_at INTEGER NOT NULL
 );
 

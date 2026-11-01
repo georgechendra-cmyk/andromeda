@@ -427,6 +427,8 @@ function columns(env) {
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
 		}
+		const ucols = new Set(((await env.DB.prepare("PRAGMA table_info(usage)").all()).results || []).map((r) => r.name));
+		for (const k of ["in_tok", "cached_tok", "out_tok"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
 	})().catch((e) => { COLS = null; throw e; });
@@ -1243,7 +1245,8 @@ async function chat(req, env, ctx, user) {
 		const charged = toMc(list);
 		await env.DB.batch([
 			giveBack(env, user.id, held, charged),
-			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at) VALUES (?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now()),
+			// (what it read, how much of that came from the cache, and what it wrote: whether the gateway passes the cache on)
+			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at, in_tok, cached_tok, out_tok) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now(), Number(usage && usage.prompt_tokens) || 0, Number(usage && (usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens)) || 0, Number(usage && usage.completion_tokens) || 0),
 			...freeSpend(env, held, charged, real),
 		]);
 		return charged;
