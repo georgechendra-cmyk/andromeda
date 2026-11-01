@@ -181,15 +181,9 @@ if (-not (Has "GOOGLE_CLIENT_ID")) {
 	}
 } else { Write-Host "Google sign-in: already there." }
 
-Step "6/8 Your admin password (made for you)"
+Step "6/8 A secret that protects passwords (made for you)"
 $made = @{}
 $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
-if ($have -notmatch '"ADMIN_TOKEN"') {
-	$chars = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789".ToCharArray()
-	$bytes = New-Object byte[] 20
-	$rng.GetBytes($bytes)
-	$made.ADMIN_TOKEN = -join ($bytes | ForEach-Object { $chars[$_ % $chars.Length] })
-}
 if ($have -notmatch '"PEPPER"') {
 	$bytes = New-Object byte[] 32
 	$rng.GetBytes($bytes)
@@ -202,12 +196,8 @@ if ($made.Count) {
 	W secret bulk $f 2>&1 | Out-Null
 	$ok = $LASTEXITCODE -eq 0
 	Remove-Item $f -Force -ErrorAction SilentlyContinue
-	if (-not $ok) { Fail "The admin password wasn't saved." }
-}
-if ($made.ADMIN_TOKEN) {
-	$note = Join-Path ([Environment]::GetFolderPath("Desktop")) "Andromeda admin password.txt"
-	"Andromeda admin page: $($SITE)#admin`r`nPassword: $($made.ADMIN_TOKEN)`r`n(Keep this file private. Don't upload it anywhere.)" | Set-Content -Path $note -Encoding UTF8
-	Write-Host "Saved on your Desktop: Andromeda admin password.txt"
+	if (-not $ok) { Fail "The secret wasn't saved." }
+	Write-Host "Done."
 } else { Write-Host "Already there." }
 
 Step "7/8 Connecting the site to the server"
@@ -257,6 +247,6 @@ if (-not (Test-Path (Join-Path $tmp ".git"))) {
 Write-Host ""
 Write-Host "All done." -ForegroundColor Green
 Write-Host "In a minute: open $SITE , make your account, and send."
-Write-Host "To give yourself credits: $($SITE)#admin with the password on your Desktop."
+Write-Host "Prices, plans and the shop are in server\worker.js; payments by QRIS are approved with: node owner.mjs pending"
 Start-Sleep -Seconds 60
 Start-Process $SITE

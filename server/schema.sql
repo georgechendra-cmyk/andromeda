@@ -12,9 +12,11 @@ CREATE TABLE IF NOT EXISTS users (
 	plan_until INTEGER NOT NULL DEFAULT 0, -- when its month runs out
 	week_mc INTEGER NOT NULL DEFAULT 0, -- spent from windows this week
 	week_at INTEGER NOT NULL DEFAULT 0, -- when this week ends (0 = no week running)
+	month_mc INTEGER NOT NULL DEFAULT 0, -- spent from windows in this 30 days
+	month_at INTEGER NOT NULL DEFAULT 0, -- when these 30 days end (0 = none running)
 	created_at INTEGER NOT NULL
 );
--- (an older database gets plan, plan_until, week_mc and week_at added by the server itself)
+-- (an older database gets plan, plan_until, week_mc, week_at, month_mc and month_at added by the server itself)
 
 CREATE TABLE IF NOT EXISTS sessions (
 	token_hash TEXT PRIMARY KEY,
@@ -122,6 +124,17 @@ CREATE TABLE IF NOT EXISTS skill_days (
 	PRIMARY KEY (user_id, day)
 );
 
+-- pictures shared with an app the user connected (it fetches them from a link): deleted after a day
+CREATE TABLE IF NOT EXISTS uploads (
+	id TEXT PRIMARY KEY, -- 96 random hex characters: the link
+	user_id TEXT NOT NULL,
+	type TEXT NOT NULL,
+	data BLOB NOT NULL,
+	created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at);
+
+-- (no longer read: prices and the shop are in worker.js)
 CREATE TABLE IF NOT EXISTS config (
 	k TEXT PRIMARY KEY,
 	v TEXT NOT NULL

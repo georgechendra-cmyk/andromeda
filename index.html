@@ -247,7 +247,7 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .msg.user > div { max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; }
 .msg.user .bubble { background: var(--bg3); border-radius: 18px; padding: 10px 16px; white-space: pre-wrap; word-wrap: break-word; }
 .msg.user .att { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-bottom: 6px; }
-/* ---- credits: account, pricing, admin */
+/* ---- credits: account, pricing */
 .modal.wide { width: min(1080px, 100%); }
 .cur { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; margin: 4px 0 22px; }
 .cur button { height: 30px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--line2); font-size: 12.5px; color: var(--muted); font-family: var(--mono); transition: background .2s, color .2s, border-color .2s; }
@@ -1562,6 +1562,15 @@ html { scroll-behavior: smooth; }
 .auth-card .switch b { color: var(--text); font-weight: 500; }
 .auth-card .swap-in { animation: rise .35s var(--ease) both; }
 .auth-foot { padding: 0 16px 20px; color: var(--faint); font-size: 12.5px; text-align: center; }
+.made { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 10px; margin-top: 12px; }
+.made figure { margin: 0; }
+.made img, .made video { display: block; width: 100%; border-radius: 12px; border: 1px solid var(--line); background: var(--bg3); }
+.made-audio audio { width: 100%; }
+.made figcaption { margin-top: 4px; font-size: 12.5px; }
+.made figcaption a { color: var(--muted); }
+.auth-card .legal { margin: 16px 0 0; color: var(--faint); font-size: 12.5px; line-height: 1.5; text-align: center; }
+.auth-card .legal a, .legal-links a { color: var(--muted); text-decoration: underline; text-underline-offset: 2px; }
+.legal-links { color: var(--faint); font-size: 12.5px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app, .auth, .auth-card { transition: none !important; } }
 </style>
 </head>
@@ -1682,7 +1691,7 @@ html { scroll-behavior: smooth; }
 	<div class="wrap reveal">
 		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">It already knows who should answer it.</p><button class="b pri lg" data-open-app>Try Andromeda</button></div>
 	</div>
-	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>© 2026 Andromeda · all rights reserved · your chats stay in your browser</span></div></footer>
+	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><a href="terms.html">Terms</a><a href="terms.html#usage">Usage Policy</a><a href="privacy.html">Privacy</a><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>© 2026 Andromeda · all rights reserved · your chats stay in your browser</span></div></footer>
 </div>
 
 <!-- ============================== the app ============================== -->
@@ -4197,11 +4206,10 @@ const AGENT_RULES = `You are Andromeda Code, the lead engineer on a team, workin
 6. Don't ask the user questions mid-task: make sensible decisions and say what they were. Never write secrets, passwords or API keys into code.
 7. Finish with the finish tool: what changed (file names), what you checked and how (which tests ran, what the review found), how to try it, and anything the user must do. If they only asked a question about the code, answer it in finish without editing anything.`;
 function issuesLog() { return store.get("issues", []); }
-// only the owner works on Andromeda's own code: unlocked admin in this tab, or signed in to GitHub as the repo's owner
+// only the owner works on Andromeda's own code: signed in to the owner's account, or to GitHub as the repo's owner
 function isOwner() {
-	let admin = "";
-	try { admin = sessionStorage.getItem("andromeda.admin") || ""; } catch {}
-	return !!admin || ((store.get("github", null) || {}).login || "").toLowerCase() === SELF_REPO.split("/")[0].toLowerCase();
+	try { sessionStorage.removeItem("andromeda.admin"); } catch {}
+	return !!(me && me.owner) || ((store.get("github", null) || {}).login || "").toLowerCase() === SELF_REPO.split("/")[0].toLowerCase();
 }
 function noteIssue(what) {
 	const l = issuesLog();
@@ -4525,12 +4533,142 @@ async function loadApps(force) {
 	return list;
 }
 const liveApps = () => APPS.servers.filter((s) => s.tools && s.tools.length);
-// a connected app that makes this kind of thing (a tool that generates pictures, video, music or speech), if any
+// a connected app that makes this kind of thing (a tool that generates or edits pictures, video, voice or music), if any
 function appMaker(kind) {
 	if (!capOn("computer")) return null;
-	const want = { image: /\b(image|picture|photo|illustration)s?\b/i, video: /\bvideos?\b/i, music: /\b(music|songs?)\b/i, voice: /\b(speech|voice|tts|narrat\w*)\b/i }[kind];
-	const makes = /generat|creat|make|render|text.to|\bt2[iv]\b/i;
-	return want ? liveApps().find((s) => s.name !== "computer" && s.tools.some((t) => { const d = t.name + " " + (t.description || ""); return want.test(d.replace(/[_-]/g, " ")) && makes.test(d); })) || null : null;
+	const want = { image: /\b(image|picture|photo|illustration|upscal\w*|background)s?\b/i, video: /\b(videos?|clips?|animat\w*|motion)\b/i, music: /\b(music|songs?|soundtrack|jingle)\b/i, voice: /\b(speech|voice\w*|tts|narrat\w*|dub\w*)\b/i }[kind];
+	const makes = /generat|creat|make|render|edit|upscal|text.to|\bt2[iv]\b|\bi2v\b/i;
+	return want ? liveApps().find((s) => s.name !== "computer" && s.tools.some((t) => { const d = (t.name + " " + (t.description || "")).replace(/[_-]/g, " "); return want.test(d) && makes.test(d); })) || null : null;
+}
+// The models an app offers, where its tools list them (a "model" field's choices), and their names as the leaderboards
+// spell them, roughly
+function appModels(app) {
+	const out = new Set();
+	const walk = (o, d) => { if (!o || typeof o !== "object" || d > 6) return; for (const [k, v] of Object.entries(o)) { if (/model/i.test(k) && v && typeof v === "object") for (const e of [...(v.enum || []), ...((v.oneOf || v.anyOf || []).map((x) => x && x.const).filter(Boolean))]) out.add(String(e)); walk(v, d + 1); } };
+	for (const t of app.tools || []) walk(t.inputSchema, 0);
+	return [...out];
+}
+const mkey = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+// LMArena's board for this kind of thing, best first: [name, Elo]
+function mediaBoard(kind, edit, fromImage, text) {
+	const cats = (ARENA && ARENA.cats) || {};
+	const t = String(text || "");
+	const k = kind === "video" ? (edit ? "videoedit:overall" : fromImage ? "i2v:overall" : "video:overall")
+		: kind === "image" ? (edit ? "imageedit:overall" : /\b(logo|poster|banner|text|typograph\w*|sign|label|menu|infographic|thumbnail)\b/i.test(t) && cats["image:text_rendering"] ? "image:text_rendering" : /\b(photo\w*|realistic|portrait|product shot)\b/i.test(t) && cats["image:photorealistic"] ? "image:photorealistic" : /\b(anime|cartoon|illustrat\w*|painting|art|drawing)\b/i.test(t) && cats["image:art"] ? "image:art" : "image:overall") : "";
+	return { board: k, list: (cats[k] || []).map((x) => [String(x[0]), Number(x[2])]).filter((x) => x[1] > 0) };
+}
+// Whether the app should make it, when Andromeda's own studio could too: the app's best model for this is the best there
+// is or a hair behind it (10 Elo) — it costs the owner nothing and runs on the user's own account. An app whose models
+// can't be read is taken to have the top ones (Higgsfield carries them).
+function appFirst(app, kind, edit, fromImage, text) {
+	if (!mediaReady()) return true;
+	const offered = appModels(app).map(mkey);
+	if (!offered.length) return true;
+	const { list } = mediaBoard(kind, edit, fromImage, text);
+	if (!list.length) return true;
+	const score = (names) => Math.max(-Infinity, ...list.filter(([n]) => names.some((m) => mkey(n).includes(m) || m.includes(mkey(n)))).map((x) => x[1]));
+	const own = score(((MEDIA && MEDIA[kind === "voice" ? "speech" : kind]) || []).map((m) => mkey(m.name || m.id)));
+	return score(offered) >= (Number.isFinite(own) ? own : -Infinity) - 10;
+}
+// a picture the user attached, at a link a connected app can fetch (kept a day on Andromeda's server, then deleted): big
+// ones are drawn smaller first (2048 px on the long side, JPEG)
+async function linkFor(a) {
+	let data = String(a.data || "");
+	if (!/^data:image\/(png|jpeg|webp|gif);base64,/.test(data) || data.length * 0.75 > 1.8e6) {
+		const img = await createImageBitmap(b64Blob(data.split(",")[1], data.slice(5, data.indexOf(";"))));
+		const k = Math.min(1, 2048 / Math.max(img.width, img.height)), c = document.createElement("canvas");
+		c.width = Math.round(img.width * k);
+		c.height = Math.round(img.height * k);
+		c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+		for (const q of [0.9, 0.8, 0.65]) { data = c.toDataURL("image/jpeg", q); if (data.length * 0.75 <= 1.8e6) break; }
+	}
+	return (await api("/api/uploads", { method: "POST", body: JSON.stringify({ data }) })).url;
+}
+// What to tell the worker using the app: Andromeda's measured ranking for exactly this kind of thing (so the app's best
+// model makes it, or a cheaper one a hair behind), the user's pictures as links, and how to spend the user's app credits
+async function appBrief(app, pick, text, atts) {
+	const imgs = atts.filter((x) => x.kind === "image" && x.data);
+	const { list } = mediaBoard(pick.kind, pick.edit, imgs.length > 0, text);
+	const links = [];
+	if (imgs.length && SERVER && account) for (const a of imgs.slice(0, 6)) { try { links.push(await linkFor(a)); } catch {} }
+	const what = { image: "picture", video: "video", music: "music", voice: "voiceover" }[pick.kind] || pick.kind;
+	return "\n\n(Make this " + what + " with " + app.name + ", the app the user connected for it: use its tools, and don't make it any other way."
+		+ (list.length ? " Choose the model by what people rate best for exactly this (LMArena, Elo, higher is better): " + list.slice(0, 14).map(([n, e]) => n + " " + Math.round(e)).join(", ") + ". Use the highest-rated model " + app.name + " offers for it; if one of its cheaper models is within 10 points of that one, use the cheaper one; never one further behind to save credits." : " Choose " + app.name + "'s model that does this kind of " + what + " best; a cheaper one only if it's just as good.")
+		+ " Write the prompt like a top art director: subject, setting, light, camera or style, and any words exactly as they must appear. Use the size, aspect ratio and length the user asked for, or what suits where it'll be used. Make one result unless they asked for more: every generation spends the user's own " + app.name + " credits."
+		+ (links.length ? " The user's pictures, at links " + app.name + " can import (direct image links, valid for 24 hours): " + links.map((u, k) => (k + 1) + ". " + u).join(" ") + "." : imgs.length ? " The user attached pictures, but they couldn't be shared with " + app.name + ": if it has an upload step, ask the user to add them there." : "")
+		+ " When a job takes a while, Andromeda waits for it and checks on it for you. When it's done, give the result's link and say which model made it" + " (and what it cost in " + app.name + " credits, if it says).)";
+}
+// what an app made and sent back as links (Higgsfield's pictures and videos): kept on the message and shown in the chat;
+// the user's own pictures going in are left out
+function madeFrom(r, toolName, msg) {
+	const found = [];
+	const add = (u, hint) => {
+		u = String(u).replace(/[)\].,;'"]+$/, "");
+		if (!/^https:\/\//.test(u) || u.length > 3000 || (SERVER && u.startsWith(SERVER + "/api/uploads/")) || /\b(input|reference|source|start|first.?frame|thumbnail|preview|avatar|icon|logo)\b/i.test(hint.replace(/[_-]/g, " ").replace(toolName.replace(/[_-]/g, " "), ""))) return;
+		const kind = /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(u) ? "video" : /\.(mp3|wav|m4a|ogg|aac|flac)(\?|#|$)/i.test(u) ? "audio" : /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(u) ? "image" : /video|clip/i.test(hint) ? "video" : /audio|voice|speech|music/i.test(hint) ? "audio" : /image|picture|photo|upscal/i.test(hint) ? "image" : "";
+		if (kind) found.push({ kind, url: u });
+	};
+	const walk = (v, hint, d) => {
+		if (d > 7 || v == null) return;
+		if (typeof v === "string") { if (/^https:\/\/\S+$/.test(v)) add(v, hint); else for (const m of v.matchAll(/https:\/\/[^\s"'<>)\]]+/g)) add(m[0], hint); }
+		else if (Array.isArray(v)) v.forEach((x) => walk(x, hint, d + 1));
+		else if (typeof v === "object") { const type = String(v.type || v.media_type || v.kind || v.mimeType || ""); for (const [k, x] of Object.entries(v)) walk(x, hint + " " + type + " " + k, d + 1); }
+	};
+	for (const p of (r && r.content) || []) {
+		if (p.type === "text") { let j = null; try { j = JSON.parse(p.text); } catch {} walk(j ?? p.text, toolName, 0); }
+		else if (p.type === "resource_link" || p.type === "resource") walk(p.uri || (p.resource && p.resource.uri), toolName + " " + (p.mimeType || (p.resource && p.resource.mimeType) || ""), 0);
+	}
+	walk(r && r.structuredContent, toolName, 0);
+	if (!found.length) return 0;
+	const made = (msg.data.made ||= []);
+	let n = 0;
+	for (const x of found) if (!made.some((y) => y.url === x.url)) { made.push(x); n++; }
+	if (n) updateLast();
+	return n;
+}
+// A job an app is still making (a video takes a minute or two): Andromeda checks on it itself with the app's own status
+// tool, every few seconds for up to 6 minutes, and hands the model only the outcome. (The model checking again and again
+// would cost a whole step, with everything said so far, each time.)
+const JOB_BUSY = /\b(queued|pending|in[ _]progress|processing|running|generating|starting|submitted|waiting|rendering)\b/i;
+const STATUS_TOOL = /status|get_?(generation|job|result|task|prediction)s?\b|poll|check_?(job|generation)|retrieve/i;
+// still being made? Read from the job's own status field when there is one ("error": null next to it isn't a failure)
+function jobBusy(text) {
+	let j = null;
+	try { j = JSON.parse(text); } catch {}
+	const find = (v, d) => { if (!v || typeof v !== "object" || d > 5) return null; for (const [k, x] of Object.entries(v)) { if (/^(status|state)$/i.test(k) && typeof x === "string") return x; const y = find(x, d + 1); if (y) return y; } return null; };
+	const st = find(j, 0) || (String(text).match(/\b(?:status|state)\W{1,4}([a-z][a-z_ ]{2,20})/i) || [])[1];
+	return st ? JOB_BUSY.test(st) : JOB_BUSY.test(text) && !/\b(completed?|succeeded|finished|failed|cancell?ed)\b/i.test(text);
+}
+async function waitForJob(hit, args, out, msg, before) {
+	const text = String(out || "");
+	if (!jobBusy(text) || (msg.data.made || []).length > before) return out;
+	const st = STATUS_TOOL.test(hit.t.name) ? hit.t : hit.s.tools.find((x) => x !== hit.t && STATUS_TOOL.test(x.name));
+	if (!st) return out;
+	let a = st === hit.t ? args : null;
+	if (!a) {
+		let j = null;
+		try { j = JSON.parse(text); } catch {}
+		const ID = /^(id|job_?id|generation_?id|request_?id|task_?id|prediction_?id)$/i;
+		const find = (v, d) => { if (!v || typeof v !== "object" || d > 5) return null; for (const [k, x] of Object.entries(v)) { if (ID.test(k) && (typeof x === "string" || typeof x === "number")) return String(x); const y = find(x, d + 1); if (y) return y; } return null; };
+		const id = find(j, 0) || (text.match(/\b(?:job|generation|request|task)[ _]?id\W{1,4}([\w-]{6,})/i) || [])[1];
+		const props = (st.inputSchema && st.inputSchema.properties) || {};
+		const key = Object.keys(props).find((k) => ID.test(k)) || ((st.inputSchema && st.inputSchema.required) || [])[0];
+		if (!id || !key) return out;
+		a = { [key]: id };
+	}
+	const said = msg.status, until = Date.now() + 6 * 60e3;
+	let last = text, n = 0;
+	msg.status = "Waiting for " + hit.s.name + " to finish";
+	updateLast();
+	while (Date.now() < until) {
+		await sleep(Math.min(12000, 4000 + n * 1000));
+		n++;
+		try { last = String(await appTool({ s: hit.s, t: st }, a, msg, () => {}, null)); }
+		catch (e) { if (e.name === "AbortError") throw e; last = "Checking on it failed: " + (e.message || e); break; }
+		if (!jobBusy(last)) break;
+	}
+	msg.status = said;
+	return text + "\n\n(Andromeda waited for this job, checking " + n + " time" + (n === 1 ? "" : "s") + " with " + st.name + ". The latest:)\n" + last;
 }
 
 function openAppsModal() {
@@ -4817,6 +4955,7 @@ async function appTool(hit, args, msg, log, pics) {
 		if (!(await approve(msg, what, detail))) { log("Not allowed: " + what, "", true); return "The user said no to this. Ask them what they want, or do it another way."; }
 	}
 	const r = await mcpPost(hit.s, { jsonrpc: "2.0", id: ++mcpId, method: "tools/call", params: { name: hit.t.name, arguments: args } }, busy.signal);
+	if (hit.s.name !== "computer") madeFrom(r, hit.t.name, msg);
 	const parts = (r && r.content) || [];
 	for (const p of parts) if (p.type === "image" && p.data) { if (pics) pics.push("data:" + (p.mimeType || "image/png") + ";base64," + p.data); (msg.data.shots ||= []).push(await vault.put(b64Blob(p.data, p.mimeType || "image/png"))); }
 	const out = parts.filter((p) => p.type === "text").map((p) => p.text).join("\n") || (pics && pics.length ? "(it returned a picture, shown to you next)" : JSON.stringify((r && r.structuredContent) || "Done."));
@@ -4989,8 +5128,9 @@ async function runAct(text, atts, resume) {
 					}
 					else {
 						// one of the user's connected apps (what changes the computer is asked about first)
-						const hit = map.get(fn);
+						const hit = map.get(fn), before = (msg.data.made || []).length;
 						out = hit ? await appTool(hit, args, msg, log, pics) : "There's no tool called " + fn + ".";
+						if (hit && hit.s.name !== "computer") out = await waitForJob(hit, args, out, msg, before);
 					}
 				} catch (e) {
 					if (e.name === "AbortError") throw e;
@@ -5109,6 +5249,12 @@ function renderAgent(m, i, box) {
 	}
 	if (q("[data-agresume]")) q("[data-agresume]").onclick = () => resumeAct(i);
 	box.querySelectorAll("[data-agzip]").forEach((b) => (b.onclick = async () => { const x = d.downloads[+b.dataset.agzip], blob = x && (await vault.get(x.key)); if (blob) saveBlob(blob, x.name); else toast("That download isn't on this device anymore"); }));
+	if (d.made && d.made.length) {
+		const g = document.createElement("div");
+		g.className = "made";
+		g.innerHTML = d.made.slice(-8).map((x) => '<figure class="made-' + x.kind + '">' + (x.kind === "video" ? '<video src="' + esc(x.url) + '" controls playsinline preload="metadata"></video>' : x.kind === "audio" ? '<audio src="' + esc(x.url) + '" controls preload="none"></audio>' : '<a href="' + esc(x.url) + '" target="_blank" rel="noopener"><img src="' + esc(x.url) + '" alt="" loading="lazy"></a>') + '<figcaption><a href="' + esc(x.url) + '" target="_blank" rel="noopener" download>Open or download</a></figcaption></figure>').join("");
+		box.querySelector(".ag").appendChild(g);
+	}
 	if (d.shots && d.shots.length) {
 		const g = document.createElement("div");
 		g.className = "shots imgs";
@@ -5409,12 +5555,13 @@ function untilText(ts) {
 }
 // the plan's credits for now (or for the week) are used: when they're back, and what keeps them going meanwhile
 function outOfCredits(msg) {
-	const w = me && (me.window || me.free), wk = me && me.week;
-	const weekOut = !!(wk && wk.backAt && wk.backAt > Date.now() && wk.left < 1);
-	const at = weekOut ? wk.backAt : w && w.backAt && w.backAt > Date.now() ? w.backAt : 0;
+	const w = me && (me.window || me.free), wk = me && me.week, mo = me && me.month;
+	const monthOut = !!(mo && mo.backAt && mo.backAt > Date.now() && mo.left < 1);
+	const weekOut = !monthOut && !!(wk && wk.backAt && wk.backAt > Date.now() && wk.left < 1);
+	const at = monthOut ? mo.backAt : weekOut ? wk.backAt : w && w.backAt && w.backAt > Date.now() ? w.backAt : 0;
 	const paidPlan = !!(me && me.plan && me.plan.paid);
-	openModal('<h2>' + (at && !(me.paid > 0) ? (weekOut ? "That's this week's credits" : "That's your credits for now") : "Not enough credits") + '</h2><p class="sub">' + esc(msg || "") + "</p>" +
-		(at ? '<div class="acct-bal">' + untilText(at) + '</div><div class="help" style="font-size:13px;color:var(--faint)">until ' + (weekOut ? "a new week starts" : w.share && w.share < w.of ? w.share + " come back" : "they're all back") + "</div>" : "") +
+	openModal('<h2>' + (at && !(me.paid > 0) ? (monthOut ? "That's this month's credits" : weekOut ? "That's this week's credits" : "That's your credits for now") : "Not enough credits") + '</h2><p class="sub">' + esc(msg || "") + "</p>" +
+		(at ? '<div class="acct-bal">' + untilText(at) + '</div><div class="help" style="font-size:13px;color:var(--faint)">until ' + (monthOut ? "a new month starts" : weekOut ? "a new week starts" : w.share && w.share < w.of ? w.share + " come back" : "they're all back") + "</div>" : "") +
 		'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:18px"><button class="btn" id="ocWait">' + (at ? "I'll wait" : "OK") + '</button><button class="btn dark" data-open-pricing>' + (paidPlan ? "Get a credit pack" : "See plans") + "</button></div>");
 	$("#ocWait").onclick = closeModal;
 }
@@ -7937,7 +8084,7 @@ async function runStudio(text, atts, pick) {
 	// an app the user connected that makes this (Higgsfield, say) makes it: their own account and its best models, at no
 	// cost to Andromeda; otherwise nothing to make it with on this server yet is said before anyone else is asked
 	const app = appMaker(pick.kind);
-	if (app) return runAct(text + "\n\n(Make this with " + app.name + ", the app the user connected for it: use its tools, choose its model that does this kind of " + pick.kind + " best for a sensible price, and show what it made. Don't make it any other way.)", atts);
+	if (app && appFirst(app, pick.kind, pick.edit, atts.some((x) => x.kind === "image"), text)) return runAct(text + (await appBrief(app, pick, text, atts)), atts);
 	if (!mediaReady()) throw mediaSoon(pick.kind);
 	// drawn in code: no media models to load
 	if (drawnOnly() && (pick.kind === "video" || pick.edit)) return pick.edit ? studioEdit(text, atts, pick) : runVideo(text, atts);
@@ -9230,7 +9377,7 @@ function openSettings() {
 	};
 	$("#closeSettings").onclick = closeModal;
 }
-// ---------------------------------------------------------------- credits: account, pricing, admin
+// ---------------------------------------------------------------- credits: account, pricing
 const creditUsd = () => (pricing && pricing.creditUsd) || 0.01;
 function creditsText(n) {
 	const v = Number(n) || 0;
@@ -9364,7 +9511,8 @@ function openAccount() {
 				'<div class="field"><label for="acEmail">Email</label><input class="inp" id="acEmail" type="email" autocomplete="email" inputmode="email"></div>' +
 				'<div class="field"><label for="acPass">Password</label><input class="inp" id="acPass" type="password" autocomplete="' + (mode === "in" ? "current-password" : "new-password") + '"' + (mode === "up" ? ' placeholder="At least 8 characters"' : "") + '><div class="status" id="acStatus" role="status"></div></div>' +
 				'<button class="btn dark go" id="acGo">' + (mode === "in" ? "Sign in" : "Create account") + "</button>" +
-				'<button class="switch" id="acSwitch">' + (mode === "in" ? "New here? <b>Create an account</b>" : "Already have an account? <b>Sign in</b>") + "</button></div>";
+				'<button class="switch" id="acSwitch">' + (mode === "in" ? "New here? <b>Create an account</b>" : "Already have an account? <b>Sign in</b>") + "</button>" +
+				'<p class="legal">By continuing, you agree to Andromeda\'s <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a>, and acknowledge its <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p></div>';
 			if (keep) [$("#acEmail").value, $("#acPass").value] = keep;
 			if (say) { $("#acStatus").className = "status bad"; $("#acStatus").textContent = say; }
 			if (!matchMedia("(pointer: coarse)").matches) setTimeout(() => $("#acEmail") && $(keep && keep[0] ? "#acPass" : "#acEmail").focus(), 320);
@@ -9408,9 +9556,11 @@ function openAccount() {
 	const draw = () => {
 		const pays = (me && me.payments) || [];
 		// the plan, its window (what's left for these hours, and when it's all back), its week, and bought credits
-		const plan = me && me.plan, win = me && (me.window || me.free), wk = me && me.week, lines = [];
+		const plan = me && me.plan, win = me && (me.window || me.free), wk = me && me.week, mo = me && me.month, lines = [];
+		if (me && me.owner) lines.push("No limits: this is the owner's account");
 		if (win && win.of) lines.push(creditsText(win.left) + " of " + creditsText(win.of) + (win.backAt && win.backAt > Date.now() ? " for these " + win.hours + " hours · " + (win.share && win.share < win.of ? win.share + " more" : "all back") + " in " + untilText(win.backAt) : " ready · the " + win.hours + " hours start with your first message"));
 		if (wk && wk.of) lines.push(creditsText(wk.left) + " of " + creditsText(wk.of) + " left this week" + (wk.backAt && wk.backAt > Date.now() ? " · a new week in " + untilText(wk.backAt) : ""));
+		if (mo && mo.of) lines.push(creditsText(mo.left) + " of " + creditsText(mo.of) + " left this month" + (mo.backAt && mo.backAt > Date.now() ? " · a new month in " + untilText(mo.backAt) : ""));
 		if (me && me.paid > 0) lines.push(creditsText(me.paid) + " from credit packs · used when the plan's run out");
 		// what a payment was for: a month of a plan, or a pack by its name
 		const planName = (pk) => {
@@ -9418,12 +9568,34 @@ function openAccount() {
 			return plan ? plan.name + " · a month" : pack ? pack.name + " pack" : pk;
 		};
 		openModal('<h2>Your account</h2><p class="sub">' + esc(account.email) + '</p>' +
-			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:' + (lines.length || plan ? 8 : 18) + 'px"><div><div class="acct-bal">' + (me ? creditsText(me.credits) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">credits you can use now</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>' + (plan && plan.paid ? "Plans and packs" : "Get more") + "</button></div></div>" +
+			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:' + (lines.length || plan ? 8 : 18) + 'px"><div><div class="acct-bal">' + (me ? (me.owner ? "Unlimited" : creditsText(me.credits)) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">' + (me && me.owner ? "no limits on your account" : "credits you can use now") + '</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>' + (plan && plan.paid ? "Plans and packs" : "Get more") + "</button></div></div>" +
 			(plan ? '<div class="help" style="font-size:13px;margin-bottom:4px"><b style="color:var(--text)">' + esc(plan.name) + "</b>" + (plan.paid && plan.until ? " · until " + new Date(plan.until).toLocaleDateString() : "") + "</div>" : "") +
 			(lines.length ? '<div class="help" style="font-size:13px;margin-bottom:18px;line-height:1.6">' + lines.join("<br>") + "</div>" : "") +
 			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>For</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(planName(p.pack) || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + (p.credits ? creditsText(p.credits) : "") + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status) + "</span></td></tr>").join("") + "</table></div>" : "") +
-			'<div class="row" style="justify-content:space-between;margin-top:6px"><button class="btn" id="acOut">Sign out</button><button class="btn" id="acDone">Done</button></div>');
+			'<div class="row" style="justify-content:space-between;align-items:center;margin-top:6px"><button class="btn" id="acOut">Sign out</button><span class="legal-links">' + LEGAL_LINKS + ' · <a href="#" id="acDelete">Delete account</a></span><button class="btn" id="acDone">Done</button></div>');
 		$("#acRefresh").onclick = async () => { await refreshMe(); draw(); };
+		// deleting the account: everything the server keeps for it goes (payments stay, as the law requires, without the
+		// payer's name); the chats here are the browser's, deleted too if they say so
+		$("#acDelete").onclick = (e) => {
+			e.preventDefault();
+			openModal('<h2>Delete your account?</h2><p class="sub">Your account, plan, credits, sign-ins, shared chat links, scheduled tasks and pictures shared with apps are deleted from Andromeda\'s server. This can\'t be undone, and what\'s left of a plan or pack is lost. Payment records stay, as the law requires, without the name you paid from.</p>' +
+				'<label class="chk" style="margin:4px 0 16px"><input type="checkbox" id="adlChats"> Also delete the chats in this browser</label><div class="status" id="adlStatus"></div>' +
+				'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn" id="adlNo">Cancel</button><button class="btn dark" id="adlGo">Delete my account</button></div>');
+			$("#adlNo").onclick = () => openAccount();
+			$("#adlGo").onclick = async () => {
+				const st = $("#adlStatus");
+				st.className = "status";
+				st.textContent = "Deleting…";
+				try {
+					await api("/api/me", { method: "DELETE" });
+					if ($("#adlChats").checked) { convos = []; current = null; SPACE_VIEW = null; EDITING = -1; saveChats([]); closeArt(); }
+					signOut(true);
+					render();
+					closeModal();
+					toast("Your account is deleted");
+				} catch (err) { st.className = "status bad"; st.textContent = err.message; }
+			};
+		};
 		$("#acOut").onclick = () => { signOut(); closeModal(); };
 		$("#acDone").onclick = closeModal;
 	};
@@ -9435,12 +9607,14 @@ function money(amount, cur) {
 	try { return new Intl.NumberFormat(cur === "IDR" ? "id-ID" : undefined, { style: "currency", currency: cur || "USD", maximumFractionDigits: cur === "IDR" ? 0 : 2 }).format(amount || 0); }
 	catch { return (cur || "") + " " + amount; }
 }
+// Andromeda's Terms of Service, Usage Policy and Privacy Policy (pages beside this one)
+const LEGAL_LINKS = '<a href="terms.html" target="_blank" rel="noopener">Terms</a> · <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>';
 const DEFAULT_PRICING = {
 	creditUsd: 0.01, open: false, free: { credits: 150, hours: 5, every: 5, week: 200 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	plans: [
-		{ id: "nova", name: "Nova", credits: 450, hours: 5, week: 900, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
-		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 4850, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
-		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 10150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
+		{ id: "nova", name: "Nova", credits: 510, hours: 5, week: 4250, month: 9000, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 13600, month: 47000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
+		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 25500, month: 98000, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
 	packs: [
 		{ id: "mini", name: "Spark", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
@@ -9452,7 +9626,9 @@ const DEFAULT_PRICING = {
 // nonstop coding comes to about 170 credits an hour (a measured 10-turn session: about 14 credits a request, about 12
 // requests an hour)
 const CODE_HOUR = 170;
-const hoursText = (credits) => { const h = Math.round((credits / CODE_HOUR) * 2) / 2; return (h >= 1 ? String(h).replace(".5", "½") : "½").replace(/^0½$/, "½") + " h"; };
+const hoursText = (credits) => { const r = credits / CODE_HOUR, h = r >= 20 ? Math.round(r) : Math.round(r * 2) / 2; return (h >= 1 ? String(h).replace(".5", "½") : "½") + " h"; };
+// a plan's month: its own, or (a plan without one) its week for 30 days
+const monthOf = (p) => p.month || Math.round(((p.week || p.credits) * 30) / 7);
 let payCur = store.get("payCur", "") || (/^id\b/i.test(navigator.language || "") || /Jakarta|Makassar|Jayapura|Pontianak/.test(Intl.DateTimeFormat().resolvedOptions().timeZone || "") ? "IDR" : "USD");
 async function openPricing() {
 	await loadPricing();
@@ -9467,10 +9643,16 @@ async function openPricing() {
 	// card checkout links are per pack id, and "plan:<id>" per plan
 	const canPay = (key, price) => live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[key]));
 	const payLabel = (key, price) => (!live ? "Coming soon" : !canPay(key, price) ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card");
-	// a plan's week, what one sitting holds, and what a week comes to in hours of nonstop coding (Free: everyday answers)
-	const tiles = (x, free) => '<div class="tiles"><div class="tile full"><b>' + creditsText(x.week || x.credits) + "</b><span>credits a week</span></div>" +
-		'<div class="tile"><b>' + creditsText(Math.min(x.credits, x.week || x.credits)) + "</b><span>in any " + x.hours + " hours</span></div>" +
-		(free ? '<div class="tile"><b>≈' + creditsText(Math.round((x.week || x.credits) / 3)) + "</b><span>answers a week</span></div>" : '<div class="tile"><b>≈' + hoursText(x.week || x.credits) + "</b><span>of coding a week</span></div>") + "</div>";
+	// Free: its week, what one sitting holds, and about how many everyday answers. A plan: what its month comes to in hours
+	// of nonstop coding, its week, and one sitting (a sitting that never runs out says so)
+	const nonstop = (x) => x.credits >= CODE_HOUR * x.hours;
+	const tiles = (x, free) => free
+		? '<div class="tiles"><div class="tile full"><b>' + creditsText(x.week || x.credits) + "</b><span>credits a week</span></div>" +
+			'<div class="tile"><b>' + creditsText(Math.min(x.credits, x.week || x.credits)) + "</b><span>in any " + x.hours + " hours</span></div>" +
+			'<div class="tile"><b>≈' + creditsText(Math.round((x.week || x.credits) / 3)) + "</b><span>answers a week</span></div></div>"
+		: '<div class="tiles"><div class="tile full"><b>≈' + hoursText(monthOf(x)) + "</b><span>of coding a month · " + creditsText(monthOf(x)) + " credits</span></div>" +
+			'<div class="tile"><b>' + hoursText(x.week || x.credits) + "</b><span>in a week</span></div>" +
+			'<div class="tile"><b>' + (nonstop(x) ? "Nonstop" : hoursText(x.credits)) + "</b><span>in any " + x.hours + " hours</span></div></div>";
 	const times = (a, b) => { const r = a / b; return (Math.abs(r - Math.round(r)) < 0.05 ? String(Math.round(r)) : r.toFixed(1)) + "×"; };
 	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">just an account, no card</div>' + tiles(fp, true) +
 		'<ul class="feat"><li>Every model: the best one for each part of what you ask</li><li>Build an app or game, then wait for your credits to come back</li><li>All back ' + fp.hours + " hours after you start</li></ul>" +
@@ -9478,8 +9660,8 @@ async function openPricing() {
 	const planCard = (p, i) => {
 		const price = p.prices[payCur], key = "plan:" + p.id, prev = i ? plans[i - 1] : null;
 		const cur = !!mine && mine.id === p.id, lower = !!mine && rank(mine.id) > i;
-		const feats = ["Up to " + hoursText(Math.min(p.credits, p.week || p.credits)) + " of nonstop coding in one sitting",
-			prev ? times(p.week, prev.week) + " " + prev.name + "'s week, more for every rupiah" : "Apps and games built by the best builder (Claude Opus 5.5 today)",
+		const feats = [nonstop(p) ? "Code nonstop: a whole " + p.hours + "-hour sitting never runs out" : "Up to " + hoursText(p.credits) + " of nonstop coding in any " + p.hours + " hours",
+			prev ? times(monthOf(p), monthOf(prev)) + " " + prev.name + "'s month, more for every rupiah" : "Apps and games built by the best builder (Claude Opus 5.5 today)",
 			"Every answer thought through fully", "Credit packs on top whenever you need more"];
 		const tag = cur ? "Your plan" : p.popular && !mine ? "Recommended" : "";
 		return '<div class="plan' + (tag ? " popular" : "") + '">' + (tag ? '<span class="tag">' + tag + "</span>" : "") +
@@ -9501,14 +9683,14 @@ async function openPricing() {
 		'<div class="plans packs">' + P.packs.map(packCard).join("") + "</div>" +
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Your plan or credits start as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". It arrives automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
-		"<details><summary>How do plans work?</summary><p>Each plan gives you credits for the week, and how many you can use in any " + fp.hours + " hours, the way Claude's limits work. Ran out? Wait for them to come back, or use a credit pack to keep going right away. The bigger plans give more for every rupiah.</p></details>" +
-		"<details><summary>How much coding is that?</summary><p>Nonstop coding is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + " is about " + hoursText(p.week) + " a week").join(", ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
+		"<details><summary>How do plans work?</summary><p>Each plan has three limits, the way Claude's work: what you can use in any " + fp.hours + " hours, in a week, and in a month. Each starts with your first message and comes back on its own. Ran out? Wait, or use a credit pack to keep going right away. The bigger plans give more for every rupiah.</p></details>" +
+		"<details><summary>How much coding is that?</summary><p>Nonstop coding is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + ": " + (nonstop(p) ? "nonstop in any " + p.hours + " hours" : "about " + hoursText(p.credits) + " in any " + p.hours + " hours") + ", " + hoursText(p.week) + " a week, about " + hoursText(monthOf(p)) + " a month").join(". ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
 		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a coding request about 20 to 40, a hard question checked by a second top model about 40, a full app built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +
 		"<details><summary>Which models do I get?</summary><p>All of them, on every plan. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
 		"<details><summary>My payment hasn't shown up</summary><p>QRIS payments are confirmed by hand, usually within a few hours. Card payments arrive within a minute. If anything goes wrong" + (P.support ? ", contact " + esc(P.support) : ", contact us") + " and we'll sort it out.</p></details></div>" +
-		'<div class="row" style="justify-content:flex-end;margin-top:14px">' + (SERVER && !account ? '<button class="btn" data-open-account>Sign in</button>' : "") + '<button class="btn" id="prClose">Close</button></div>', "wide");
+		'<div class="row" style="justify-content:space-between;align-items:center;margin-top:14px"><span class="legal-links">' + LEGAL_LINKS + '</span><div class="row">' + (SERVER && !account ? '<button class="btn" data-open-account>Sign in</button>' : "") + '<button class="btn" id="prClose">Close</button></div></div>', "wide");
 	$("#prClose").onclick = closeModal;
 	$$("[data-cur]").forEach((b) => b.onclick = () => { payCur = b.dataset.cur; store.set("payCur", payCur); openPricing(); });
 	$$("[data-buy]").forEach((b) => b.onclick = () => buy(P.packs.find((p) => p.id === b.dataset.buy), P));
@@ -9544,73 +9726,6 @@ function openQris(pack, P, plan) {
 			refreshMe();
 		} catch (e) { st.className = "status bad"; st.textContent = e.message; }
 	};
-}
-
-// the owner's page: /#admin, with the ADMIN_TOKEN set on the server. The password is kept for this tab only.
-async function openAdmin() {
-	if (!SERVER) { openModal('<h2>Admin</h2><p class="sub">The credits server isn\'t connected yet. Paste its address into DEFAULT_SERVER at the top of the script (see server/README.md).</p>'); return; }
-	let tok = "";
-	try { tok = sessionStorage.getItem("andromeda.admin") || ""; } catch {}
-	const ask = (msg) => {
-		openModal('<h2>Admin</h2><p class="sub">' + (msg || "The admin password you set on the server.") + '</p><div class="field"><input class="inp" id="adTok" type="password"></div><div class="row" style="justify-content:flex-end"><button class="btn dark" id="adGo">Open</button></div>');
-		// (pasted from the password file: its "Password:" label, spaces and line breaks don't count)
-		$("#adGo").onclick = () => { try { sessionStorage.setItem("andromeda.admin", $("#adTok").value.replace(/^\s*password\s*:\s*/i, "").replace(/\s+/g, "")); } catch {} openAdmin(); };
-		$("#adTok").onkeydown = (e) => { if (e.key === "Enter") $("#adGo").click(); };
-	};
-	if (!tok) { ask(); return; }
-	const call = async (path, opts = {}) => {
-		const r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", "X-Admin-Token": tok } });
-		const j = await r.json().catch(() => ({}));
-		if (!r.ok) throw fail((j.error && j.error.message) || r.statusText, r.status);
-		return j;
-	};
-	let o;
-	try { o = await call("/api/admin/overview"); }
-	catch (e) { try { sessionStorage.removeItem("andromeda.admin"); } catch {} ask(e.status === 401 ? "That password didn't work." : e.message); return; }
-	const c = o.config;
-	const plans = c.plans || DEFAULT_PRICING.plans;
-	const planName = (pk) => { const p = plans.find((x) => "plan:" + x.id === pk); return p ? p.name : String(pk || "").replace(/^plan:/, ""); };
-	const when = (t) => (t ? new Date(t).toLocaleString() : "");
-	const totals = o.totals.map((t) => money(t.amount, t.currency) + " (" + t.n + ")").join(" · ") || "nothing yet";
-	const spent = o.spent || {};
-	// what free use really cost, the last days (so the budget can be set from what actually happens)
-	const rate = (c.free && Number(c.free.usdIdr)) || 18000;
-	const freeSpentText = (o.freeDays || []).length ? "Free use cost you: " + o.freeDays.slice(0, 7).map((d) => d.day.slice(5) + " Rp" + Math.round(d.usd * rate).toLocaleString("id-ID")).join(" · ") + ". " : "";
-	openModal('<h2>Admin</h2><p class="sub">Sold: ' + totals + " · AI cost so far $" + (Number(spent.cost) || 0).toFixed(2) + " for " + creditsText((spent.charged_mc || 0) / 1000) + " credits used (" + (spent.n || 0) + " answers)</p>" +
-		'<div class="field"><label>Waiting for confirmation (' + o.pending.length + ")</label>" + (o.pending.length ? '<table class="ptable"><tr><th>When</th><th>Who</th><th>Paid</th><th>Name on payment</th><th>For</th><th></th></tr>' + o.pending.map((p) => "<tr><td>" + when(p.created_at) + "</td><td>" + esc(p.email) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + esc(p.note || "") + "</td><td>" + (/^plan:/.test(p.pack || "") ? esc(planName(p.pack)) + " · a month" : creditsText(p.credits_mc / 1000) + " credits") + '</td><td class="row"><button class="btn dark" data-ok="' + p.id + '">Approve</button><button class="btn" data-no="' + p.id + '">Reject</button></td></tr>').join("") + "</table>" : '<div class="help">Nothing waiting. Check your e-wallet for a payment before approving one.</div>') + "</div>" +
-		'<div class="field"><label>Sales</label><label class="chk"><input type="checkbox" id="adOpen"' + (c.open ? " checked" : "") + "> Plans and credit packs are on sale</label></div>" +
-		'<div class="field"><label>QRIS image address</label><input class="inp" id="adQris" placeholder="e.g. qris.png (upload it next to index.html)" value="' + esc((c.qris && c.qris.image) || "") + '"></div>' +
-		'<div class="field"><label>Name shown on QRIS</label><input class="inp" id="adQrisName" value="' + esc((c.qris && c.qris.name) || "") + '"></div>' +
-		'<div class="field"><label>Card checkout links (one per plan and pack)</label>' + [...plans.map((p) => ({ key: "plan:" + p.id, name: p.name + " (a month)", variant: p.lemonVariant })), ...c.packs.map((p) => ({ key: p.id, name: p.name + " pack", variant: p.lemonVariant }))].map((x) => '<div class="row" style="margin-bottom:6px"><span style="width:110px;font-size:13px">' + esc(x.name) + '</span><input class="inp" data-link="' + esc(x.key) + '" placeholder="https://…lemonsqueezy.com/checkout/buy/…" value="' + esc((c.checkout.links || {})[x.key] || "") + '"><input class="inp" style="max-width:130px" data-variant="' + esc(x.key) + '" placeholder="variant id" value="' + esc(x.variant || "") + '"></div>').join("") + "</div>" +
-		'<div class="field"><label>Prices and plans</label><div class="help">Prices, plans, packs, free credits and the daily free budget are set in the code: ask Claude to change them. ' + freeSpentText + "</div></div>" +
-		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
-		'<div class="status" id="adStatus"></div>' +
-		'<div class="field"><label>Give a plan by hand</label><div class="row"><input class="inp" id="adPEmail" placeholder="email"><select class="inp" id="adPPlan" style="max-width:120px">' + plans.map((p) => '<option value="' + esc(p.id) + '">' + esc(p.name) + "</option>").join("") + '</select><input class="inp" id="adPDays" type="number" min="1" max="400" value="30" style="max-width:80px"><span style="font-size:13px">days</span><button class="btn" id="adPGive">Give</button></div><div class="help">From today, or added to the end of the plan they\'re on.</div></div>' +
-		'<div class="field"><label>Give or take credits by hand</label><div class="row"><input class="inp" id="adEmail" placeholder="email"><input class="inp" id="adCredits" type="number" placeholder="credits (- to take)" style="max-width:150px"><button class="btn" id="adGive">Apply</button></div></div>' +
-		'<div class="field"><label>Accounts (' + o.users.length + ')</label><table class="ptable"><tr><th>Email</th><th>Plan</th><th>Bought credits</th><th>Joined</th></tr>' + o.users.slice(0, 30).map((u) => "<tr><td>" + esc(u.email) + "</td><td>" + (u.plan && u.plan_until > Date.now() ? esc(planName("plan:" + u.plan)) + " until " + new Date(u.plan_until).toLocaleDateString() : "Free") + "</td><td>" + creditsText(u.balance_mc / 1000) + "</td><td>" + when(u.created_at) + "</td></tr>").join("") + "</table></div>" +
-		'<div class="row" style="justify-content:space-between"><button class="btn" id="adLock">Lock admin</button><div class="row"><button class="btn" id="adClose">Close</button><button class="btn dark" id="adSave">Save settings</button></div></div>', "wide");
-	$$("[data-ok]").forEach((b) => b.onclick = async () => { await call("/api/admin/payments/" + b.dataset.ok + "/approve", { method: "POST" }); toast("Approved: it's on their account"); openAdmin(); });
-	$$("[data-no]").forEach((b) => b.onclick = async () => { await call("/api/admin/payments/" + b.dataset.no + "/reject", { method: "POST" }); toast("Rejected"); openAdmin(); });
-	$("#adPGive").onclick = async () => {
-		try { await call("/api/admin/plan", { method: "POST", body: JSON.stringify({ email: $("#adPEmail").value, plan: $("#adPPlan").value, days: Number($("#adPDays").value) }) }); toast("Done"); openAdmin(); }
-		catch (e) { toast(e.message); }
-	};
-	$("#adGive").onclick = async () => {
-		try { await call("/api/admin/credits", { method: "POST", body: JSON.stringify({ email: $("#adEmail").value, credits: Number($("#adCredits").value), note: "by hand" }) }); toast("Done"); openAdmin(); }
-		catch (e) { toast(e.message); }
-	};
-	$("#adSave").onclick = async () => {
-		const st = $("#adStatus");
-		const variants = {};
-		$$("[data-variant]").forEach((i) => { if (i.value.trim()) variants[i.dataset.variant] = i.value.trim(); });
-		const links = {};
-		$$("[data-link]").forEach((i) => { if (i.value.trim()) links[i.dataset.link] = i.value.trim(); });
-		const next = { open: $("#adOpen").checked, qris: { image: $("#adQris").value.trim(), name: $("#adQrisName").value.trim() }, checkout: { provider: c.checkout.provider, links, variants }, support: $("#adSupport").value.trim() };
-		try { await call("/api/admin/config", { method: "PUT", body: JSON.stringify(next) }); pricing = null; toast("Saved"); openAdmin(); }
-		catch (e) { st.className = "status bad"; st.textContent = e.message; }
-	};
-	$("#adLock").onclick = () => { try { sessionStorage.removeItem("andromeda.admin"); } catch {} closeModal(); };
-	$("#adClose").onclick = closeModal;
 }
 
 function refreshKeyDot() { $("#keyDot").classList.toggle("ok", connected()); drawAccount(); }
@@ -10966,7 +11081,6 @@ addEventListener("hashchange", () => {
 	const sh = location.hash.match(/^#share=([a-f0-9]{24})$/);
 	if (sh) { openShared(sh[1]); return; }
 	if (document.body.classList.contains("in-share")) closeShared();
-	if (location.hash === "#admin") { showApp(true); openAdmin(); return; }
 	if (location.hash === "#pricing") { showApp(true); openPricing(); return; }
 	const want = location.hash === "#app";
 	if (want !== document.body.classList.contains("in-app")) showApp(want);
@@ -11006,7 +11120,7 @@ async function loadKept() {
 	// signed in shows the sign-in page over the front page (not the app behind it). Decided before the first paint, on
 	// what localStorage says; a sign-in only the database still had is caught up with just after
 	const hadAccount = connected();
-	const wantApp = () => location.hash === "#app" || location.hash === "#admin" || location.hash === "#pricing" || (connected() && !location.hash);
+	const wantApp = () => location.hash === "#app" || location.hash === "#pricing" || (connected() && !location.hash);
 	let inApp = wantApp() && (connected() || !SERVER || location.hash !== "#app");
 	const shareId = (location.hash.match(/^#share=([a-f0-9]{24})$/) || [])[1];
 	document.body.classList.toggle("in-app", inApp && !shareId);
@@ -11030,8 +11144,7 @@ async function loadKept() {
 	renderLanding();
 	if (SERVER && account) await refreshMe();
 	syncTasks();
-	if (location.hash === "#admin") openAdmin();
-	else if (location.hash === "#pricing") openPricing();
+	if (location.hash === "#pricing") openPricing();
 	else if (inApp && !connected()) setTimeout(SERVER ? openAccount : openSettings, 600);
 	else if (inApp && !shareId) setTimeout(() => { if (!$("#overlay").classList.contains("show")) showWhatsNew(); }, 700);
 })();

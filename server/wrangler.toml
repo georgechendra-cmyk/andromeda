@@ -17,7 +17,6 @@ database_id = "06f2a301-f884-4f49-a715-6175ce84c399"
 crons = ["*/10 * * * *"]
 
 # Secrets are NOT written here. Set them once with:
-#   npx wrangler secret put ADMIN_TOKEN
 #   npx wrangler secret put PEPPER
 # and at least one way to reach the models (see README.md):
 #   npx wrangler secret put WAVESPEED_KEY   (WaveSpeed: every lab's big models at their own prices; asked first)

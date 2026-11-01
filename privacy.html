@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy · Andromeda</title>
+<meta name="description" content="What Andromeda does with information about you, and the choices you have.">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root { --bg: #08090a; --bg2: #0f1011; --line: #222326; --text: #ededec; --muted: #a3a4a6; --faint: #6c6d70; --brand: #9a8fff; color-scheme: dark; }
+@media (prefers-color-scheme: light) { :root { --bg: #ffffff; --bg2: #f7f7f6; --line: #e6e6e3; --text: #0b0b0b; --muted: #55565a; --faint: #8a8b8e; --brand: #5141ee; color-scheme: light; } }
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15.5px/1.65 Geist, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+a { color: var(--text); text-underline-offset: 3px; }
+header { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+header .home { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; letter-spacing: -.02em; text-decoration: none; }
+header .home img { width: 20px; height: 20px; }
+header .sp { flex: 1; }
+.lang { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; }
+.lang button { border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; padding: 4px 11px; border-radius: 999px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--bg2); color: var(--text); }
+main { max-width: 760px; margin: 0 auto; padding: 40px 16px 80px; }
+h1 { font-size: clamp(30px, 6vw, 40px); line-height: 1.15; letter-spacing: -.035em; margin: 0 0 6px; font-weight: 600; }
+.eff { color: var(--faint); font-size: 14px; margin: 0 0 26px; }
+h2 { font-size: 19px; letter-spacing: -.02em; margin: 36px 0 8px; font-weight: 600; scroll-margin-top: 70px; }
+h3 { font-size: 15.5px; margin: 18px 0 4px; font-weight: 600; }
+p, li { color: var(--muted); }
+p strong, li strong { color: var(--text); font-weight: 500; }
+ul { padding-left: 20px; }
+li { margin: 5px 0; }
+.lead { font-size: 16.5px; color: var(--text); }
+.short { padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg2); }
+.short h2 { margin-top: 0; }
+footer { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; border-top: 1px solid var(--line); color: var(--faint); font-size: 13px; display: flex; gap: 16px; flex-wrap: wrap; }
+footer a { color: var(--muted); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+	<a class="home" href="./"><img src="icons/icon.svg" alt="">Andromeda</a>
+	<span class="sp"></span>
+	<div class="lang" role="group" aria-label="Language"><button data-lang="en">English</button><button data-lang="id">Bahasa Indonesia</button></div>
+</header>
+
+<main>
+<article lang="en">
+<h1>Privacy Policy</h1>
+<p class="eff">Effective 1 November 2026</p>
+<p class="lead">This policy explains what Andromeda ("we", "us") does with information about you when you use the Andromeda website, app, credits server and Connector (the "Service"), and the choices you have. We follow Indonesia's Personal Data Protection Law (Law No. 27 of 2022).</p>
+
+<section class="short">
+<h2>The short version</h2>
+<ul>
+<li><strong>Your chats stay in your browser.</strong> Our server passes your messages to the AI models that answer them and doesn't keep them.</li>
+<li>We keep what we need to run your account: your email, your plan and credits, your payments, and a record of what each request cost (not what it said).</li>
+<li>We don't sell your data, we don't show ads, and we don't train AI models on your content.</li>
+<li>You can export your chats and delete your account yourself, at any time.</li>
+</ul>
+</section>
+
+<h2 id="collect">1. What we collect</h2>
+<ul>
+<li><strong>Account:</strong> your email address and either a password (stored only as a salted hash that can't be turned back into the password) or, if you use Google Sign-In, your Google account ID and verified email. Your first name from Google is kept in your browser only.</li>
+<li><strong>Plans, credits and payments:</strong> your plan and when it ends, your credit balances and limits, and your payments (amount, currency, method, status, the name you write for a QRIS payment, and our card partner's order number). We never receive your full card number.</li>
+<li><strong>Usage records:</strong> for each AI request, which model answered, what it cost, how many credits it used and when, so we can charge correctly and keep the Service running. Not the content of the request.</li>
+<li><strong>Sign-in sessions:</strong> a random token, stored only as a hash, for up to 30 days.</li>
+<li><strong>What you ask us to keep on our server:</strong>
+<ul>
+<li>Shared chats: a copy of a chat you share, readable by anyone with its link, until you stop sharing it.</li>
+<li>Scheduled tasks: a task's instructions and each run's result, until you delete the task.</li>
+<li>Pictures for connected apps: a picture you attached, when an app you connected needs it, at a private link for 24 hours.</li>
+</ul></li>
+<li><strong>Anonymous learning data</strong>, if "Learn which models do best" is on in Settings: a few generic topic words (like "python") and whether a part of an answer held up. It isn't linked to your account; we only count how many results each account sends a day, to stop flooding.</li>
+<li><strong>Technical data:</strong> our hosting providers (Cloudflare for the server, GitHub Pages for the website) process IP addresses and request logs to deliver and protect the Service. We don't use analytics or advertising trackers.</li>
+</ul>
+<p><strong>What stays in your browser:</strong> your chats and their files, projects, memory (what Andromeda remembers about you), settings, and the keys of apps you connect. They're on your device; clearing your browser's data deletes them. You can export them in Settings.</p>
+
+<h2 id="requests">2. How your requests are handled</h2>
+<p>When you send a message, it goes from your browser to our server and on to the AI model chosen for it, through our AI gateway provider, and the answer comes back the same way. Our server doesn't store the content. The AI providers process it under their terms for business customers: under those terms they generally don't train their models on it, though they may keep it for a limited time to prevent abuse.</p>
+<p>If a request needs the web, Andromeda searches with a search-capable AI model or search service, and our server fetches the pages you or Andromeda ask for. Programming library documentation is looked up through Context7.</p>
+
+<h2 id="why">3. Why we use your information</h2>
+<ul>
+<li>To provide the Service: signing you in, answering requests, charging credits, and handling payments and plans.</li>
+<li>To keep it safe and fair: preventing abuse, fraud and overuse, and enforcing our Terms.</li>
+<li>To support you and tell you about important changes.</li>
+<li>To meet legal obligations, such as tax and accounting records.</li>
+<li>To learn which model does which work best (the anonymous learning data above).</li>
+</ul>
+<p>We rely on our agreement with you, your consent (which you can withdraw), our legitimate interest in running a safe Service, and our legal obligations.</p>
+
+<h2 id="share">4. Who we share it with</h2>
+<p>Only what's needed to run the Service:</p>
+<ul>
+<li>AI model providers and our AI gateway, which receive the content of your requests to answer them.</li>
+<li>Cloudflare (our server and database) and GitHub (our website).</li>
+<li>Google, if you sign in with Google; Google Fonts and the code libraries the site loads (cdnjs, jsDelivr), which see your IP address.</li>
+<li>Payment partners: your bank or e-wallet for QRIS, and our card payment partner.</li>
+<li>Apps you connect yourself, which get what you ask Andromeda to do with them.</li>
+<li>Authorities, when the law requires it or to protect someone from serious harm.</li>
+</ul>
+<p>We don't sell personal data or share it for advertising.</p>
+
+<h2 id="transfers">5. Outside Indonesia</h2>
+<p>Some of these providers process data outside Indonesia, including in the United States, Europe and Asia. We choose providers that protect data with security measures and contractual commitments, and by using the Service you agree to these transfers, as Indonesian law allows.</p>
+
+<h2 id="keep">6. How long we keep it</h2>
+<ul>
+<li>Account, plan and credit data: while your account exists.</li>
+<li>Usage records: while your account exists; when you delete it, they no longer point to you.</li>
+<li>Payment records: as long as tax and accounting law requires (up to 10 years), without the name you wrote for a QRIS payment once your account is deleted.</li>
+<li>Sign-in sessions: up to 30 days. Pictures shared with apps: 24 hours. Shared chats and tasks: until you delete them or your account.</li>
+</ul>
+
+<h2 id="rights">7. Your rights</h2>
+<p>Under Indonesian law you can ask to see, correct, delete or get a copy of your personal data, withdraw your consent, object to or limit how we use it, and complain to the authority. Most of it you can do yourself:</p>
+<ul>
+<li><strong>See it:</strong> Account shows your email, plan, credits and payments; your chats are in your browser.</li>
+<li><strong>Get a copy:</strong> Settings → Export everything.</li>
+<li><strong>Delete it:</strong> Account → Delete account removes your account, sign-ins, shared chats, tasks and pictures from our server. Settings → Delete all chats clears this browser.</li>
+<li><strong>Anything else:</strong> contact us (below). We'll answer within the time the law sets.</li>
+</ul>
+
+<h2 id="security">8. Security</h2>
+<p>Passwords are salted and hashed, sign-in tokens are stored only as hashes, everything travels over HTTPS, and our AI keys never reach your browser. No system is perfectly secure; if a breach affects your data, we'll tell you and the authorities as the law requires.</p>
+
+<h2 id="children">9. Children</h2>
+<p>Andromeda isn't for children under 13. If you're 13 to 17, you need a parent's or guardian's permission. If you think a child has given us data without that permission, contact us and we'll delete it.</p>
+
+<h2 id="changes">10. Changes</h2>
+<p>We may update this policy. If a change is significant, we'll tell you in the app before it takes effect.</p>
+
+<h2 id="contact">11. Contact</h2>
+<p>For questions or requests about your data, use the contact listed in the app under Plans → Questions, or delete your account yourself in Account. General questions can also go to <a href="https://github.com/georgechendra-cmyk/andromeda/issues" target="_blank" rel="noopener">GitHub</a> (please don't post personal information there).</p>
+</article>
+
+<article lang="id" hidden>
+<h1>Kebijakan Privasi</h1>
+<p class="eff">Berlaku sejak 1 November 2026</p>
+<p class="lead">Kebijakan ini menjelaskan apa yang dilakukan Andromeda ("kami") dengan informasi tentang Anda saat Anda menggunakan situs, aplikasi, server kredit, dan Connector Andromeda ("Layanan"), serta pilihan yang Anda miliki. Kami mematuhi Undang-Undang Pelindungan Data Pribadi (Undang-Undang Nomor 27 Tahun 2022).</p>
+
+<section class="short">
+<h2>Ringkasnya</h2>
+<ul>
+<li><strong>Percakapan Anda tetap di peramban Anda.</strong> Server kami meneruskan pesan Anda ke model AI yang menjawabnya dan tidak menyimpannya.</li>
+<li>Kami menyimpan yang diperlukan untuk menjalankan akun Anda: email, paket dan kredit, pembayaran, serta catatan biaya setiap permintaan (bukan isinya).</li>
+<li>Kami tidak menjual data Anda, tidak menampilkan iklan, dan tidak melatih model AI dengan konten Anda.</li>
+<li>Anda dapat mengekspor percakapan dan menghapus akun Anda sendiri, kapan saja.</li>
+</ul>
+</section>
+
+<h2 id="collect-id">1. Apa yang kami kumpulkan</h2>
+<ul>
+<li><strong>Akun:</strong> alamat email Anda dan kata sandi (disimpan hanya sebagai hash bergaram yang tidak dapat dikembalikan menjadi kata sandi) atau, jika Anda masuk dengan Google, ID akun Google dan email terverifikasi Anda. Nama depan Anda dari Google hanya disimpan di peramban Anda.</li>
+<li><strong>Paket, kredit, dan pembayaran:</strong> paket Anda dan kapan berakhir, saldo dan batas kredit Anda, serta pembayaran Anda (jumlah, mata uang, metode, status, nama yang Anda tulis untuk pembayaran QRIS, dan nomor pesanan dari mitra kartu kami). Kami tidak pernah menerima nomor kartu Anda secara lengkap.</li>
+<li><strong>Catatan penggunaan:</strong> untuk setiap permintaan AI, model mana yang menjawab, biayanya, berapa kredit yang dipakai, dan kapan, agar kami dapat menagih dengan benar dan menjaga Layanan tetap berjalan. Bukan isi permintaannya.</li>
+<li><strong>Sesi masuk:</strong> token acak, disimpan hanya sebagai hash, paling lama 30 hari.</li>
+<li><strong>Yang Anda minta kami simpan di server:</strong>
+<ul>
+<li>Percakapan yang dibagikan: salinan percakapan yang Anda bagikan, dapat dibaca siapa pun yang memiliki tautannya, sampai Anda berhenti membagikannya.</li>
+<li>Tugas terjadwal: instruksi tugas dan hasil setiap jalannya, sampai Anda menghapus tugas itu.</li>
+<li>Gambar untuk aplikasi yang terhubung: gambar yang Anda lampirkan, saat aplikasi yang Anda hubungkan membutuhkannya, pada tautan pribadi selama 24 jam.</li>
+</ul></li>
+<li><strong>Data pembelajaran anonim</strong>, jika "Learn which models do best" aktif di Pengaturan: beberapa kata topik umum (seperti "python") dan apakah suatu bagian jawaban terbukti benar. Data ini tidak terkait dengan akun Anda; kami hanya menghitung berapa hasil yang dikirim setiap akun per hari, untuk mencegah banjir data.</li>
+<li><strong>Data teknis:</strong> penyedia hosting kami (Cloudflare untuk server, GitHub Pages untuk situs) memproses alamat IP dan log permintaan untuk mengirimkan dan melindungi Layanan. Kami tidak menggunakan pelacak analitik atau iklan.</li>
+</ul>
+<p><strong>Yang tetap di peramban Anda:</strong> percakapan dan berkasnya, proyek, memori (apa yang diingat Andromeda tentang Anda), pengaturan, dan kunci aplikasi yang Anda hubungkan. Semuanya ada di perangkat Anda; menghapus data peramban akan menghapusnya. Anda dapat mengekspornya di Pengaturan.</p>
+
+<h2 id="requests-id">2. Cara permintaan Anda diproses</h2>
+<p>Saat Anda mengirim pesan, pesan itu dikirim dari peramban Anda ke server kami lalu ke model AI yang dipilih untuknya, melalui penyedia gerbang AI kami, dan jawabannya kembali lewat jalur yang sama. Server kami tidak menyimpan isinya. Penyedia AI memprosesnya berdasarkan ketentuan mereka untuk pelanggan bisnis: menurut ketentuan tersebut, mereka umumnya tidak melatih model dengannya, meskipun dapat menyimpannya untuk waktu terbatas guna mencegah penyalahgunaan.</p>
+<p>Jika permintaan memerlukan web, Andromeda mencari dengan model AI atau layanan pencarian yang dapat menelusuri web, dan server kami mengambil halaman yang Anda atau Andromeda minta. Dokumentasi pustaka pemrograman dicari melalui Context7.</p>
+
+<h2 id="why-id">3. Untuk apa kami menggunakan informasi Anda</h2>
+<ul>
+<li>Untuk menyediakan Layanan: memasukkan Anda ke akun, menjawab permintaan, menagih kredit, serta mengurus pembayaran dan paket.</li>
+<li>Untuk menjaga Layanan tetap aman dan adil: mencegah penyalahgunaan, penipuan, dan pemakaian berlebihan, serta menegakkan Ketentuan kami.</li>
+<li>Untuk membantu Anda dan memberi tahu perubahan penting.</li>
+<li>Untuk memenuhi kewajiban hukum, seperti catatan pajak dan akuntansi.</li>
+<li>Untuk mempelajari model mana yang paling baik untuk pekerjaan apa (data pembelajaran anonim di atas).</li>
+</ul>
+<p>Dasar pemrosesan kami adalah perjanjian dengan Anda, persetujuan Anda (yang dapat Anda tarik), kepentingan sah kami dalam menjalankan Layanan yang aman, dan kewajiban hukum kami.</p>
+
+<h2 id="share-id">4. Dengan siapa kami membagikannya</h2>
+<p>Hanya yang diperlukan untuk menjalankan Layanan:</p>
+<ul>
+<li>Penyedia model AI dan gerbang AI kami, yang menerima isi permintaan Anda untuk menjawabnya.</li>
+<li>Cloudflare (server dan basis data kami) dan GitHub (situs kami).</li>
+<li>Google, jika Anda masuk dengan Google; Google Fonts dan pustaka kode yang dimuat situs (cdnjs, jsDelivr), yang melihat alamat IP Anda.</li>
+<li>Mitra pembayaran: bank atau dompet digital Anda untuk QRIS, dan mitra pembayaran kartu kami.</li>
+<li>Aplikasi yang Anda hubungkan sendiri, yang menerima apa yang Anda minta Andromeda lakukan dengannya.</li>
+<li>Pihak berwenang, jika diwajibkan hukum atau untuk melindungi seseorang dari bahaya serius.</li>
+</ul>
+<p>Kami tidak menjual data pribadi atau membagikannya untuk iklan.</p>
+
+<h2 id="transfers-id">5. Di luar Indonesia</h2>
+<p>Sebagian penyedia tersebut memproses data di luar Indonesia, termasuk di Amerika Serikat, Eropa, dan Asia. Kami memilih penyedia yang melindungi data dengan langkah keamanan dan komitmen kontrak, dan dengan menggunakan Layanan Anda menyetujui transfer ini, sebagaimana diizinkan hukum Indonesia.</p>
+
+<h2 id="keep-id">6. Berapa lama kami menyimpannya</h2>
+<ul>
+<li>Data akun, paket, dan kredit: selama akun Anda ada.</li>
+<li>Catatan penggunaan: selama akun Anda ada; saat Anda menghapus akun, catatan itu tidak lagi terkait dengan Anda.</li>
+<li>Catatan pembayaran: selama diwajibkan hukum pajak dan akuntansi (paling lama 10 tahun), tanpa nama yang Anda tulis untuk pembayaran QRIS setelah akun Anda dihapus.</li>
+<li>Sesi masuk: paling lama 30 hari. Gambar yang dibagikan ke aplikasi: 24 jam. Percakapan yang dibagikan dan tugas: sampai Anda menghapusnya atau menghapus akun.</li>
+</ul>
+
+<h2 id="rights-id">7. Hak Anda</h2>
+<p>Menurut hukum Indonesia, Anda dapat meminta untuk melihat, memperbaiki, menghapus, atau mendapatkan salinan data pribadi Anda, menarik persetujuan, menolak atau membatasi cara kami menggunakannya, dan mengajukan pengaduan kepada otoritas. Sebagian besar dapat Anda lakukan sendiri:</p>
+<ul>
+<li><strong>Melihatnya:</strong> menu Akun menampilkan email, paket, kredit, dan pembayaran Anda; percakapan Anda ada di peramban Anda.</li>
+<li><strong>Mendapatkan salinan:</strong> Pengaturan → Export everything.</li>
+<li><strong>Menghapusnya:</strong> Akun → Delete account menghapus akun, sesi masuk, percakapan yang dibagikan, tugas, dan gambar Anda dari server kami. Pengaturan → Delete all chats membersihkan peramban ini.</li>
+<li><strong>Hal lainnya:</strong> hubungi kami (di bawah). Kami akan menjawab dalam jangka waktu yang ditetapkan hukum.</li>
+</ul>
+
+<h2 id="security-id">8. Keamanan</h2>
+<p>Kata sandi diberi garam dan di-hash, token masuk disimpan hanya sebagai hash, semua data dikirim melalui HTTPS, dan kunci AI kami tidak pernah sampai ke peramban Anda. Tidak ada sistem yang sepenuhnya aman; jika terjadi kebocoran yang memengaruhi data Anda, kami akan memberi tahu Anda dan pihak berwenang sebagaimana diwajibkan hukum.</p>
+
+<h2 id="children-id">9. Anak-anak</h2>
+<p>Andromeda tidak ditujukan untuk anak di bawah 13 tahun. Jika Anda berusia 13 sampai 17 tahun, Anda memerlukan izin orang tua atau wali. Jika Anda yakin seorang anak telah memberikan data kepada kami tanpa izin tersebut, hubungi kami dan kami akan menghapusnya.</p>
+
+<h2 id="changes-id">10. Perubahan</h2>
+<p>Kami dapat memperbarui kebijakan ini. Jika perubahannya penting, kami akan memberi tahu Anda di aplikasi sebelum perubahan berlaku.</p>
+
+<h2 id="contact-id">11. Kontak</h2>
+<p>Untuk pertanyaan atau permintaan tentang data Anda, gunakan kontak yang tercantum di aplikasi pada Plans → Questions, atau hapus akun Anda sendiri di menu Akun. Pertanyaan umum juga dapat diajukan di <a href="https://github.com/georgechendra-cmyk/andromeda/issues" target="_blank" rel="noopener">GitHub</a> (mohon jangan cantumkan informasi pribadi di sana).</p>
+</article>
+</main>
+
+<footer><span>© 2026 Andromeda</span><a href="./">Home</a><a href="terms.html">Terms</a><a href="terms.html#usage">Usage Policy</a><a href="privacy.html">Privacy</a></footer>
+
+<script>
+// English or Indonesian: the reader's choice, kept in this browser; at first, the browser's language
+(function () {
+	var saved = null;
+	try { saved = localStorage.getItem("andromeda.legalLang"); } catch (e) {}
+	var lang = saved || (/^id\b/i.test(navigator.language || "") ? "id" : "en");
+	function show(l, keep) {
+		lang = l;
+		document.documentElement.lang = l;
+		document.querySelectorAll("article[lang]").forEach(function (a) { a.hidden = a.lang !== l; });
+		document.querySelectorAll("[data-lang]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.lang === l)); });
+		if (keep) { try { localStorage.setItem("andromeda.legalLang", l); } catch (e) {} }
+		var h = location.hash.slice(1).replace(/-id$/, "");
+		if (h) { var el = document.getElementById(l === "id" ? h + "-id" : h); if (el) el.scrollIntoView(); }
+	}
+	document.querySelectorAll("[data-lang]").forEach(function (b) { b.onclick = function () { show(b.dataset.lang, true); }; });
+	addEventListener("hashchange", function () { show(lang); });
+	show(lang);
+})();
+</script>
+</body>
+</html>

@@ -54,7 +54,6 @@ The second command prints a `database_id`. Paste it into `wrangler.toml` in plac
 
 ```bash
 npx wrangler d1 execute andromeda --remote --file schema.sql
-npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put PEPPER
 npx wrangler secret put CF_ACCOUNT_ID
 npx wrangler secret put CF_API_TOKEN
@@ -62,7 +61,6 @@ npx wrangler secret put TAVILY_KEY
 npx wrangler deploy
 ```
 
-- **ADMIN_TOKEN**: a long password only you know. It opens your admin page.
 - **PEPPER**: any long random text. Type it once and forget it. It makes stored passwords harder to crack.
 - **CF_ACCOUNT_ID**: the Account ID that `npx wrangler whoami` prints.
 - **CF_API_TOKEN**: at dash.cloudflare.com/profile/api-tokens, **Create Token** with the **Workers AI** template
@@ -89,23 +87,36 @@ const DEFAULT_SERVER = "https://andromeda-credits.yourname.workers.dev";
 
 Upload `index.html` to GitHub again. The sidebar now shows **Sign in · Credits**.
 
-## Open your shop
+## Run your shop
 
-Go to `https://georgechendra-cmyk.github.io/andromeda/#admin` and type your ADMIN_TOKEN.
+There's no admin page: prices, plans, packs, free credits and how the shop runs are all in `worker.js`
+(`DEFAULT_CONFIG`). Ask Claude to change them, then deploy. What the owner does by hand runs on this computer with
+`owner.mjs` (signed in to Cloudflare with `npx wrangler login`):
 
-1. **QRIS**: upload your QRIS image next to `index.html` on GitHub (for example `qris.png`), then put `qris.png` in
-   "QRIS image address" and your name in "Name shown on QRIS".
-2. Tick **Credits are on sale** and press **Save settings**.
+```bash
+node owner.mjs pending                     # payments waiting to be confirmed
+node owner.mjs approve <payment id>        # after you've seen the money arrive: the plan starts, or the credits are added
+node owner.mjs reject <payment id>
+node owner.mjs plan <email> <plan> [days]  # give a plan by hand (nova, pulsar, quasar)
+node owner.mjs credits <email> <n>         # add (or, negative, take) pack credits
+node owner.mjs stats                       # sold, AI cost, free use by day
+```
 
-When someone pays with QRIS, it appears under **Waiting for confirmation** with the name they paid from.
-**Check your e-wallet or bank first**, then press **Approve**, and their credits arrive at once.
+1. **QRIS**: put your QRIS image next to `index.html` on GitHub (for example `qris.png`), then set
+   `qris: { image: "qris.png", name: "Your name" }` and `open: true` in `DEFAULT_CONFIG`, and deploy.
+2. When someone pays with QRIS, `node owner.mjs pending` lists it with the name they paid from. **Check your e-wallet or
+   bank first**, then approve it.
+
+The owner's own account has no limits (`OWNERS` in `worker.js`: the SHA-256 of the email, so the address isn't in the
+public code).
 
 ## Card and PayPal for people abroad (optional, later)
 
 1. Make an account at Lemon Squeezy (or Paddle / Gumroad). Check that it **pays out to Indonesia** and allows selling
    AI usage credits.
-2. Create a product with 3 variants: Starter $5, Plus $10, Pro $20.
-3. In the admin page, paste each variant's **checkout link** and **variant id**, then save.
+2. Create a product with a variant per plan and per pack.
+3. Put each variant's **checkout link** and **variant id** in `checkout.links` and `checkout.variants` in
+   `DEFAULT_CONFIG` (keys `plan:nova`, `plan:pulsar`, `plan:quasar`, and each pack's id), then deploy.
 4. In Lemon Squeezy, add a webhook to `https://YOUR-SERVER/api/webhooks/lemonsqueezy` for the event
    `order_created`, with a signing secret. Then run:
 
@@ -113,34 +124,22 @@ When someone pays with QRIS, it appears under **Waiting for confirmation** with 
 npx wrangler secret put LEMON_SECRET
 ```
 
-Card payments then add credits automatically, even while you're asleep.
+Card payments then start plans and add credits automatically, even while you're asleep.
 
-## Prices
+## Prices and plans
 
-In the admin page you can change, any time:
+All in `DEFAULT_CONFIG` in `worker.js`:
 
-- **Mark-up** on the model's list price: cheap models ×3.5, mid ×2.5, top models ×2 by default.
-- **Packs and prices** in each currency. Use round local prices, not exchange-rate conversions.
+- **Mark-up** on the model's list price: 3x on everything (media too). 1 credit = $0.01 at those prices, so a credit
+  costs the owner at most about Rp69. Users only ever see credits: never tokens, never money per answer.
+- **Plans**: each has a window of credits that all comes back 5 hours after it's first used, a week's limit and a
+  month's limit. The month's limit is the safety cap: nobody can cost the owner more than about twice what they paid.
+- **Free**: a small window every 5 hours and a small week, inside a daily budget (`free.budgetIdr`) for all free use
+  together.
+- **Packs**: credits that never expire, used once a plan's limits are reached.
 
-1 credit = $0.01 at your prices. Users only ever see credits: never tokens, never money per answer.
-
-**Free credits.** Everyone with an account gets 32 free credits (about Rp5,000 at Starter prices). They're used before
-bought credits, and once someone starts using them they're all back 24 hours later. Change both in the admin page (0
-turns them off). When the free ones run out, people are told when more come back, or they buy credits.
-
-**Videos, images, voice and music** (the studio) are marked up ×2 (`media` in the mark-ups). A video holds its worst
-case when it starts and is charged its real cost when it finishes; a failed one costs nothing. A 15-20 second ad costs
-about $0.70 at OpenRouter on Quick, $1 on Standard, $2.50 on Cinematic and $7 on Max (offered only to someone with a big
-balance). People see the cost of each in credits before anything is made.
-
-If you set the server up before free credits existed, add the new columns once, then deploy the worker again:
-
-```
-npx wrangler d1 execute andromeda --remote --command "ALTER TABLE users ADD COLUMN free_mc INTEGER NOT NULL DEFAULT 0"
-npx wrangler d1 execute andromeda --remote --command "ALTER TABLE users ADD COLUMN free_reset_at INTEGER NOT NULL DEFAULT 0"
-npx wrangler d1 execute andromeda --remote --file schema.sql
-npx wrangler deploy
-```
+**Videos, images, voice and music** (the studio) hold their worst case when they start and are charged their real
+cost when they finish; a failed one costs nothing.
 
 ## Topping up without a credit card
 
