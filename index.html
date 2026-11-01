@@ -9695,11 +9695,13 @@ function openAccount() {
 				'<div class="field"><label for="acPass">Password</label><input class="inp" id="acPass" type="password" autocomplete="' + (mode === "in" ? "current-password" : "new-password") + '"' + (mode === "up" ? ' placeholder="At least 8 characters"' : "") + '><div class="status" id="acStatus" role="status"></div></div>' +
 				'<button class="btn dark go" id="acGo">' + (mode === "in" ? "Sign in" : "Create account") + "</button>" +
 				'<button class="switch" id="acSwitch">' + (mode === "in" ? "New here? <b>Create an account</b>" : "Already have an account? <b>Sign in</b>") + "</button>" +
+				(mode === "in" && pricing && pricing.emailCodes ? '<button class="switch" id="acForgot" style="margin-top:2px">Forgot your password?</button>' : "") +
 				'<p class="legal">By continuing, you agree to Celestin\'s <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a>, and acknowledge its <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p></div>';
 			if (keep) [$("#acEmail").value, $("#acPass").value] = keep;
 			if (say) { $("#acStatus").className = "status bad"; $("#acStatus").textContent = say; }
 			if (!matchMedia("(pointer: coarse)").matches) setTimeout(() => $("#acEmail") && $(keep && keep[0] ? "#acPass" : "#acEmail").focus(), 320);
 			$("#acSwitch").onclick = () => { mode = mode === "in" ? "up" : "in"; draw(true, [$("#acEmail").value, $("#acPass").value]); };
+			if ($("#acForgot")) $("#acForgot").onclick = () => drawForgot($("#acEmail").value);
 			const go = async () => {
 				const st = $("#acStatus");
 				st.className = "status";
@@ -9722,6 +9724,8 @@ function openAccount() {
 							return;
 						}
 					}
+					// the right password: the code sent to the email is asked for next
+					if (j && j.verify) { drawCode(j.email || $("#acEmail").value); return; }
 					signedIn(j, made);
 				} catch (e) {
 					st.className = "status bad";
@@ -9732,6 +9736,56 @@ function openAccount() {
 			$("#acGo").onclick = go;
 			$("#acPass").onkeydown = (e) => { if (e.key === "Enter") go(); };
 			if (gid) googleButton(gid, mode);
+		};
+		// a card of its own on the sign-in page: a title, a line, fields, one button, and a way back
+		const card = (title, lede, fields, button) => {
+			openAuth();
+			$("#authMain").innerHTML = '<div class="auth-card swap-in"><svg class="auth-mark" aria-hidden="true"><use href="#logo"/></svg><h1 id="authTitle">' + title + '</h1><p class="lede">' + lede + "</p>" + fields +
+				'<div class="status" id="acStatus" role="status"></div><button class="btn dark go" id="acGo">' + button + '</button><button class="switch" id="acBack">Back to <b>sign in</b></button></div>';
+			$("#acBack").onclick = () => { mode = "in"; draw(true); };
+			const say = (t, bad) => { $("#acStatus").className = "status" + (bad ? " bad" : ""); $("#acStatus").textContent = t; };
+			return say;
+		};
+		const codeField = '<div class="field"><label for="acCode">Code</label><input class="inp" id="acCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="6 digits" style="letter-spacing:.3em;font-size:20px;text-align:center"></div>';
+		const failText = (e) => (e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(e.message) ? "Couldn't reach Celestin's server. Check your connection and try again." : e.message);
+		// the code sent after the right password
+		const drawCode = (email) => {
+			const say = card("Check your email", "We sent a 6-digit code to <b>" + esc(email) + "</b>. It works for 10 minutes.", codeField + '<button class="switch" id="acResend" style="margin:0 0 6px">Send a new code</button>', "Sign in");
+			const go = async () => {
+				say("Checking…");
+				try { signedIn(await api("/api/login/verify", { method: "POST", body: JSON.stringify({ email, code: $("#acCode").value }) }), false); }
+				catch (e) { say(failText(e), true); }
+			};
+			$("#acGo").onclick = go;
+			$("#acCode").onkeydown = (e) => { if (e.key === "Enter") go(); };
+			$("#acCode").oninput = () => { if ($("#acCode").value.replace(/\D/g, "").length === 6) go(); };
+			$("#acResend").onclick = async () => { try { await api("/api/login/resend", { method: "POST", body: JSON.stringify({ email }) }); say("A new code is on its way."); } catch (e) { say(failText(e), true); } };
+			setTimeout(() => $("#acCode") && $("#acCode").focus(), 200);
+		};
+		// forgot password: the email, then the code and a new password
+		const drawForgot = (typed) => {
+			const say = card("Reset your password", "Type your account's email and we'll send you a code.", '<div class="field"><label for="acEmail">Email</label><input class="inp" id="acEmail" type="email" autocomplete="email" inputmode="email"></div>', "Send the code");
+			$("#acEmail").value = typed || "";
+			const go = async () => {
+				const email = $("#acEmail").value.trim();
+				say("Sending…");
+				try { await api("/api/password/forgot", { method: "POST", body: JSON.stringify({ email }) }); drawReset(email); }
+				catch (e) { say(failText(e), true); }
+			};
+			$("#acGo").onclick = go;
+			$("#acEmail").onkeydown = (e) => { if (e.key === "Enter") go(); };
+			setTimeout(() => $("#acEmail") && $("#acEmail").focus(), 200);
+		};
+		const drawReset = (email) => {
+			const say = card("Choose a new password", "If <b>" + esc(email) + "</b> has an account, a 6-digit code is on its way there.", codeField + '<div class="field"><label for="acPass">New password</label><input class="inp" id="acPass" type="password" autocomplete="new-password" placeholder="At least 8 characters"></div>', "Save and sign in");
+			const go = async () => {
+				say("Saving…");
+				try { signedIn(await api("/api/password/reset", { method: "POST", body: JSON.stringify({ email, code: $("#acCode").value, password: $("#acPass").value }) }), false); toast("Your new password is saved"); }
+				catch (e) { say(failText(e), true); }
+			};
+			$("#acGo").onclick = go;
+			$("#acPass").onkeydown = (e) => { if (e.key === "Enter") go(); };
+			setTimeout(() => $("#acCode") && $("#acCode").focus(), 200);
 		};
 		draw();
 		return;

@@ -97,7 +97,7 @@ export default {
 	// every few minutes: the scheduled tasks that are due run (see "tasks"), and pictures shared with apps a day ago go
 	async scheduled(event, env, ctx) {
 		ctx.waitUntil(runDueTasks(env, ctx));
-		ctx.waitUntil(columns(env).then(() => env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE).run()).catch(() => {}));
+		ctx.waitUntil(columns(env).then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3)])).catch(() => {}));
 	},
 };
 
@@ -105,8 +105,12 @@ async function route(req, env, ctx, url) {
 	const p = url.pathname.replace(/\/+$/, "");
 	const m = req.method;
 	await columns(env);
-	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "" });
+	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env) });
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
+	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
+	if (p === "/api/login/resend" && m === "POST") return loginResend(req, env);
+	if (p === "/api/password/forgot" && m === "POST") return passwordForgot(req, env);
+	if (p === "/api/password/reset" && m === "POST") return passwordReset(req, env);
 	if (p === "/api/login" && m === "POST") return login(req, env);
 	if (p === "/api/auth/google" && m === "POST") return googleSignIn(req, env);
 	if (p === "/api/webhooks/lemonsqueezy" && m === "POST") return lemonWebhook(req, env);
@@ -247,6 +251,78 @@ function cleanEmail(e) {
 	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) || s.length > 200) throw fail(400, "That email address doesn't look right.");
 	return s;
 }
+// ---- sign-in codes by email (through the owner's Gmail: a Google Apps Script web app that sends what it's given). A
+// password alone doesn't sign in once mail is set up: the 6-digit code sent to the account's email is asked for too
+const mailOn = (env) => !!(env.MAIL_URL && env.MAIL_KEY);
+async function sendMail(env, to, subject, text, html) {
+	let j = null;
+	try {
+		const r = await fetch(String(env.MAIL_URL).trim(), { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ key: String(env.MAIL_KEY).trim(), to, subject, text, html }), redirect: "follow" });
+		j = await r.json().catch(() => null);
+	} catch {}
+	if (!j || !j.ok) throw fail(502, "Couldn't send the code just now. Try again in a minute.");
+}
+const CODE_LIFE = 10 * 60e3, CODE_TRIES = 5, CODES_AN_HOUR = 5;
+const codeHash = (email, code) => sha256hex(email + ":" + code);
+async function sendCode(env, email, purpose) {
+	const row = await env.DB.prepare("SELECT * FROM email_codes WHERE email = ?").bind(email).first();
+	const t = now(), fresh = !row || t - (row.window_at || 0) > 3600e3;
+	if (!fresh && (row.sent || 0) >= CODES_AN_HOUR) throw fail(429, "That's a lot of codes for one email. Wait an hour, then try again.");
+	const code = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
+	await env.DB.prepare("INSERT INTO email_codes (email, code_hash, pass, tries, sent, window_at, expires_at) VALUES (?, ?, ?, 0, ?, ?, ?) ON CONFLICT(email) DO UPDATE SET code_hash = excluded.code_hash, pass = COALESCE(excluded.pass, email_codes.pass), tries = 0, sent = excluded.sent, window_at = excluded.window_at, expires_at = excluded.expires_at")
+		.bind(email, await codeHash(email, code), purpose, fresh ? 1 : (row.sent || 0) + 1, fresh ? t : row.window_at, t + CODE_LIFE).run();
+	await sendMail(env, email, code + " is your Celestin sign-in code", "Your Celestin sign-in code is " + code + ". It works for 10 minutes.\n\nIf you didn't try to sign in, someone may know your password: change it soon.",
+		'<div style="font-family:system-ui,sans-serif;font-size:15px;color:#111"><p>Your Celestin code is</p><p style="font-size:30px;font-weight:700;letter-spacing:6px;margin:8px 0">' + code + '</p><p style="color:#555">It works for 10 minutes. If you didn\'t try to sign in, someone may know your password: change it soon.</p></div>');
+}
+async function useCode(env, email, code, kind) {
+	const row = await env.DB.prepare("SELECT * FROM email_codes WHERE email = ?").bind(email).first();
+	if (!row || String(row.pass || "").split(":")[0] !== kind || row.expires_at < now()) throw fail(400, "That code has expired. Send a new one.");
+	if ((row.tries || 0) >= CODE_TRIES) throw fail(429, "Too many wrong codes. Send a new one.");
+	if (!sameString(await codeHash(email, String(code || "").replace(/\D/g, "")), row.code_hash)) {
+		await env.DB.prepare("UPDATE email_codes SET tries = tries + 1 WHERE email = ?").bind(email).run();
+		throw fail(400, "That code isn't right. Check the email and try again.");
+	}
+	await env.DB.prepare("DELETE FROM email_codes WHERE email = ?").bind(email).run();
+	const u = await env.DB.prepare("SELECT * FROM users WHERE id = ? AND email = ?").bind(String(row.pass).split(":")[1], email).first();
+	if (!u) throw fail(400, "That account isn't there anymore.");
+	return u;
+}
+async function loginVerify(req, env) {
+	const b = await body(req);
+	const u = await useCode(env, cleanEmail(b.email), b.code, "login");
+	const token = await newSession(env, u.id);
+	return json({ token, me: await meOf(env, u) });
+}
+// Forgot password: a code goes to the email if there's a password account there (the answer is the same either way, so
+// nobody learns who has an account); with the code, a new password, and every other sign-in ends
+async function passwordForgot(req, env) {
+	if (!mailOn(env)) throw fail(503, "Password resets by email aren't set up yet. Contact support.");
+	const b = await body(req);
+	const email = cleanEmail(b.email);
+	const u = await env.DB.prepare("SELECT id, pass FROM users WHERE email = ?").bind(email).first();
+	if (u && String(u.pass || "").startsWith("pbkdf2$")) await sendCode(env, email, "reset:" + u.id);
+	return json({ ok: true, verify: true, email });
+}
+async function passwordReset(req, env) {
+	const b = await body(req);
+	const password = String(b.password || "");
+	if (password.length < 8) throw fail(400, "Use a password of at least 8 characters.");
+	const u = await useCode(env, cleanEmail(b.email), b.code, "reset");
+	await env.DB.batch([
+		env.DB.prepare("UPDATE users SET pass = ? WHERE id = ?").bind(await hashPassword(password, env), u.id),
+		env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id),
+	]);
+	const token = await newSession(env, u.id);
+	return json({ token, me: await meOf(env, u) });
+}
+async function loginResend(req, env) {
+	const b = await body(req);
+	const email = cleanEmail(b.email);
+	const row = await env.DB.prepare("SELECT pass FROM email_codes WHERE email = ?").bind(email).first();
+	if (!row || !/^(login|reset):/.test(row.pass || "")) throw fail(400, "Start again from the beginning.");
+	await sendCode(env, email, row.pass);
+	return json({ ok: true, verify: true, email });
+}
 async function signup(req, env) {
 	const b = await body(req);
 	const email = cleanEmail(b.email);
@@ -267,6 +343,11 @@ async function login(req, env) {
 	// an account made with Google has no password to check (and its marker must never be read as hashing settings)
 	if (u && !String(u.pass || "").startsWith("pbkdf2$")) throw fail(401, "This account signs in with Google: use the Google button.");
 	if (!u || !(await checkPassword(String(b.password || ""), u.pass, env))) throw fail(401, "Wrong email or password.");
+	// the right password: then the code sent to the account's email
+	if (mailOn(env)) {
+		await sendCode(env, email, "login:" + u.id);
+		return json({ verify: true, email });
+	}
 	const token = await newSession(env, u.id);
 	return json({ token, me: await meOf(env, u) });
 }
@@ -429,6 +510,7 @@ function columns(env) {
 		}
 		const ucols = new Set(((await env.DB.prepare("PRAGMA table_info(usage)").all()).results || []).map((r) => r.name));
 		for (const k of ["in_tok", "cached_tok", "out_tok"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS email_codes (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, pass TEXT, tries INTEGER NOT NULL DEFAULT 0, sent INTEGER NOT NULL DEFAULT 0, window_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
 	})().catch((e) => { COLS = null; throw e; });
