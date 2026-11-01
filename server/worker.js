@@ -39,13 +39,13 @@ const DEFAULT_CONFIG = {
 	// The owner's rule (Nov 2): at least twice what it costs on every plan even when someone uses every last credit, the
 	// most on the $20 plan and less the dearer the plan, so the bigger plans are the better deal. A credit costs the owner
 	// at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), so a payment's worst case is "month" x
-	// Rp69, and the price is 2.5x, 2.25x and 2x that. Each payment adds exactly one month of credits, so no timing of
+	// Rp69, and the price is 2.2x, 2.1x and 2x that. Each payment adds exactly one month of credits, so no timing of
 	// renewals, upgrades or bursts can cost more. Packs sell a credit dearer still (about 2.6x), and never expire.
 	// Nonstop coding is about 140 credits an hour (CODE_HOUR in the site, measured): Nova is 3 hours of it in any 5 and
-	// about 13 hours a month; Pulsar never runs out in a sitting and is about 74 hours a month; Quasar about 165.
+	// about 15 hours a month; Pulsar never runs out in a sitting and is about 79 hours a month; Quasar about 165.
 	plans: [
-		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 1850, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
-		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 10300, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
+		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 2100, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 11000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
 		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
 	],
 	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
@@ -1170,6 +1170,25 @@ function lastUserText(messages) {
 // room for thinking on top of the answer, by how hard a model is asked to think (it's billed as output, and only what's
 // used is charged): the thinking a model scored best with is only there if it has room for it
 const THINK_ROOM = { none: 0, minimal: 2048, low: 8192, medium: 16384, high: 32768, xhigh: 65536, max: 98304 };
+// A model that thinks so long before its first word that the gateway gives up (about two minutes with nothing sent): the
+// level it was asked at is remembered as too much for it, for everyone, and the next level down is sent from then on.
+// (The owner still pays the gateway for what it thought, so each one is worth never repeating.)
+const EFFORTS = ["minimal", "low", "medium", "high", "xhigh", "max"];
+let SLOW = { at: 0, map: {} };
+async function slowEfforts(env) {
+	if (Date.now() - SLOW.at < 300e3) return SLOW.map;
+	try { const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'slow-efforts'").first(); SLOW = { at: Date.now(), map: row ? JSON.parse(row.v) || {} : {} }; }
+	catch { SLOW = { at: Date.now(), map: SLOW.map || {} }; }
+	return SLOW.map;
+}
+async function tooSlow(env, model, effort) {
+	const at = EFFORTS.indexOf(effort);
+	if (at <= EFFORTS.indexOf("medium")) return;
+	const map = await slowEfforts(env), lower = EFFORTS[at - 1];
+	if (map[model] && EFFORTS.indexOf(map[model]) <= EFFORTS.indexOf(lower)) return;
+	map[model] = lower;
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('slow-efforts', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(map)).run().catch(() => {});
+}
 
 async function chat(req, env, ctx, user) {
 	const c = await config(env);
@@ -1197,8 +1216,12 @@ async function chat(req, env, ctx, user) {
 	const inUsd = inTokens * price.pin + (web ? web.n * 0.01 + 20000 * price.pin : 0);
 	const room = toUsd(spendable(user, c)) - inUsd;
 	if (room <= 0) throw fail(402, "Not enough credits for a message this long. Buy credits or start a new chat.");
+	// (a level this model has been too slow at through the gateway: the one below it)
+	const slowAt = (await slowEfforts(env))[b.model];
+	if (slowAt && b.reasoning && EFFORTS.indexOf(b.reasoning.effort) > EFFORTS.indexOf(slowAt)) b.reasoning = { ...b.reasoning, effort: slowAt };
 	const effort = b.reasoning && b.reasoning.effort;
 	const thinkRoom = THINK_ROOM[effort] || 0;
+	const started = now();
 	let maxOut = Math.min((Number(b.max_tokens) || c.maxTokens) + thinkRoom, c.maxTokens + thinkRoom);
 	if (price.mo > 0) maxOut = Math.min(maxOut, price.mo);
 	if (price.pout > 0) maxOut = Math.min(maxOut, Math.floor(room / price.pout));
@@ -1295,6 +1318,7 @@ async function chat(req, env, ctx, user) {
 		}
 	}
 	if (!r) {
+		if (now() - started >= 80e3) await tooSlow(env, b.model, effort);
 		await settle(null);
 		// the owner's provider account refusing (no balance, a bad key) isn't the person's credits running out
 		const status = !last ? 502 : [401, 402, 403].includes(last.status) ? 503 : last.status;
@@ -1380,6 +1404,8 @@ async function chat(req, env, ctx, user) {
 		} catch {
 			try { await reader.cancel(); } catch {}
 		} finally {
+			// cut off before a word came, after a long wait: too slow at this level
+			if (!outChars && !used() && now() - started >= 80e3) await tooSlow(env, b.model, effort);
 			await settle(way, used(), outChars);
 			try { await writer.close(); } catch {}
 		}

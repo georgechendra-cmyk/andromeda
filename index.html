@@ -6033,6 +6033,9 @@ async function runTeam(text, atts) {
 function oneModelPlan(text) {
 	if (!PROFILE || PROFILE_TEXT !== text || speed() === "max") return null;
 	const w = PROFILE.weights || {}, kind = PROFILE.kind;
+	// (the planner also decides whether facts and reasoning get checked: it's skipped only where that's already settled,
+	// for code, which is always checked, or when the conductor asked for a check itself)
+	if (kind !== "code" && !PROFILE.check) return null;
 	const major = Object.entries(w).filter(([, v]) => v >= 0.2).map(([k]) => k);
 	if (!major.length) return null;
 	const cap = { easy: "low", medium: "medium" }[PROFILE.level] || "high";
@@ -9792,8 +9795,8 @@ const LEGAL_LINKS = '<a href="terms.html" target="_blank" rel="noopener">Terms</
 const DEFAULT_PRICING = {
 	creditUsd: 0.01, open: false, free: { credits: 100, hours: 5, every: 5, week: 150 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	plans: [
-		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 1850, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
-		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 10300, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
+		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 2100, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 11000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
 		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
 	packs: [
