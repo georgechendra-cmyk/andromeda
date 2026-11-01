@@ -37,9 +37,9 @@ const DEFAULT_CONFIG = {
 	// use a small part of theirs), with a safety cap so nobody costs more than about twice what they paid. A credit costs
 	// the owner at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), so "month" x Rp69 is the
 	// most a plan's month can cost: 1.95x, 2.03x and 2.11x the price, and the dearer the plan, the more each rupiah buys.
-	// Nonstop coding is about 170 credits an hour (CODE_HOUR in the site, measured): Nova is 3 hours of it in any 5, 25 in
-	// a week and about 53 in a month; Pulsar never runs out in a sitting, 80 hours a week, about 275 a month; Quasar the
-	// same in a sitting, 150 a week and about 575 a month (more than anyone can sit and code).
+	// Nonstop coding is about 140 credits an hour (CODE_HOUR in the site, measured): Nova is about 3½ hours of it in any 5,
+	// 30 in a week and about 64 in a month; Pulsar never runs out in a sitting, about 97 hours a week and 335 a month;
+	// Quasar the same in a sitting, about 180 a week and 700 a month (more than anyone can sit and code).
 	plans: [
 		{ id: "nova", name: "Nova", credits: 510, hours: 5, week: 4250, month: 9000, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 13600, month: 47000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },

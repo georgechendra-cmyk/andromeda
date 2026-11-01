@@ -3352,9 +3352,26 @@ function chatMarkdown(c) {
 	return out.join("\n").trim() + "\n";
 }
 function chatHistory() {
-	// what the model sees: the whole chat, with attachments folded into the user turns
-	return current.msgs.filter((m) => !m.error && (m.role === "user" || m.text)).map((m) => {
-		if (m.role !== "user" || !m.atts?.length) return { role: m.role, content: m.text || "" };
+	// what the model sees: the whole chat, with attachments folded into the user turns. Code that's shown again further
+	// down is read only in its newest version: an older copy of the same file becomes one line (it was read, and paid for,
+	// at every turn after, and two versions of one file mislead). Once left out it stays out, so the chat's start is the
+	// same from turn to turn and is still read at its cached price
+	const msgs = current.msgs.filter((m) => !m.error && (m.role === "user" || m.text));
+	const newest = new Map(), texts = new Map();
+	for (let i = msgs.length - 1; i >= 0; i--) {
+		const m = msgs[i];
+		if (m.role !== "assistant" || !/^(\x60{3,}|~{3,})/m.test(m.text || "")) continue;
+		const { lines, blocks } = codeBlocks(m.text);
+		let cut = false;
+		for (const b of blocks.slice().reverse()) {
+			const later = newest.get(b.name);
+			if (later && b.body.length >= 400 && sameFile(b.body, later)) { lines.splice(b.from, b.to - b.from, "(an older version of " + b.name + ", left out: the newest is further down)"); cut = true; }
+		}
+		if (cut) texts.set(m, lines.join("\n"));
+		for (const b of blocks) if (!newest.has(b.name)) newest.set(b.name, new Set(b.body.split("\n").map((l) => l.trim()).filter((l) => l.length > 3)));
+	}
+	return msgs.map((m) => {
+		if (m.role !== "user" || !m.atts?.length) return { role: m.role, content: texts.get(m) ?? (m.text || "") };
 		const parts = [{ type: "text", text: m.text || "" }];
 		for (const a of m.atts) {
 			if (a.kind === "image" && a.data) parts.push({ type: "image_url", image_url: { url: a.data } });
@@ -3362,6 +3379,14 @@ function chatHistory() {
 		}
 		return { role: "user", content: parts };
 	});
+}
+// (an older copy of the same file: at least 30% of its lines are still in the newer one)
+function sameFile(body, newer) {
+	const ls = body.split("\n").map((l) => l.trim()).filter((l) => l.length > 3);
+	if (!ls.length) return false;
+	let n = 0;
+	for (const l of ls) if (newer.has(l)) n++;
+	return n / ls.length >= 0.3;
 }
 const LANGS = [
 	["auto", "Match my language", ""], ["en", "English", "Respond in English."], ["es", "Español", "Respond entirely in Spanish."],
@@ -5593,9 +5618,13 @@ async function runAuto(text, atts) {
 	const cands = rank(task, light || undefined, record ? { tags, record } : null);
 	// what running its code showed, added to that record: whose code ran first time, on exactly this
 	const share = (results) => { if (tags.length && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results: results.map((r) => ({ ...r, tags })) }) }).catch(() => {}); };
+	const code = task === "code" ? chatCode() : null;
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
 	const hist = [sys(), ...chatHistory()];
+	// code the chat already has, changed: only the changes are written (the note goes in the newest message, so the chat's
+	// start stays the same and is still read at its cached price)
+	if (code) hist[hist.length - 1] = withText(hist[hist.length - 1], textOf(hist[hist.length - 1]) + editNote(code));
 	// try the best model; if it fails before saying anything, the next one in line takes over
 	let lastErr;
 	const tryList = cands.length ? cands.slice(0, 5) : [best(task)].filter(Boolean);
@@ -5607,7 +5636,12 @@ async function runAuto(text, atts) {
 			msg.spec = specFor(task);
 		updateLast();
 		try {
-			await stream(m.id, hist, (t) => { msg.text = t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", light, m.id)) : effortExtra(m.id)) }, msg);
+			const said = await stream(m.id, hist, (t) => { msg.text = code ? editView(t) : t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", light, m.id)) : effortExtra(m.id)) }, msg);
+			if (code) {
+				const e = await withEdits(said, code, m, hist, msg);
+				if (e) { msg.text = e.text; msg.codeFiles = e.files; msg.codeOrder = e.order; } else msg.text = said;
+				updateLast();
+			}
 			// code in it that can run here is run before it's done; if it fails, the model measured best at this work fixes it
 			// (price aside: the cheaper model was tried first because it's usually right)
 			const tested = task === "code" ? await testCode(msg.text) : null;
@@ -5955,6 +5989,27 @@ async function runTeam(text, atts) {
 // whole request needs: its field, its language), at the thinking effort it scored best at. Pieces that don't need each
 // other run at the same time; a piece that needs another gets its result. Then the model best at writing this answer
 // puts them together. A request that's really one piece is answered by the best model for that piece, nothing more.
+// The conductor's read as the whole plan, when one model is level with the best (within a hair, 10 Elo) at every skill that
+// matters to the request: split into pieces, they'd all go to that model, which writes it all in one call anyway, so a
+// planner call would cost a credit or two to say "one piece". (Max: the planner, always; a request that needs the web: the
+// web piece is added after, as for any plan)
+function oneModelPlan(text) {
+	if (!PROFILE || PROFILE_TEXT !== text || speed() === "max") return null;
+	const w = PROFILE.weights || {}, kind = PROFILE.kind;
+	const major = Object.entries(w).filter(([, v]) => v >= 0.2).map(([k]) => k);
+	if (!major.length) return null;
+	const cap = { easy: "low", medium: "medium" }[PROFILE.level] || "high";
+	const who = quarkFirst(arenaRank(kind, w), cap)[0];
+	if (!who) return null;
+	const midOf = (list) => list.reduce((a, b) => Math.max(a, b.mid ?? -Infinity), -Infinity);
+	for (const k of major) {
+		const r = arenaRank(kind, { [k]: 1 });
+		const best = midOf(r), mine = midOf(r.filter((x) => x.m.id === who.m.id));
+		if (!Number.isFinite(best) || !Number.isFinite(mine) || best - mine > WORTH_MAX) return null;
+	}
+	const goal = String(PROFILE.task || text).slice(0, 700);
+	return { understanding: "", check: PROFILE.check, one: shortName(who.m), pieces: [{ id: "p1", label: "The whole request", goal, skill: "", kind, weights: { ...w }, tags: PROFILE.tags || [], level: PROFILE.level || "medium", needs: [], web: false }] };
+}
 function readQuarks(raw, idx) {
 	let j;
 	try { j = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")); } catch { return null; }
@@ -6114,8 +6169,9 @@ async function runQuarks(text, atts) {
 	msg.status = "Splitting it into its smallest pieces";
 	const lead = { label: "Split into pieces", goal: "Read the request and split it into its smallest pieces of work", text: "", done: false, running: true, open: false, model: "", id: "", role: "analyze" };
 	msg.steps.push(lead);
-	let plan = null;
-	try {
+	let plan = oneModelPlan(text);
+	if (plan) { lead.label = "Read the request"; lead.goal = "One model is level with the best at every part: " + plan.one; }
+	if (!plan) try {
 		const ask = "You plan how a team of the world's best AI models works together on one request, like a crew where everyone does only the one thing they are the best in the world at. Split the work into its smallest, most specific pieces: each piece is ONE narrow job needing ONE precise skill. Be as specific as you possibly can, never broad: not \"research\" but \"find the 5 moments of the French Revolution a 9-year-old would find most gripping, with dates\"; not \"brainstorm\" but \"3 everyday comparisons a 9-year-old already knows that make 'revolution' click\"; not \"writing\" but \"tell the storming of the Bastille as a 120-word story for a 9-year-old\"; not \"code\" but \"the regex that validates Indonesian mobile numbers\".\n"
 				+ "- Make them work together like a team: later pieces build on what earlier ones found (list those in \"needs\"). Usually: find the facts or understand the material, then work out the ideas, angles, examples or structure, then make each part, then check. Pieces that don't depend on each other run at the same time.\n"
 				+ "- As many pieces as the work really has, 1 to 32. A tiny request (a greeting, one fact) is 1 piece; anything substantial is usually 5 to 15, and big work more.\n"
@@ -6213,16 +6269,21 @@ async function runQuarks(text, atts) {
 		const head = "The user's request:\n" + request + (material ? "\n\nThe attached material:\n" + material : "") + (plan.understanding ? "\n\nWhat they really want:\n" + plan.understanding : "")
 			+ (inputs ? "\n\nWhat your teammates already did, for you to build on (use it, don't redo it):\n" + inputs : "");
 		const writes = g === writer;
-		const gAsk = writes
+		const code = writes && codey ? chatCode() : null;
+		const gAsk = (writes
 			? head + "\n\nThe plan, in order:\n" + outline + "\n\n" + (inputs ? "Your teammates' work above already covers part of it: build on it as it is, don't redo it. " : "") + "Work through every part of the plan, each building on the last (code in full, numbers worked out, facts checked), and write the one finished answer the user reads: complete and correct, well organised, in Markdown, in the language they wrote in. Don't mention the plan or its parts."
 			: head + "\n\nYour pieces of the work, in order (each may build on the ones before it):\n\n" + g.pieces.map((p) => "### " + p.id + ": " + p.label + "\n" + p.goal + (p.skill ? "\nIts exact skill: " + p.skill : "")).join("\n\n")
-				+ "\n\nDo only these pieces, completely and exactly (code in full, numbers worked out, facts checked). Another model puts everything together, so give the results themselves, each under its own heading exactly as given (" + g.pieces.map((p) => "### " + p.id).join(", ") + "): no introduction, no summary.";
+				+ "\n\nDo only these pieces, completely and exactly (code in full, numbers worked out, facts checked). Another model puts everything together, so give the results themselves, each under its own heading exactly as given (" + g.pieces.map((p) => "### " + p.id).join(", ") + "): no introduction, no summary.") + (code ? editNote(code) : "");
 		// the finished answer sees the whole chat; a piece gets the recent part and a trimmed copy of the project's files
 		// (the same start for every piece, so the providers bill it at their cached price)
 		const build = () => (writes ? [sys(), ...hist.slice(0, -1), withText(last, gAsk)] : [leanSys(), ...hist.slice(0, -1).slice(-6).map(trimMsg), withText(last, gAsk)]);
-		const live = writes ? (t) => { msg.text = t; } : null;
+		const live = writes ? (t) => { msg.text = code ? editView(t) : t; } : null;
 		try {
 			let out = await run(st, g.cands, build, live, (m) => (g.web ? webExtra(m.id, true) : {}), undefined, g.cap);
+			if (code) {
+				const e = await withEdits(out, code, { id: st.id }, build(), msg);
+				if (e) { out = e.text; msg.codeFiles = e.files; msg.codeOrder = e.order; }
+			}
 			// code it wrote that can run here is run before anyone sees it; if it fails, the same model gets the exact error
 			// and fixes it
 			const tested = await testCode(out);
@@ -6338,6 +6399,8 @@ async function runQuarks(text, atts) {
 	msg.steps.push(fix);
 	msg.status = "Fixing what the check found";
 	const first = msg.text;
+	// (code in it: only what the fix changes is written, and put in)
+	const fixCode = codey ? (() => { const c = codeFilesOf(first); return c.order.length && Object.values(c.files).join("").length >= 1200 ? c : null; })() : null;
 	// The problems are named, so the model that wrote it fixes them: it was picked level with the best at this work (never
 	// more than a hair behind), it knows its answer, and another model would read it all again to rewrite it at its own
 	// price. The strongest only when the writer can't be reached
@@ -6349,7 +6412,12 @@ async function runQuarks(text, atts) {
 	try {
 		// (the problems are named, so fixing them takes the thought the work itself took, not the fixer's most)
 		const fixCap = speed() === "max" ? null : "medium";
-		msg.text = await run(fix, fixers, () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nThe first version:\n" + first + "\n\nAn expert checker found these real problems. Write the corrected answer the user reads, fixing exactly these and keeping everything else:\n- " + verdict.issues.join("\n- "))], (t) => { msg.text = t; }, null, undefined, fixCap);
+		const fixAsk = () => [sys(), ...hist.slice(0, -1), withText(last, ask + "\n\nThe first version:\n" + first + "\n\nAn expert checker found these real problems. " + (fixCode ? "Fix exactly these, keeping everything else." + editNote(fixCode).replace("The code so far is in the answers above", "The code is in the first version above") : "Write the corrected answer the user reads, fixing exactly these and keeping everything else:") + "\n- " + verdict.issues.join("\n- "))];
+		const said = await run(fix, fixers, fixAsk, (t) => { msg.text = fixCode ? editView(t) : t; }, null, undefined, fixCap);
+		const e = fixCode ? await withEdits(said, fixCode, { id: fix.id }, fixAsk(), msg) : null;
+		// (the first version with its code fixed in place; a file the fix added goes at the end)
+		msg.text = e ? replaceBlocks(first, e.files) + e.order.filter((x) => fixCode.files[x.name] == null).map((x) => "\n\n**" + x.name + "**\n\n\x60\x60\x60" + x.lang + "\n" + e.files[x.name].replace(/\n+$/, "") + "\n\x60\x60\x60").join("") : said;
+		if (e) { msg.codeFiles = { ...(msg.codeFiles || {}), ...e.files }; msg.codeOrder = e.order; }
 		done(fix);
 	} catch (e) {
 		if (e.name === "AbortError" || e.status === 401) throw e;
@@ -6736,6 +6804,81 @@ async function applyChange(files, p, model, messages, said, msg) {
 	return done;
 }
 const changed = (p) => Object.keys(p.files).length > 0 || Object.keys(p.edits || {}).length > 0 || p.del.length > 0;
+// ---- Code in a chat, changed rather than rewritten. The code an answer gave, as files (its own names where the answer
+// gives them, else code.js, code-2.py...): asked to change it, a model sends only what changes, the way Claude and ChatGPT
+// edit in place, and Andromeda puts the changes in and shows each changed file whole. A long file written out again for a
+// two-line change was most of what a coding turn cost.
+const LANG_EXT = { javascript: "js", js: "js", jsx: "jsx", mjs: "js", typescript: "ts", ts: "ts", tsx: "tsx", python: "py", py: "py", html: "html", css: "css", scss: "scss", json: "json", java: "java", kotlin: "kt", kt: "kt", swift: "swift", go: "go", golang: "go", rust: "rs", rs: "rs", c: "c", cpp: "cpp", "c++": "cpp", csharp: "cs", "c#": "cs", cs: "cs", php: "php", ruby: "rb", rb: "rb", sh: "sh", bash: "sh", shell: "sh", powershell: "ps1", sql: "sql", lua: "lua", dart: "dart", yaml: "yml", yml: "yml", toml: "toml", xml: "xml", gdscript: "gd", svelte: "svelte", vue: "vue" };
+// (blocks that aren't code anyone runs or changes: diagrams, output, plain text)
+const NOT_CODE = /^(mermaid|text|plaintext|txt|output|console|shell-session|diff|markdown|md)$/;
+// each fenced block of code in an answer, in order: where it is, its language and its name
+function codeBlocks(text) {
+	const out = [], lines = String(text || "").split("\n"), names = new Set();
+	for (let i = 0; i < lines.length; i++) {
+		const open = lines[i].match(/^(\x60{3,}|~{3,})\s*([\w+#.-]*)\s*(.*)$/);
+		if (!open) continue;
+		const o = i;
+		let j = i + 1;
+		while (j < lines.length && !lines[j].startsWith(open[1])) j++;
+		if (j >= lines.length) break;
+		i = j;
+		const lang = open[2].toLowerCase(), body = lines.slice(o + 1, j).join("\n");
+		if (!body.trim() || NOT_CODE.test(lang)) continue;
+		// its name: on the fence (\x60\x60\x60js game.js, title="game.js"), or on its own on the line above (**game.js**, \x60game.js\x60, ### game.js, game.js:)
+		let k = o - 1;
+		while (k >= 0 && !lines[k].trim()) k--;
+		const near = (open[3].match(/((?:[\w.-]+\/)*[\w-]+\.[a-z][a-z0-9]{0,5})\b/i) || [])[1]
+			|| ((k >= 0 ? lines[k] : "").match(/^\s*(?:#{1,6}\s*)?(?:\*\*|__)?(?:File:\s*)?\x60?((?:[\w.-]+\/)*[\w-]+\.[a-z][a-z0-9]{0,5})\x60?(?:\*\*|__)?\s*:?\s*$/i) || [])[1];
+		const ext = LANG_EXT[lang] || (/^[a-z][a-z0-9]{0,5}$/.test(lang) ? lang : "txt");
+		let name = near || "code." + ext;
+		if (names.has(name)) { const base = name.replace(/\.[^.]+$/, ""), dot = (name.match(/\.[^.]+$/) || [""])[0]; let n = 2; while (names.has(base + "-" + n + dot)) n++; name = base + "-" + n + dot; }
+		names.add(name);
+		out.push({ name, lang: lang || ext, from: o + 1, to: j, body });
+	}
+	return { lines, blocks: out };
+}
+function codeFilesOf(text) {
+	const files = {}, order = [];
+	for (const b of codeBlocks(text).blocks) { files[b.name] = b.body; order.push({ name: b.name, lang: b.lang }); }
+	return { files, order };
+}
+// an answer with some of its files changed in place (everything else as it was)
+function replaceBlocks(text, files) {
+	const { lines, blocks } = codeBlocks(text);
+	for (const b of blocks.slice().reverse()) if (files[b.name] != null && files[b.name] !== b.body) lines.splice(b.from, b.to - b.from, ...files[b.name].replace(/\n+$/, "").split("\n"));
+	return lines.join("\n");
+}
+// the code the chat has now: the newest recent answer with code, as it was last changed; only when it's long enough that
+// writing it all out again costs more than the change
+function chatCode() {
+	if (!current) return null;
+	const msgs = current.msgs;
+	for (let i = msgs.length - 1, n = 0; i >= 0 && n < 8; i--, n++) {
+		const m = msgs[i];
+		if (m.role !== "assistant" || m.error || m.streaming || !m.text) continue;
+		const c = m.codeFiles ? { files: m.codeFiles, order: m.codeOrder || Object.keys(m.codeFiles).map((name) => ({ name, lang: name.split(".").pop() })) } : codeFilesOf(m.text);
+		if (c.order.length) return Object.values(c.files).join("").length >= 1200 ? c : null;
+	}
+	return null;
+}
+const editNote = (c) => "\n\n(The code so far is in the answers above, as these files: " + c.order.map((x) => x.name).join(", ") + ". If this asks to change that code, don't write it all out again: say in a sentence or two what you changed, then send only the changes, exactly like this:\n=== EDIT: " + c.order[0].name + " ===\n<<<<<<< SEARCH\n(the exact lines as they are now, with a few around the change so they're found only once)\n=======\n(what replaces them)\n>>>>>>> REPLACE\nwith as many pairs as it takes, in the order they come in the file. A new file, or one you change most of: === FILE: name === and then all of it. Andromeda puts the changes in and shows the whole updated code. If the request isn't a change to that code, answer normally.)";
+// what's shown while it's being written: the words, not the edits
+const editView = (t) => { const k = String(t).search(/^===\s*(FILE|EDIT|DELETE|NOTES)\b/m); return k < 0 ? t : t.slice(0, k).trimEnd() + "\n\n*Putting the changes into the code…*"; };
+const textOf = (m) => (typeof m.content === "string" ? m.content : (m.content || []).filter((p) => p.type === "text").map((p) => p.text).join("\n"));
+// the answer with its changes put in: its words, then each changed or new file whole (null: it wasn't a change)
+async function withEdits(said, c, model, messages, msg) {
+	const p = parseFiles(said);
+	if (!changed(p)) return null;
+	const k = String(said).search(/^===\s*(FILE|EDIT|DELETE|NOTES)\b/m), words = String(said).slice(0, k < 0 ? undefined : k).trim();
+	const files = await applyChange(c.files, p, model, messages, said, msg);
+	const asked = [...new Set([...Object.keys(p.files), ...Object.keys(p.edits)])];
+	const touched = asked.filter((n) => files[n] != null && files[n] !== c.files[n]), missed = asked.filter((n) => !touched.includes(n) && c.files[n] != null && Object.keys(p.edits).includes(n));
+	if (!touched.length) return null;
+	const langOf = (n) => (c.order.find((x) => x.name === n) || {}).lang || n.split(".").pop();
+	const order = [...c.order, ...touched.filter((n) => !c.order.some((x) => x.name === n)).map((n) => ({ name: n, lang: langOf(n) }))];
+	const text = (words ? words + "\n\n" : "") + touched.map((n) => "**" + n + "**\n\n\x60\x60\x60" + langOf(n) + "\n" + files[n].replace(/\n+$/, "") + "\n\x60\x60\x60").join("\n\n") + (p.notes ? "\n\n" + p.notes : "") + (missed.length ? "\n\n(A change to " + missed.join(", ") + " couldn't be put in: ask again and it'll be redone.)" : "");
+	return { text, files, order };
+}
 // A build answer that stopped early (out of room: the credits ran low, or the longest answer allowed) ends in the middle
 // of its last file. Its finish says so; without one, a missing NOTES section and a script that doesn't parse do. That
 // half-written file is dropped, so it never replaces a whole one (a half-written edit, the same)
@@ -9623,9 +9766,9 @@ const DEFAULT_PRICING = {
 		{ id: "pro", name: "Meteor", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 	],
 };
-// nonstop coding comes to about 170 credits an hour (a measured 10-turn session: about 14 credits a request, about 12
-// requests an hour)
-const CODE_HOUR = 170;
+// nonstop coding comes to about 140 credits an hour (a measured 10-turn session: about 12 credits a request, about 12
+// requests an hour; changes sent as edits, only a file's newest version read, no planner when one model does it all)
+const CODE_HOUR = 140;
 const hoursText = (credits) => { const r = credits / CODE_HOUR, h = r >= 20 ? Math.round(r) : Math.round(r * 2) / 2; return (h >= 1 ? String(h).replace(".5", "½") : "½") + " h"; };
 // a plan's month: its own, or (a plan without one) its week for 30 days
 const monthOf = (p) => p.month || Math.round(((p.week || p.credits) * 30) / 7);
@@ -9685,7 +9828,7 @@ async function openPricing() {
 		'<div class="qa"><h3>Questions</h3>' +
 		"<details><summary>How do plans work?</summary><p>Each plan has three limits, the way Claude's work: what you can use in any " + fp.hours + " hours, in a week, and in a month. Each starts with your first message and comes back on its own. Ran out? Wait, or use a credit pack to keep going right away. The bigger plans give more for every rupiah.</p></details>" +
 		"<details><summary>How much coding is that?</summary><p>Nonstop coding is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + ": " + (nonstop(p) ? "nonstop in any " + p.hours + " hours" : "about " + hoursText(p.credits) + " in any " + p.hours + " hours") + ", " + hoursText(p.week) + " a week, about " + hoursText(monthOf(p)) + " a month").join(". ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
-		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a coding request about 20 to 40, a hard question checked by a second top model about 40, a full app built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
+		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a change to your code about 6 to 25, a hard question checked by a second top model about 35, a full app or game built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +
 		"<details><summary>Which models do I get?</summary><p>All of them, on every plan. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
