@@ -2747,21 +2747,6 @@ function quarkFirst(list, cap, used, cost = callCost, worth, role) {
 	// (a light model never writes the answer when the best isn't light: not tied, not cheaper, not as the next in line)
 	const light = (x) => FAST.test(x.m.id) && !FAST.test(top.m.id);
 	list = list.filter((x) => !light(x));
-	// Code isn't traded for price (the user's rule, Nov 1: the best coder writes and builds). Among the models level with
-	// the best on this exact request, the one whose code people prefer once it runs (the web-app board, where they use
-	// what was built) writes it; only its thinking may be lighter, where that's level with its own best. Checks and
-	// reviews (role "check") read code rather than write it, and stay on price.
-	if (role !== "check" && list[0] && list[0].task === "code" && top.mid != null) {
-		const idx = arenaIndex(), board = idx && idx["webdev:overall"];
-		const runs = (x) => { const e = board && board.get(x.m.id); return e ? Math.max(e.z ?? -Infinity, ...Object.values(e.eff || {})) : -Infinity; };
-		const level = list.filter((x) => x.mid != null && top.mid - x.mid <= WORTH_MAX && (x.learned || 0) >= (top.learned || 0) - 0.25 && Number.isFinite(cost(x, cap)));
-		const coder = level.length && level.reduce((a, b) => (runs(b) > runs(a) ? b : a));
-		if (coder && Number.isFinite(runs(coder))) {
-			const own = level.filter((x) => x.m.id === coder.m.id), best = own.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
-			const pick = own.filter((x) => x === best || quarkTied(best, x, most)).reduce((a, b) => (cost(b, cap) < cost(a, cap) ? b : a));
-			return [pick, ...list.filter((x) => x !== pick)];
-		}
-	}
 	const tied = list.filter((x) => x === top || quarkTied(top, x, most));
 	const low = Math.min(...tied.map((x) => cost(x, cap)));
 	if (!Number.isFinite(low)) return list;
@@ -9436,9 +9421,9 @@ function money(amount, cur) {
 const DEFAULT_PRICING = {
 	creditUsd: 0.01, open: false, free: { credits: 150, hours: 5, every: 5, week: 200 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	plans: [
-		{ id: "nova", name: "Nova", credits: 900, hours: 5, week: 900, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
-		{ id: "pulsar", name: "Pulsar", credits: 1100, hours: 5, week: 4850, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
-		{ id: "quasar", name: "Quasar", credits: 1800, hours: 5, week: 10150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
+		{ id: "nova", name: "Nova", credits: 450, hours: 5, week: 900, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 4850, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
+		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 10150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
 	packs: [
 		{ id: "mini", name: "Spark", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
@@ -9447,8 +9432,9 @@ const DEFAULT_PRICING = {
 		{ id: "pro", name: "Meteor", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 	],
 };
-// nonstop coding by the best coder comes to about 360 credits an hour (about 12 requests of about 30)
-const CODE_HOUR = 360;
+// nonstop coding comes to about 170 credits an hour (a measured 10-turn session: about 14 credits a request, about 12
+// requests an hour)
+const CODE_HOUR = 170;
 const hoursText = (credits) => { const h = Math.round((credits / CODE_HOUR) * 2) / 2; return (h >= 1 ? String(h).replace(".5", "½") : "½").replace(/^0½$/, "½") + " h"; };
 let payCur = store.get("payCur", "") || (/^id\b/i.test(navigator.language || "") || /Jakarta|Makassar|Jayapura|Pontianak/.test(Intl.DateTimeFormat().resolvedOptions().timeZone || "") ? "IDR" : "USD");
 async function openPricing() {
@@ -9476,7 +9462,7 @@ async function openPricing() {
 		const price = p.prices[payCur], key = "plan:" + p.id, prev = i ? plans[i - 1] : null;
 		const cur = !!mine && mine.id === p.id, lower = !!mine && rank(mine.id) > i;
 		const feats = ["Up to " + hoursText(Math.min(p.credits, p.week || p.credits)) + " of nonstop coding in one sitting",
-			prev ? times(p.week, prev.week) + " " + prev.name + "'s week, more for every rupiah" : "Code and apps by the best coder (Claude Opus 5.5 today)",
+			prev ? times(p.week, prev.week) + " " + prev.name + "'s week, more for every rupiah" : "Apps and games built by the best builder (Claude Opus 5.5 today)",
 			"Every answer thought through fully", "Credit packs on top whenever you need more"];
 		const tag = cur ? "Your plan" : p.popular && !mine ? "Recommended" : "";
 		return '<div class="plan' + (tag ? " popular" : "") + '">' + (tag ? '<span class="tag">' + tag + "</span>" : "") +
@@ -9499,7 +9485,7 @@ async function openPricing() {
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Your plan or credits start as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". It arrives automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
 		"<details><summary>How do plans work?</summary><p>Each plan gives you credits for the week, and how many you can use in any " + fp.hours + " hours, the way Claude's limits work. Ran out? Wait for them to come back, or use a credit pack to keep going right away. The bigger plans give more for every rupiah.</p></details>" +
-		"<details><summary>How much coding is that?</summary><p>Nonstop coding with the best coder is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + " is about " + hoursText(p.week) + " a week").join(", ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
+		"<details><summary>How much coding is that?</summary><p>Nonstop coding is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + " is about " + hoursText(p.week) + " a week").join(", ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
 		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a coding request about 20 to 40, a hard question checked by a second top model about 40, a full app built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +

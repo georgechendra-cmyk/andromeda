@@ -34,12 +34,13 @@ const DEFAULT_CONFIG = {
 	// owner at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), and a plan's month is 30/7 weeks,
 	// so even someone who uses every last credit of every week leaves the owner a profit: "week" x 30/7 x Rp69 is the most
 	// a plan can cost. The dearer the plan, the thinner that worst case (15%, 10%, 6%) and the more each rupiah buys, so
-	// the bigger plans are the better deal. Each window holds 2-3 hours of nonstop coding by Opus 5.5 (about 30 credits a
-	// request, about 12 an hour).
+	// the bigger plans are the better deal. Nonstop coding is about 170 credits an hour (a measured 10-turn session: about
+	// 14 credits a request, about 12 requests an hour): Nova's window holds about 2½ hours of it, Pulsar's and Quasar's
+	// all 5 hours.
 	plans: [
-		{ id: "nova", name: "Nova", credits: 900, hours: 5, week: 900, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
-		{ id: "pulsar", name: "Pulsar", credits: 1100, hours: 5, week: 4850, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
-		{ id: "quasar", name: "Quasar", credits: 1800, hours: 5, week: 10150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
+		{ id: "nova", name: "Nova", credits: 450, hours: 5, week: 900, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 4850, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
+		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 10150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
 	],
 	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
 	// Round local prices, not exchange-rate conversions; a credit costs more this way than in a plan
@@ -718,6 +719,8 @@ function errorText(t, fallback) {
 // fields, no caching marks (only Claude reads them, and Claude goes the Anthropic way), the thinking level as
 // reasoning_effort, max_completion_tokens for OpenAI (its reasoning models refuse max_tokens, and temperature), and the
 // usage asked for at the end of a stream
+// gateways that refused Claude's caching marks (asked without them from then on)
+const GW_NOCACHE = new Set();
 const KEEP = ["stream", "temperature", "top_p", "stop", "tools", "tool_choice", "parallel_tool_calls", "response_format", "seed", "n", "presence_penalty", "frequency_penalty"];
 function openaiBody(b, way, name, maxOut, userId, web) {
 	if (way.kind === "openrouter") {
@@ -730,8 +733,12 @@ function openaiBody(b, way, name, maxOut, userId, web) {
 	}
 	const out = { model: name };
 	for (const k of KEEP) if (b[k] !== undefined) out[k] = b[k];
+	// Claude through a rupiah gateway (LiteLLM, which hands the marks on to Claude) keeps its caching marks: without them
+	// every call re-reads the whole conversation at full price instead of a tenth. A gateway that refuses them is asked
+	// again without, and remembered (GW_NOCACHE)
+	const keepMarks = way.kind === "gw" && way.lab === "anthropic" && !GW_NOCACHE.has(way.gw);
 	out.messages = (b.messages || []).map((m) => {
-		const x = { role: m.role, content: Array.isArray(m.content) ? m.content.map(({ cache_control, ...p }) => p) : m.content == null ? "" : m.content };
+		const x = { role: m.role, content: Array.isArray(m.content) ? m.content.map(({ cache_control, ...p }) => (keepMarks && cache_control ? { ...p, cache_control } : p)) : m.content == null ? "" : m.content };
 		for (const k of ["name", "tool_calls", "tool_call_id"]) if (m[k] !== undefined) x[k] = m[k];
 		return x;
 	});
@@ -995,8 +1002,9 @@ function priceOf(way, u, price, inTokens, outChars) {
 	const own = Number(u.cost);
 	if (way.kind === "openrouter" && u.cost != null && Number.isFinite(own)) return { list: own, real: own };
 	const prompt = u.prompt_tokens || inTokens;
-	const read = Math.min(prompt, u.prompt_tokens_details?.cached_tokens || 0);
-	const wrote = Math.min(prompt - read, u.prompt_tokens_details?.cache_write_tokens || 0);
+	// (LiteLLM-style gateways also say Claude's as cache_read_input_tokens / cache_creation_input_tokens)
+	const read = Math.min(prompt, u.prompt_tokens_details?.cached_tokens || u.cache_read_input_tokens || 0);
+	const wrote = Math.min(prompt - read, u.prompt_tokens_details?.cache_write_tokens || u.cache_creation_input_tokens || 0);
 	// Gemini leaves its thinking out of completion_tokens but bills it: it's in the total
 	const out = Math.max(u.completion_tokens || 0, (u.total_tokens || 0) - (u.prompt_tokens || 0)) || Math.ceil((outChars || 0) / 4);
 	const claude = way.lab === "anthropic";
@@ -1207,6 +1215,10 @@ async function chat(req, env, ctx, user) {
 					const afford = Number((/can only afford (\d+)/i.exec(last.message) || [])[1]);
 					if (res.status === 402 && afford >= 256 && afford < maxOut) {
 						maxOut = Math.floor(afford * 0.95);
+						continue;
+					}
+					if (res.status === 400 && w.kind === "gw" && w.lab === "anthropic" && !GW_NOCACHE.has(w.gw) && /cache/i.test(last.message)) {
+						GW_NOCACHE.add(w.gw);
 						continue;
 					}
 					if (res.status === 400 && !w.swapMax && w.kind !== "openrouter" && /max_(completion_)?tokens/i.test(last.message) && /support|instead|unrecogni[sz]ed|unknown|not allowed|invalid/i.test(last.message)) {
