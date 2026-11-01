@@ -282,6 +282,11 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .qa details { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; margin-bottom: 6px; background: var(--bg); }
 .qa summary { cursor: pointer; padding: 11px 0; font-size: 14px; font-weight: 500; list-style: none; }
 .qa summary::-webkit-details-marker { display: none; }
+.learn-note { position: fixed; z-index: 60; left: 16px; right: 16px; bottom: 18px; margin: 0 auto; max-width: 460px; padding: 16px 18px; border: 1px solid var(--line2); border-radius: 16px; background: var(--bg2); box-shadow: var(--shadow); animation: rise .35s var(--ease) both; }
+.learn-note b { display: block; font-size: 15px; margin-bottom: 4px; }
+.learn-note p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
+.learn-note .row { gap: 8px; align-items: center; }
+.learn-note a { color: var(--muted); font-size: 13px; }
 .act.ic.on { color: var(--text); background: var(--bg3); }
 .hl-search { margin: 4px 0 6px; }
 .hl-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
@@ -1843,6 +1848,7 @@ html { scroll-behavior: smooth; }
 </section>
 <div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast" role="status"></div>
+<div class="learn-note" id="learnNote" role="dialog" aria-labelledby="lnTitle" hidden><b id="lnTitle">Celestin learns which AI is best</b><p>Your 👍 and 👎, and when you ask for another answer, teach Celestin which AI models answer best. It never keeps what you write. You can turn this off now or anytime in Settings.</p><div class="row"><a href="privacy.html" target="_blank" rel="noopener">Privacy</a><span style="flex:1"></span><button class="btn" id="lnOff">Turn it off</button><button class="btn dark" id="lnOk">Got it</button></div></div>
 <div class="sr" id="srStatus" aria-live="polite"></div>
 
 <script>
@@ -9656,6 +9662,18 @@ function callName() {
 
 // signed in (with a password or with Google): kept in this browser (twice: in its database too, so it's never lost with
 // one of them), and straight into the app
+// once, the first time someone is in Celestin signed in (on this device): what Help improve Celestin does, and a way off
+function learnNote(tries = 0) {
+	if (!account || !creditsMode() || store.get("learnNoted", false) || !capOn("learn")) return;
+	const box = $("#learnNote");
+	if (!box || !box.hidden) return;
+	// not over an open window (What's new, the shop, signing in) or a message: when they've gone
+	if ($("#overlay").classList.contains("show") || $("#auth").classList.contains("show") || $("#toast").classList.contains("show")) { if (tries < 90) setTimeout(() => learnNote(tries + 1), 1500); return; }
+	box.hidden = false;
+	const done = () => { box.hidden = true; store.set("learnNoted", true); };
+	$("#lnOk").onclick = done;
+	$("#lnOff").onclick = () => { settings.off = { ...(settings.off || {}), learn: true }; saveSettings(); done(); toast("Turned off. You can turn it back on in Settings."); };
+}
 function signedIn(j, made) {
 	account = { token: j.token, email: j.me.email, ...(j.name ? { name: String(j.name).slice(0, 40) } : {}) };
 	store.set("account", account);
@@ -9669,6 +9687,7 @@ function signedIn(j, made) {
 	if (!document.body.classList.contains("in-app")) showApp(true);
 	else setTimeout(() => $("#input").focus(), 50);
 	if (me.credits > 0) { closeModal(); toast(made ? "You have " + creditsText(me.credits) + " free credits. Ask anything." : "Signed in · " + creditsText(me.credits) + " credits"); } else openPricing();
+	setTimeout(learnNote, 1200);
 }
 // The sign-in page: over the front page (or the app), opaque, its own logo back to the front page; Escape too
 function openAuth() {
@@ -9757,7 +9776,7 @@ function openAccount() {
 						catch (e2) {
 							if (e2.status !== 401) throw e2;
 							mode = "in";
-							draw(true, [$("#acEmail").value, ""], "This email already has an account, and that isn't its password. Type its password to sign in.");
+							draw(true, [$("#acEmail").value, ""], /google/i.test(e2.message) ? e2.message : "This email already has an account, and that isn't its password. Type its password to sign in.");
 							return;
 						}
 					}
@@ -11516,6 +11535,7 @@ async function loadKept() {
 	else if (location.hash === "#help") openHelp();
 	else if (inApp && !connected()) setTimeout(SERVER ? openAccount : openSettings, 600);
 	else if (inApp && !shareId) setTimeout(() => { if (!$("#overlay").classList.contains("show")) showWhatsNew(); }, 700);
+	if (inApp && !shareId && account) setTimeout(learnNote, 1500);
 })();
 </script>
 </body>

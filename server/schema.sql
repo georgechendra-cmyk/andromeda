@@ -13,9 +13,10 @@ CREATE TABLE IF NOT EXISTS users (
 	week_mc INTEGER NOT NULL DEFAULT 0, -- spent from windows this week
 	week_at INTEGER NOT NULL DEFAULT 0, -- when this week ends (0 = no week running)
 	plan_mc INTEGER NOT NULL DEFAULT 0, -- a bought plan's month of credits still to use (each payment adds one month)
+	email_ok INTEGER NOT NULL DEFAULT 0, -- someone has proven the email is theirs (a code sent to it, or Google)
 	created_at INTEGER NOT NULL
 );
--- (an older database gets plan, plan_until, week_mc, week_at and plan_mc added by the server itself)
+-- (an older database gets plan, plan_until, week_mc, week_at, plan_mc and email_ok added by the server itself)
 
 CREATE TABLE IF NOT EXISTS sessions (
 	token_hash TEXT PRIMARY KEY,

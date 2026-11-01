@@ -298,6 +298,7 @@ async function useCode(env, email, code, kind) {
 async function loginVerify(req, env) {
 	const b = await body(req);
 	const u = await useCode(env, cleanEmail(b.email), b.code, "login");
+	await env.DB.prepare("UPDATE users SET email_ok = 1 WHERE id = ?").bind(u.id).run();
 	const token = await newSession(env, u.id);
 	return json({ token, me: await meOf(env, u) });
 }
@@ -317,7 +318,7 @@ async function passwordReset(req, env) {
 	if (password.length < 8) throw fail(400, "Use a password of at least 8 characters.");
 	const u = await useCode(env, cleanEmail(b.email), b.code, "reset");
 	await env.DB.batch([
-		env.DB.prepare("UPDATE users SET pass = ? WHERE id = ?").bind(await hashPassword(password, env), u.id),
+		env.DB.prepare("UPDATE users SET pass = ?, email_ok = 1 WHERE id = ?").bind(await hashPassword(password, env), u.id),
 		env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id),
 	]);
 	const token = await newSession(env, u.id);
@@ -385,7 +386,8 @@ async function deleteMe(env, user) {
 // The site's Google button hands back an ID token Google signed. It's checked here against Google's published keys: the
 // signature, that it was made for this site (GOOGLE_CLIENT_ID, from the Google Cloud console), that it's Google's and
 // still fresh, and that Google has verified the email. The account is the one with that email: made on first sign-in
-// (free credits and all), the same account as signing up with that email and a password.
+// (free credits and all), the same account as signing up with that email and a password. (email_ok: someone has proven
+// the account's email is theirs, with a code sent to it or with Google)
 let GKEYS = { at: 0, keys: [] };
 async function googleKeys(fresh) {
 	if (!fresh && Date.now() - GKEYS.at < 3600e3 && GKEYS.keys.length) return GKEYS.keys;
@@ -435,12 +437,20 @@ async function googleSignIn(req, env) {
 	if (!u) {
 		u = { id: id(), email, balance_mc: 0, ...(await firstFree(env, await config(env))) };
 		try {
-			await env.DB.prepare("INSERT INTO users (id, email, pass, balance_mc, free_mc, free_reset_at, created_at) VALUES (?, ?, ?, 0, ?, ?, ?)").bind(u.id, email, "google$" + String(g.sub || ""), u.free_mc, u.free_reset_at, now()).run();
+			await env.DB.prepare("INSERT INTO users (id, email, pass, balance_mc, free_mc, free_reset_at, created_at, email_ok) VALUES (?, ?, ?, 0, ?, ?, ?, 1)").bind(u.id, email, "google$" + String(g.sub || ""), u.free_mc, u.free_reset_at, now()).run();
 		} catch {
 			// signed in twice at once: the other one made it
 			u = await env.DB.prepare("SELECT * FROM users WHERE email = ?").bind(email).first();
 			if (!u) throw fail(500, "Couldn't make your account. Try again.");
 		}
+	} else if (!u.email_ok) {
+		// made with a password and this email, and nobody has proven the email is theirs yet (signing up sends no code):
+		// Google just has, so everyone signed in to it is signed out first. Whoever made it without owning the email can't
+		// stay in, and can't get back in with the password (signing in with it asks for the code sent to this email)
+		await env.DB.batch([
+			env.DB.prepare("DELETE FROM sessions WHERE user_id = ?").bind(u.id),
+			env.DB.prepare("UPDATE users SET email_ok = 1 WHERE id = ?").bind(u.id),
+		]);
 	}
 	const token = await newSession(env, u.id);
 	// the first name Google has, so the app can greet you by it (kept in your browser, not here)
@@ -512,7 +522,7 @@ let COLS = null;
 function columns(env) {
 	if (!COLS) COLS = (async () => {
 		const have = new Set(((await env.DB.prepare("PRAGMA table_info(users)").all()).results || []).map((r) => r.name));
-		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"]]) {
+		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"], ["email_ok", "INTEGER NOT NULL DEFAULT 0"]]) {
 			if (have.has(k)) continue;
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
