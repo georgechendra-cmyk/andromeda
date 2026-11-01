@@ -4,8 +4,8 @@ compatibility_date = "2025-06-01"
 
 [vars]
 # the site allowed to call this server (your GitHub Pages address)
-ALLOWED_ORIGINS = "https://georgechendra-cmyk.github.io"
-SITE_URL = "https://georgechendra-cmyk.github.io/andromeda/"
+ALLOWED_ORIGINS = "https://celestin.pages.dev,https://georgechendra-cmyk.github.io"
+SITE_URL = "https://celestin.pages.dev/"
 
 [[d1_databases]]
 binding = "DB"
