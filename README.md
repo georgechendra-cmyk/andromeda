@@ -44,7 +44,7 @@ Nothing about a request is decided by rules written in advance. The model that m
 
 ## Connect apps
 
-Andromeda can use the same apps and tools Claude can, through MCP: Blender, Figma, Unity, your files, GitHub and thousands more. Double-click **CONNECT APPS.bat** (it needs [Node.js](https://nodejs.org)), paste the pairing code it shows into Andromeda under **Connect apps**, and list your apps in `tools/connections.json` (the same format as Claude Desktop, whose apps are picked up too; see `tools/connections.example.json`). Online MCP servers can be added by address. The connector only listens on your computer and only answers Andromeda with its pairing code.
+Andromeda can use the same apps and tools Claude can, through MCP: Blender, Figma, Unity, your files, GitHub and thousands more. Double-click **CONNECT APPS.bat** (it needs [Node.js](https://nodejs.org)), paste the pairing code it shows into Andromeda under **Connect apps**, and list your apps in `tools/connections.json` (the same format as Claude Desktop, whose apps are picked up too; see `tools/connections.example.json`). Online MCP servers can be added by address; one that signs you in (Higgsfield's, `https://mcp.higgsfield.ai/mcp`) goes in `connections.json` through `mcp-remote`, as in the example. A connected app that makes pictures, videos, music or voice is what Andromeda uses for them, on your own account with it, choosing its best model for the job. The connector only listens on your computer and only answers Andromeda with its pairing code.
 
 ## Everything a coding agent has, and a team on top
 

@@ -3949,9 +3949,12 @@ async function useTools(text, atts) {
 	if (!creditsMode() || !text || !capOn("web")) return;
 	const media = mediaIntent(text, atts), kind = classify(text, atts);
 	WEB = !media && (kind === "research" || FRESH.test(text));
-	const urls = [...new Set((text.match(URL_RE) || []).map((u) => u.replace(/[.,;:!?]+$/, "")))].filter((u) => !REPO_URL.test(u)).slice(0, 3);
+	// a page or a library's docs already read in this chat is still in the conversation: not fetched (and paid for, and
+	// re-read on every later turn) a second time
+	const had = new Set(current.msgs.flatMap((m) => (m.atts || []).map((a) => a.src).filter(Boolean)));
+	const urls = [...new Set((text.match(URL_RE) || []).map((u) => u.replace(/[.,;:!?]+$/, "")))].filter((u) => !REPO_URL.test(u) && !had.has("url:" + u)).slice(0, 3);
 	const code = !media && (kind === "code" || !!appIntent(text, atts) || !!studyIntent(text, atts));
-	const libs = code ? LIBS.filter(([, re]) => re.test(text.replace(URL_RE, " "))).map(([n]) => n).slice(0, 2) : [];
+	const libs = code ? LIBS.filter(([n, re]) => !had.has("lib:" + n) && re.test(text.replace(URL_RE, " "))).map(([n]) => n).slice(0, 2) : [];
 	if (!urls.length && !libs.length) return;
 	const hold = { role: "assistant", text: "", streaming: true, status: urls.length ? "Reading " + (urls.length > 1 ? "the links" : "the link") : "Reading the " + libs.join(" and ") + " docs" };
 	current.msgs.push(hold);
@@ -3962,12 +3965,12 @@ async function useTools(text, atts) {
 		...urls.map((u) => toolCall("/api/tools/fetch", { url: u }).then((j) => {
 			if (!j.text) return null;
 			noteTool("Web page", "Opened and read " + j.url);
-			return { name: "Page: " + (j.title || new URL(j.url).hostname), kind: "text", data: "Source: " + j.url + "\n\n" + j.text };
+			return { name: "Page: " + (j.title || new URL(j.url).hostname), src: "url:" + u, kind: "text", data: "Source: " + j.url + "\n\n" + j.text };
 		}, skip)),
 		...libs.map((l) => toolCall("/api/tools/docs", { library: l, topic, tokens: 5000 }).then((j) => {
 			if (!j.text) return null;
 			noteTool("Context7", "Current " + (j.title || l) + " docs, so the code matches today's version");
-			return { name: "Docs: " + (j.title || l), kind: "text", data: "Current documentation for " + (j.title || l) + " (" + j.library + "), from Context7. Prefer it over memory:\n\n" + j.text };
+			return { name: "Docs: " + (j.title || l), src: "lib:" + l, kind: "text", data: "Current documentation for " + (j.title || l) + " (" + j.library + "), from Context7. Prefer it over memory:\n\n" + j.text };
 		}, skip)),
 	]);
 	current.msgs.splice(current.msgs.indexOf(hold), 1);
@@ -4522,6 +4525,13 @@ async function loadApps(force) {
 	return list;
 }
 const liveApps = () => APPS.servers.filter((s) => s.tools && s.tools.length);
+// a connected app that makes this kind of thing (a tool that generates pictures, video, music or speech), if any
+function appMaker(kind) {
+	if (!capOn("computer")) return null;
+	const want = { image: /\b(image|picture|photo|illustration)s?\b/i, video: /\bvideos?\b/i, music: /\b(music|songs?)\b/i, voice: /\b(speech|voice|tts|narrat\w*)\b/i }[kind];
+	const makes = /generat|creat|make|render|text.to|\bt2[iv]\b/i;
+	return want ? liveApps().find((s) => s.name !== "computer" && s.tools.some((t) => { const d = t.name + " " + (t.description || ""); return want.test(d.replace(/[_-]/g, " ")) && makes.test(d); })) || null : null;
+}
 
 function openAppsModal() {
 	const conf = appsConf();
@@ -5275,7 +5285,11 @@ async function send(textOverride, fork) {
 		// a picture, film, song or voiceover this server can't make yet: said before anything is read or spent
 		if (!mediaReady()) {
 			const asked = tool === "image" || tool === "video" ? tool : tool === "music" ? (makesMedia(text, atts) === "voice" ? "voice" : "music") : makesMedia(text, atts);
-			if (asked) throw mediaSoon(asked, true);
+			// (unless an app the user connected makes it: Higgsfield, say)
+			if (asked) {
+				if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
+				if (!appMaker(asked)) throw mediaSoon(asked, true);
+			}
 		}
 		await useTools(text, atts);
 		// Andromeda reads it and decides how to serve it (the strongest fast reader, by measurement)
@@ -7920,7 +7934,10 @@ const RUNNING = new Set();
 
 // ---- making it
 async function runStudio(text, atts, pick) {
-	// nothing to make it with on this server yet: said before the director or anyone else is asked
+	// an app the user connected that makes this (Higgsfield, say) makes it: their own account and its best models, at no
+	// cost to Andromeda; otherwise nothing to make it with on this server yet is said before anyone else is asked
+	const app = appMaker(pick.kind);
+	if (app) return runAct(text + "\n\n(Make this with " + app.name + ", the app the user connected for it: use its tools, choose its model that does this kind of " + pick.kind + " best for a sensible price, and show what it made. Don't make it any other way.)", atts);
 	if (!mediaReady()) throw mediaSoon(pick.kind);
 	// drawn in code: no media models to load
 	if (drawnOnly() && (pick.kind === "video" || pick.edit)) return pick.edit ? studioEdit(text, atts, pick) : runVideo(text, atts);
