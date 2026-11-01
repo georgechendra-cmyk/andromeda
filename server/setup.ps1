@@ -1,4 +1,4 @@
-# Puts the Andromeda credits server online, connects the site to it and uploads the site. Press Enter and wait.
+# Puts the Celestin credits server online, connects the site to it and uploads the site. Press Enter and wait.
 # The only things you ever touch: "Allow" on Cloudflare's page the first time, and pasting each AI key once (any can be
 # skipped, and running this again adds the ones you skipped). Keys go straight to Cloudflare; none is written into the
 # site or this folder.
@@ -13,7 +13,7 @@ function Fail($t) { Write-Host ""; Write-Host $t -ForegroundColor Red; Write-Hos
 # npx.cmd, not npx: PowerShell's npx.ps1 drops every argument (wrangler only ever saw "wrangler" and printed its help)
 function W { & npx.cmd --yes wrangler@4 @args }
 
-Write-Host "Andromeda server setup. It does everything by itself." -ForegroundColor Green
+Write-Host "Celestin server setup. It does everything by itself." -ForegroundColor Green
 Read-Host "Press Enter to start" | Out-Null
 
 if (-not (Get-Command node -ErrorAction SilentlyContinue)) { Start-Process "https://nodejs.org"; Fail "Node.js isn't installed: the download page just opened. Install it (the LTS button), then run this again." }
@@ -155,7 +155,7 @@ if (-not (Has "OPENROUTER_KEY")) {
 
 $have = (W secret list 2>&1 | Out-String)
 if (-not ((Has "GATEWAY_KEY") -or (Has "CF_API_TOKEN") -or (Has "OPENROUTER_KEY"))) {
-	Write-Host "No AI key yet: Andromeda can't answer until one is added. Run this again to add one." -ForegroundColor Red
+	Write-Host "No AI key yet: Celestin can't answer until one is added. Run this again to add one." -ForegroundColor Red
 }
 
 Step "5/8 Sign in with Google"
@@ -164,8 +164,8 @@ if (-not (Has "GOOGLE_CLIENT_ID")) {
 	if (Yes "Set it up?") {
 		Start-Process "https://console.cloud.google.com/apis/credentials"
 		Write-Host "On the Google Cloud page that just opened:"
-		Write-Host "  1. Pick a project, or make one (any name, for example Andromeda)."
-		Write-Host "  2. Create credentials > OAuth client ID. If it asks to set up the consent screen first: app name Andromeda, your email, Audience External, Save, then back to Credentials."
+		Write-Host "  1. Pick a project, or make one (any name, for example Celestin)."
+		Write-Host "  2. Create credentials > OAuth client ID. If it asks to set up the consent screen first: app name Celestin, your email, Audience External, Save, then back to Credentials."
 		Write-Host "  3. Application type: Web application."
 		Write-Host "  4. Authorized JavaScript origins > Add URI: https://georgechendra-cmyk.github.io   (add http://localhost too, to try it on this computer)"
 		Write-Host "  5. Create, then copy the Client ID (it ends in .apps.googleusercontent.com)."
@@ -224,7 +224,7 @@ if (-not (Test-Path (Join-Path $tmp ".git"))) {
 		}
 	}
 	git -C $tmp add -A
-	git -C $tmp -c user.name="Andromeda setup" -c user.email="setup@andromeda.invalid" commit -m "Update the site and connect the credits server" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" 2>&1 | Out-Null
+	git -C $tmp -c user.name="Celestin setup" -c user.email="setup@andromeda.invalid" commit -m "Update the site and connect the credits server" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" 2>&1 | Out-Null
 	git -C $tmp push 2>&1 | Out-Host
 	if ($LASTEXITCODE -eq 0) { Write-Host "Uploaded. GitHub takes about a minute to show it." } else { Write-Host "The upload didn't go through. Upload andromeda\index.html and arena.json to GitHub yourself; everything else is done." -ForegroundColor Yellow }
 	# the daily leaderboard refresh, on its own: GitHub asks for an extra permission to change it, and if it says no,
@@ -235,7 +235,7 @@ if (-not (Test-Path (Join-Path $tmp ".git"))) {
 		New-Item -ItemType Directory -Force (Split-Path $to -Parent) | Out-Null
 		Copy-Item $wf $to -Force
 		git -C $tmp add -A
-		git -C $tmp -c user.name="Andromeda setup" -c user.email="setup@andromeda.invalid" commit -m "Refresh the leaderboards every day" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" 2>&1 | Out-Null
+		git -C $tmp -c user.name="Celestin setup" -c user.email="setup@andromeda.invalid" commit -m "Refresh the leaderboards every day" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>" 2>&1 | Out-Null
 		if ($LASTEXITCODE -eq 0) {
 			git -C $tmp push 2>&1 | Out-Host
 			if ($LASTEXITCODE -ne 0) { Write-Host "The daily leaderboard refresh wasn't uploaded (GitHub wants the 'workflow' permission). On github.com, add .github\workflows\arena.yml to the repo yourself." -ForegroundColor Yellow }

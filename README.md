@@ -1,17 +1,17 @@
-# Andromeda
+# Celestin
 
 **Ask anything, make anything. Each part goes to the AI model that's best at it.**
 
 There are hundreds of strong AI models now. Each lab leads at something different, and the lead changes every few weeks. People shouldn't have to track that, set up tools, or pay for five subscriptions to get the best of each.
 
-With Andromeda you just type. It sends each part of your request to the strongest model for that kind of work. Nothing to install and no keys: sign in and you get free credits that come back every 5 hours.
+With Celestin you just type. It sends each part of your request to the strongest model for that kind of work. Nothing to install and no keys: sign in and you get free credits that come back every 5 hours.
 
-![Andromeda](docs/welcome.png)
+![Celestin](docs/welcome.png)
 
 ## What it makes
 
 - **Answers:** short questions go to one fast model; bigger ones go to a team: a lead plans the work and specialists from different labs research, reason, code and write it.
-- **Videos and ads, any length:** a director plans the shots (a long film chapter by chapter) and decides how each is made: filmed by a video model where real movement matters, a picture the camera moves over (the way documentaries are made), or animated in code by the model measured best at it (motion graphics, kinetic type, diagrams, 2D characters, 3D), the way the best AI-made channels make theirs. Voice (ElevenLabs) and music (Lyria) are added, and Andromeda renders it frame by frame into a smooth, high-quality MP4 (60 fps when nothing is filmed), right in the browser. Max films every shot that isn't animated.
+- **Videos and ads, any length:** a director plans the shots (a long film chapter by chapter) and decides how each is made: filmed by a video model where real movement matters, a picture the camera moves over (the way documentaries are made), or animated in code by the model measured best at it (motion graphics, kinetic type, diagrams, 2D characters, 3D), the way the best AI-made channels make theirs. Voice (ElevenLabs) and music (Lyria) are added, and Celestin renders it frame by frame into a smooth, high-quality MP4 (60 fps when nothing is filmed), right in the browser. Max films every shot that isn't animated.
 - **Photos, music and voiceovers.**
 - **Apps and games:** built, tested and running right in the chat.
 - **Files:** real PowerPoint decks (with charts and speaker notes), Excel spreadsheets with working formulas, Word documents and PDFs.
@@ -19,9 +19,9 @@ With Andromeda you just type. It sends each part of your request to the stronges
 
 ## Everything the best assistants have, switched on
 
-- **Beside the chat:** apps, games, pages and simulations open in a panel next to the conversation, with their code a click away. Long writing opens as a **canvas** you can edit, or ask Andromeda to change (all of it, or just what you've selected), with undo.
-- **Projects:** chats that share instructions and files (PDFs, Word, Excel, slides, code), so Andromeda always has the background.
-- **Library:** every picture, video, song, app and document Andromeda made for you, in one place.
+- **Beside the chat:** apps, games, pages and simulations open in a panel next to the conversation, with their code a click away. Long writing opens as a **canvas** you can edit, or ask Celestin to change (all of it, or just what you've selected), with undo.
+- **Projects:** chats that share instructions and files (PDFs, Word, Excel, slides, code), so Celestin always has the background.
+- **Library:** every picture, video, song, app and document Celestin made for you, in one place.
 - **A team on every answer:** the request is split into its smallest, most specific pieces ("the 5 moments a 9-year-old finds most gripping", "3 comparisons that make 'revolution' click", "that moment told as a 120-word story"), each done by the model measurably best at exactly that piece, building on each other's work. A model's pieces go to it together, in order, so a team costs one call per model rather than one per piece; when one model is the best at every piece, it writes the answer itself. Otherwise the best writer for the answer puts it together, and the model best at getting that field right checks it.
 - **Works like an engineer:** runs Python and JavaScript in your browser (your spreadsheets, charts, calculations), searches and reads the web, uses your computer and apps through a small connector (asking before anything changes), and keeps long jobs going for hundreds of steps.
 - **Memory** across chats (see it and delete it any time), **temporary chats** that aren't saved or remembered, and **share links** for any chat.
@@ -36,27 +36,27 @@ With Andromeda you just type. It sends each part of your request to the stronges
 
 ## Anything, without a recipe
 
-Nobody has to build a pipeline for what you ask. For anything Andromeda has no single way to make (a Minecraft mod, a launch with a site and an ad, a dataset and its analysis), it works like a lead engineer with a team: it works out the steps itself, hands each piece to the AI model measured best at exactly that skill (and, among models the ratings can't tell apart, the cheapest), uses its own makers for videos, pictures, music, documents and apps as tools, checks what comes back, and hands over the result, a whole project as a download if that's what it takes.
+Nobody has to build a pipeline for what you ask. For anything Celestin has no single way to make (a Minecraft mod, a launch with a site and an ad, a dataset and its analysis), it works like a lead engineer with a team: it works out the steps itself, hands each piece to the AI model measured best at exactly that skill (and, among models the ratings can't tell apart, the cheapest), uses its own makers for videos, pictures, music, documents and apps as tools, checks what comes back, and hands over the result, a whole project as a download if that's what it takes.
 
-## Andromeda decides
+## Celestin decides
 
 Nothing about a request is decided by rules written in advance. The model that measurably reads requests best reads each one and decides for itself what would serve it: an answer, something built and running in the page, a picture, a film, a song, a document, a study set, work on a code project, work in your connected apps, or its own way for anything nobody thought of. If that way fails, it's told why and chooses again.
 
 ## Connect apps
 
-Andromeda can use the same apps and tools Claude can, through MCP: Blender, Figma, Unity, your files, GitHub and thousands more. Double-click **CONNECT APPS.bat** (it needs [Node.js](https://nodejs.org)), paste the pairing code it shows into Andromeda under **Connect apps**, and list your apps in `tools/connections.json` (the same format as Claude Desktop, whose apps are picked up too; see `tools/connections.example.json`). Online MCP servers can be added by address; one that signs you in (Higgsfield's, `https://mcp.higgsfield.ai/mcp`) goes in `connections.json` through `mcp-remote`, as in the example. A connected app that makes pictures, videos, music or voice is what Andromeda uses for them, on your own account with it, choosing its best model for the job. The connector only listens on your computer and only answers Andromeda with its pairing code.
+Celestin can use the same apps and tools Claude can, through MCP: Blender, Figma, Unity, your files, GitHub and thousands more. Double-click **CONNECT APPS.bat** (it needs [Node.js](https://nodejs.org)), paste the pairing code it shows into Celestin under **Connect apps**, and list your apps in `tools/connections.json` (the same format as Claude Desktop, whose apps are picked up too; see `tools/connections.example.json`). Online MCP servers can be added by address; one that signs you in (Higgsfield's, `https://mcp.higgsfield.ai/mcp`) goes in `connections.json` through `mcp-remote`, as in the example. A connected app that makes pictures, videos, music or voice is what Celestin uses for them, on your own account with it, choosing its best model for the job. The connector only listens on your computer and only answers Celestin with its pairing code.
 
 ## Everything a coding agent has, and a team on top
 
-Andromeda's workers have what Claude Code and Codex have: files, search, the docs, the web, running Python and JavaScript, and, with your computer connected, your shell, your files and long-running jobs (each change to your computer is shown to you and asked first). On top of that they work as a team: a to-do plan you can see, helpers who look into several things in parallel, experts measured best at exactly one skill, and before anything is handed over, a different top model reviewing every change for real bugs.
+Celestin's workers have what Claude Code and Codex have: files, search, the docs, the web, running Python and JavaScript, and, with your computer connected, your shell, your files and long-running jobs (each change to your computer is shown to you and asked first). On top of that they work as a team: a to-do plan you can see, helpers who look into several things in parallel, experts measured best at exactly one skill, and before anything is handed over, a different top model reviewing every change for real bugs.
 
-Type **/** in the message box for commands (/code, /review, /test, /fix, /plan, /research, /video, /max…), and add your own: **skills** (instructions Andromeda uses by itself whenever a request fits, written here or imported from a SKILL.md link) and **commands** (prompts you use often).
+Type **/** in the message box for commands (/code, /review, /test, /fix, /plan, /research, /video, /max…), and add your own: **skills** (instructions Celestin uses by itself whenever a request fits, written here or imported from a SKILL.md link) and **commands** (prompts you use often).
 
 What you read is always written by a top model: cheap fast models only route and plan behind the scenes, and every sum in your message is worked out exactly by code first, so an easy question is never answered wrong.
 
-## Andromeda Code
+## Celestin Code
 
-Start a project right here in your browser, open a folder on your computer, or connect a GitHub repo, then ask for a change. Andromeda Code:
+Start a project right here in your browser, open a folder on your computer, or connect a GitHub repo, then ask for a change. Celestin Code:
 
 - finds and reads the files it needs and edits them precisely;
 - looks up current docs and checks its own work, fixing what it broke;
@@ -78,15 +78,15 @@ By measurement, not by guesswork. Every request is first read by a fast model fo
 
 That's 101 measured skills. Every piece of a team answer is weighed on its own mix of them, and the model that scores highest on exactly that mix does it. No lab is favoured by hand. Code goes through the team too: the model measured best at code puts it together and the best code checker reviews it.
 
-**Andromeda's own measurements.** Public leaderboards stop at a hundred skills; real work has far more ("Rust async lifetimes", "a story for a 9-year-old"). Every piece carries tags for exactly what it was, and every checked answer records whether each model's piece held up. Added up across everyone (only the tags and pass or fail, never what anyone wrote), this becomes a leaderboard for every tag, and once there's enough evidence it outweighs the general ratings.
+**Celestin's own measurements.** Public leaderboards stop at a hundred skills; real work has far more ("Rust async lifetimes", "a story for a 9-year-old"). Every piece carries tags for exactly what it was, and every checked answer records whether each model's piece held up. Added up across everyone (only the tags and pass or fail, never what anyone wrote), this becomes a leaderboard for every tag, and once there's enough evidence it outweighs the general ratings.
 
-**The best, run the way it was rated.** Many models are rated more than once, at different thinking efforts ("Claude Opus 5.5 (Max)", "GPT-5.6 Sol (xHigh)"): Andromeda runs each at the effort that scored best, with room to think that long. Each of its own features goes to the model measured best at exactly that: apps and simulations by the web-app boards, a site from a screenshot by the screenshot-to-site board, flashcards and quizzes by expertise and factual accuracy, spreadsheets by maths, decks and documents by writing and instruction following, the video director by creative writing. Live questions are answered with each lab's own web search, the way the search board rates them. In Auto, the thinking matches the work: light for an everyday question or an easy piece, more for a hard one; Max always thinks as hard as the model can. The whole conversation is always sent, and its start stays exactly the same from one message to the next (what's decided for each request goes with the newest message), so every lab rereads it from its cache at a fraction of the price: a saving that changes nothing in the answer.
+**The best, run the way it was rated.** Many models are rated more than once, at different thinking efforts ("Claude Opus 5.5 (Max)", "GPT-5.6 Sol (xHigh)"): Celestin runs each at the effort that scored best, with room to think that long. Each of its own features goes to the model measured best at exactly that: apps and simulations by the web-app boards, a site from a screenshot by the screenshot-to-site board, flashcards and quizzes by expertise and factual accuracy, spreadsheets by maths, decks and documents by writing and instruction following, the video director by creative writing. Live questions are answered with each lab's own web search, the way the search board rates them. In Auto, the thinking matches the work: light for an everyday question or an easy piece, more for a hard one; Max always thinks as hard as the model can. The whole conversation is always sent, and its start stays exactly the same from one message to the next (what's decided for each request goes with the newest message), so every lab rereads it from its cache at a fraction of the price: a saving that changes nothing in the answer.
 
 **What people like, measured the way they feel it.** Every gap is read in Elo, how often people prefer one model's answer to the other's, the same on every board: Claude Opus 5.5 builds web apps 130 Elo better than Gemini 4 Argon (people choose its app about two times in three), while in chat about code the two are level. A cheaper model never does the work when it's more than 10 Elo behind the best (51 in 100, a gap nobody notices); Opus 5.5 to Sonnet 5.5, 20 to 40 Elo, is a different class of answer and is never traded for money. Light, fast models read, plan and route; they never write the answer.
 
-**Right, not only preferred.** People can't check the proof they vote on, so for maths and reasoning Andromeda also weighs [Epoch AI's benchmarks](https://epoch.ai/benchmarks), which check the answer itself: maths (FrontierMath, AIME, ProofBench), science (GPQA Diamond, CritPt, Humanity's Last Exam), facts (SimpleQA Verified), software engineering (FrontierCode, CursorBench, FrontierSWE, SWE-bench Verified, Terminal-Bench and more), agents (APEX, OSWorld, Vending-Bench) and reasoning (ARC-AGI). A capability point counts as the preference it buys (about two and a half Elo, measured across the models rated on both). They weigh half for maths and reasoning, a fifth for everyday questions; code goes with what people like (the benchmarks weigh 15%, only to keep out a model people like whose code fails), and creative writing goes entirely with what people prefer.
+**Right, not only preferred.** People can't check the proof they vote on, so for maths and reasoning Celestin also weighs [Epoch AI's benchmarks](https://epoch.ai/benchmarks), which check the answer itself: maths (FrontierMath, AIME, ProofBench), science (GPQA Diamond, CritPt, Humanity's Last Exam), facts (SimpleQA Verified), software engineering (FrontierCode, CursorBench, FrontierSWE, SWE-bench Verified, Terminal-Bench and more), agents (APEX, OSWorld, Vending-Bench) and reasoning (ARC-AGI). A capability point counts as the preference it buys (about two and a half Elo, measured across the models rated on both). They weigh half for maths and reasoning, a fifth for everyday questions; code goes with what people like (the benchmarks weigh 15%, only to keep out a model people like whose code fails), and creative writing goes entirely with what people prefer.
 
-**What it really costs.** A model's price per token isn't its price per answer. The benchmarks count how much each model thinks (some think three times as long as others at the same setting) and what each thinking level buys it; LMArena's own ratings of the same model at several efforts say what thinking buys in preference: in chat next to nothing from one level to the next, on web apps about 35 Elo a level, so apps and animation are built at full effort and chat answers think only as much as people notice. Andromeda works out what each request reads (a long chat, a whole file) and lets a cheaper model or a lighter effort do the work only when the lead it gives up is worth less than what it saves; for hard code and reasoning, only within 3 Elo.
+**What it really costs.** A model's price per token isn't its price per answer. The benchmarks count how much each model thinks (some think three times as long as others at the same setting) and what each thinking level buys it; LMArena's own ratings of the same model at several efforts say what thinking buys in preference: in chat next to nothing from one level to the next, on web apps about 35 Elo a level, so apps and animation are built at full effort and chat answers think only as much as people notice. Celestin works out what each request reads (a long chat, a whole file) and lets a cheaper model or a lighter effort do the work only when the lead it gives up is worth less than what it saves; for hard code and reasoning, only within 3 Elo.
 
 **Nothing stops half-made.** An app is priced whole before anything is spent (the build, and a round of fixes and the design pass). When the balance covers the best builder at its full effort, that builds it; when it doesn't, the same builder thinks a step less, as much as it can and still finish; when not even that would finish, nothing starts and the price is shown. If a fix runs short later, a small app finishes with a little less thought, and a big one hands over what works and says what finishing takes.
 
@@ -104,10 +104,10 @@ The ratings come from LMArena's public dataset and Epoch AI's benchmarking hub (
   - Even someone who uses every credit of every week leaves the owner a profit on every plan; the bigger plans are the better deal.
 - **Credit packs** (Spark, Flare, Comet, Meteor) are bought credits that never expire. They're used only when the plan's credits for now are gone, so there's no waiting. A credit costs more in a pack than in a plan.
 - Plans and packs are paid with QRIS (and card, once it's set up). A plan lasts 30 days, and paying early adds a month to the end. Prices live in the code; the admin page runs the shop (approving payments, QRIS, giving plans by hand) and shows what free use really costs each day, which a daily budget caps.
-- Andromeda only ever shows credits, never token counts or what one answer cost.
+- Celestin only ever shows credits, never token counts or what one answer cost.
 
 The site runs through a small credits server on Cloudflare (`server/`) that holds the AI keys, so no one using the site ever needs or sees a key. Models are reached through WaveSpeed first (chat models, pictures, video, voice and music, with web search built in), then any OpenAI-compatible gateway, Cloudflare AI Gateway or OpenRouter. To set it up, double-click `server/SET UP SERVER.bat`.
 
 ## License
 
-Proprietary: all rights reserved. Andromeda's code, design, name and logo may not be copied, reused or hosted without written permission. See [LICENSE](LICENSE).
+Proprietary: all rights reserved. Celestin's code, design, name and logo may not be copied, reused or hosted without written permission. See [LICENSE](LICENSE).

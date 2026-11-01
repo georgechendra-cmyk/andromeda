@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Andromeda — the right model for every message</title>
-<meta name="description" content="Andromeda makes anything from one message: answers, research, code, apps and games, documents and study sets, each step by the AI model rated best at it. Free credits every day.">
+<title>Celestin — the right model for every message</title>
+<meta name="description" content="Celestin makes anything from one message: answers, research, code, apps and games, documents and study sets, each step by the AI model rated best at it. Free credits every day.">
 <!-- the card a shared link shows (X, WhatsApp, Discord, Telegram...) -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Andromeda">
-<meta property="og:title" content="Andromeda: every AI's best, working as one">
+<meta property="og:site_name" content="Celestin">
+<meta property="og:title" content="Celestin: every AI's best, working as one">
 <meta property="og:description" content="One message, and each part goes to the AI rated best at exactly that: answers, research, code, apps and games. Free credits every day.">
 <meta property="og:url" content="https://georgechendra-cmyk.github.io/andromeda/">
 <meta property="og:image" content="https://georgechendra-cmyk.github.io/andromeda/docs/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Andromeda: every AI's best, working as one.">
+<meta property="og:image:alt" content="Celestin: every AI's best, working as one.">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Andromeda: every AI's best, working as one">
+<meta name="twitter:title" content="Celestin: every AI's best, working as one">
 <meta name="twitter:description" content="One message, and each part goes to the AI rated best at exactly that. Free credits every day.">
 <meta name="twitter:image" content="https://georgechendra-cmyk.github.io/andromeda/docs/og.png">
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -27,7 +27,7 @@
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Andromeda">
+<meta name="apple-mobile-web-app-title" content="Celestin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -1068,7 +1068,7 @@ textarea#input { padding: 16px 20px 6px; }
 .composer.empty #sendBtn { display: none; }
 .composer:not(.empty) #talkBtn { display: none; }
 .composer-wrap { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
-.composer-wrap::after { content: "Andromeda can make mistakes. Check important info."; display: block; padding-top: 8px; text-align: center; font-size: 12px; color: var(--faint); }
+.composer-wrap::after { content: "Celestin can make mistakes. Check important info."; display: block; padding-top: 8px; text-align: center; font-size: 12px; color: var(--faint); }
 
 /* ---- the conversation */
 .thread { max-width: 790px; }
@@ -1099,7 +1099,7 @@ textarea#input { padding: 16px 20px 6px; }
 	.welcome .greet { font-size: 30px; gap: 12px; }
 	.gmark { width: 36px; height: 36px; }
 	.mode-btn { padding: 0 6px 0 8px; }
-	.composer-wrap::after { content: "Andromeda can make mistakes."; }
+	.composer-wrap::after { content: "Celestin can make mistakes."; }
 	.act.ic { width: 36px; height: 36px; }
 }
 @media (max-width: 420px) { .welcome .greet { flex-direction: column; font-size: 28px; } #micBtn { display: none; } }
@@ -1575,19 +1575,19 @@ html { scroll-behavior: smooth; }
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M16 6L6.6 26.2M16 6l9.4 20.2M10.3 18.3h11.4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" opacity=".68"/><g fill="currentColor"><circle cx="16" cy="6" r="2.9"/><circle cx="6.6" cy="26.2" r="2.2"/><circle cx="25.4" cy="26.2" r="2.2"/><circle cx="10.3" cy="18.3" r="1.6"/><circle cx="21.7" cy="18.3" r="1.6"/><circle cx="26.4" cy="7.6" r="1.05"/></g></symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M22.6 8.2L11.7 6.8L5.8 16L11.7 25.2L22.6 23.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".68"/><g fill="currentColor"><circle cx="22.6" cy="8.2" r="2.9"/><circle cx="11.7" cy="6.8" r="1.6"/><circle cx="5.8" cy="16" r="2.2"/><circle cx="11.7" cy="25.2" r="1.6"/><circle cx="22.6" cy="23.8" r="2.2"/><circle cx="26.6" cy="16" r="1.05"/></g></symbol></defs></svg>
 
 <!-- ============================== the site ============================== -->
 <div class="site" id="site">
 	<canvas id="sky"></canvas>
 	<header class="nav" id="nav">
 		<div class="wrap">
-			<a class="logo" href="#" data-go-home><svg class="mark"><use href="#logo"/></svg>Andromeda</a>
+			<a class="logo" href="#" data-go-home><svg class="mark"><use href="#logo"/></svg>Celestin</a>
 			<nav class="nav-links"><a href="#product">Product</a><a href="#how">How it decides</a><a href="#models">Models</a><a href="#faq">FAQ</a></nav>
 			<span class="sp"></span>
 			<button class="b ghost" data-theme-toggle title="Light or dark" aria-label="Switch light or dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
 			<a class="b ghost gh" href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener" id="ghLink">GitHub</a>
-			<button class="b pri" data-open-app>Try Andromeda</button>
+			<button class="b pri" data-open-app>Try Celestin</button>
 		</div>
 	</header>
 
@@ -1595,13 +1595,13 @@ html { scroll-behavior: smooth; }
 		<div class="wrap">
 			<a class="pill" href="#product"><span class="tag">NEW</span><span class="pill-t">A team on every answer: each piece by the model measured best at exactly that</span></a>
 			<h1>Every AI's best,<br><em>working as one.</em></h1>
-			<p class="lead">Andromeda splits what you ask into its most specific pieces and gives each one to the model measured best at exactly that piece, then puts it together and checks it.</p>
-			<div class="ctas"><button class="b pri lg" data-open-app>Try Andromeda</button><a class="b sec lg" href="#how">How it decides</a></div>
+			<p class="lead">Celestin splits what you ask into its most specific pieces and gives each one to the model measured best at exactly that piece, then puts it together and checks it.</p>
+			<div class="ctas"><button class="b pri lg" data-open-app>Try Celestin</button><a class="b sec lg" href="#how">How it decides</a></div>
 			<div class="fine">Free credits every day · no card · your chats stay in your browser</div>
 			<div class="stats"><div><b id="stSkills">101</b><span>measured skills</span></div><div><b id="stLeaders">16</b><span>models that lead one</span></div><div><b>Daily</b><span>re-ranked, by itself</span></div></div>
 
 			<div class="demo" id="product">
-				<div class="demo-h"><i></i><i></i><i></i><span class="sp"></span>andromeda · the team, picked live</div>
+				<div class="demo-h"><i></i><i></i><i></i><span class="sp"></span>celestin · the team, picked live</div>
 				<div class="demo-b">
 					<div class="demo-q"><span class="you">you</span><span class="typed" id="demoQ"></span></div>
 					<div class="demo-r" id="demoR"></div>
@@ -1616,7 +1616,7 @@ html { scroll-behavior: smooth; }
 		<div class="wrap">
 			<div class="eyebrow">One place for all of it</div>
 			<h2>Whatever you need, made by whoever does it best.</h2>
-			<p class="sub2">Not one chatbot: every lab's strongest models, and Andromeda deciding which one does each part.</p>
+			<p class="sub2">Not one chatbot: every lab's strongest models, and Celestin deciding which one does each part.</p>
 			<div class="grid3">
 				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></div><h3>Answers you can check</h3><p>Live web search, with the sources read and cited. Deep research when being thorough matters.</p></div>
 				<div class="card mk"><div class="ic"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 11v4M5 13h4"/><circle cx="16" cy="12" r=".6"/><circle cx="18" cy="15" r=".6"/></svg></div><h3>Apps and games</h3><p>Built and running right here, beside the chat, with the code one click away.</p></div>
@@ -1632,10 +1632,10 @@ html { scroll-behavior: smooth; }
 		<div class="wrap">
 			<div class="eyebrow">How it decides</div>
 			<h2>A team of specialists on every answer.</h2>
-			<p class="sub2">No rules written in advance: every request is read by a model, and Andromeda decides for itself.</p>
+			<p class="sub2">No rules written in advance: every request is read by a model, and Celestin decides for itself.</p>
 			<div class="steps3">
 				<div class="card"><h3>It splits the work into its smallest pieces</h3><p>Not "research" but "the five moments a 9-year-old finds most gripping, with dates". Each piece is one precise skill, and later pieces build on earlier ones.</p></div>
-				<div class="card"><h3>Each piece goes to the model best at exactly that</h3><p>Weighed on 101 measured skills from millions of real votes, re-ranked every day, plus Andromeda's own record of which model's work holds up at what.</p></div>
+				<div class="card"><h3>Each piece goes to the model best at exactly that</h3><p>Weighed on 101 measured skills from millions of real votes, re-ranked every day, plus Celestin's own record of which model's work holds up at what.</p></div>
 				<div class="card"><h3>It's put together, checked and fixed</h3><p>The best writer for the answer combines the pieces, the model best at that field checks every fact, and what it finds is fixed before you see it.</p></div>
 			</div>
 		</div>
@@ -1679,19 +1679,19 @@ html { scroll-behavior: smooth; }
 		<div class="wrap faq">
 			<div class="eyebrow">FAQ</div>
 			<h2>Questions</h2>
-			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher or the best writer. Andromeda keeps track so you don't have to.</p></details>
+			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher or the best writer. Celestin keeps track so you don't have to.</p></details>
 			<details><summary>How does it decide?</summary><p>A fast model reads every request and decides what would serve you (an answer, an app, a video, research...) and how to do it. Then each part goes to the models that score highest on exactly that work: on LMArena's leaderboards (which answer people prefer) and on <a href="https://epoch.ai/benchmarks" target="_blank" rel="noopener">Epoch AI's benchmarks</a> (whether the code passes its tests, the maths is right, the facts are true), at the price that buys that quality and no more. You can also choose Fast, Max, or one model yourself.</p></details>
-			<details><summary>Can it use my computer?</summary><p>Only if you run its small connector on your computer, and it asks before it changes anything. Without it, Andromeda still runs code, searches and builds right in your browser.</p></details>
+			<details><summary>Can it use my computer?</summary><p>Only if you run its small connector on your computer, and it asks before it changes anything. Without it, Celestin still runs code, searches and builds right in your browser.</p></details>
 			<details><summary>What does it cost?</summary><p>Everyone with an account gets free credits that come back every 5 hours. For more, a plan (Nova, Pulsar or Quasar) gives you far more for a month (no auto-renewal), and a credit pack tops you up instantly.</p></details>
-			<details><summary>Is my data safe?</summary><p>Your chats, projects and memory stay in this browser. What you ask goes through Andromeda's server to the model answering it, and isn't kept there.</p></details>
+			<details><summary>Is my data safe?</summary><p>Your chats, projects and memory stay in this browser. What you ask goes through Celestin's server to the model answering it, and isn't kept there.</p></details>
 			<details><summary>Which model answered me?</summary><p>The best one for each part, picked for you. "Show models used" on any answer shows who did what, and why.</p></details>
 		</div>
 	</section>
 
 	<div class="wrap reveal">
-		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">It already knows who should answer it.</p><button class="b pri lg" data-open-app>Try Andromeda</button></div>
+		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">It already knows who should answer it.</p><button class="b pri lg" data-open-app>Try Celestin</button></div>
 	</div>
-	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Andromeda</span><span class="sp"></span><a href="terms.html">Terms</a><a href="terms.html#usage">Usage Policy</a><a href="privacy.html">Privacy</a><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>© 2026 Andromeda · all rights reserved · your chats stay in your browser</span></div></footer>
+	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Celestin</span><span class="sp"></span><a href="terms.html">Terms</a><a href="terms.html#usage">Usage Policy</a><a href="privacy.html">Privacy</a><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>© 2026 Celestin · all rights reserved · your chats stay in your browser</span></div></footer>
 </div>
 
 <!-- ============================== the app ============================== -->
@@ -1699,16 +1699,16 @@ html { scroll-behavior: smooth; }
 <div class="app">
 	<aside class="sidebar" id="sidebar">
 		<div class="brand">
-			<a class="brand-link" href="#" data-go-home title="Andromeda's home page"><svg class="mark"><use href="#logo"/></svg><span class="brand-name">Andromeda</span></a>
+			<a class="brand-link" href="#" data-go-home title="Celestin's home page"><svg class="mark"><use href="#logo"/></svg><span class="brand-name">Celestin</span></a>
 			<button class="sb-hide" id="sbHide" title="Close the sidebar" aria-label="Close the sidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
 		</div>
-		<nav class="sb-nav" aria-label="Andromeda">
+		<nav class="sb-nav" aria-label="Celestin">
 			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
 			<button class="nav-i nav-search" id="searchNav" data-tip="Search chats" aria-label="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="lbl">Search chats</span></button>
 			<button class="nav-i" id="chatsNav" data-tip="Your chats" aria-label="Your chats" aria-expanded="false" aria-controls="sbPanel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span class="lbl">Chats</span></button>
 			<button class="nav-i" id="libNav" data-tip="Library: everything made for you" aria-label="Library"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span class="lbl">Library</span></button>
 			<button class="nav-i" id="tasksNav" data-tip="Tasks it does on a schedule" aria-label="Tasks"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Tasks</span></button>
-			<button class="nav-i" id="codeNav" data-tip="Code: build or change a project" aria-label="Andromeda Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
+			<button class="nav-i" id="codeNav" data-tip="Code: build or change a project" aria-label="Celestin Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
 			<button class="nav-i" id="appsNav" data-tip="Connect apps: your computer, Blender, Figma…" aria-label="Connect apps"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
 		</nav>
 		<!-- your chats and projects: a panel that slides out beside the rail (inline in the drawer on a phone) -->
@@ -1725,7 +1725,7 @@ html { scroll-behavior: smooth; }
 				<button class="mi" role="menuitem" id="openSettings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span><b>Settings</b></span><span class="key-dot" id="keyDot"></span></button>
 				<button class="mi" role="menuitem" data-open-memory><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17l-7-4-7 4z"/></svg><span><b>Memory</b></span></button>
 				<button class="mi" role="menuitem" id="themeBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span><b>Light or dark</b></span></button>
-				<button class="mi" role="menuitem" data-go-home><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span><b>Andromeda's home page</b></span></button>
+				<button class="mi" role="menuitem" data-go-home><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span><b>Celestin's home page</b></span></button>
 				<hr>
 				<button class="mi" role="menuitem" id="signOutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11"/></svg><span><b>Sign out</b></span></button>
 			</div>
@@ -1741,7 +1741,7 @@ html { scroll-behavior: smooth; }
 			<button class="crumb" id="crumb" hidden title="Open this project"></button><button class="ttl" id="chatTitle" aria-haspopup="menu" aria-controls="chatPop" title="Rename, export or delete this chat"></button>
 			<div class="spacer"></div>
 			<span class="chip" id="topChip"><span class="dot"></span><span id="topChipText">Not connected</span></span>
-			<button class="menu-btn always" id="tempBtn" aria-pressed="false" title="Temporary chat: not saved, and Andromeda won't remember it" aria-label="Temporary chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z" stroke-dasharray="3.2 3.2"/></svg></button><button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
+			<button class="menu-btn always" id="tempBtn" aria-pressed="false" title="Temporary chat: not saved, and Celestin won't remember it" aria-label="Temporary chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z" stroke-dasharray="3.2 3.2"/></svg></button><button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
 			<button class="menu-btn" id="newChatTop" aria-label="New chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
 			<div class="pop" id="chatPop" role="menu" hidden>
 				<button role="menuitem" data-chat="share"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Share a link</button>
@@ -1763,12 +1763,12 @@ html { scroll-behavior: smooth; }
 			<div class="composer empty" id="composer">
 				<div class="route" id="route"></div>
 				<div class="attached" id="attached"></div>
-				<textarea id="input" rows="1" placeholder="Ask anything, or make anything" aria-label="Message Andromeda"></textarea>
+				<textarea id="input" rows="1" placeholder="Ask anything, or make anything" aria-label="Message Celestin"></textarea>
 				<div class="bar">
 					<button class="icon plus" id="plusBtn" title="Add files, tools and more" aria-label="Add files, tools and more" aria-haspopup="menu" aria-expanded="false" aria-controls="plusPop"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></button>
 					<button class="tool-chip" id="toolChip" hidden title="Turn this off"></button>
 					<span class="sp"></span>
-					<button class="mode-btn" id="modeBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modePop" title="How Andromeda works: Auto, Fast, Max, or one model you choose"><span id="modeLabel">Auto</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
+					<button class="mode-btn" id="modeBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="modePop" title="How Celestin works: Auto, Fast, Max, or one model you choose"><span id="modeLabel">Auto</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></button>
 					<button class="icon" id="micBtn" title="Dictate" aria-label="Dictate"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
 					<button class="send talk" id="talkBtn" title="Talk mode: a hands-free conversation" aria-label="Talk mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/></svg></button>
 					<button class="send" id="sendBtn" disabled aria-label="Send"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
@@ -1786,7 +1786,7 @@ html { scroll-behavior: smooth; }
 					<button class="mi" role="menuitem" data-tool="code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span><b>Code a project</b><small>Builds, changes, tests and reviews real code</small></span></button>
 					<button class="mi" role="menuitem" data-tool="act"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/></svg><span><b>Use tools and your computer</b><small>Runs code, searches, works in your connected apps</small></span></button>
 					<hr>
-					<button class="mi" role="menuitem" id="projBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span><b>Andromeda Code</b><small>Build or change a whole project</small></span></button>
+					<button class="mi" role="menuitem" id="projBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span><b>Celestin Code</b><small>Build or change a whole project</small></span></button>
 					<button class="mi" role="menuitem" id="appsBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span><b>Connect apps</b><small>Your computer, Blender, Figma, files and more</small></span></button>
 				</div>
 				<div class="pop up" id="modePop" role="menu" hidden></div>
@@ -1811,19 +1811,19 @@ html { scroll-behavior: smooth; }
 </div>
 
 <div class="shared" id="shared" hidden>
-	<header class="sh-top"><a class="logo" href="./" title="Andromeda"><svg class="mark"><use href="#logo"/></svg>Andromeda</a><span class="sh-t" id="shTitle"></span><span class="sp"></span><button class="b sec" id="shCont">Continue this chat</button><button class="b pri" data-open-app>Try Andromeda</button></header>
+	<header class="sh-top"><a class="logo" href="./" title="Celestin"><svg class="mark"><use href="#logo"/></svg>Celestin</a><span class="sh-t" id="shTitle"></span><span class="sp"></span><button class="b sec" id="shCont">Continue this chat</button><button class="b pri" data-open-app>Try Celestin</button></header>
 	<div class="thread" id="shThread"></div>
 </div>
 <div class="pop" id="regenPop" role="menu" hidden></div>
 <div class="drop" aria-hidden="true"><div><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg><b>Drop files to add them</b><span>Pictures, PDFs, Word, Excel, slides, code: anything</span></div></div>
-<div class="voice" id="voice" hidden data-state="listening" role="dialog" aria-label="Talking with Andromeda">
+<div class="voice" id="voice" hidden data-state="listening" role="dialog" aria-label="Talking with Celestin">
 	<button class="v-orb" id="vOrb" aria-label="Interrupt"><i></i><i></i><i></i><svg><use href="#logo"/></svg></button>
 	<div class="v-state" id="vState" aria-live="polite">Listening</div>
 	<div class="v-said" id="vSaid"></div>
 	<div class="v-btns"><button class="btn" id="vChat">Show the chat</button><button class="btn dark" id="vEnd">End</button></div>
 </div>
 <section class="auth" id="auth" aria-labelledby="authTitle">
-	<header class="auth-top"><button class="logo" id="authBack" title="Back to the front page"><svg class="mark"><use href="#logo"/></svg>Andromeda</button></header>
+	<header class="auth-top"><button class="logo" id="authBack" title="Back to the front page"><svg class="mark"><use href="#logo"/></svg>Celestin</button></header>
 	<div class="auth-main" id="authMain"></div>
 	<footer class="auth-foot">Free credits every day · no card · your chats stay in your browser</footer>
 </section>
@@ -1834,7 +1834,7 @@ html { scroll-behavior: smooth; }
 <script>
 "use strict";
 // =====================================================================================
-// Andromeda: every model, each request routed to the model best at it, paid for with Andromeda credits.
+// Celestin: every model, each request routed to the model best at it, paid for with Celestin credits.
 // Everything runs in your browser. Your key is kept in localStorage and only sent to openrouter.ai.
 // =====================================================================================
 
@@ -1844,7 +1844,7 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const API = "https://openrouter.ai/api/v1";
 // The credits server (server/worker.js). Paste its address here once it's live, e.g.
-// "https://andromeda-credits.yourname.workers.dev". Andromeda runs through it: nothing works until it's set.
+// "https://andromeda-credits.yourname.workers.dev". Celestin runs through it: nothing works until it's set.
 const DEFAULT_SERVER = "https://andromeda-credits.georgechendra.workers.dev";
 
 // ---------------------------------------------------------------- storage
@@ -1866,10 +1866,10 @@ const saveSettings = () => store.set("settings", settings);
 let convos = store.get("convos", []);
 let current = null;
 let SERVER = String(store.get("server", "") || DEFAULT_SERVER).replace(/\/+$/, "");
-let account = store.get("account", null); // { token, email } once signed in to Andromeda credits
+let account = store.get("account", null); // { token, email } once signed in to Celestin credits
 let me = null; // { id, email, credits, payments }
 let pricing = null; // the server's packs and prices
-// signed in to Andromeda credits (the server runs the models)
+// signed in to Celestin credits (the server runs the models)
 function creditsMode() { return !!(SERVER && account && account.token); }
 function connected() { return creditsMode(); }
 function chatURL() { return creditsMode() ? SERVER + "/api/chat/completions" : API + "/chat/completions"; }
@@ -1997,7 +1997,7 @@ function classifyBase(text, atts = []) {
 	if (/\b(write|rewrite|essay|email|letter|blog|article|story|poem|lyrics|tone|edit|proofread|summari[sz]e|caption|cover letter|translate)\b/.test(t)) return "write";
 	return t.length > 600 ? "write" : "quick";
 }
-// Which labs do each kind of task best, in order. From each lab Andromeda takes its current flagship, worked out
+// Which labs do each kind of task best, in order. From each lab Celestin takes its current flagship, worked out
 // from the live catalog (the newest model of the lab's top-priced line), so a new release is used the day it ships,
 // and a lower Quality setting simply steps down each lab's line-up (Fable → Opus → Sonnet) as the price cap tightens.
 const LABS = {
@@ -2100,7 +2100,7 @@ function flagship(lab, task, fast) {
 // how much an answer of each kind writes, in tokens (code and research run long, where the price of writing is most of it)
 const OUT_BY = { code: 3000, reasoning: 2000, research: 2500, write: 1500, brainstorm: 1200, vision: 800, quick: 500 };
 function rank(task, cap, seen) {
-	// (seen: this request's tags and Andromeda's own record on them, which moves a model where it has real evidence)
+	// (seen: this request's tags and Celestin's own record on them, which moves a model where it has real evidence)
 	let list = arenaRank(task);
 	if (seen && seen.record && seen.tags) list = learned(list, seen.tags, seen.record, list);
 	const data = bestFirst(quarkFirst(list, cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800), STAKES[task]));
@@ -2150,7 +2150,7 @@ function keepBench(to, from) {
 	if (from.published && from.published.bench) to.published = { ...(to.published || {}), bench: from.published.bench };
 	return to;
 }
-// The same as tools/arena.mjs, run by the page: LMArena's public leaderboard dataset, every board Andromeda routes on
+// The same as tools/arena.mjs, run by the page: LMArena's public leaderboard dataset, every board Celestin routes on
 const LMARENA = "https://huggingface.co/datasets/lmarena-ai/leaderboard-dataset/resolve/main/";
 const ARENA_BOARDS = { text_style_control: "text", text_factuality: "factuality", webdev: "webdev", vision_style_control: "vision", search_style_control: "search", document_style_control: "document", search_factuality: "searchfact", agent: "agent", agent_task_outcome_explicit: "agent_outcome", agent_tool_hallucination: "agent_honest_tools", agent_bash_reliability: "agent_reliability", agent_bash_reliability_no_prereq: "agent_reliability_cold", agent_bash_recovery_steps: "agent_recovery", agent_steerability: "agent_steerability", agent_praise_complaint: "agent_satisfaction", text_to_image: "image", image_edit: "imageedit", text_to_video: "video", image_to_video: "i2v", video_edit: "videoedit" };
 async function freshArena() {
@@ -2353,7 +2353,7 @@ function effortExtra(id) {
 	if (s === "fast") return effortFor(id, f && LEVELS.indexOf(f) > LEVELS.indexOf("low") ? "low" : f);
 	return effortFor(id, f);
 }
-// how Andromeda works: auto (it decides), fast, or max
+// how Celestin works: auto (it decides), fast, or max
 function speed() { return settings.speed === "fast" || settings.speed === "max" ? settings.speed : "auto"; }
 // one model the person chose to use for everything, when it can do this task
 function pinModel(task) {
@@ -2375,7 +2375,7 @@ function effortFor(id, f) {
 	const near = has.slice().sort((a, b) => Math.abs(LEVELS.indexOf(a) - at) - Math.abs(LEVELS.indexOf(b) - at) || LEVELS.indexOf(b) - LEVELS.indexOf(a))[0];
 	return near ? { reasoning: { effort: near } } : {};
 }
-// What each of Andromeda's own features needs, as the leaderboards measure it, so each goes to the model that measurably
+// What each of Celestin's own features needs, as the leaderboards measure it, so each goes to the model that measurably
 // does exactly that best, blended with what this request needs on top (its field, its language)
 // (bench: how much getting it right on Epoch AI's benchmarks weighs here, where it isn't the kind of work's own share: a
 // web app is judged best by people building and using web apps, which the WebDev board measures directly. stakes: the
@@ -2741,7 +2741,7 @@ const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 0.67;
 // also have to be right, which a small preference gap can hide. How far by how hard the work is: a short script can go
 // to a strong coder at a twentieth of the price, a hard system goes to the best
 const STAKES = { code: WORTH.high, reasoning: WORTH.high }, STAKES_AT = { low: 0.35, medium: 0.25, high: 0.2 };
-// (Andromeda's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
+// (Celestin's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
 // record here is clearly worse than the best's isn't level with it, whatever the ratings say)
 const quarkTied = (top, x, most = QUARK_MAX) => x.mid != null && top.mid != null && top.mid - x.mid <= Math.min(most, Math.hypot(top.hw || 0, x.hw || 0)) && (x.learned || 0) >= (top.learned || 0) - 0.25;
 // Code and reasoning that must be right count a smaller gap as a real one, the harder the work: thinking a step less
@@ -2844,7 +2844,7 @@ async function profileTask(text, atts, kind) {
 	}
 }
 
-// ---------------------------------------------------------------- the conductor: Andromeda decides for itself
+// ---------------------------------------------------------------- the conductor: Celestin decides for itself
 // Nothing about a request is decided by rules written in advance. The model that measurably reads requests best reads
 // each one and decides, on its own, what would truly serve it: an answer, something built and running right here, a
 // picture, a film, a song, a document, a study set, real work on a code project, or its own way for anything nobody
@@ -2868,13 +2868,13 @@ const WAYS = {
 	podcast: "a two-host podcast that talks a topic through aloud",
 	docx: "a Word document to download",
 	pdf: "a PDF to download",
-	task: "a scheduled task: something Andromeda does by itself on a schedule, even with this page closed, like a daily news brief, a weekly summary, a reminder at a time, or a check every hour. Choose it whenever the request is about doing something later or repeatedly",
+	task: "a scheduled task: something Celestin does by itself on a schedule, even with this page closed, like a daily news brief, a weekly summary, a reminder at a time, or a check every hour. Choose it whenever the request is about doing something later or repeatedly",
 	research: "deep research: many searches and sources read and cross-checked, then a long, structured report with citations (for big questions where being thorough matters more than speed)",
 	pptx: "a PowerPoint deck to download",
 	xlsx: "an Excel spreadsheet to download",
 };
 // ---------------------------------------------------------------- skills: how the best do each kind of work
-// Expert playbooks, all switched on: for every request Andromeda picks the ones that fit (the way Claude's skills
+// Expert playbooks, all switched on: for every request Celestin picks the ones that fit (the way Claude's skills
 // work), and every model doing the work follows them.
 const SKILLBOOK = {
 	design: ["building anything visual people use: sites, apps, games, dashboards, slides", "Design like a top product designer: a clear visual hierarchy, generous spacing on a consistent scale, one typeface family with two or three weights, a restrained palette with one accent, real content (never lorem ipsum), smooth 150-300ms transitions, hover, focus, empty and loading states, responsive down to 360px, accessible contrast and labels. It must look finished and premium, never like a template."],
@@ -2901,7 +2901,7 @@ const drawnOnly = () => creditsMode() && !!pricing && pricing.drawn === true && 
 // whether this server can make pictures, videos, music and voice at all
 const mediaReady = () => !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false || drawnOnly();
 const MEDIA_WHAT = { image: "pictures", video: "videos", music: "music", voice: "voiceovers" };
-const mediaSoon = (kind, free) => Object.assign(new Error("Andromeda can't make " + (MEDIA_WHAT[kind] || "pictures, videos, music or voiceovers") + " yet: the AI models for this aren't connected to its server. They're coming." + (free ? " Nothing was charged." : "")), { plain: true, quiet: true });
+const mediaSoon = (kind, free) => Object.assign(new Error("Celestin can't make " + (MEDIA_WHAT[kind] || "pictures, videos, music or voiceovers") + " yet: the AI models for this aren't connected to its server. They're coming." + (free ? " Nothing was charged." : "")), { plain: true, quiet: true });
 // A request that plainly asks to make one ("make a 10 second trailer", "buatkan logo kedai kopi"), told before anything
 // is read or spent; not one that only mentions one ("write a script for my video", "explain how film cameras work")
 function makesMedia(text, atts) {
@@ -2918,7 +2918,7 @@ function makesMedia(text, atts) {
 const DRAWN_VIDEO = "a real video file (MP4), every shot animated in code by the best animator: motion graphics, kinetic typography and titles, animated illustrations and flat or 2D characters, 3D shapes, diagrams, charts, maps, particles, cut together with captions, transitions, an end card, and music and sound effects composed in code to the cut. This server has no filmed footage, photos or AI voice, so the words are on screen. The way for any video, ad, trailer, explainer, intro or animation";
 const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
 // The tools in the composer's + menu. Picking one says what kind of thing you want; how it's done, with which models, is
-// still Andromeda's own decision (and if that way fails, it's free to find another)
+// still Celestin's own decision (and if that way fails, it's free to find another)
 const TOOLS = {
 	research: { label: "Deep research", ways: ["research"], ph: "What should I research?" },
 	image: { label: "Image", ways: ["image"], ph: "Describe the image, or attach one to change" },
@@ -2949,7 +2949,7 @@ async function loadSpace(id) {
 	if (!SPACE_FILES.has(id)) SPACE_FILES.set(id, (await vault.get("space-files:" + id)) || []);
 	return SPACE_FILES.get(id);
 }
-// Capabilities: everything Andromeda can do, all on; each can be switched off in Settings
+// Capabilities: everything Celestin can do, all on; each can be switched off in Settings
 const CAPS = {
 	web: ["Search the web and read pages", "Live search, and links opened, when an answer needs today's information"],
 	code: ["Run code", "Python and JavaScript right here: calculations, your files, charts, checking its own work"],
@@ -2963,7 +2963,7 @@ const CAPS = {
 };
 const capOn = (k) => !(settings.off || {})[k];
 const skillOn = (k) => !(settings.offSkills || {})[k];
-// The user's own skills (written here, or imported from a link such as a SKILL.md): Andromeda picks them by itself when
+// The user's own skills (written here, or imported from a link such as a SKILL.md): Celestin picks them by itself when
 // a request fits, like its own playbooks, and /their-name uses one on purpose. Their own commands are saved prompts.
 const BUILTIN_SKILLS = new Set(Object.keys(SKILLBOOK));
 const userSkills = () => store.get("skills", []);
@@ -3048,7 +3048,7 @@ async function conduct(text, atts, tried, only) {
 	ways.push(["act", "do it for real, step by step with tools, like an engineer at a computer: run Python or JavaScript to calculate, analyse or test, search the web and read pages, check its own work"
 		+ (pc ? "; on the user's own computer: run commands and programs, build and test their projects, install things, read, write and organise their files, look at the screen" : "")
 		+ (others.length ? "; in the user's connected apps: " + others.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ") : "")
-		+ ". It is also the way for anything no single way above makes directly, or that combines several of them (a game mod, a business plan with a deck and a pitch video, a dataset with its analysis, a launch with a site and an ad): Andromeda works out the steps itself, hands each piece to the AI model measured best at exactly it, can use every way above as one of its tools, and hands over files, a whole project, as a download. Choose it whenever the request needs something done, built, combined or checked rather than only said"]);
+		+ ". It is also the way for anything no single way above makes directly, or that combines several of them (a game mod, a business plan with a deck and a pitch video, a dataset with its analysis, a launch with a site and an ad): Celestin works out the steps itself, hands each piece to the AI model measured best at exactly it, can use every way above as one of its tools, and hands over files, a whole project, as a download. Choose it whenever the request needs something done, built, combined or checked rather than only said"]);
 	ways = ways.filter(([k]) => wayOn(k));
 	// a tool the person picked themselves: one of its ways (when this server can do it)
 	if (only && only.length) { const f = ways.filter(([k]) => only.includes(k)); if (f.length) ways = f; else only = null; }
@@ -3059,17 +3059,17 @@ async function conduct(text, atts, tried, only) {
 	const known = mem ? memories().slice(-40).map((x) => "- " + x.text).join("\n") : "";
 	// what's the same for every message comes first and this request's own context after it, so the reader's provider
 	// bills that long start at its cached price
-	const prompt = "You are Andromeda's conductor. Andromeda is an AI that makes whatever people ask for, using the best AI model for every part. Read the request and decide for yourself what would truly serve this person, then how Andromeda should do it.\n\n"
-		+ "The ways Andromeda can deliver:\n" + ways.map(([k, d]) => k + ": " + d).join("\n")
+	const prompt = "You are Celestin's conductor. Celestin is an AI that makes whatever people ask for, using the best AI model for every part. Read the request and decide for yourself what would truly serve this person, then how Celestin should do it.\n\n"
+		+ "The ways Celestin can deliver:\n" + ways.map(([k, d]) => k + ": " + d).join("\n")
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
-		+ "\nAndromeda's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
+		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
 		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
 		+ " \"tags\": 2 to 6 short lowercase words for exactly what the work involves (its language, library, framework, field, topic, kind of task), the most specific that are true: generic words only, never names or personal details."
 		+ (mem ? " \"remember\": lasting facts about the user that this request states, worth knowing in future chats (who they are, their projects and goals, their preferences and rules for how things should be done, decisions they made), each written about the user; not the topic of a one-off question, never secrets or passwords, nothing already remembered; [] if none." : "") + "\n"
-		+ (only ? "\nThe person picked this themselves from Andromeda's tools: deliver it that way.\n" : "")
+		+ (only ? "\nThe person picked this themselves from Celestin's tools: deliver it that way.\n" : "")
 		+ (spaceOf(current && current.space) ? "\nThis chat is in the user's project \"" + spaceOf(current.space).name + "\"" + (String(spaceOf(current.space).about || "").trim() ? ", whose instructions say: " + spaceOf(current.space).about.slice(0, 600) : "") + ((SPACE_FILES.get(current.space) || []).length ? ". Its files: " + SPACE_FILES.get(current.space).map((f) => f.name).join(", ").slice(0, 300) : "") + ".\n" : "")
 		+ (made ? "\nThe thing made just before this was: " + made + ". If the request changes that, choose its way again with \"edit\": true.\n" : "")
 		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
@@ -3102,13 +3102,13 @@ async function conduct(text, atts, tried, only) {
 		}
 		if (imgs && !Object.keys(weights).some((k) => k.startsWith("vision:"))) weights["vision:overall"] = 0.5;
 		const kinds = ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"];
-		// (its tags are what Andromeda's own record of which models' work held up is kept under)
+		// (its tags are what Celestin's own record of which models' work held up is kept under)
 		const tags = [...new Set((Array.isArray(j.tags) ? j.tags : []).map((t) => String(t).toLowerCase().trim().replace(/\s+/g, "-").slice(0, 40)).filter((t) => /^[a-z0-9][a-z0-9+#.\-]{0,39}$/.test(t)))].slice(0, 6);
 		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), level: ["easy", "medium", "hard"].includes(j.level) ? j.level : "medium", weights, check: j.check === true, language: lang, tags };
 	}
 	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [] };
 }
-// the way it chose, done by the part of Andromeda that does it
+// the way it chose, done by the part of Celestin that does it
 async function runWay(plan, text, atts) {
 	const w = plan.way;
 	if (STUDY_WAYS.includes(w)) {
@@ -3148,7 +3148,7 @@ async function runWay(plan, text, atts) {
 	}
 	return runSmart(text, atts);
 }
-// No leaderboard measures voices or music yet: Andromeda picks itself, from what's live right now, for this request
+// No leaderboard measures voices or music yet: Celestin picks itself, from what's live right now, for this request
 // (a Japanese narrator, a gravelly trailer voice, an orchestral score), in the order it would try them
 async function aiOrder(what, models, text) {
 	const list = uniqM(models).slice(0, 40);
@@ -3196,7 +3196,7 @@ function cached(model, messages) {
 	if (out.length >= 3) out[out.length - 2] = mark(out[out.length - 2]);
 	return out;
 }
-// What changes with every request (what Andromeda decided to deliver, the playbooks for it) goes with the newest message,
+// What changes with every request (what Celestin decided to deliver, the playbooks for it) goes with the newest message,
 // not at the top: the start of a chat then stays exactly the same from one message to the next, and the whole
 // conversation read again is billed at the cached price (a tenth for Claude, a quarter to a half for the others)
 function placeNote(messages) {
@@ -3207,7 +3207,7 @@ function placeNote(messages) {
 	let k = out.length - 1;
 	while (k > 0 && out[k].role !== "user") k--;
 	if (k <= 0) { out[0] = { ...head, content: head.content + "\n\n" + note }; return out; }
-	const m = out[k], add = "(From Andromeda, for this answer)\n" + note;
+	const m = out[k], add = "(From Celestin, for this answer)\n" + note;
 	out[k] = typeof m.content === "string" ? { ...m, content: m.content + "\n\n" + add } : { ...m, content: [...m.content, { type: "text", text: add }] };
 	return out;
 }
@@ -3382,7 +3382,7 @@ function chatMarkdown(c) {
 		if (m.role === "user") out.push("**You:**", "", (m.atts || []).length ? m.text + "\n\n_Attached: " + m.atts.map((a) => a.name).join(", ") + "_" : m.text, "");
 		else if (!m.error && m.text) {
 			const cm = m.model && catalog.find((x) => x.id === m.model);
-			out.push("**Andromeda" + (cm ? " (" + shortName(cm) + ")" : "") + ":**", "", m.text, "");
+			out.push("**Celestin" + (cm ? " (" + shortName(cm) + ")" : "") + ":**", "", m.text, "");
 		}
 	}
 	return out.join("\n").trim() + "\n";
@@ -3444,12 +3444,12 @@ const TONES = {
 const langLine = () => (LANGS.find((l) => l[0] === settings.lang) || LANGS[0])[2];
 function sys(extra) {
 	// every word written is paid for: as long as the question needs, never padded (a big task still gets all of it)
-	const base = "You are Andromeda, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable. Make the answer exactly as long as the question needs: a quick question gets a short answer, a big task a complete one. No restating the question, no warm-up, no closing summary of what you just said, and no offers of more help unless something is truly worth offering. Be completely honest: never make up facts, numbers, names, quotes, sources, links, APIs or results. If you don't know something or can't check it, say so plainly and say what would settle it; mark what's uncertain instead of guessing as if you knew. If the user believes something that isn't so (a bug that isn't there, a wrong fact, code that's actually fine), say so respectfully with your reasons rather than going along with it. Never say you ran, tested or checked something you didn't.";
+	const base = "You are Celestin, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable. Make the answer exactly as long as the question needs: a quick question gets a short answer, a big task a complete one. No restating the question, no warm-up, no closing summary of what you just said, and no offers of more help unless something is truly worth offering. Be completely honest: never make up facts, numbers, names, quotes, sources, links, APIs or results. If you don't know something or can't check it, say so plainly and say what would settle it; mark what's uncertain instead of guessing as if you knew. If the user believes something that isn't so (a bug that isn't there, a wrong fact, code that's actually fine), say so respectfully with your reasons rather than going along with it. Never say you ran, tested or checked something you didn't.";
 	const safe = settings.safelock !== false ? "Safelock is on: keep every answer suitable for all ages, and politely decline sexual, graphic or hateful content." : "";
 	// their custom instructions (Settings): every answer; a build keeps to its own rules
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
-	const plan = (!extra && PLAN_NOTE ? "What Andromeda decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
+	const plan = (!extra && PLAN_NOTE ? "What Celestin decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
 	// what was decided for this one request goes with the newest message (placeNote), not here
 	return { role: "system", content: [extra || base, mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n"), note: [plan, skillLine(), MATH_NOTE].filter(Boolean).join("\n\n") };
 }
@@ -3648,7 +3648,7 @@ function openPreviewTab(doc) {
 	const w = window.open("", "_blank");
 	if (!w) { toast("Allow pop-ups for this site to open it in a tab"); return; }
 	w.opener = null;
-	w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview · Andromeda</title><style>html,body{margin:0;height:100%;background:#fff}iframe{border:0;width:100%;height:100%;display:block}</style></head><body><iframe sandbox="' + PV_SANDBOX + '" allow="fullscreen; clipboard-write" srcdoc="' + esc(doc) + '"></iframe></body></html>');
+	w.document.write('<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview · Celestin</title><style>html,body{margin:0;height:100%;background:#fff}iframe{border:0;width:100%;height:100%;display:block}</style></head><body><iframe sandbox="' + PV_SANDBOX + '" allow="fullscreen; clipboard-write" srcdoc="' + esc(doc) + '"></iframe></body></html>');
 	w.document.close();
 }
 // the previews of each finished answer under `root`: the newest answer opens its main one by itself, once; any opened
@@ -3764,7 +3764,7 @@ function renderWelcome() {
 	// the composer is about to be redrawn round: keep it safe in its dock first
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
 	document.body.classList.add("at-welcome");
-	if (TEMP) { $("#view").innerHTML = '<section class="welcome temp"><h1 class="greet"><span class="g1">Temporary chat</span></h1><p class="temp-note">It won\'t be saved to your chats, and Andromeda won\'t remember it or use what it remembers.</p><div class="slot" id="slot"></div></section>'; $("#slot").appendChild($("#composer")); $("#dock").classList.add("hide"); return; }
+	if (TEMP) { $("#view").innerHTML = '<section class="welcome temp"><h1 class="greet"><span class="g1">Temporary chat</span></h1><p class="temp-note">It won\'t be saved to your chats, and Celestin won\'t remember it or use what it remembers.</p><div class="slot" id="slot"></div></section>'; $("#slot").appendChild($("#composer")); $("#dock").classList.add("hide"); return; }
 	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="g1">' + esc(first) + '</span><span class="g2">' + esc(second) + '</span></h1><div class="slot" id="slot"></div></section>';
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
@@ -3970,10 +3970,10 @@ function updateRoute() {
 	if (!connected()) { el.innerHTML = '<span class="chip click" data-open-account><span class="dot" style="background:var(--warn)"></span>' + (SERVER ? "Sign in to start · it's free" : "Opening soon") + "</span>"; return; }
 	if (!catalog.length) { el.innerHTML = '<span class="chip">Loading models…</span>'; return; }
 	const proj = PROJECT ? '<span class="chip click" data-project title="Change or close the project"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>' + esc(PROJECT.name) + (PROJECT.asleep ? " · click to reopen" : "") + "</span>" : "";
-	// the owner is told when problems pile up, and one click has Andromeda fix itself
+	// the owner is told when problems pile up, and one click has Celestin fix itself
 	const noticed = !PROJECT && isOwner() ? issuesLog().filter((x) => x.at > store.get("selfFixAt", 0)).length : 0;
-	// (what it will do is Andromeda's own decision when it reads the message: nothing is guessed here)
-	el.innerHTML = proj + (noticed >= 3 ? '<span class="chip click" data-selffix><span class="dot" style="background:var(--warn)"></span>' + noticed + " problems noticed · let Andromeda fix itself</span>" : "");
+	// (what it will do is Celestin's own decision when it reads the message: nothing is guessed here)
+	el.innerHTML = proj + (noticed >= 3 ? '<span class="chip click" data-selffix><span class="dot" style="background:var(--warn)"></span>' + noticed + " problems noticed · let Celestin fix itself</span>" : "");
 	// (a phone gets the short version: the long one was cut off mid-sentence)
 	const narrow = innerWidth < 560;
 	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : !(current && current.msgs.length) && spaceOf(SPACE_VIEW) ? "Start a chat in " + spaceOf(SPACE_VIEW).name : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
@@ -4049,12 +4049,12 @@ async function useTools(text, atts) {
 // every text a message carries (files, pages, docs), as material for a prompt
 const sourceOf = (atts, n) => atts.filter((a) => a.kind === "text" && a.data).map((a) => "--- " + a.name + " ---\n" + a.data).join("\n\n").slice(0, n);
 
-// ---------------------------------------------------------------- Andromeda Code: an engineer on a real project
+// ---------------------------------------------------------------- Celestin Code: an engineer on a real project
 // Open a folder on this computer or connect a GitHub repo, then just ask. The strongest coding model works through it
 // like an engineer: it lists, searches and reads the files it needs, edits them precisely, looks up current docs and the
 // web, checks its work and fixes what it broke. In a folder the files change on disk (with undo); on GitHub the changes
-// wait until you commit them or open a pull request. "Improve yourself" points it at Andromeda's own code, along with
-// the problems people ran into, so Andromeda can fix itself and you approve each change.
+// wait until you commit them or open a pull request. "Improve yourself" points it at Celestin's own code, along with
+// the problems people ran into, so Celestin can fix itself and you approve each change.
 const SELF_REPO = "georgechendra-cmyk/andromeda";
 const SKIP_PATH = /(^|\/)(node_modules|dist|build|\.next|\.nuxt|\.svelte-kit|target|\.gradle|__pycache__|venv|coverage|\.wrangler|run)\/|(^|\/)\.(?!github\/)[^/]+\//;
 const BINARY = /\.(png|jpe?g|gif|webp|avif|ico|bmp|tiff?|psd|mp[34]|m4a|wav|ogg|flac|webm|mov|avi|mkv|zip|gz|tgz|rar|7z|jar|class|exe|dll|so|dylib|bin|pdf|docx?|xlsx?|pptx?|woff2?|ttf|otf|eot|sqlite|db|nbt|mca|dat)$/i;
@@ -4062,7 +4062,7 @@ let PROJECT = null; // { kind: "folder" | "github", name, root | repo + branch, 
 const normPath = (p) => String(p || "").replace(/\\/g, "/").replace(/^\.?\/+/, "").replace(/\/+$/, "").replace(/\/{2,}/g, "/");
 const ghToken = () => (store.get("github", null) || {}).token || "";
 const b64Text = (b64) => new TextDecoder().decode(Uint8Array.from(atob(String(b64).replace(/\s/g, "")), (c) => c.charCodeAt(0)));
-// GitHub's API, with the token the user gave (it's only ever sent here). Its errors never carry a status Andromeda's
+// GitHub's API, with the token the user gave (it's only ever sent here). Its errors never carry a status Celestin's
 // own error handling reads as "your session ended".
 async function ghApi(path, opts = {}) {
 	const t = ghToken();
@@ -4258,7 +4258,7 @@ const AGENT_TOOLS = [
 	["check", "Check your work: syntax of JavaScript, JSON and HTML scripts, and small web pages are run for errors. With no paths it checks every file you changed.", { paths: { type: "array", items: { type: "string" } } }, []],
 	["finish", "End the task with a short summary for the user: what you changed and why, how to try it, and anything they must do themselves. For a question, the answer goes here.", { summary: { type: "string" } }, ["summary"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
-const AGENT_RULES = `You are Andromeda Code, the lead engineer on a team, working directly in the user's project through tools. You have what the best coding agents have (files, search, the docs, the web, running code, the user's computer when it's connected) and a team on top: helpers who look into things in parallel, experts measured best at exactly one skill, and a different top model who reviews your work. Work the way the best engineers in the world do:
+const AGENT_RULES = `You are Celestin Code, the lead engineer on a team, working directly in the user's project through tools. You have what the best coding agents have (files, search, the docs, the web, running code, the user's computer when it's connected) and a team on top: helpers who look into things in parallel, experts measured best at exactly one skill, and a different top model who reviews your work. Work the way the best engineers in the world do:
 1. Understand before you touch anything: search and read the relevant files (for a big codebase, send helpers to look into separate questions at once). Never guess what a file contains or what a function is called.
 2. Plan anything with three or more steps (plan), and keep the plan true as you go.
 3. Build in precise edits: edit_file with old_string copied exactly from read_file (without the line-number prefix); write_file only for new files or rewriting small ones. Match the project's style, naming and structure; change only what the task needs. Before writing code against a library or API you aren't certain of, call docs; web_search for anything recent. A hard, narrow piece (an algorithm, a tricky regex, a security-sensitive function, a migration) can go to ask_expert with its exact skills.
@@ -4267,7 +4267,7 @@ const AGENT_RULES = `You are Andromeda Code, the lead engineer on a team, workin
 6. Don't ask the user questions mid-task: make sensible decisions and say what they were. Never write secrets, passwords or API keys into code. Be strictly honest: never claim something works, ran or passed unless you saw it; if a bug the user describes isn't there, say so and show why; if you don't know, say so.
 7. Finish with the finish tool: what changed (file names), what you checked and how (which tests ran, what the review found), how to try it, and anything the user must do. If they only asked a question about the code, answer it in finish without editing anything.`;
 function issuesLog() { return store.get("issues", []); }
-// only the owner works on Andromeda's own code: signed in to the owner's account, or to GitHub as the repo's owner
+// only the owner works on Celestin's own code: signed in to the owner's account, or to GitHub as the repo's owner
 function isOwner() {
 	try { sessionStorage.removeItem("andromeda.admin"); } catch {}
 	return !!(me && me.owner) || ((store.get("github", null) || {}).login || "").toLowerCase() === SELF_REPO.split("/")[0].toLowerCase();
@@ -4410,7 +4410,7 @@ async function runAgent(text, atts) {
 	const notes = await readFirst(["AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md", "README.md"]);
 	const issues = P.self ? issuesLog().slice(-15) : [];
 	let system = AGENT_RULES + "\n\nThe project: " + P.name + " (" + (P.kind === "browser" ? "a project kept in the user's browser; every edit is saved straight away, and the user previews and downloads it right here (it's a web project unless they say otherwise: plain HTML, CSS and JavaScript that runs in the browser, no build step)" : P.kind === "folder" ? "a folder on the user's computer; every edit is saved to disk straight away" : "the GitHub repo " + P.repo + ", branch " + P.branch + "; your edits wait for the user to commit them") + ")." +
-		(P.self ? "\nThis project is Andromeda itself, the app you are running in: index.html is the whole client (one file, plain JavaScript), server/ is the Cloudflare Worker that runs credits and the tools. The user runs and approves every change, so keep each one safe and complete." +
+		(P.self ? "\nThis project is Celestin itself, the app you are running in: index.html is the whole client (one file, plain JavaScript), server/ is the Cloudflare Worker that runs credits and the tools. The user runs and approves every change, so keep each one safe and complete." +
 			(issues.length ? "\nProblems people ran into recently (fix their causes if the task allows):\n" + issues.map((x) => "- " + new Date(x.at).toISOString().slice(0, 16) + " " + x.what).join("\n") : "") : "") +
 		"\n\nFiles (" + paths.length + (P.truncated ? "+, the repo is very large" : "") + "):\n" + paths.slice(0, 500).join("\n") + (paths.length > 500 ? "\n… " + (paths.length - 500) + " more: use list_files or search" : "") +
 		(notes ? "\n\nThe project's own notes (" + notes.name + "):\n" + notes.text : "") + (langLine() ? "\n\n" + langLine() + " (for the summary)" : "");
@@ -4530,8 +4530,8 @@ async function runAgent(text, atts) {
 		msg.text = summary != null ? summary || "Done." : msg.data.diffs.length ? "I stopped before finishing. The changes so far are below." : "";
 	}
 }
-// ---------------------------------------------------------------- connected apps (MCP): what Claude can use, Andromeda can
-// Apps and tools that speak MCP, the open standard Claude uses for them: on this computer through the Andromeda
+// ---------------------------------------------------------------- connected apps (MCP): what Claude can use, Celestin can
+// Apps and tools that speak MCP, the open standard Claude uses for them: on this computer through the Celestin
 // Connector (Blender, Figma, Unity, your files: the same ones Claude Desktop has), or online at their own address.
 // Their tools are shown to the conductor, which decides by itself when a request needs them; then the model that
 // measurably works best with tools uses them, step by step, looking at what it did, until the job is done.
@@ -4563,7 +4563,7 @@ async function mcpPost(s, msg, signal) {
 }
 async function mcpOpen(s) {
 	const signal = AbortSignal.timeout ? AbortSignal.timeout(25000) : undefined;
-	await mcpPost(s, { jsonrpc: "2.0", id: ++mcpId, method: "initialize", params: { protocolVersion: MCP_V, capabilities: {}, clientInfo: { name: "Andromeda", version: "1.0" } } }, signal);
+	await mcpPost(s, { jsonrpc: "2.0", id: ++mcpId, method: "initialize", params: { protocolVersion: MCP_V, capabilities: {}, clientInfo: { name: "Celestin", version: "1.0" } } }, signal);
 	await mcpPost(s, { jsonrpc: "2.0", method: "notifications/initialized" }, signal).catch(() => {});
 	s.tools = [];
 	let cursor;
@@ -4618,7 +4618,7 @@ function mediaBoard(kind, edit, fromImage, text) {
 		: kind === "image" ? (edit ? "imageedit:overall" : /\b(logo|poster|banner|text|typograph\w*|sign|label|menu|infographic|thumbnail)\b/i.test(t) && cats["image:text_rendering"] ? "image:text_rendering" : /\b(photo\w*|realistic|portrait|product shot)\b/i.test(t) && cats["image:photorealistic"] ? "image:photorealistic" : /\b(anime|cartoon|illustrat\w*|painting|art|drawing)\b/i.test(t) && cats["image:art"] ? "image:art" : "image:overall") : "";
 	return { board: k, list: (cats[k] || []).map((x) => [String(x[0]), Number(x[2])]).filter((x) => x[1] > 0) };
 }
-// Whether the app should make it, when Andromeda's own studio could too: the app's best model for this is the best there
+// Whether the app should make it, when Celestin's own studio could too: the app's best model for this is the best there
 // is or a hair behind it (10 Elo) — it costs the owner nothing and runs on the user's own account. An app whose models
 // can't be read is taken to have the top ones (Higgsfield carries them).
 function appFirst(app, kind, edit, fromImage, text) {
@@ -4631,7 +4631,7 @@ function appFirst(app, kind, edit, fromImage, text) {
 	const own = score(((MEDIA && MEDIA[kind === "voice" ? "speech" : kind]) || []).map((m) => mkey(m.name || m.id)));
 	return score(offered) >= (Number.isFinite(own) ? own : -Infinity) - 10;
 }
-// a picture the user attached, at a link a connected app can fetch (kept a day on Andromeda's server, then deleted): big
+// a picture the user attached, at a link a connected app can fetch (kept a day on Celestin's server, then deleted): big
 // ones are drawn smaller first (2048 px on the long side, JPEG)
 async function linkFor(a) {
 	let data = String(a.data || "");
@@ -4645,7 +4645,7 @@ async function linkFor(a) {
 	}
 	return (await api("/api/uploads", { method: "POST", body: JSON.stringify({ data }) })).url;
 }
-// What to tell the worker using the app: Andromeda's measured ranking for exactly this kind of thing (so the app's best
+// What to tell the worker using the app: Celestin's measured ranking for exactly this kind of thing (so the app's best
 // model makes it, or a cheaper one a hair behind), the user's pictures as links, and how to spend the user's app credits
 async function appBrief(app, pick, text, atts) {
 	const imgs = atts.filter((x) => x.kind === "image" && x.data);
@@ -4657,7 +4657,7 @@ async function appBrief(app, pick, text, atts) {
 		+ (list.length ? " Choose the model by what people rate best for exactly this (LMArena, Elo, higher is better): " + list.slice(0, 14).map(([n, e]) => n + " " + Math.round(e)).join(", ") + ". Use the highest-rated model " + app.name + " offers for it; if one of its cheaper models is within 10 points of that one, use the cheaper one; never one further behind to save credits." : " Choose " + app.name + "'s model that does this kind of " + what + " best; a cheaper one only if it's just as good.")
 		+ " Write the prompt like a top art director: subject, setting, light, camera or style, and any words exactly as they must appear. Use the size, aspect ratio and length the user asked for, or what suits where it'll be used. Make one result unless they asked for more: every generation spends the user's own " + app.name + " credits."
 		+ (links.length ? " The user's pictures, at links " + app.name + " can import (direct image links, valid for 24 hours): " + links.map((u, k) => (k + 1) + ". " + u).join(" ") + "." : imgs.length ? " The user attached pictures, but they couldn't be shared with " + app.name + ": if it has an upload step, ask the user to add them there." : "")
-		+ " When a job takes a while, Andromeda waits for it and checks on it for you. When it's done, give the result's link and say which model made it" + " (and what it cost in " + app.name + " credits, if it says).)";
+		+ " When a job takes a while, Celestin waits for it and checks on it for you. When it's done, give the result's link and say which model made it" + " (and what it cost in " + app.name + " credits, if it says).)";
 }
 // what an app made and sent back as links (Higgsfield's pictures and videos): kept on the message and shown in the chat;
 // the user's own pictures going in are left out
@@ -4687,7 +4687,7 @@ function madeFrom(r, toolName, msg) {
 	if (n) updateLast();
 	return n;
 }
-// A job an app is still making (a video takes a minute or two): Andromeda checks on it itself with the app's own status
+// A job an app is still making (a video takes a minute or two): Celestin checks on it itself with the app's own status
 // tool, every few seconds for up to 6 minutes, and hands the model only the outcome. (The model checking again and again
 // would cost a whole step, with everything said so far, each time.)
 const JOB_BUSY = /\b(queued|pending|in[ _]progress|processing|running|generating|starting|submitted|waiting|rendering)\b/i;
@@ -4729,19 +4729,19 @@ async function waitForJob(hit, args, out, msg, before) {
 		if (!jobBusy(last)) break;
 	}
 	msg.status = said;
-	return text + "\n\n(Andromeda waited for this job, checking " + n + " time" + (n === 1 ? "" : "s") + " with " + st.name + ". The latest:)\n" + last;
+	return text + "\n\n(Celestin waited for this job, checking " + n + " time" + (n === 1 ? "" : "s") + " with " + st.name + ". The latest:)\n" + last;
 }
 
 function openAppsModal() {
 	const conf = appsConf();
 	const live = APPS.servers.map((s) => '<div class="ag-cur"><b>' + esc(s.name) + "</b><span>" + (s.error ? '<span style="color:var(--err)">' + esc(s.error) + "</span>" : s.tools.length + " tools · " + esc(s.tools.slice(0, 5).map((t) => t.name).join(", ")) + (s.tools.length > 5 ? "…" : "")) + "</span>" + (s.local ? "" : '<button class="btn" data-apdel="' + esc(s.name) + '">Remove</button>') + "</div>").join("");
-	openModal('<h2>Connect apps</h2><p class="sub">Andromeda can use the same apps and tools Claude can (MCP): Blender, Figma, Unity, your files, GitHub and thousands more. Connect them once; Andromeda decides by itself when a request needs one, and works in them for you.</p>' +
+	openModal('<h2>Connect apps</h2><p class="sub">Celestin can use the same apps and tools Claude can (MCP): Blender, Figma, Unity, your files, GitHub and thousands more. Connect them once; Celestin decides by itself when a request needs one, and works in them for you.</p>' +
 		'<div class="field"><label>Connected now</label>' + (live || '<div class="help">Nothing yet.</div>') + (APPS.note ? '<div class="help">' + esc(APPS.note) + "</div>" : "") + '<button class="btn" id="apCheck" style="margin-top:8px">Check again</button></div>' +
-		'<div class="field"><label>Apps on this computer</label><div class="row" style="gap:8px"><input class="inp" id="apCode" placeholder="Pairing code from the Andromeda Connector window" value="' + esc(conf.code || "") + '"><button class="btn dark" id="apPair">Connect</button></div>' +
-		'<div class="help">Double-click <b>CONNECT APPS.bat</b> in the Andromeda folder (it needs <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js</a>) and leave its window open: it runs every app listed in <b>tools/connections.json</b>, plus the ones Claude Desktop has. ' +
+		'<div class="field"><label>Apps on this computer</label><div class="row" style="gap:8px"><input class="inp" id="apCode" placeholder="Pairing code from the Celestin Connector window" value="' + esc(conf.code || "") + '"><button class="btn dark" id="apPair">Connect</button></div>' +
+		'<div class="help">Double-click <b>CONNECT APPS.bat</b> in the Celestin folder (it needs <a href="https://nodejs.org" target="_blank" rel="noopener">Node.js</a>) and leave its window open: it runs every app listed in <b>tools/connections.json</b>, plus the ones Claude Desktop has. ' +
 		'For Blender: install the <a href="https://github.com/ahujasid/blender-mcp" target="_blank" rel="noopener">Blender MCP add-on</a>, press Connect in Blender, and add <code>"blender": {"command": "uvx", "args": ["blender-mcp"]}</code>.</div></div>' +
 		'<div class="field"><label>An online app</label><div class="row" style="gap:8px"><input class="inp" id="apName" placeholder="Name" style="max-width:140px"><input class="inp" id="apUrl" placeholder="Its MCP address (https://…/mcp)"></div><div class="row" style="gap:8px;margin-top:8px"><input class="inp" id="apTok" type="password" autocomplete="off" placeholder="Its key, if it needs one"><button class="btn" id="apAdd">Add</button></div><div class="help">Its key stays in this browser.</div></div>' +
-		'<div class="toggle"><div><div class="tl">Act on this computer without asking</div><div class="td">Off: Andromeda shows you every command and file change first and waits for you to allow it.</div></div><button class="sw' + (settings.trustComputer ? " on" : "") + '" id="apTrust" aria-label="Act without asking"></button></div>' +
+		'<div class="toggle"><div><div class="tl">Act on this computer without asking</div><div class="td">Off: Celestin shows you every command and file change first and waits for you to allow it.</div></div><button class="sw' + (settings.trustComputer ? " on" : "") + '" id="apTrust" aria-label="Act without asking"></button></div>' +
 		'<p class="err" id="apErr" hidden></p>');
 	const err = (m) => { $("#apErr").hidden = false; $("#apErr").textContent = m; };
 	$("#apTrust").onclick = () => { settings.trustComputer = !settings.trustComputer; saveSettings(); openAppsModal(); };
@@ -4758,8 +4758,8 @@ function openAppsModal() {
 	document.querySelectorAll("[data-apdel]").forEach((b) => (b.onclick = () => { const c = appsConf(); store.set("apps", { ...c, online: (c.online || []).filter((o) => o.name !== b.dataset.apdel) }); refresh(b); }));
 }
 
-// ---------------------------------------------------------------- memory: what Andromeda knows about you, across chats
-// Kept in this browser. Andromeda saves what's worth remembering as it goes (who you are, your projects, how you like
+// ---------------------------------------------------------------- memory: what Celestin knows about you, across chats
+// Kept in this browser. Celestin saves what's worth remembering as it goes (who you are, your projects, how you like
 // things done, what you decided) and reads it before every answer; every memory can be seen and deleted.
 const memories = () => store.get("memories", []);
 function remember(text) {
@@ -4784,7 +4784,7 @@ const memoryLine = () => {
 // (what's worth keeping is noticed by the conductor as it reads each message: conduct()'s "remember")
 function openMemory() {
 	const m = memories();
-	openModal('<h2>Memory</h2><p class="sub">What Andromeda remembers about you and your work, across chats. It\'s kept in this browser, and Andromeda adds to it as it learns.</p>' +
+	openModal('<h2>Memory</h2><p class="sub">What Celestin remembers about you and your work, across chats. It\'s kept in this browser, and Celestin adds to it as it learns.</p>' +
 		'<div class="toggle"><div><div class="tl">Remember things across chats</div><div class="td">Off: nothing new is saved, and nothing saved is used.</div></div><button class="sw' + (settings.memory !== false ? " on" : "") + '" id="memSw" aria-label="Remember things across chats"></button></div>' +
 		'<div class="field" style="margin-top:14px">' + (m.length ? m.slice().reverse().map((x) => '<div class="ag-cur"><span>' + esc(x.text) + '</span><button class="btn" data-memdel="' + esc(x.id) + '">Forget</button></div>').join("") : '<div class="help">Nothing yet.</div>') + "</div>" +
 		(m.length ? '<button class="btn" id="memAll">Forget everything</button>' : ""));
@@ -4864,7 +4864,7 @@ function runJs(code, ms = 60000) {
 	});
 }
 
-// ---------------------------------------------------------------- Andromeda at work: an engineer with tools
+// ---------------------------------------------------------------- Celestin at work: an engineer with tools
 // Like an engineer at a computer: it runs code to work things out and test them, looks things up and reads pages,
 // remembers what matters, and, when this computer or other apps are connected, runs commands and programs and works
 // with files and apps there. It asks before anything that changes something on the computer. Long jobs keep going
@@ -4876,14 +4876,14 @@ const BUILT_IN = [
 	["fetch_url", "Read a web page (or a raw file) as text.", { url: { type: "string" } }, ["url"]],
 	["lookup_docs", "Current documentation for a library or framework (React, Fabric, pandas, three.js...), so code matches today's API.", { library: { type: "string" }, topic: { type: "string" } }, ["library"]],
 	["remember", "Save a lasting fact about the user or their work to remember in future chats (their projects, preferences, decisions).", { fact: { type: "string" } }, ["fact"]],
-	["ask_expert", "Hand one piece of the work to the AI model measured best at exactly that skill (Andromeda routes it by the leaderboards and its own record, and takes the cheapest model the ratings can't tell apart from the best). Give the task complete: everything the expert needs to know, and exactly what to return. Its answer comes back to you.", {
+	["ask_expert", "Hand one piece of the work to the AI model measured best at exactly that skill (Celestin routes it by the leaderboards and its own record, and takes the cheapest model the ratings can't tell apart from the best). Give the task complete: everything the expert needs to know, and exactly what to return. Its answer comes back to you.", {
 		task: { type: "string", description: "The complete piece of work, with every fact, file excerpt or constraint it needs" },
 		skills: { type: "object", description: "How much each measured skill matters for exactly this piece, 0 to 1 (keys from the skills list in your instructions), e.g. {\"text:coding\": 0.6, \"factuality:coding\": 0.4}", additionalProperties: { type: "number" } },
 		kind: { type: "string", enum: ["code", "reasoning", "write", "research", "brainstorm", "vision", "quick"] },
 		level: { type: "string", enum: ["easy", "medium", "hard"], description: "How hard it is to get exactly right: easy thinks lightly and costs least" },
 		web: { type: "boolean", description: "It needs a live web search" },
 	}, ["task", "kind"]],
-	["make", "Have one of Andromeda's makers make something, shown to the user in the chat: each maker picks its own best models (a video's director, animator, picture and video models, voice, music and editor; a document's writer; an app's builder, tested in the page). Write the request as the user would, complete.", {
+	["make", "Have one of Celestin's makers make something, shown to the user in the chat: each maker picks its own best models (a video's director, animator, picture and video models, voice, music and editor; a document's writer; an app's builder, tested in the page). Write the request as the user would, complete.", {
 		what: { type: "string", enum: ["video", "image", "music", "voice", "docx", "pdf", "pptx", "xlsx", "app", "sim", "flashcards", "quiz", "open", "mindmap", "podcast"] },
 		request: { type: "string", description: "Exactly what to make, with every detail it needs (content, style, length, audience)" },
 	}, ["what", "request"]],
@@ -4916,7 +4916,7 @@ async function askExpert(args, msg) {
 	}
 	throw lastErr || new Error("No expert could take this piece");
 }
-// one of Andromeda's makers, run on the worker's brief as if the user had asked for it (it shows in the chat as usual)
+// one of Celestin's makers, run on the worker's brief as if the user had asked for it (it shows in the chat as usual)
 async function makeWith(args) {
 	const what = String(args.what || ""), request = String(args.request || "").trim();
 	const plan = { way: what, skills: [], edit: false, how: request, qty: 0, length: "", topic: request.slice(0, 200), name: "", schedule: null, profile: PROFILE };
@@ -4927,7 +4927,7 @@ async function makeWith(args) {
 	const made = current.msgs.slice(mark).filter((m) => m.role === "assistant");
 	return made.map((m) => (m.kind || "answer") + ": " + (m.error ? "failed: " + m.error : (m.text || "").replace(/\*\*/g, "").slice(0, 300) || "made")).join("\n") || "Nothing came of it.";
 }
-// ---- what every Andromeda worker has, whatever the job: Claude Code's and Codex's tools, and the team on top of them
+// ---- what every Celestin worker has, whatever the job: Claude Code's and Codex's tools, and the team on top of them
 const POWER_TOOLS = [
 	["plan", "Keep the job's to-do list, shown to the user as you work (the whole list each time; each step pending, doing or done). Make it at the start of anything with three or more steps and keep it true as you go: one step doing at a time, done as soon as it is.", { steps: { type: "array", items: { type: "object", properties: { step: { type: "string" }, status: { type: "string", enum: ["pending", "doing", "done"] } }, required: ["step", "status"] } } }, ["steps"]],
 	["review", "Before you finish, have a different top model review the work like the most exacting senior reviewer: it reads exactly what you changed or made and reports only real problems (bugs, unhandled cases that will happen, missing requirements, crashes, security holes), each with the fix. Fix the ones that are real; review again after big fixes.", { what: { type: "string", description: "What the work is meant to do: the user's request and the decisions you made" }, content: { type: "string", description: "Only when there are no project files you changed: the work to review" }, kind: { type: "string", enum: ["code", "writing", "analysis"] } }, ["what"]],
@@ -4957,7 +4957,7 @@ async function runHelpers(tasks, model, tools, exec, msg, log) {
 	if (!list.length) return "Give each helper a task.";
 	log("Sent " + list.length + " helper" + (list.length > 1 ? "s" : "") + " to look into it", list.map((t) => t.slice(0, 50)).join(" · "));
 	const found = await Promise.all(list.map(async (task, k) => {
-		const messages = [{ role: "system", content: "You're a helper on Andromeda's team. Look into exactly what you're asked with your tools (you can read and look things up; you never change anything), then reply with what you found: precise and complete (paths, line numbers, names, versions, exact facts and sources), and nothing else." }, { role: "user", content: task }];
+		const messages = [{ role: "system", content: "You're a helper on Celestin's team. Look into exactly what you're asked with your tools (you can read and look things up; you never change anything), then reply with what you found: precise and complete (paths, line numbers, names, versions, exact facts and sources), and nothing else." }, { role: "user", content: task }];
 		try {
 			for (let step = 0; step < 24; step++) {
 				const reply = await agentCall(model.id, messages, busy.signal, msg, tools);
@@ -5053,7 +5053,7 @@ function approve(msg, what, detail) {
 		msg.data.ask = { id, what, detail: String(detail || "").slice(0, 4000) };
 		msg.status = "Waiting for you to allow it";
 		updateLast();
-		if (talk && talk.on) toast("Andromeda is asking to " + what);
+		if (talk && talk.on) toast("Celestin is asking to " + what);
 	});
 }
 // a long job: the oldest steps summed up so there's always room to keep going
@@ -5077,7 +5077,7 @@ async function runAct(text, atts, resume) {
 	const apps = appTools(servers), map = apps.map;
 	const tools = [...BUILT_IN.filter((t) => toolOn(t.function.name)), ...POWER_TOOLS, ...apps.tools];
 	const names = servers.map((s) => s.name).join(", ");
-	const msg = resume ? resume.msg : { role: "assistant", kind: "agent", text: "", streaming: true, status: "Getting to work", data: { id: uid(), project: names || "Andromeda", pkind: "act", log: [], diffs: [], shots: [], running: true }, used: [] };
+	const msg = resume ? resume.msg : { role: "assistant", kind: "agent", text: "", streaming: true, status: "Getting to work", data: { id: uid(), project: names || "Celestin", pkind: "act", log: [], diffs: [], shots: [], running: true }, used: [] };
 	if (!resume) current.msgs.push(msg);
 	msg.streaming = true;
 	msg.data.running = true;
@@ -5090,8 +5090,8 @@ async function runAct(text, atts, resume) {
 			+ (servers.some((s) => s.name !== "computer") ? " You also have the user's connected apps: " + servers.filter((s) => s.name !== "computer").map((s) => s.name).join(", ") + "." : "");
 		const files = codeFiles();
 		const idx = arenaIndex(), skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
-		const system = "You are Andromeda, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
-			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Andromeda has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Andromeda's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), and hand over files, even a whole project, as a download (save_file, then deliver_files)."
+		const system = "You are Celestin, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
+			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Celestin has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Celestin's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), and hand over files, even a whole project, as a download (save_file, then deliver_files)."
 			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + "." : "")
 			+ (skillLine() ? "\n\n" + skillLine() : "")
 			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
@@ -5100,7 +5100,7 @@ async function runAct(text, atts, resume) {
 				+ (MATH_NOTE ? "\n\n" + MATH_NOTE : "")
 			+ "\n\nSpend like it's your own money; every step costs the user. ask_expert already takes the cheapest model the ratings can't tell apart from the best: a model 20 times cheaper and only a hair behind does the piece. On top of that: mark easy pieces easy (they think lightly); give an expert everything it needs in one go rather than in rounds; reuse what you already have instead of asking again; for media, pictures with a moving camera or animation drawn in code cost a fraction of filmed video (the makers choose this themselves, so describe what you want, not how); and stop when the job is done well, with no extra rounds of polish nobody asked for."
 			+ (skills.length ? "\n\nThe measured skills ask_expert can weigh (key: what it measures):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") : "")
-			+ (PLAN_NOTE ? "\n\nWhat Andromeda decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
+			+ (PLAN_NOTE ? "\n\nWhat Celestin decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
 		const hist = chatHistory(), last = hist[hist.length - 1];
 		const prior = hist.slice(0, -1).slice(-6).map((m) => ({ role: m.role, content: (typeof m.content === "string" ? m.content : m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")).slice(0, 4000) }));
 		const material = sourceOf(atts, 30000);
@@ -5286,13 +5286,13 @@ function renderAgent(m, i, box) {
 		'<pre class="ag-diff">' + f.lines.map(([t, s]) => '<span class="' + ({ "+": "a", "-": "d", "@": "h", " ": "c" })[t] + '">' + (t === "@" ? "" : t + " ") + esc(s) + "</span>").join("\n") + (f.more ? '\n<span class="h">… ' + f.more + " more lines</span>" : "") + "</pre></details>").join("");
 	let act = "";
 	// asking before it changes something on the computer: exactly what, and yes, yes to everything in this chat, or no
-	const ask = d.ask ? '<div class="ask"><b>Andromeda wants to ' + esc(d.ask.what) + "</b>" + (d.ask.detail ? '<pre class="ag-diff">' + esc(d.ask.detail) + "</pre>" : "") + '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn dark" data-askyes>Allow</button><button class="btn" data-askall>Allow everything in this chat</button><button class="btn" data-askno>Don\'t allow</button></div></div>' : "";
+	const ask = d.ask ? '<div class="ask"><b>Celestin wants to ' + esc(d.ask.what) + "</b>" + (d.ask.detail ? '<pre class="ag-diff">' + esc(d.ask.detail) + "</pre>" : "") + '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn dark" data-askyes>Allow</button><button class="btn" data-askall>Allow everything in this chat</button><button class="btn" data-askno>Don\'t allow</button></div></div>' : "";
 	if (d.pkind === "act" && d.running && !m.streaming && !busy) act = '<span class="ag-done">This job was cut off.</span><button class="btn dark" data-agresume>Carry on</button>';
 	if (!m.streaming && d.diffs && d.diffs.length) {
 		if (d.pkind === "folder" || d.pkind === "browser") act = (d.undone ? '<span class="ag-done">Undone: the files are back as they were.</span>' : '<button class="btn" data-agundo>Undo these changes</button>') + (d.pkind === "browser" ? '<button class="btn" data-agsave>Download</button>' : "");
 		else if (d.committed) act = '<span class="ag-done">' + esc(d.committed.what) + ' · <a href="' + esc(d.committed.url) + '" target="_blank" rel="noopener">View on GitHub</a></span>';
 		else if (P && P.pending.size) act = '<button class="btn dark" data-agpr>Open a pull request</button><button class="btn" data-agcommit>Commit to ' + esc(P.branch) + "</button>" +
-			(d.self && P.pending.get("index.html") != null ? '<button class="btn" data-agtry>Try the new Andromeda</button><button class="btn" data-agdl>Download index.html</button>' : "");
+			(d.self && P.pending.get("index.html") != null ? '<button class="btn" data-agtry>Try the new Celestin</button><button class="btn" data-agdl>Download index.html</button>' : "");
 	}
 	// the job's to-do list, as the worker keeps it
 	const plan = (d.plan || []).length ? '<ol class="ag-plan">' + d.plan.map((x) => '<li class="' + x.status + '"><span class="pk" aria-hidden="true"></span><span>' + esc(x.step) + "</span></li>").join("") + "</ol>" : "";
@@ -5369,12 +5369,12 @@ async function ghCommit(task, prBody) {
 	const parent = await ghApi(R + "/git/commits/" + head.object.sha);
 	const tree = [...P.pending].map(([path, text]) => (text == null ? { path, mode: "100644", type: "blob", sha: null } : { path, mode: (P.files.get(path) || {}).mode || "100644", type: "blob", content: text }));
 	const t = await ghApi(R + "/git/trees", { method: "POST", body: JSON.stringify({ base_tree: parent.tree.sha, tree }) });
-	const c = await ghApi(R + "/git/commits", { method: "POST", body: JSON.stringify({ message: task + "\n\nMade with Andromeda Code", tree: t.sha, parents: [head.object.sha] }) });
+	const c = await ghApi(R + "/git/commits", { method: "POST", body: JSON.stringify({ message: task + "\n\nMade with Celestin Code", tree: t.sha, parents: [head.object.sha] }) });
 	let out;
 	if (prBody != null) {
 		const branch = "andromeda/" + (task.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "change") + "-" + Date.now().toString(36);
 		await ghApi(R + "/git/refs", { method: "POST", body: JSON.stringify({ ref: "refs/heads/" + branch, sha: c.sha }) });
-		const pr = await ghApi(R + "/pulls", { method: "POST", body: JSON.stringify({ title: task, head: branch, base: P.branch, body: prBody + "\n\n---\nMade with Andromeda Code" }) });
+		const pr = await ghApi(R + "/pulls", { method: "POST", body: JSON.stringify({ title: task, head: branch, base: P.branch, body: prBody + "\n\n---\nMade with Celestin Code" }) });
 		out = { what: "Pull request #" + pr.number + " opened", url: pr.html_url };
 	} else {
 		await ghApi(R + "/git/refs/heads/" + encodeURIComponent(P.branch), { method: "PATCH", body: JSON.stringify({ sha: c.sha }) });
@@ -5387,15 +5387,15 @@ async function ghCommit(task, prBody) {
 // ---- choosing the project
 function openProjectModal(note) {
 	const gh = store.get("github", null);
-	openModal('<h2>Work on a project</h2><p class="sub">' + esc(note || "Andromeda Code reads, edits and checks real code, then you keep or undo the changes.") + "</p>" +
+	openModal('<h2>Work on a project</h2><p class="sub">' + esc(note || "Celestin Code reads, edits and checks real code, then you keep or undo the changes.") + "</p>" +
 		(PROJECT ? '<div class="ag-cur"><b>' + esc(PROJECT.name) + "</b><span>" + (PROJECT.kind === "browser" ? "In this browser" : PROJECT.kind === "folder" ? "Folder on this computer" : "GitHub · " + esc(PROJECT.branch || "")) + '</span><button class="btn" id="pjClose">Close it</button></div>' : "") +
-		'<div class="field"><label>A project right here, in this browser</label><div class="row" style="gap:8px"><input class="inp" id="pjNew" placeholder="Name it: my-site, snake-game, portfolio…" value="' + esc(PROJECT && PROJECT.kind === "browser" ? PROJECT.name : "") + '"><button class="btn dark" id="pjMake">Start</button></div><div class="help">Nothing to install or connect. The files live in this browser; Andromeda Code writes them, runs them in a preview right here, and you can download them. The same name opens it again.</div></div>' +
+		'<div class="field"><label>A project right here, in this browser</label><div class="row" style="gap:8px"><input class="inp" id="pjNew" placeholder="Name it: my-site, snake-game, portfolio…" value="' + esc(PROJECT && PROJECT.kind === "browser" ? PROJECT.name : "") + '"><button class="btn dark" id="pjMake">Start</button></div><div class="help">Nothing to install or connect. The files live in this browser; Celestin Code writes them, runs them in a preview right here, and you can download them. The same name opens it again.</div></div>' +
 		'<div class="field"><label>A folder on this computer</label><button class="btn" id="pjFolder"' + (window.showDirectoryPicker ? "" : " disabled") + ">Open a folder</button><div class=\"help\">" + (window.showDirectoryPicker ? "Changes are saved straight to your files, and each one can be undone." : "Opening folders works in Chrome or Edge on a computer. Use a GitHub repo here instead.") + "</div></div>" +
 		'<div class="field"><label>A GitHub repo</label><input class="inp" id="pjRepo" placeholder="owner/repo or its GitHub link" value="' + esc(PROJECT && PROJECT.repo && !PROJECT.self ? PROJECT.repo : "") + '">' +
 		'<input class="inp" id="pjToken" type="password" autocomplete="off" style="margin-top:8px" placeholder="' + (gh && gh.token ? "GitHub token saved" + (gh.login ? " for " + esc(gh.login) : "") + " · paste a new one to replace it" : "GitHub token (for private repos and to commit)") + '">' +
 		'<div class="help">Make one at <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub → Fine-grained tokens</a> with <b>Contents</b> and <b>Pull requests</b> set to Read and write. It stays in this browser and is only ever sent to GitHub.</div>' +
 		'<div class="row" style="margin-top:10px;gap:8px"><button class="btn dark" id="pjConnect">Connect repo</button>' + (gh && gh.token ? '<button class="btn" id="pjForget">Forget the token</button>' : "") + "</div></div>" +
-		(isOwner() ? '<div class="field"><label>Andromeda itself</label><button class="btn" id="pjSelf">Improve Andromeda</button><div class="help">It works on its own code (' + SELF_REPO + ") and the problems people ran into. Every change comes to you as a pull request.</div></div>" : "") +
+		(isOwner() ? '<div class="field"><label>Celestin itself</label><button class="btn" id="pjSelf">Improve Celestin</button><div class="help">It works on its own code (' + SELF_REPO + ") and the problems people ran into. Every change comes to you as a pull request.</div></div>" : "") +
 		'<p class="err" id="pjErr" hidden></p>');
 	const err = (e) => { $("#pjErr").hidden = false; $("#pjErr").textContent = e.message || String(e); };
 	const saveToken = async () => {
@@ -5423,8 +5423,8 @@ function openProjectModal(note) {
 	if ($("#pjForget")) $("#pjForget").onclick = () => { store.set("github", null); openProjectModal(); };
 	if ($("#pjSelf")) $("#pjSelf").onclick = async () => { try { await saveToken(); await connectRepo(SELF_REPO, true); closeModal(); $("#input").value = "Improve yourself: find the most important problem and fix it"; autosize(); $("#input").focus(); } catch (e) { err(e); } };
 }
-// a message that names a repo, or asks Andromeda to improve itself, opens that project first
-const SELF_ASK = /\b(improve|upgrade|fix|update|change|edit|rewrite) (yourself|your ?self|your own code|andromeda)\b|\bself[- ]?improve\b/i;
+// a message that names a repo, or asks Celestin to improve itself, opens that project first
+const SELF_ASK = /\b(improve|upgrade|fix|update|change|edit|rewrite) (yourself|your ?self|your own code|andromeda|celestin)\b|\bself[- ]?improve\b/i;
 const REPO_URL = /\bhttps?:\/\/github\.com\/[\w.-]+\/[\w.-]+(\/tree\/[^\s]+)?\/?(?=[\s.,;:!?)]|$)/i;
 async function projectFor(text) {
 	if (PROJECT && !PROJECT.asleep) return true;
@@ -5457,7 +5457,7 @@ async function send(textOverride, fork) {
 	if (!connected()) {
 		// no credits server yet: say so, instead of a settings box that can't fix it
 		if (SERVER) openAccount();
-		else openModal('<h2>Andromeda isn\'t open yet</h2><p class="sub">It answers through its credits server, and that isn\'t connected to this page yet.</p><div class="help" style="font-size:13px;color:var(--faint)">If this is your site: double-click <b>SET UP SERVER.bat</b> in the <b>server</b> folder, then upload index.html again.</div><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" id="nyOk">OK</button></div>'), $("#nyOk").onclick = closeModal;
+		else openModal('<h2>Celestin isn\'t open yet</h2><p class="sub">It answers through its credits server, and that isn\'t connected to this page yet.</p><div class="help" style="font-size:13px;color:var(--faint)">If this is your site: double-click <b>SET UP SERVER.bat</b> in the <b>server</b> folder, then upload index.html again.</div><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" id="nyOk">OK</button></div>'), $("#nyOk").onclick = closeModal;
 		return;
 	}
 	if (!catalog.length) await loadCatalog();
@@ -5489,7 +5489,7 @@ async function send(textOverride, fork) {
 		// a server with no AI provider connected (or none it can pay): said plainly, not sent as an empty request
 		if (catalog.length && !catalog.some((m) => usable(m, "quick"))) throw Object.assign(new Error(isOwner()
 			? "Your server has no AI provider yet. Add your WaveSpeed key: double-click server/SET UP SERVER.bat, or in the server folder run: npx wrangler secret put WAVESPEED_KEY. Then reload this page."
-			: "Andromeda isn't connected to its AI models just now. Try again a little later."), { plain: true });
+			: "Celestin isn't connected to its AI models just now. Try again a little later."), { plain: true });
 		// a picture, film, song or voiceover this server can't make yet: said before anything is read or spent
 		if (!mediaReady()) {
 			const asked = tool === "image" || tool === "video" ? tool : tool === "music" ? (makesMedia(text, atts) === "voice" ? "voice" : "music") : makesMedia(text, atts);
@@ -5500,7 +5500,7 @@ async function send(textOverride, fork) {
 			}
 		}
 		await useTools(text, atts);
-		// Andromeda reads it and decides how to serve it (the strongest fast reader, by measurement)
+		// Celestin reads it and decides how to serve it (the strongest fast reader, by measurement)
 		const hold = { role: "assistant", text: "", streaming: true, status: "Working out the best way to do this" };
 		current.msgs.push(hold);
 		updateLast();
@@ -5517,7 +5517,7 @@ async function send(textOverride, fork) {
 		// what this request reads (the whole chat, what's attached, the project's files): what each model would cost to read
 		// it decides as much as what it writes
 		try { IN_TOK = Math.max(1000, tokensOf([sys(), ...chatHistory()])); } catch { IN_TOK = 3000; }
-		// Andromeda's own record on exactly this kind of work, fetched while the work starts (it only moves a model where
+		// Celestin's own record on exactly this kind of work, fetched while the work starts (it only moves a model where
 		// there's real evidence)
 		if (PROFILE && PROFILE.tags && PROFILE.tags.length) PROFILE.record = skillRecord(PROFILE.tags).catch(() => null);
 		// Max: a second expert checks the work; Fast: straight to the answer
@@ -5607,7 +5607,7 @@ function niceError(e) {
 	if (e.plain) return s;
 	if (creditsMode() && st === 401) { signOut(true); setTimeout(openAccount, 300); return "Your session ended. Sign in again to use your credits."; }
 	if (creditsMode() && st === 402) { refreshMe().then(() => outOfCredits(s)); return s || "You're out of credits."; }
-	if (st === 401) { setTimeout(openAccount, 300); return "Sign in to use Andromeda."; }
+	if (st === 401) { setTimeout(openAccount, 300); return "Sign in to use Celestin."; }
 	if (st === 429 || /rate.?limit|too many|quota|capacity|overloaded|temporarily/i.test(s)) return "The models are busy right now. Wait a moment and try again.";
 	return "Something went wrong: " + s;
 }
@@ -5649,7 +5649,7 @@ async function runAuto(text, atts) {
 	// (an everyday question thinks minimally: LMArena rates what people prefer in chat barely any higher for more thought
 	// than that, about 4 Elo, and it's a third of the price)
 	const light = speed() === "max" ? "" : task === "quick" ? "minimal" : lite ? "low" : { easy: "low", medium: "medium" }[level] || "";
-	// what Andromeda measured itself on exactly this kind of work (never held up waiting for it)
+	// what Celestin measured itself on exactly this kind of work (never held up waiting for it)
 	const tags = PROFILE && PROFILE_TEXT === text && PROFILE.tags || [];
 	const record = tags.length && PROFILE.record ? await Promise.race([PROFILE.record, sleep(800).then(() => null)]) : null;
 	const cands = rank(task, light || undefined, record ? { tags, record } : null);
@@ -6067,7 +6067,7 @@ function readQuarks(raw, idx) {
 	}
 	return pieces.length ? { understanding: String(j.understanding || "").slice(0, 700), check: j.check !== false, pieces } : null;
 }
-// ---------------------------------------------------------------- Andromeda's own measurements
+// ---------------------------------------------------------------- Celestin's own measurements
 // Public leaderboards measure a hundred skills; real work has far more ("Rust async lifetimes", "a story for a
 // 9-year-old"). Every checked team answer records, piece by piece, whether each model's work held up, under tags for
 // exactly what it was, added up across everyone on the server. A model with a real record on a piece's exact tags moves
@@ -6177,7 +6177,7 @@ async function runQuarks(text, atts) {
 		throw lastErr || new Error("No model answered");
 	}
 	const done = (s, err) => { s.running = false; s.done = true; s.open = false; if (err) { s.error = true; s.text = err; } updateLast(); };
-	// what running a piece's code showed goes into Andromeda's own record too: whose code ran first time, on exactly that
+	// what running a piece's code showed goes into Celestin's own record too: whose code ran first time, on exactly that
 	const shareRun = (pieces, model, ok) => {
 		const results = pieces.filter((p) => p.tags && p.tags.length).map((p) => ({ model, tags: p.tags, ok }));
 		if (results.length && model && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results }) }).catch(() => {});
@@ -6185,7 +6185,7 @@ async function runQuarks(text, atts) {
 	// the best for a mix of skills, at the effort each scored best at; at most two from one lab near the top. On free
 	// credits the same models (what the user reads is never written by a weaker one), thinking a step lighter
 	const lite = liteMode();
-	// cap: how hard this step may think (what it would cost); seen: a piece's tags with Andromeda's own record on them, and
+	// cap: how hard this step may think (what it would cost); seen: a piece's tags with Celestin's own record on them, and
 	// the models already on the team. The one that does it is the cheapest a quark from the best (quarkFirst)
 	const pick = (kind, w, cap, seen) => {
 		const out = [], perLab = {};
@@ -6245,7 +6245,7 @@ async function runQuarks(text, atts) {
 	chip();
 	updateLast();
 
-	// 2. who does each piece, worked out up front: the piece's own skills, what Andromeda measured itself on its tags, and
+	// 2. who does each piece, worked out up front: the piece's own skills, what Celestin measured itself on its tags, and
 	// the cheapest of those a quark from the best, at the thought the piece needs (in Max, the best, or a teammate)
 	const outs = new Map(), teamUsed = new Set();
 	const record = await skillRecord(plan.pieces.flatMap((p) => p.tags));
@@ -6843,7 +6843,7 @@ async function applyChange(files, p, model, messages, said, msg) {
 const changed = (p) => Object.keys(p.files).length > 0 || Object.keys(p.edits || {}).length > 0 || p.del.length > 0;
 // ---- Code in a chat, changed rather than rewritten. The code an answer gave, as files (its own names where the answer
 // gives them, else code.js, code-2.py...): asked to change it, a model sends only what changes, the way Claude and ChatGPT
-// edit in place, and Andromeda puts the changes in and shows each changed file whole. A long file written out again for a
+// edit in place, and Celestin puts the changes in and shows each changed file whole. A long file written out again for a
 // two-line change was most of what a coding turn cost.
 const LANG_EXT = { javascript: "js", js: "js", jsx: "jsx", mjs: "js", typescript: "ts", ts: "ts", tsx: "tsx", python: "py", py: "py", html: "html", css: "css", scss: "scss", json: "json", java: "java", kotlin: "kt", kt: "kt", swift: "swift", go: "go", golang: "go", rust: "rs", rs: "rs", c: "c", cpp: "cpp", "c++": "cpp", csharp: "cs", "c#": "cs", cs: "cs", php: "php", ruby: "rb", rb: "rb", sh: "sh", bash: "sh", shell: "sh", powershell: "ps1", sql: "sql", lua: "lua", dart: "dart", yaml: "yml", yml: "yml", toml: "toml", xml: "xml", gdscript: "gd", svelte: "svelte", vue: "vue" };
 // (blocks that aren't code anyone runs or changes: diagrams, output, plain text)
@@ -6898,7 +6898,7 @@ function chatCode() {
 	}
 	return null;
 }
-const editNote = (c) => "\n\n(The code so far is in the answers above, as these files: " + c.order.map((x) => x.name).join(", ") + ". If this asks to change that code, don't write it all out again: say in a sentence or two what you changed, then send only the changes, exactly like this:\n=== EDIT: " + c.order[0].name + " ===\n<<<<<<< SEARCH\n(the exact lines as they are now, with a few around the change so they're found only once)\n=======\n(what replaces them)\n>>>>>>> REPLACE\nwith as many pairs as it takes, in the order they come in the file. A new file, or one you change most of: === FILE: name === and then all of it. Andromeda puts the changes in and shows the whole updated code. If the request isn't a change to that code, answer normally.)";
+const editNote = (c) => "\n\n(The code so far is in the answers above, as these files: " + c.order.map((x) => x.name).join(", ") + ". If this asks to change that code, don't write it all out again: say in a sentence or two what you changed, then send only the changes, exactly like this:\n=== EDIT: " + c.order[0].name + " ===\n<<<<<<< SEARCH\n(the exact lines as they are now, with a few around the change so they're found only once)\n=======\n(what replaces them)\n>>>>>>> REPLACE\nwith as many pairs as it takes, in the order they come in the file. A new file, or one you change most of: === FILE: name === and then all of it. Celestin puts the changes in and shows the whole updated code. If the request isn't a change to that code, answer normally.)";
 // what's shown while it's being written: the words, not the edits
 const editView = (t) => { const k = String(t).search(/^===\s*(FILE|EDIT|DELETE|NOTES)\b/m); return k < 0 ? t : t.slice(0, k).trimEnd() + "\n\n*Putting the changes into the code…*"; };
 const textOf = (m) => (typeof m.content === "string" ? m.content : (m.content || []).filter((p) => p.type === "text").map((p) => p.text).join("\n"));
@@ -6965,7 +6965,7 @@ async function roundCap(m, files, cap) {
 }
 const MAX_BUILD_AT = 15; // dollars of balance
 async function walletLeft() {
-	// what the credits are worth, at Andromeda's prices
+	// what the credits are worth, at Celestin's prices
 	if (creditsMode()) await refreshMe();
 	return me ? me.credits * creditUsd() : 0;
 }
@@ -7493,7 +7493,7 @@ async function runFile(text, atts, pick) {
 		"\n\nReturn ONLY the JSON." + (langLine() ? "\n" + langLine() + " Keep the JSON keys in English." : "");
 	// Word and PDF hold the same content: one becomes the other as it is, nothing rewritten
 	let spec = src && (src.data.fmt === fmt || (/^(docx|pdf)$/.test(src.data.fmt) && /^(docx|pdf)$/.test(fmt))) ? src.data.spec : null, lastErr = null;
-	if (spec) msg.used = [{ name: "Andromeda", desc: info.label + ": made from the " + FILE_INFO[src.data.fmt].label + " file, unchanged" }];
+	if (spec) msg.used = [{ name: "Celestin", desc: info.label + ": made from the " + FILE_INFO[src.data.fmt].label + " file, unchanged" }];
 	for (const c of spec ? [] : bestFor(fmt === "xlsx" ? "xlsx" : fmt === "pptx" ? "pptx" : "docx").slice(0, 5)) {
 		try {
 			msg.used = [{ name: shortName(c), desc: info.label + ": wrote the content" }];
@@ -7512,7 +7512,7 @@ async function runFile(text, atts, pick) {
 	updateLast();
 	await loadFileLib(fmt);
 	const blob = await (fmt === "pptx" ? makePptx(spec) : fmt === "xlsx" ? makeXlsx(spec) : fmt === "docx" ? makeDocx(spec) : makePdf(spec));
-	const name = (spec.title || text).replace(/[^\w\s-]+/g, "").trim().replace(/\s+/g, " ").slice(0, 60) || "Andromeda";
+	const name = (spec.title || text).replace(/[^\w\s-]+/g, "").trim().replace(/\s+/g, " ").slice(0, 60) || "Celestin";
 	msg.data = { fmt, spec, name: name + "." + info.ext, size: blob.size, blob: await vault.put(blob) };
 	msg.text = "**" + plain(spec.title || name) + "**";
 }
@@ -7523,7 +7523,7 @@ async function makePptx(d) {
 	const p = new PptxGenJS();
 	p.layout = "LAYOUT_WIDE";
 	p.title = plain(d.title) || "Presentation";
-	p.company = "Made with Andromeda";
+	p.company = "Made with Celestin";
 	const bg = hex6(d.theme?.bg, "FFFFFF"), text = hex6(d.theme?.text, lum(bg) < 0.45 ? "F5F5F5" : "1A1A1A"), accent = hex6(d.theme?.accent, "2F5BEA");
 	const muted = lum(bg) < 0.45 ? "A0A0A0" : "6B6B6B", font = "Calibri";
 	const T = (o) => ({ fontFace: font, color: text, valign: "top", margin: 0, ...o });
@@ -7668,7 +7668,7 @@ async function makeDocx(d) {
 		else kids.push(new D.Paragraph({ children: runs(b.text), spacing: { after: 160 } }));
 	}
 	const numbering = { config: Array.from({ length: lists }, (_, k) => ({ reference: "num" + k, levels: [{ level: 0, format: D.LevelFormat.DECIMAL, text: "%1.", alignment: D.AlignmentType.START, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }] })) };
-	const doc = new D.Document({ creator: "Andromeda", title: plain(d.title), numbering, styles: { default: { document: { run: { font: "Calibri", size: 22 } } } }, sections: [{ children: kids }] });
+	const doc = new D.Document({ creator: "Celestin", title: plain(d.title), numbering, styles: { default: { document: { run: { font: "Calibri", size: 22 } } } }, sections: [{ children: kids }] });
 	return await D.Packer.toBlob(doc);
 }
 async function makePdf(d) {
@@ -7747,7 +7747,7 @@ function renderFile(m, i, box) {
 // together (captions, transitions, ducking, an end card) into one file. Each step goes to the model that's best at it,
 // read from OpenRouter's live catalogs, and the price is shown before anything is spent.
 const MEDIA = { at: 0, from: "", video: [], image: [], speech: [], music: [] };
-// Where the studio's models come from: Andromeda's server, when it makes pictures, video and sound itself (on
+// Where the studio's models come from: Celestin's server, when it makes pictures, video and sound itself (on
 // WaveSpeed), or else OpenRouter's public list
 const mediaFromServer = () => creditsMode() && pricing?.reach?.mediaFrom === "server";
 async function loadMedia() {
@@ -7951,7 +7951,7 @@ function sniffAudio(bytes) {
 	return s === "RIFF" ? "audio/wav" : s === "OggS" ? "audio/ogg" : s === "fLaC" ? "audio/flac" : "audio/mpeg";
 }
 
-// ---- the calls (straight to OpenRouter with your key, or through Andromeda credits)
+// ---- the calls (straight to OpenRouter with your key, or through Celestin credits)
 const mediaBase = () => (creditsMode() ? SERVER + "/api" : API);
 async function mediaJSON(path, body, signal) {
 	const r = await fetch(mediaBase() + path, { method: body ? "POST" : "GET", headers: headers(), body: body ? JSON.stringify(body) : undefined, signal });
@@ -8262,7 +8262,7 @@ const RUNNING = new Set();
 // ---- making it
 async function runStudio(text, atts, pick) {
 	// an app the user connected that makes this (Higgsfield, say) makes it: their own account and its best models, at no
-	// cost to Andromeda; otherwise nothing to make it with on this server yet is said before anyone else is asked
+	// cost to Celestin; otherwise nothing to make it with on this server yet is said before anyone else is asked
 	const app = appMaker(pick.kind);
 	if (app && appFirst(app, pick.kind, pick.edit, atts.some((x) => x.kind === "image"), text)) return runAct(text + (await appBrief(app, pick, text, atts)), atts);
 	if (!mediaReady()) throw mediaSoon(pick.kind);
@@ -8449,7 +8449,7 @@ async function produce(msg, only, signal) {
 		const made = (s) => s.clip || (s.still && s.frame) || (s.drawn && s.code);
 		if (!d.scenes.some(made)) throw new Error("None of the shots could be made: " + (d.scenes.find((s) => s.error)?.error || "the video model failed"));
 		// 5. the cut
-		note("Andromeda editor", "Edit: cut it together with captions, transitions, ducked music and an end card, in your browser");
+		note("Celestin editor", "Edit: cut it together with captions, transitions, ducked music and an end card, in your browser");
 		d.stage = "cutting";
 		paint();
 		d.final = await vault.put(await cut(d, (p) => { d.progress = p; paint(); }));
@@ -8633,7 +8633,7 @@ async function cut(d, onProgress) {
 		g.fillText(plan.end.sub, cw / 2, ch * 0.58);
 		g.globalAlpha = 0.55 * a;
 		g.font = "500 " + Math.round(ch * 0.018) + "px Inter, system-ui, sans-serif";
-		g.fillText("Made with Andromeda", cw / 2, ch * 0.93);
+		g.fillText("Made with Celestin", cw / 2, ch * 0.93);
 		g.globalAlpha = 1;
 	};
 	// one frame of the film at time t (each clip already at its moment, each drawn shot's picture already made)
@@ -8773,7 +8773,7 @@ async function encodeFilm({ canvas, total, mix, shots, frameAt, onProgress }) {
 }
 
 // ---- drawn shots: animated in code, frame-perfect, by the model measured best at it
-// A scene runs sealed off (no network but fonts and three.js, no way into Andromeda) and draws any moment t on its
+// A scene runs sealed off (no network but fonts and three.js, no way into Celestin) and draws any moment t on its
 // canvas when asked, so a film is rendered frame by frame with it like everything else.
 const SCENE_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com; style-src \'unsafe-inline\' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data: blob:; connect-src \'none\'">';
 function sceneDoc(html, W, H) {
@@ -9389,7 +9389,7 @@ async function voiceUI(on) {
 // ---------------------------------------------------------------- attachments
 // What's attached is read the way Claude and ChatGPT read it: PDFs page by page, Word documents, every sheet of a
 // spreadsheet, every slide of a deck, and anything that's text. The file itself is kept for this session too, so
-// code Andromeda runs (pandas, matplotlib...) can open the real thing.
+// code Celestin runs (pandas, matplotlib...) can open the real thing.
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/";
 const CODE_FILES = new Map();
 async function readDocument(f) {
@@ -9447,7 +9447,7 @@ function renderAttached() {
 function openModal(html, cls) { const m = $("#modal"), was = $("#overlay").classList.contains("show"); m.className = "modal" + (cls ? " " + cls : ""); m.innerHTML = html; if (was) { void m.offsetWidth; m.classList.add("swap"); } $("#overlay").classList.add("show"); }
 let modalClose = null;
 function closeModal() { $("#overlay").classList.remove("show"); const f = modalClose; modalClose = null; if (f) f(); }
-// backgrounds behind the app (the ones Andromeda v7 had), or your own picture or video
+// backgrounds behind the app (the ones Celestin v7 had), or your own picture or video
 const BACKGROUNDS = {
 	aurora: ["Aurora", "https://images.unsplash.com/photo-1531366936337-7c912a4589a7"],
 	galaxy: ["Galaxy", "https://images.unsplash.com/photo-1462331940025-496dfbfc7564"],
@@ -9481,26 +9481,26 @@ async function applyBg() {
 function openSettings() {
 	const bg = settings.bg || "none";
 	const sw = (k, label, thumb) => '<button class="bgsw' + (bg === k ? " on" : "") + '" data-bg="' + k + '" title="' + esc(label) + '">' + (thumb ? '<img src="' + thumb + '" alt="" loading="lazy">' : "") + "<span>" + esc(label) + "</span></button>";
-	openModal('<h2>Settings</h2><p class="sub">How Andromeda looks and answers you. Your chats stay in this browser.</p>' +
-		'<div class="field"><label>Capabilities</label><div class="help" style="margin:0 0 4px">Everything Andromeda can do is on, so it can use whatever a request needs. Switch off what you don\'t want it to use.</div>' +
+	openModal('<h2>Settings</h2><p class="sub">How Celestin looks and answers you. Your chats stay in this browser.</p>' +
+		'<div class="field"><label>Capabilities</label><div class="help" style="margin:0 0 4px">Everything Celestin can do is on, so it can use whatever a request needs. Switch off what you don\'t want it to use.</div>' +
 			Object.entries(CAPS).map(([k, [n, d]]) => '<div class="toggle"><div><div class="tl">' + esc(n) + '</div><div class="td">' + esc(d) + '</div></div><button class="sw' + (capOn(k) ? " on" : "") + '" data-cap="' + k + '" aria-label="' + esc(n) + '"></button></div>').join("") +
 			'<div class="toggle"><div><div class="tl">Memory</div><div class="td">Remembers lasting things about you and your work across chats</div></div><button class="sw' + (settings.memory !== false ? " on" : "") + '" data-cap="memory" aria-label="Memory"></button></div>' +
-			'<details class="caps-skills"><summary>Expert skills · ' + Object.keys(SKILLBOOK).filter(skillOn).length + " of " + Object.keys(SKILLBOOK).length + ' on</summary><div class="help" style="margin:6px 0 2px">How the best people do each kind of work. Andromeda picks the ones a request needs, and every model working on it follows them.</div>' +
+			'<details class="caps-skills"><summary>Expert skills · ' + Object.keys(SKILLBOOK).filter(skillOn).length + " of " + Object.keys(SKILLBOOK).length + ' on</summary><div class="help" style="margin:6px 0 2px">How the best people do each kind of work. Celestin picks the ones a request needs, and every model working on it follows them.</div>' +
 			Object.entries(SKILLBOOK).map(([k, [when]]) => '<div class="toggle"><div><div class="tl">' + esc(k[0].toUpperCase() + k.slice(1)) + '</div><div class="td">' + esc(when[0].toUpperCase() + when.slice(1)) + '</div></div><button class="sw' + (skillOn(k) ? " on" : "") + '" data-skill="' + k + '" aria-label="' + esc(k) + '"></button></div>').join("") + "</details></div>" +
-		'<div class="field"><label>Memory</label><button class="btn" data-open-memory>What Andromeda remembers</button><div class="help">Lasting things about you and your work, kept across chats in this browser.</div></div>' +
+		'<div class="field"><label>Memory</label><button class="btn" data-open-memory>What Celestin remembers</button><div class="help">Lasting things about you and your work, kept across chats in this browser.</div></div>' +
 		'<div class="field"><label>Theme</label><div class="pills">' + [["system", "System"], ["dark", "Dark"], ["light", "Light"]].map(([k, n]) => '<button data-theme-pick="' + k + '"' + ((settings.theme || "system") === k ? ' class="on"' : "") + ">" + n + "</button>").join("") + "</div></div>" +
 		'<div class="field"><label>Background</label><div class="bggrid">' + sw("none", "None", "") + Object.entries(BACKGROUNDS).map(([k, [n, u]]) => sw(k, n, u + "?w=240&h=150&fit=crop&q=60&auto=format")).join("") +
 		sw("mine", "Your own", "") + '</div><div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button class="btn" id="bgMine">Use my picture or video</button>' +
 		'<label class="bgtint">Overlay <input type="range" id="bgTint" min="0" max="95" value="' + (settings.bgTint ?? 72) + '"> <span id="bgTintV">' + (settings.bgTint ?? 72) + "%</span></label></div>" +
 		'<input type="file" id="bgFile" accept="image/*,video/*" hidden><div class="help">The overlay keeps text readable over the picture: more is calmer, less shows the picture more.</div></div>' +
 		'<div class="field"><label>Replies</label><select class="inp" id="langSel">' + LANGS.map(([k, n]) => '<option value="' + k + '"' + (settings.lang === k ? " selected" : "") + ">" + esc(n) + "</option>").join("") + '</select><div class="pills" style="margin-top:10px">' + Object.entries(TONES).map(([k, [n]]) => '<button data-tone="' + k + '"' + (settings.tone === k ? ' class="on"' : "") + ">" + esc(n) + "</button>").join("") + '</div><div class="help">The language and tone of every answer, in every mode.</div></div>' +
-		'<div class="field"><label for="nameBox">What should Andromeda call you?</label><input class="inp" id="nameBox" maxlength="40" autocomplete="given-name" placeholder="' + esc((account && account.name) || "Your name") + '" value="' + esc(settings.name || "") + '"></div>' +
-		'<div class="field"><label for="aboutBox">Custom instructions</label><textarea class="inp" id="aboutBox" rows="3" maxlength="1500" placeholder="What should Andromeda know about you? e.g. I\'m a student in Jakarta, learning Python and Japanese.">' + esc(settings.about || "") + "</textarea>" +
-		'<textarea class="inp" id="styleBox" rows="3" maxlength="1500" style="margin-top:8px" aria-label="How should Andromeda answer?" placeholder="How should it answer? e.g. Short, examples first, no jargon. Always give the code in full.">' + esc(settings.style || "") + "</textarea>" +
+		'<div class="field"><label for="nameBox">What should Celestin call you?</label><input class="inp" id="nameBox" maxlength="40" autocomplete="given-name" placeholder="' + esc((account && account.name) || "Your name") + '" value="' + esc(settings.name || "") + '"></div>' +
+		'<div class="field"><label for="aboutBox">Custom instructions</label><textarea class="inp" id="aboutBox" rows="3" maxlength="1500" placeholder="What should Celestin know about you? e.g. I\'m a student in Jakarta, learning Python and Japanese.">' + esc(settings.about || "") + "</textarea>" +
+		'<textarea class="inp" id="styleBox" rows="3" maxlength="1500" style="margin-top:8px" aria-label="How should Celestin answer?" placeholder="How should it answer? e.g. Short, examples first, no jargon. Always give the code in full.">' + esc(settings.style || "") + "</textarea>" +
 		'<div class="help">Used in every answer, in every chat, by whichever model answers. Kept in this browser.</div></div>' +
 		'<div class="field"><label>Safety</label><label class="chk"><input type="checkbox" id="safeChk"' + (settings.safelock !== false ? " checked" : "") + '> Safelock: keep every answer suitable for everyone</label><div class="help">Filters sexual, graphic and hateful content in answers, pictures and videos.</div></div>' +
 		'<div class="field"><label>Keyboard</label><div class="keys"><kbd>Enter</kbd><span>send (Shift+Enter: a new line)</span><kbd>⌘K / Ctrl+K</kbd><span>new chat</span><kbd>↑</kbd><span>in an empty box: edit your last message</span><kbd>Esc</kbd><span>stop the answer that\'s coming</span><kbd>/</kbd><span>go to the message box</span></div></div>' +
-		(installAsk ? '<div class="field"><label>App</label><button class="btn" id="installBtn">Install Andromeda</button><div class="help">Its own window and icon, on your home screen or desktop.</div></div>' : "") +
+		(installAsk ? '<div class="field"><label>App</label><button class="btn" id="installBtn">Install Celestin</button><div class="help">Its own window and icon, on your home screen or desktop.</div></div>' : "") +
 		'<div class="field"><label>Your data</label><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="exportChats">Export everything</button><button class="btn" id="importAll">Import</button><button class="btn" id="wipeChats">Delete all chats</button></div><input type="file" id="importFile" accept=".json,application/json" hidden><div class="help">Everything stays in this browser. The export is one file with your chats, projects and their files, memory and settings: keep it as a backup, or import it in another browser.</div></div>' +
 		'<div class="row" style="justify-content:space-between;margin-top:8px">' + (creditsMode() ? '<button class="btn" data-open-account>Credits and account</button>' : "<span></span>") + '<button class="btn dark" id="closeSettings">Done</button></div>', "wide");
 	$$("[data-theme-pick]").forEach((x) => x.onclick = () => { settings.theme = x.dataset.themePick; saveSettings(); morph(applyTheme); $$("[data-theme-pick]").forEach((y) => y.classList.toggle("on", y === x)); });
@@ -9686,13 +9686,13 @@ function openAccount() {
 		// (what was typed stays when the form switches between signing in and making an account)
 		const draw = (swap, keep, say) => {
 			openAuth();
-			$("#authMain").innerHTML = '<div class="auth-card' + (swap ? " swap-in" : "") + '"><svg class="auth-mark" aria-hidden="true"><use href="#logo"/></svg><h1 id="authTitle">' + (mode === "in" ? "Welcome back" : "Create your account") + '</h1><p class="lede">' + (mode === "in" ? "Sign in to Andromeda." : "Free credits straight away, and more every day. No card.") + "</p>" +
+			$("#authMain").innerHTML = '<div class="auth-card' + (swap ? " swap-in" : "") + '"><svg class="auth-mark" aria-hidden="true"><use href="#logo"/></svg><h1 id="authTitle">' + (mode === "in" ? "Welcome back" : "Create your account") + '</h1><p class="lede">' + (mode === "in" ? "Sign in to Celestin." : "Free credits straight away, and more every day. No card.") + "</p>" +
 				(gid ? '<div class="gsi" id="gsiBtn"></div><div class="or"><span>or with your email</span></div>' : "") +
 				'<div class="field"><label for="acEmail">Email</label><input class="inp" id="acEmail" type="email" autocomplete="email" inputmode="email"></div>' +
 				'<div class="field"><label for="acPass">Password</label><input class="inp" id="acPass" type="password" autocomplete="' + (mode === "in" ? "current-password" : "new-password") + '"' + (mode === "up" ? ' placeholder="At least 8 characters"' : "") + '><div class="status" id="acStatus" role="status"></div></div>' +
 				'<button class="btn dark go" id="acGo">' + (mode === "in" ? "Sign in" : "Create account") + "</button>" +
 				'<button class="switch" id="acSwitch">' + (mode === "in" ? "New here? <b>Create an account</b>" : "Already have an account? <b>Sign in</b>") + "</button>" +
-				'<p class="legal">By continuing, you agree to Andromeda\'s <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a>, and acknowledge its <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p></div>';
+				'<p class="legal">By continuing, you agree to Celestin\'s <a href="terms.html" target="_blank" rel="noopener">Terms of Service</a> and <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a>, and acknowledge its <a href="privacy.html" target="_blank" rel="noopener">Privacy Policy</a>.</p></div>';
 			if (keep) [$("#acEmail").value, $("#acPass").value] = keep;
 			if (say) { $("#acStatus").className = "status bad"; $("#acStatus").textContent = say; }
 			if (!matchMedia("(pointer: coarse)").matches) setTimeout(() => $("#acEmail") && $(keep && keep[0] ? "#acPass" : "#acEmail").focus(), 320);
@@ -9723,7 +9723,7 @@ function openAccount() {
 				} catch (e) {
 					st.className = "status bad";
 					// a server that couldn't be reached at all (offline, blocked) says so plainly instead of "Failed to fetch"
-					st.textContent = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(e.message) ? "Couldn't reach Andromeda's server. Check your connection and try again." : e.message;
+					st.textContent = e instanceof TypeError || /failed to fetch|networkerror|load failed/i.test(e.message) ? "Couldn't reach Celestin's server. Check your connection and try again." : e.message;
 				}
 			};
 			$("#acGo").onclick = go;
@@ -9758,7 +9758,7 @@ function openAccount() {
 		// payer's name); the chats here are the browser's, deleted too if they say so
 		$("#acDelete").onclick = (e) => {
 			e.preventDefault();
-			openModal('<h2>Delete your account?</h2><p class="sub">Your account, plan, credits, sign-ins, shared chat links, scheduled tasks and pictures shared with apps are deleted from Andromeda\'s server. This can\'t be undone, and what\'s left of a plan or pack is lost. Payment records stay, as the law requires, without the name you paid from.</p>' +
+			openModal('<h2>Delete your account?</h2><p class="sub">Your account, plan, credits, sign-ins, shared chat links, scheduled tasks and pictures shared with apps are deleted from Celestin\'s server. This can\'t be undone, and what\'s left of a plan or pack is lost. Payment records stay, as the law requires, without the name you paid from.</p>' +
 				'<label class="chk" style="margin:4px 0 16px"><input type="checkbox" id="adlChats"> Also delete the chats in this browser</label><div class="status" id="adlStatus"></div>' +
 				'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:6px"><button class="btn" id="adlNo">Cancel</button><button class="btn dark" id="adlGo">Delete my account</button></div>');
 			$("#adlNo").onclick = () => openAccount();
@@ -9787,7 +9787,7 @@ function money(amount, cur) {
 	try { return new Intl.NumberFormat(cur === "IDR" ? "id-ID" : undefined, { style: "currency", currency: cur || "USD", maximumFractionDigits: cur === "IDR" ? 0 : 2 }).format(amount || 0); }
 	catch { return (cur || "") + " " + amount; }
 }
-// Andromeda's Terms of Service, Usage Policy and Privacy Policy (pages beside this one)
+// Celestin's Terms of Service, Usage Policy and Privacy Policy (pages beside this one)
 const LEGAL_LINKS = '<a href="terms.html" target="_blank" rel="noopener">Terms</a> · <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>';
 const DEFAULT_PRICING = {
 	creditUsd: 0.01, open: false, free: { credits: 100, hours: 5, every: 5, week: 150 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
@@ -9868,7 +9868,7 @@ async function openPricing() {
 		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a change to your code about 6 to 25, a hard question checked by a second top model about 35, a full app or game built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +
-		"<details><summary>Which models do I get?</summary><p>All of them, on every plan. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
+		"<details><summary>Which models do I get?</summary><p>All of them, on every plan. Celestin picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
 		"<details><summary>My payment hasn't shown up</summary><p>QRIS payments are confirmed by hand, usually within a few hours. Card payments arrive within a minute. If anything goes wrong" + (P.support ? ", contact " + esc(P.support) : ", contact us") + " and we'll sort it out.</p></details></div>" +
 		'<div class="row" style="justify-content:space-between;align-items:center;margin-top:14px"><span class="legal-links">' + LEGAL_LINKS + '</span><div class="row">' + (SERVER && !account ? '<button class="btn" data-open-account>Sign in</button>' : "") + '<button class="btn" id="prClose">Close</button></div></div>', "wide");
 	$("#prClose").onclick = closeModal;
@@ -10112,7 +10112,7 @@ document.addEventListener("keydown", (e) => {
 // installs as an app (phone home screen, desktop), and opens without a connection: sw.js
 let installAsk = null;
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installAsk = e; });
-addEventListener("appinstalled", () => { installAsk = null; toast("Andromeda is installed"); });
+addEventListener("appinstalled", () => { installAsk = null; toast("Celestin is installed"); });
 if ("serviceWorker" in navigator && location.protocol === "https:") addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
 $("#openSettings").onclick = openSettings;
 $("#themeBtn").onclick = toggleTheme;
@@ -10206,9 +10206,9 @@ function drawModeMenu() {
 	const pinned = pin ? catalog.find((x) => x.id === pin) : null;
 	const item = (on, attr, icon, name, sub) => '<button class="mi' + (on ? " on" : "") + '" role="menuitemradio" aria-checked="' + on + '" ' + attr + ">" + icon + "<span><b>" + esc(name) + "</b><small>" + esc(sub) + "</small></span>" + (on ? TICK : "") + "</button>";
 	const tone = TONES[settings.tone] ? settings.tone : "default";
-	$("#modePop").innerHTML = '<div class="sec">Andromeda decides</div>' + Object.entries(SPEEDS).map(([k, [n, d, ic]]) => item(!pin && s === k, 'data-speed="' + k + '"', svgOf(ic), n, d)).join("") +
+	$("#modePop").innerHTML = '<div class="sec">Celestin decides</div>' + Object.entries(SPEEDS).map(([k, [n, d, ic]]) => item(!pin && s === k, 'data-speed="' + k + '"', svgOf(ic), n, d)).join("") +
 		'<hr><div class="sec">How it writes</div><div class="st-pills">' + Object.entries(TONES).map(([k, [n]]) => '<button class="st-pill' + (k === tone ? " on" : "") + '" role="menuitemradio" aria-checked="' + (k === tone) + '" data-stylepick="' + k + '">' + esc(n) + "</button>").join("") + "</div>" +
-		(pinned || tops.length ? '<hr><div class="sec">Or use one model for everything</div>' + [pinned, ...tops].filter(Boolean).map((m) => item(m.id === pin, 'data-pin="' + esc(m.id) + '"', '<span class="lab">' + esc((LAB_NAMES[provider(m.id)] || provider(m.id))[0].toUpperCase()) + "</span>", shortName(m), LAB_NAMES[provider(m.id)] || provider(m.id))).join("") + '<button class="mi more" data-allmodels>' + svgOf('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>') + "<span><b>More models</b><small>Every model Andromeda can use, to search</small></span></button>" : "");
+		(pinned || tops.length ? '<hr><div class="sec">Or use one model for everything</div>' + [pinned, ...tops].filter(Boolean).map((m) => item(m.id === pin, 'data-pin="' + esc(m.id) + '"', '<span class="lab">' + esc((LAB_NAMES[provider(m.id)] || provider(m.id))[0].toUpperCase()) + "</span>", shortName(m), LAB_NAMES[provider(m.id)] || provider(m.id))).join("") + '<button class="mi more" data-allmodels>' + svgOf('<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>') + "<span><b>More models</b><small>Every model Celestin can use, to search</small></span></button>" : "");
 }
 $("#modeBtn").onclick = () => { if ($("#modePop").hidden) drawModeMenu(); togglePop("modePop"); };
 $("#modePop").addEventListener("click", (e) => {
@@ -10225,11 +10225,11 @@ $("#modePop").addEventListener("click", (e) => {
 });
 drawMode();
 
-// ---- slash commands: "/" at the start of a message, like Claude Code's and Codex's. Andromeda's own, the user's skills
+// ---- slash commands: "/" at the start of a message, like Claude Code's and Codex's. Celestin's own, the user's skills
 // (/their-name uses one on purpose) and the user's commands (saved prompts, $ARGUMENTS for what follows)
 const setSpeed = (k) => { settings.speed = k; settings.pin = ""; saveSettings(); drawMode(); toast(SPEEDS[k][0] + ": " + SPEEDS[k][1].toLowerCase()); };
 const SLASH = [
-	["code", "Build or change a code project with Andromeda Code", { tool: "code" }],
+	["code", "Build or change a code project with Celestin Code", { tool: "code" }],
 	["review", "Review code for real bugs, each with the fix", { tool: "code", note: "Review it like the most exacting senior engineer: only real problems (bugs, unhandled cases that will happen, security holes, missing requirements), each with where it is, why it matters and the exact fix. Change nothing unless asked.", empty: "Review the code in my project for real bugs" }],
 	["test", "Write tests for it, run them and fix what fails", { tool: "code", note: "Write thorough tests for it (the edge cases that matter), run them, fix what fails, and say exactly what ran.", empty: "Write tests for my project and run them" }],
 	["fix", "Find the real cause of a bug and fix it", { note: "Find the root cause (not a workaround), fix it, and prove the fix works." }],
@@ -10243,17 +10243,17 @@ const SLASH = [
 	["doc", "A Word document, PDF, deck or spreadsheet", { tool: "doc" }],
 	["study", "Flashcards, a quiz, a mind map or a podcast", { tool: "study" }],
 	["act", "Do it for real with tools and your computer", { tool: "act" }],
-	["auto", "Andromeda decides everything", { run: () => setSpeed("auto") }],
+	["auto", "Celestin decides everything", { run: () => setSpeed("auto") }],
 	["fast", "The quickest strong models", { run: () => setSpeed("fast") }],
 	["max", "The strongest models, thinking hardest, checked", { run: () => setSpeed("max") }],
 	["model", "Pick one model to answer everything", { run: () => openModels() }],
 	["new", "Start a new chat", { run: () => $("#newChat").click() }],
-	["memory", "See and edit what Andromeda remembers", { run: () => openMemory() }],
+	["memory", "See and edit what Celestin remembers", { run: () => openMemory() }],
 	["remember", "Remember something about you", { run: (a) => toast(a ? (remember(a) ? "Remembered" : "Already remembered") : "Say what to remember: /remember …") }],
 	["skills", "Your skills and commands: write, import, edit", { run: () => openSkills() }],
 	["help", "Every command", { run: () => openSkills("help") }],
 ];
-// every command there is right now, Andromeda's first
+// every command there is right now, Celestin's first
 function slashList() {
 	return [
 		...SLASH.map(([name, desc, act]) => ({ name, desc, act })),
@@ -10311,7 +10311,7 @@ async function importSkill(url) {
 function openSkills(view) {
 	const skills = userSkills(), cmds = userCommands();
 	const row = (k, name, sub, del) => '<div class="ag-cur"><span><b>' + esc(name) + "</b><small style=\"display:block;color:var(--faint)\">" + esc(sub) + "</small></span>" + (del ? '<button class="btn" data-' + del + '="' + esc(k) + '">Remove</button>' : "") + "</div>";
-	openModal('<h2>Skills and commands</h2><p class="sub">Skills teach Andromeda how to do something your way; it uses one by itself whenever a request fits, and <b>/its-name</b> uses it on purpose. Commands are prompts you use often: <b>/name</b> and what follows ($ARGUMENTS in a command is replaced by it).</p>' +
+	openModal('<h2>Skills and commands</h2><p class="sub">Skills teach Celestin how to do something your way; it uses one by itself whenever a request fits, and <b>/its-name</b> uses it on purpose. Commands are prompts you use often: <b>/name</b> and what follows ($ARGUMENTS in a command is replaced by it).</p>' +
 		(view === "help" ? '<div class="field"><label>Every command</label>' + slashList().map((x) => row(x.name, "/" + x.name, x.desc)).join("") + "</div>" : "") +
 		'<div class="field"><label>Your skills (' + skills.length + ")</label>" + (skills.map((s) => row(s.key, "/" + s.key + " · " + s.name, s.desc || (s.from ? "from " + s.from : ""), "skdel")).join("") || '<div class="help">None yet.</div>') + "</div>" +
 		'<div class="field"><label>Add a skill</label><input class="inp" id="skName" placeholder="Name, e.g. Our brand voice"><input class="inp" id="skDesc" placeholder="When to use it, e.g. anything written for customers" style="margin-top:6px"><textarea class="inp" id="skText" rows="5" placeholder="The instructions, as you\'d brief an expert" style="margin-top:6px;padding:10px"></textarea><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn dark" id="skAdd">Add the skill</button></div></div>' +
@@ -10321,7 +10321,7 @@ function openSkills(view) {
 		'<div class="row" style="justify-content:flex-end"><button class="btn" id="skClose">Close</button></div>', "wide");
 	const taken = (k) => SLASH.some(([n]) => n === k) || BUILTIN_SKILLS.has(k);
 	const saveSkill = (s) => {
-		if (!s.key || taken(s.key)) { toast("That name is taken by one of Andromeda's own: pick another"); return false; }
+		if (!s.key || taken(s.key)) { toast("That name is taken by one of Celestin's own: pick another"); return false; }
 		store.set("skills", [...userSkills().filter((x) => x.key !== s.key), s]);
 		applyUserSkills();
 		return true;
@@ -10481,8 +10481,8 @@ function renderSpace() {
 	const chats = convos.filter((c) => c.space === sp.id && c.msgs.length).sort((a, b) => b.at - a.at);
 	$("#view").innerHTML = '<section class="space-pg"><div class="sp-top"><span class="sp-ic">' + svgOf(FOLDER_D, 22) + "</span><h1>" + esc(sp.name) + '</h1><button class="btn" data-spaceedit>Rename</button><button class="btn" data-spacedel>Delete</button></div>' +
 		'<div class="slot" id="slot"></div>' +
-		'<div class="sp-grid"><div class="sp-card"><div class="sp-ch"><b>Instructions</b><small>Andromeda follows these in every chat in this project</small></div><textarea class="inp" id="spAbout" rows="5" maxlength="4000" placeholder="e.g. I\'m writing my thesis on coral reef recovery. Use APA citations, keep answers short, and ask before assuming data.">' + esc(sp.about || "") + "</textarea></div>" +
-		'<div class="sp-card"><div class="sp-ch"><b>Files</b><small>Andromeda knows these in every chat here: PDFs, Word, Excel, slides, text and code</small></div><div class="sp-files" id="spFiles"></div><button class="btn" id="spAdd">' + svgOf('<path d="M12 5v14M5 12h14"/>', 16) + 'Add files</button><input type="file" id="spFile" multiple hidden></div></div>' +
+		'<div class="sp-grid"><div class="sp-card"><div class="sp-ch"><b>Instructions</b><small>Celestin follows these in every chat in this project</small></div><textarea class="inp" id="spAbout" rows="5" maxlength="4000" placeholder="e.g. I\'m writing my thesis on coral reef recovery. Use APA citations, keep answers short, and ask before assuming data.">' + esc(sp.about || "") + "</textarea></div>" +
+		'<div class="sp-card"><div class="sp-ch"><b>Files</b><small>Celestin knows these in every chat here: PDFs, Word, Excel, slides, text and code</small></div><div class="sp-files" id="spFiles"></div><button class="btn" id="spAdd">' + svgOf('<path d="M12 5v14M5 12h14"/>', 16) + 'Add files</button><input type="file" id="spFile" multiple hidden></div></div>' +
 		'<div class="sp-chats"><div class="convo-group">Chats in this project</div>' + (chats.length ? chats.map((c) => '<div class="convo" data-id="' + c.id + '"><span class="t">' + esc(c.title) + '</span><span class="sp-when">' + ago(c.at) + "</span></div>").join("") : '<div class="help">None yet: start one above.</div>') + "</div></section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
@@ -10520,7 +10520,7 @@ async function addSpaceFiles(id, files) {
 }
 function openSpace(id) { openSidebar(false); navTo(() => { SPACE_VIEW = id; current = null; EDITING = -1; render(); }); setTimeout(() => $("#input").focus(), 60); }
 function newSpace() {
-	openModal('<h2>New project</h2><p class="sub">Chats in a project share its instructions and files, so Andromeda always has the background.</p><div class="field"><label for="spName">Name</label><input class="inp" id="spName" maxlength="60" placeholder="e.g. Thesis, Bean There café, My Minecraft mod"></div><div class="field"><label for="spAbout0">Instructions (you can add them later)</label><textarea class="inp" id="spAbout0" rows="3" maxlength="4000" placeholder="What should Andromeda know, or always do, in this project?"></textarea></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="spNo">Cancel</button><button class="btn dark" id="spGo">Make the project</button></div>');
+	openModal('<h2>New project</h2><p class="sub">Chats in a project share its instructions and files, so Celestin always has the background.</p><div class="field"><label for="spName">Name</label><input class="inp" id="spName" maxlength="60" placeholder="e.g. Thesis, Bean There café, My Minecraft mod"></div><div class="field"><label for="spAbout0">Instructions (you can add them later)</label><textarea class="inp" id="spAbout0" rows="3" maxlength="4000" placeholder="What should Celestin know, or always do, in this project?"></textarea></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="spNo">Cancel</button><button class="btn dark" id="spGo">Make the project</button></div>');
 	const go = () => {
 		const name = $("#spName").value.trim();
 		if (!name) { $("#spName").focus(); return; }
@@ -10558,7 +10558,7 @@ document.addEventListener("click", (e) => {
 		$("#sdNo").onclick = closeModal;
 	}
 });
-// ---------------------------------------------------------------- the library: everything Andromeda made, from every chat
+// ---------------------------------------------------------------- the library: everything Celestin made, from every chat
 const LIB_KINDS = [["all", "All"], ["image", "Pictures"], ["video", "Videos"], ["audio", "Audio"], ["app", "Apps"], ["doc", "Documents"]];
 function libraryItems() {
 	const out = [];
@@ -10576,9 +10576,9 @@ function libraryItems() {
 }
 async function openLibrary(kind = "all") {
 	const all = libraryItems(), items = kind === "all" ? all : all.filter((x) => x.type === kind);
-	openModal('<h2>Library</h2><p class="sub">Everything Andromeda made for you, from every chat on this device.</p><div class="pills lib-kinds">' + LIB_KINDS.map(([k, n]) => '<button data-libkind="' + k + '"' + (k === kind ? ' class="on"' : "") + ">" + n + "</button>").join("") + '</div><div class="lib-grid" id="libGrid">' +
+	openModal('<h2>Library</h2><p class="sub">Everything Celestin made for you, from every chat on this device.</p><div class="pills lib-kinds">' + LIB_KINDS.map(([k, n]) => '<button data-libkind="' + k + '"' + (k === kind ? ' class="on"' : "") + ">" + n + "</button>").join("") + '</div><div class="lib-grid" id="libGrid">' +
 		(items.length ? items.map((x, n) => '<button class="lib-it lib-' + x.type + '" data-libgo="' + n + '"><span class="lib-th" id="libTh' + n + '">' + (x.type === "doc" ? '<span class="fs-badge fs-' + esc(x.fmt || "pdf") + '">' + esc((x.fmt || "file").toUpperCase()) + "</span>" : x.type === "app" ? svgOf(ART_ICONS[x.sub === "Simulation" ? "sim" : "app"], 26) : x.type === "audio" ? svgOf('<path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/>', 26) : "") + "</span><b>" + esc(x.title) + "</b><small>" + esc(x.sub || ({ image: "Picture", video: "Video", doc: "Document" })[x.type] || "") + " · " + ago(x.c.at) + "</small></button>").join("")
-			: '<div class="help" style="grid-column:1/-1;padding:30px 0;text-align:center">' + (all.length ? "Nothing of this kind yet." : "Nothing made yet. Pictures, videos, songs, apps and documents Andromeda makes for you collect here.") + "</div>") + "</div>", "wide");
+			: '<div class="help" style="grid-column:1/-1;padding:30px 0;text-align:center">' + (all.length ? "Nothing of this kind yet." : "Nothing made yet. Pictures, videos, songs, apps and documents Celestin makes for you collect here.") + "</div>") + "</div>", "wide");
 	$$("[data-libkind]").forEach((b) => b.onclick = () => openLibrary(b.dataset.libkind));
 	$$("[data-libgo]").forEach((b) => b.onclick = () => {
 		const x = items[+b.dataset.libgo];
@@ -10632,7 +10632,7 @@ function shareChat() {
 		catch (e) { say(e.message, true); }
 	};
 }
-// someone opened a shared link: the chat, read-only, and a way to carry it on in their own Andromeda
+// someone opened a shared link: the chat, read-only, and a way to carry it on in their own Celestin
 let SHARED = null;
 async function openShared(sid) {
 	document.body.classList.remove("in-app");
@@ -10645,9 +10645,9 @@ async function openShared(sid) {
 		const j = await r.json().catch(() => ({}));
 		if (!r.ok) throw new Error((j.error && j.error.message) || "This chat isn't shared any more.");
 		SHARED = j;
-		document.title = j.title + " · Andromeda";
+		document.title = j.title + " · Celestin";
 		$("#shTitle").textContent = j.title;
-		$("#shThread").innerHTML = '<p class="sh-note">A chat someone shared from Andromeda · ' + esc(new Date(j.at).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })) + "</p>" +
+		$("#shThread").innerHTML = '<p class="sh-note">A chat someone shared from Celestin · ' + esc(new Date(j.at).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })) + "</p>" +
 			j.msgs.map((m) => m.role === "user" ? '<div class="msg user"><div><div class="bubble">' + esc(m.text) + "</div></div></div>" : '<div class="msg"><svg class="av" aria-hidden="true"><use href="#logo"/></svg><div class="md">' + md(m.text) + "</div></div>").join("");
 		drawDiagrams($("#shThread"));
 	} catch (e) {
@@ -10657,7 +10657,7 @@ async function openShared(sid) {
 function closeShared() {
 	document.body.classList.remove("in-share");
 	$("#shared").hidden = true;
-	document.title = "Andromeda — the right model for every message";
+	document.title = "Celestin — the right model for every message";
 }
 $("#shCont").onclick = () => {
 	if (!SHARED) return;
@@ -10738,7 +10738,7 @@ async function canvasChange(how) {
 	if (a.view === "read") { a.view = "write"; drawCanvas(); }
 	const ed = $("#cvEd"), all = ed.value, s = ed.selectionStart, e = ed.selectionEnd, part = s !== e ? all.slice(s, e) : "";
 	const writer = bestFor("docx")[0] || rank("write")[0];
-	if (!writer) { toast("Andromeda can't reach a model right now"); return; }
+	if (!writer) { toast("Celestin can't reach a model right now"); return; }
 	const prompt = part
 		? "Here is a document, and a part of it the user selected. Rewrite ONLY the selected part as asked, so it still fits the text around it. Reply with only the new text for that part: nothing before or after it, no quotes.\n\nWhat to change: " + how + "\n\nThe selected part:\n" + part + "\n\nThe whole document, for context:\n" + all.slice(0, 80000)
 		: "Revise this document as asked, keeping everything else as it is. Reply with only the full revised document in Markdown: nothing before or after it.\n\nWhat to change: " + how + "\n\nThe document:\n" + all;
@@ -10840,7 +10840,7 @@ function openModels() {
 	const list = uniqM(catalog.filter((m) => usable(m, "quick"))).sort((a, b) => (LAB_NAMES[provider(a.id)] || provider(a.id)).localeCompare(LAB_NAMES[provider(b.id)] || provider(b.id)) || b.created - a.created);
 	const rated = new Set();
 	try { for (const t of ["quick", "code", "reasoning", "write"]) rank(t).slice(0, 8).forEach((m) => rated.add(m.id)); } catch {}
-	openModal('<h2>Choose a model</h2><p class="sub">Andromeda decides by default. Pick one here and it answers everything until you switch back to Auto in the menu.</p><input class="inp" id="mdlQ" placeholder="Search ' + list.length + ' models: claude, gpt, gemini, deepseek…" autocomplete="off"><div class="mdl-list" id="mdlList"></div>', "wide");
+	openModal('<h2>Choose a model</h2><p class="sub">Celestin decides by default. Pick one here and it answers everything until you switch back to Auto in the menu.</p><input class="inp" id="mdlQ" placeholder="Search ' + list.length + ' models: claude, gpt, gemini, deepseek…" autocomplete="off"><div class="mdl-list" id="mdlList"></div>', "wide");
 	const draw = () => {
 		const q = $("#mdlQ").value.trim().toLowerCase(), hits = list.filter((m) => !q || (m.id + " " + m.name + " " + (LAB_NAMES[provider(m.id)] || "")).toLowerCase().includes(q));
 		let lab = "";
@@ -10883,7 +10883,7 @@ function whenText(t) {
 	const at = hhmm(t.minute || 0);
 	return t.every === "hour" ? "Every hour at :" + at.slice(3) : t.every === "week" ? "Every " + DOWS[t.dow || 0] + " at " + at : t.every === "weekdays" ? "Weekdays at " + at : t.every === "once" ? "Once, at " + at : "Every day at " + at;
 }
-// the models for a task: Andromeda's own measured pick for what it asks, best first
+// the models for a task: Celestin's own measured pick for what it asks, best first
 function taskModels(prompt) {
 	try { return rank(classify(prompt, [])).slice(0, 3).map((m) => m.id); } catch { return []; }
 }
@@ -10894,7 +10894,7 @@ async function makeTask(t) {
 }
 // the conductor chose it: the task is set up, and said back plainly
 async function runTaskWay(plan, text) {
-	if (!creditsMode() || !account) throw Object.assign(new Error("Sign in to set up tasks: they run on Andromeda's server, even with this page closed."), { plain: true });
+	if (!creditsMode() || !account) throw Object.assign(new Error("Sign in to set up tasks: they run on Celestin's server, even with this page closed."), { plain: true });
 	const s = plan.schedule || {};
 	const task = await makeTask({ prompt: String(s.todo || text).slice(0, 4000), title: String(s.todo || text).slice(0, 80), every: s.every, time: s.time, dow: s.dow, web: true });
 	current.msgs.push({ role: "assistant", text: "Done. **" + whenText(task) + "** I'll: " + task.prompt + "\n\nEach answer goes to your **Tasks** chat, even if this page is closed. You can change or stop it in **Tasks** in the sidebar." });
@@ -10921,7 +10921,7 @@ async function syncTasks(quiet) {
 		render();
 		api("/api/tasks/seen", { method: "POST", body: JSON.stringify({ ids: fresh.map((r) => r.id) }) }).catch(() => {});
 		if (!quiet) toast(fresh.length === 1 ? "A task ran: it's in your Tasks chat" : fresh.length + " tasks ran: they're in your Tasks chat");
-		try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Andromeda", { body: (fresh[fresh.length - 1].text || "A task ran").replace(/[#*_`>]/g, "").slice(0, 140), icon: "icons/icon-192.png" }); } catch {}
+		try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Celestin", { body: (fresh[fresh.length - 1].text || "A task ran").replace(/[#*_`>]/g, "").slice(0, 140), icon: "icons/icon-192.png" }); } catch {}
 	}
 	return j;
 }
@@ -10929,7 +10929,7 @@ setInterval(() => syncTasks(), 5 * 60e3);
 addEventListener("focus", () => syncTasks());
 async function openTasks() {
 	if (!creditsMode() || !account) { openAccount(); return; }
-	openModal('<h2>Tasks</h2><p class="sub">Things Andromeda does by itself on a schedule, even with this page closed. Each run uses your credits like a message, and its answer waits in your Tasks chat.</p>' +
+	openModal('<h2>Tasks</h2><p class="sub">Things Celestin does by itself on a schedule, even with this page closed. Each run uses your credits like a message, and its answer waits in your Tasks chat.</p>' +
 		'<div class="tk-new"><textarea class="inp" id="tkPrompt" rows="2" maxlength="4000" placeholder="e.g. The AI news that matters today, in five bullets with links"></textarea><div class="row tk-when"><select class="inp" id="tkEvery">' + Object.entries(EVERY_NAMES).map(([k, n]) => '<option value="' + k + '"' + (k === "day" ? " selected" : "") + ">" + n + "</option>").join("") + '</select><select class="inp" id="tkDow" hidden>' + DOWS.map((d, k) => '<option value="' + k + '"' + (k === 1 ? " selected" : "") + ">" + d + "</option>").join("") + '</select><input class="inp" type="time" id="tkTime" value="07:00" aria-label="At"><label class="chk"><input type="checkbox" id="tkWeb" checked> Search the web first</label><button class="btn dark" id="tkMake">Make the task</button></div><div class="status" id="tkStatus"></div></div>' +
 		'<div id="tkList"><div class="help">Loading…</div></div>', "wide");
 	$("#tkEvery").onchange = () => { $("#tkDow").hidden = $("#tkEvery").value !== "week"; };
@@ -10976,15 +10976,15 @@ async function exportAll() {
 	// (no keys or sign-in in it)
 	const { key, ...safe } = settings;
 	const data = { app: "andromeda", version: 1, at: Date.now(), convos: slimChats(), spaces: sp, spaceFiles: files, memories: memories(), settings: safe };
-	download("andromeda-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(data, null, 1));
+	download("celestin-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(data, null, 1));
 	toast("Exported");
 }
 async function importAll(f) {
 	let d;
-	try { d = JSON.parse(await f.text()); } catch { toast("That file isn't an Andromeda export"); return; }
+	try { d = JSON.parse(await f.text()); } catch { toast("That file isn't a Celestin export"); return; }
 	// an older export is just the list of chats
 	if (Array.isArray(d)) d = { convos: d };
-	if (!d || typeof d !== "object" || (!Array.isArray(d.convos) && !Array.isArray(d.spaces))) { toast("That file isn't an Andromeda export"); return; }
+	if (!d || typeof d !== "object" || (!Array.isArray(d.convos) && !Array.isArray(d.spaces))) { toast("That file isn't a Celestin export"); return; }
 	// what's already here stays as it is; only what's missing is added
 	const have = new Set(convos.map((c) => c.id));
 	const chats = (d.convos || []).filter((c) => c && c.id && Array.isArray(c.msgs) && c.msgs.length && !have.has(c.id));
@@ -11008,11 +11008,11 @@ async function importAll(f) {
 const WHATS_NEW = { v: "2026-10-26", items: [
 	['<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/>', "Made things open beside the chat", "Apps, games and pages open in a panel next to the conversation, with their code a click away."],
 	['<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 16.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>', "Canvas for writing", "Edit a long answer like a document, or ask for changes to all of it or just what you select."],
-	['<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', "Projects", "Chats that share instructions and files, so Andromeda always has the background."],
+	['<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', "Projects", "Chats that share instructions and files, so Celestin always has the background."],
 	['<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', "Tasks", "It does things by itself on a schedule, even with this page closed: a morning brief, a weekly summary."],
 	['<circle cx="6" cy="8" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M8 9.5l2.6 6M16 9.5l-2.6 6"/>', "A team on every answer", "Your request is split into tiny, precise pieces, each done by the model that's best at exactly that, working together."],
 	['<path d="M12 5v14M5 12h14"/>', "Everything in the + menu", "Deep research, pictures, video, music, apps, study sets, documents, your computer and apps."],
-	['<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', "Auto, Fast, Max, or one model", "Andromeda decides by default. Pick a style too: Concise, Explanatory, Learning…"],
+	['<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/>', "Auto, Fast, Max, or one model", "Celestin decides by default. Pick a style too: Concise, Explanatory, Learning…"],
 	['<path d="M3 12h2M7 8v8M11 5v14M15 9v6M19 11v2"/>', "Talk to it", "A voice screen that listens, thinks and speaks. Tap to interrupt."],
 	['<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/>', "Run code from an answer", "Python and JavaScript run right here, with their output and charts."],
 	['<path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/>', "Share, Library, temporary chats", "Share any chat as a link, find everything it made, and chat without saving."],
@@ -11020,7 +11020,7 @@ const WHATS_NEW = { v: "2026-10-26", items: [
 function showWhatsNew(force) {
 	if (!force && store.get("seenNew", "") === WHATS_NEW.v) return;
 	store.set("seenNew", WHATS_NEW.v);
-	openModal('<div class="wn"><div class="wn-mark"><svg><use href="#logo"/></svg></div><h2>What\'s new in Andromeda</h2><p class="sub">Everything the best assistants can do, and a few things they can\'t.</p><div class="wn-grid">' +
+	openModal('<div class="wn"><div class="wn-mark"><svg><use href="#logo"/></svg></div><h2>What\'s new in Celestin</h2><p class="sub">Everything the best assistants can do, and a few things they can\'t.</p><div class="wn-grid">' +
 		WHATS_NEW.items.map(([d, t, s], k) => '<div class="wn-it" style="animation-delay:' + (k * 0.04).toFixed(2) + 's">' + svgOf(d, 20) + "<div><b>" + esc(t) + "</b><span>" + esc(s) + "</span></div></div>").join("") +
 		'</div><div class="row" style="justify-content:flex-end;margin-top:18px"><button class="btn dark" id="wnOk">Start</button></div></div>', "wide");
 	$("#wnOk").onclick = () => { closeModal(); $("#input").focus(); };
@@ -11184,7 +11184,7 @@ function renderLanding() {
 	}
 }
 
-// a slow two-armed spiral of points: the Andromeda galaxy, in the page's own ink
+// a slow two-armed spiral of points: the Celestin galaxy, in the page's own ink
 let skyStars = null;
 // The galaxy: on the home page round the hero, and quietly behind the app's welcome. live() says when it's on screen
 // (it stops drawing otherwise); clear() gives what it thins out round, so it never sits on top of words.

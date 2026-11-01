@@ -1,5 +1,5 @@
 // The owner's desk, for what used to be the admin page: run on the owner's computer (signed in to Cloudflare with
-// `npx wrangler login`), it reads and changes Andromeda's database directly. Nothing here is online.
+// `npx wrangler login`), it reads and changes Celestin's database directly. Nothing here is online.
 //
 //   node owner.mjs pending                     payments waiting to be confirmed (check your e-wallet first)
 //   node owner.mjs approve <payment id>        a confirmed payment: its plan starts, or its credits are added

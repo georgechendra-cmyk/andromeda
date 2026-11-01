@@ -1,4 +1,4 @@
-// Andromeda as an app: it installs (home screen, desktop) and opens without a connection.
+// Celestin as an app: it installs (home screen, desktop) and opens without a connection.
 // The page itself always comes fresh from the network when there is one, so an update shows up straight away; the copy
 // kept here is only for when there's no connection. The libraries it loads from the CDNs are each a fixed version, so
 // they're kept once fetched. Nothing else is touched: every request to the credits server and the models goes straight

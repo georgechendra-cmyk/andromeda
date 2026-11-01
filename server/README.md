@@ -1,6 +1,6 @@
-# Andromeda credits server
+# Celestin credits server
 
-Lets people pay you for credits and use Andromeda with **your** AI keys, without ever seeing them.
+Lets people pay you for credits and use Celestin with **your** AI keys, without ever seeing them.
 It runs free on Cloudflare (the free plan is enough to start).
 
 Nothing costs you money until someone pays. Your AI balance can start at **0**: when someone buys,

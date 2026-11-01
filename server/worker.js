@@ -1,4 +1,4 @@
-// Andromeda credits server.
+// Celestin credits server.
 //
 // Holds the owner's AI keys (secrets, never sent to a browser), keeps each user's credit balance, and charges every
 // request. Models are reached through Cloudflare AI Gateway's Unified Billing (OpenAI, Anthropic, Google, xAI) or
@@ -7,7 +7,7 @@
 // user has, because its worst-case cost is reserved before it is sent and the unused part is refunded when the real
 // cost comes back.
 //
-// 1 credit = creditUsd (default $0.01) of usage at Andromeda's prices. Andromeda's price is the model's list price
+// 1 credit = creditUsd (default $0.01) of usage at Celestin's prices. Celestin's price is the model's list price
 // times a multiplier that depends on how expensive the model is (cheap models carry a bigger multiple, top models a
 // smaller one, so a big build never feels expensive). Prices, plans, free credits and how the shop runs are all set here
 // in the code: the owner asks for changes, and there's no admin page (payments by QRIS are approved with owner.mjs).
@@ -356,7 +356,7 @@ async function googleSignIn(req, env) {
 }
 async function authUser(req, env) {
 	const token = bearer(req);
-	if (!token) throw fail(401, "Sign in to use Andromeda credits.");
+	if (!token) throw fail(401, "Sign in to use Celestin credits.");
 	const row = await env.DB.prepare("SELECT u.* , s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?").bind(await sha256hex(token)).first();
 	if (!row || row.expires_at < now()) throw fail(401, "Your session ended. Sign in again.");
 	row.owner = isOwner(row.id);
@@ -517,7 +517,7 @@ function outOfCredits(u, c) {
 	const more = plan.paid ? " A credit pack keeps you going right now." : " A plan gives you far more, or a credit pack keeps you going right now.";
 	if (plan.paid && plan.month && monthLeft(u, plan) < 1000) return fail(402, "You've used this month's credits on " + plan.name + ". Pay for next month early and its credits are there at once, or a credit pack keeps you going right now.");
 	if (plan.week && u.week_at > now() && weekUsed(u) >= plan.week * 1000 - 999) return fail(402, "You've used this week's credits" + (plan.paid ? " on " + plan.name : "") + ". They're back in " + waitText(u.week_at) + "." + more);
-	if (u.free_capped && u.free_reset_at > now()) return fail(402, "Andromeda's free credits for today are all used up. Yours come back in " + waitText(u.free_reset_at) + "." + more);
+	if (u.free_capped && u.free_reset_at > now()) return fail(402, "Celestin's free credits for today are all used up. Yours come back in " + waitText(u.free_reset_at) + "." + more);
 	if (u.free_reset_at > now() && plan.credits > 0) return fail(402, (plan.share < plan.credits ? "You've used your free credits for now. " + plan.share + " more come back in " : "You've used " + (plan.paid ? "your " + plan.name + " credits" : "your free credits") + " for these " + plan.hours + " hours. They're back in ") + waitText(u.free_reset_at) + "." + more);
 	return fail(402, "You're out of credits. A plan or a credit pack keeps you going.");
 }
@@ -715,7 +715,7 @@ function routes(env, model, web, tools) {
 		if (lab === "openai" && web && !tools) out.push({ kind: "responses", lab, url: base + "responses", headers, names, fee: 1.05, native: true });
 		out.push({ kind: "gateway", lab, url: base + "chat/completions", headers, names, fee: 1.05, native: false });
 	}
-	if (env.OPENROUTER_KEY) out.push({ kind: "openrouter", lab, url: orBase(env) + "/chat/completions", headers: { Authorization: "Bearer " + env.OPENROUTER_KEY, "HTTP-Referer": env.SITE_URL || "https://andromeda.app", "X-Title": "Andromeda" }, names: [model], fee: 1, native: true });
+	if (env.OPENROUTER_KEY) out.push({ kind: "openrouter", lab, url: orBase(env) + "/chat/completions", headers: { Authorization: "Bearer " + env.OPENROUTER_KEY, "HTTP-Referer": env.SITE_URL || "https://andromeda.app", "X-Title": "Celestin" }, names: [model], fee: 1, native: true });
 	// a live question goes first to a way where the model searches the web itself, the way its search was rated
 	return web ? [...out.filter((w) => w.native), ...out.filter((w) => !w.native)] : out;
 }
@@ -1411,7 +1411,7 @@ async function charge(env, userId, model, held, usd, mt) {
 	]);
 	return charged;
 }
-const orHeaders = (env) => ({ Authorization: "Bearer " + env.OPENROUTER_KEY, "Content-Type": "application/json", "HTTP-Referer": env.SITE_URL || "https://andromeda.app", "X-Title": "Andromeda" });
+const orHeaders = (env) => ({ Authorization: "Bearer " + env.OPENROUTER_KEY, "Content-Type": "application/json", "HTTP-Referer": env.SITE_URL || "https://andromeda.app", "X-Title": "Celestin" });
 // the studio's models are WaveSpeed's (WAVESPEED_KEY) or OpenRouter's
 function studioOpen(env) {
 	if (!env.OPENROUTER_KEY && !wsOn(env)) throw fail(503, "Pictures, videos and voice aren't on this server yet.");
@@ -1951,7 +1951,7 @@ async function toolDocs(req, env) {
 	return json({ library: pick.id, title: pick.title, text });
 }
 
-// a live web search for Andromeda working on its own (Tavily or Brave, when the server has a key for one)
+// a live web search for Celestin working on its own (Tavily or Brave, when the server has a key for one)
 async function toolSearch(req, env, user) {
 	const b = await body(req);
 	const q = String(b.query || "").trim();
@@ -1966,7 +1966,7 @@ async function toolFetch(req, env) {
 	if (!/^https?:$/.test(u.protocol) || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[?::1)/.test(u.hostname)) throw fail(400, "That link can't be opened.");
 	let r;
 	try {
-		r = await fetch(u.toString(), { headers: { "User-Agent": "Mozilla/5.0 (compatible; Andromeda/1.0)", Accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.5" }, redirect: "follow", signal: AbortSignal.timeout(12000) });
+		r = await fetch(u.toString(), { headers: { "User-Agent": "Mozilla/5.0 (compatible; Celestin/1.0)", Accept: "text/html,text/plain,application/json;q=0.9,*/*;q=0.5" }, redirect: "follow", signal: AbortSignal.timeout(12000) });
 	} catch { throw fail(502, "That page didn't answer."); }
 	if (!r.ok) throw fail(502, "That page answered " + r.status + ".");
 	const type = r.headers.get("Content-Type") || "";
@@ -2010,7 +2010,7 @@ async function shareDel(env, user, sid) {
 	return json({ ok: true });
 }
 
-// ------------------------------------------------------------------ Andromeda's own measurements
+// ------------------------------------------------------------------ Celestin's own measurements
 // Every checked team answer says, piece by piece, whether that piece held up, with a few tags for exactly what the
 // piece was ("python", "pandas", "csv-cleaning"). Added up across everyone, this measures which model is best at things
 // no public leaderboard measures. Only tags and pass/fail are kept, never what anyone wrote.
@@ -2047,7 +2047,7 @@ async function skillsGet(env, url) {
 
 // ------------------------------------------------------------------ tasks
 // Something to do by itself on a schedule (like ChatGPT's tasks): "every weekday at 7, the AI news that matters". Each run
-// is an ordinary request made for the person (their credits, the models Andromeda picked for it, a live web search),
+// is an ordinary request made for the person (their credits, the models Celestin picked for it, a live web search),
 // and its answer waits for them in the app.
 const EVERY = ["once", "hour", "day", "weekdays", "week"];
 function nextRun(t, after) {
@@ -2117,7 +2117,7 @@ async function taskRunNow(env, ctx, user, tid) {
 	const r = await runTask(env, ctx, t);
 	return json({ run: r });
 }
-// one run: the request as the person would send it, the models tried in the order Andromeda picked them
+// one run: the request as the person would send it, the models tried in the order Celestin picked them
 async function runTask(env, ctx, t) {
 	const user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(t.user_id).first();
 	if (!user) return null;
@@ -2126,7 +2126,7 @@ async function runTask(env, ctx, t) {
 	if (!models.length) models = ["anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol", "google/gemini-3.8-flash"];
 	const when = new Date(now() + (Number(t.tz) || 0) * 60e3).toISOString().slice(0, 16).replace("T", " ");
 	const messages = [
-		{ role: "system", content: "You are Andromeda. This is a task the user set up to run by itself on a schedule, and it's running now: " + when + " in their time. Do it completely, as a finished message to them: what matters first, no preamble, and no questions back (they aren't here to answer). Use Markdown." },
+		{ role: "system", content: "You are Celestin. This is a task the user set up to run by itself on a schedule, and it's running now: " + when + " in their time. Do it completely, as a finished message to them: what matters first, no preamble, and no questions back (they aren't here to answer). Use Markdown." },
 		{ role: "user", content: t.prompt },
 	];
 	let text = "", error = "", used = "";
@@ -2204,7 +2204,7 @@ async function lemonWebhook(req, env) {
 	if (a.status !== "paid") return json({ ok: true, ignored: true });
 	const userId = ev.meta?.custom_data?.user_id;
 	const user = userId && (await env.DB.prepare("SELECT id FROM users WHERE id = ?").bind(userId).first());
-	if (!user) throw fail(400, "Order has no Andromeda account attached.");
+	if (!user) throw fail(400, "Order has no Celestin account attached.");
 	const ref = "lemon:" + ev.data.id;
 	if (await env.DB.prepare("SELECT id FROM payments WHERE ref = ?").bind(ref).first()) return json({ ok: true, duplicate: true });
 	const c = await config(env);

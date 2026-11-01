@@ -1,8 +1,8 @@
-// Andromeda Connector: the apps on this computer, for Andromeda in your browser.
+// Celestin Connector: the apps on this computer, for Celestin in your browser.
 //
 // Any MCP server (the same ones Claude Desktop uses: Blender, Figma, Unity, your files, GitHub, a database...) runs here,
-// and Andromeda talks to it over http://127.0.0.1:8765. Servers come from connections.json beside this file and, if you
-// use Claude Desktop, from its own config, so whatever you've set up for Claude works in Andromeda too.
+// and Celestin talks to it over http://127.0.0.1:8765. Servers come from connections.json beside this file and, if you
+// use Claude Desktop, from its own config, so whatever you've set up for Claude works in Celestin too.
 //
 //   node tools/connector.mjs            (or double-click "CONNECT APPS.bat")
 //
@@ -11,8 +11,8 @@
 //                     "files": { "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "C:/Users/me/Documents"] },
 //                     "some-online-one": { "url": "https://example.com/mcp", "headers": { "Authorization": "Bearer ..." } } } }
 //
-// Only Andromeda can use it: it listens on this computer alone, answers only Andromeda's own pages, and wants the
-// pairing code it prints (paste it into Andromeda once, under Connect apps).
+// Only Celestin can use it: it listens on this computer alone, answers only Celestin's own pages, and wants the
+// pairing code it prints (paste it into Celestin once, under Connect apps).
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
@@ -59,8 +59,8 @@ function start(name, s) {
 			let m;
 			try { m = JSON.parse(line); } catch { continue; }
 			if (m.id != null && !m.method && p.waiting.has(m.id)) { p.waiting.get(m.id)(m); p.waiting.delete(m.id); }
-			// the server asking Andromeda something (roots, sampling): not offered, said so, so it never waits forever
-			else if (m.id != null && m.method) child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: m.id, error: { code: -32601, message: "Not supported by Andromeda" } }) + "\n");
+			// the server asking Celestin something (roots, sampling): not offered, said so, so it never waits forever
+			else if (m.id != null && m.method) child.stdin.write(JSON.stringify({ jsonrpc: "2.0", id: m.id, error: { code: -32601, message: "Not supported by Celestin" } }) + "\n");
 		}
 	});
 	child.stderr.on("data", (d) => process.stderr.write("[" + name + "] " + d));
@@ -96,7 +96,7 @@ http.createServer(async (req, res) => {
 	const cors = allowed && origin ? { "Access-Control-Allow-Origin": origin, "Vary": "Origin", "Access-Control-Allow-Headers": "authorization, content-type, accept, mcp-session-id, mcp-protocol-version", "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS", "Access-Control-Expose-Headers": "mcp-session-id", "Access-Control-Allow-Private-Network": "true" } : {};
 	const send = (status, obj, extra = {}) => { res.writeHead(status, { "Content-Type": "application/json", ...cors, ...extra }); res.end(obj == null ? "" : JSON.stringify(obj)); };
 	if (req.method === "OPTIONS") { res.writeHead(allowed ? 204 : 403, cors); return res.end(); }
-	if (!allowed) return send(403, { error: "Only Andromeda can use this connector." });
+	if (!allowed) return send(403, { error: "Only Celestin can use this connector." });
 	if ((req.headers.authorization || "") !== "Bearer " + CODE) return send(401, { error: "Wrong pairing code. Copy it from the connector's window." });
 	const url = new URL(req.url, "http://x");
 	const all = servers();
@@ -130,14 +130,14 @@ http.createServer(async (req, res) => {
 	}
 }).listen(PORT, "127.0.0.1", () => {
 	const names = Object.keys(servers());
-	console.log("\n  Andromeda Connector is on. Leave this window open while you use Andromeda.\n");
-	console.log("  Pairing code (paste it into Andromeda, under Connect apps):  " + CODE + "\n");
+	console.log("\n  Celestin Connector is on. Leave this window open while you use Celestin.\n");
+	console.log("  Pairing code (paste it into Celestin, under Connect apps):  " + CODE + "\n");
 	console.log("  Apps: " + (names.length ? names.join(", ") : "none yet. Add them to tools/connections.json (see connections.example.json)") + "\n");
 });
 
 // ------------------------------------------------------------------ this computer itself
 // What an engineer at this computer does: run commands and programs (and keep long ones going in the background), read,
-// write and edit files, find and search them, open things, and look at the screen. Andromeda asks the user before
+// write and edit files, find and search them, open things, and look at the screen. Celestin asks the user before
 // anything that changes something, showing exactly what (the command, the file and the change).
 const HOME = homedir(), WIN = process.platform === "win32";
 const SKIP = /^(node_modules|\.git|\.gradle|build|dist|target|__pycache__|\.venv|venv|\.next|\.cache|AppData)$/;
