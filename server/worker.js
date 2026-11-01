@@ -67,6 +67,9 @@ const DEFAULT_CONFIG = {
 	support: "celestinsupportai@gmail.com",
 	// plans and packs on sale
 	open: false,
+	// Changed your mind: within "days" of paying, with less than "usedShare" of what was bought used, the money back
+	// (the plan or credits end when it's asked for)
+	refund: { days: 7, usedShare: 0.2 },
 };
 
 // The owner's own account: no limits at all (what it uses is still counted). Named by its account id, never its email: a
@@ -111,6 +114,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/login/resend" && m === "POST") return loginResend(req, env);
 	if (p === "/api/password/forgot" && m === "POST") return passwordForgot(req, env);
 	if (p === "/api/password/reset" && m === "POST") return passwordReset(req, env);
+	if (p === "/api/support" && m === "POST") return supportNew(req, env);
 	if (p === "/api/login" && m === "POST") return login(req, env);
 	if (p === "/api/auth/google" && m === "POST") return googleSignIn(req, env);
 	if (p === "/api/webhooks/lemonsqueezy" && m === "POST") return lemonWebhook(req, env);
@@ -149,6 +153,10 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/tools/fetch" && m === "POST") return toolFetch(req, env);
 	if (p === "/api/tools/search" && m === "POST") return toolSearch(req, env, user);
 	if (p === "/api/payments/qris" && m === "POST") return qrisPayment(req, env, user);
+	if (p === "/api/support" && m === "GET") return supportList(env, user);
+	let tkt;
+	if ((tkt = p.match(/^\/api\/support\/(\d{6})\/solved$/)) && m === "POST") return supportSolved(env, user, tkt[1]);
+	if (p === "/api/refunds" && m === "POST") return refundAsk(req, env, user);
 	if (p === "/api/uploads" && m === "POST") return uploadPut(req, env, user, url);
 	throw fail(404, "Not found");
 }
@@ -224,7 +232,7 @@ async function config() {
 }
 function publicConfig(c) {
 	const { every, share } = freeStep(c);
-	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share, week: Number(c.free.week) || 0 }, plans: c.plans.map(({ lemonVariant, ...p }) => p), packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: { provider: c.checkout.provider, links: c.checkout.links }, support: c.support, open: !!c.open };
+	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share, week: Number(c.free.week) || 0 }, plans: c.plans.map(({ lemonVariant, ...p }) => p), packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: { provider: c.checkout.provider, links: c.checkout.links }, support: c.support, open: !!c.open, refund: c.refund };
 }
 
 // ------------------------------------------------------------------ accounts
@@ -363,6 +371,7 @@ async function deleteMe(env, user) {
 		q("DELETE FROM task_runs WHERE user_id = ?"),
 		q("DELETE FROM tasks WHERE user_id = ?"),
 		q("DELETE FROM uploads WHERE user_id = ?"),
+		q("DELETE FROM support WHERE user_id = ?"),
 		q("DELETE FROM jobs WHERE user_id = ?"),
 		q("DELETE FROM skill_days WHERE user_id = ?"),
 		q("UPDATE usage SET user_id = 'deleted' WHERE user_id = ?"),
@@ -510,6 +519,8 @@ function columns(env) {
 		}
 		const ucols = new Set(((await env.DB.prepare("PRAGMA table_info(usage)").all()).results || []).map((r) => r.name));
 		for (const k of ["in_tok", "cached_tok", "out_tok"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS support (id TEXT PRIMARY KEY, user_id TEXT, email TEXT NOT NULL, category TEXT, subject TEXT, message TEXT NOT NULL, details TEXT, status TEXT NOT NULL DEFAULT 'open', ip TEXT, created_at INTEGER NOT NULL)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS support_user ON support (user_id, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS email_codes (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, pass TEXT, tries INTEGER NOT NULL DEFAULT 0, sent INTEGER NOT NULL DEFAULT 0, window_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
@@ -2335,6 +2346,99 @@ async function lemonWebhook(req, env) {
 		.bind(pid, user.id, plan ? "plan:" + plan.id : pack ? pack.id : null, (Number(a.total) || 0) / 100, a.currency || "USD", credits * 1000, ref, now()).run();
 	await addCredits(env, pid);
 	return json({ ok: true });
+}
+
+// ------------------------------------------------------------------ support: help when people need it
+// A request gets a number at once. The owner gets an email with everything needed to answer (and a link that opens a
+// reply to the customer); the customer gets a copy with the number, and can answer that email to add more. Signed in or
+// not (not being able to sign in is a common reason to write), kept from flooding by a few an hour from one place.
+const SUPPORT_KINDS = ["Payments and refunds", "Plans and credits", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
+async function optionalUser(req, env) {
+	try { return bearer(req) ? await authUser(req, env) : null; } catch { return null; }
+}
+const escHtml = (t) => String(t || "").replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+async function openTicket(env, { user, email, category, message, details, ip }) {
+	const c = await config(env);
+	let tid = "";
+	for (let k = 0; k < 5 && !tid; k++) {
+		const n = String(100000 + (crypto.getRandomValues(new Uint32Array(1))[0] % 900000));
+		const r = await env.DB.prepare("INSERT OR IGNORE INTO support (id, user_id, email, category, subject, message, details, status, ip, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)")
+			.bind(n, user ? user.id : null, email, category, message.split("\n")[0].slice(0, 80), message, details || null, ip || null, now()).run();
+		if (r.meta && r.meta.changes) tid = n;
+	}
+	if (!tid) throw fail(500, "Couldn't save that just now. Try again.");
+	const tag = "[Celestin #" + tid + "]";
+	let mailed = false;
+	if (mailOn(env)) {
+		try {
+			const reply = "mailto:" + encodeURIComponent(email) + "?subject=" + encodeURIComponent("Re: " + tag + " " + category) + "&body=" + encodeURIComponent("Hi,\n\n\n\nCelestin support\n\n> " + message.slice(0, 600).replace(/\n/g, "\n> "));
+			if (c.support) await sendMail(env, c.support, tag + " " + category + ": " + message.slice(0, 60).replace(/\s+/g, " "),
+				"From: " + email + (user ? " (account " + user.id + ")" : " (not signed in)") + "\nAbout: " + category + "\n\n" + message + (details ? "\n\nDetails:\n" + details : "") + "\n\nReply: " + reply,
+				'<div style="font-family:system-ui,sans-serif;font-size:14px;color:#111;line-height:1.5"><p><b>From:</b> ' + escHtml(email) + (user ? " (account " + user.id + ")" : " (not signed in)") + "<br><b>About:</b> " + escHtml(category) + '</p><p style="white-space:pre-wrap;border-left:3px solid #ddd;padding-left:12px">' + escHtml(message) + "</p>" + (details ? '<p style="color:#555;white-space:pre-wrap;font-size:13px"><b>Details:</b>\n' + escHtml(details) + "</p>" : "") + '<p><a href="' + escHtml(reply) + '" style="display:inline-block;background:#111;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Reply to the customer</a></p></div>');
+			await sendMail(env, email, "We got your message " + tag, "Thanks for writing. Your request number is #" + tid + ".\n\nWe read every message ourselves and usually answer within 24 hours. To add anything, reply to this email.\n\nWhat you wrote:\n" + message + "\n\nCelestin support",
+				'<div style="font-family:system-ui,sans-serif;font-size:15px;color:#111;line-height:1.55"><p>Thanks for writing. Your request number is <b>#' + tid + "</b>.</p><p>We read every message ourselves and usually answer within 24 hours. To add anything, reply to this email.</p><p style=\"color:#555;white-space:pre-wrap;border-left:3px solid #ddd;padding-left:12px\">" + escHtml(message) + "</p><p>Celestin support</p></div>");
+			mailed = true;
+		} catch {}
+	}
+	return { id: tid, mailed };
+}
+async function supportNew(req, env) {
+	const b = await body(req);
+	const user = await optionalUser(req, env);
+	// (a box people can't see, that only robots fill in)
+	if (b.website) return json({ ok: true, id: "000000" });
+	const email = user ? user.email : cleanEmail(b.email);
+	const category = SUPPORT_KINDS.includes(b.category) ? b.category : "Other";
+	const message = String(b.message || "").trim().slice(0, 5000);
+	if (message.length < 10) throw fail(400, "Tell us a little more, so we can help (at least a sentence).");
+	const details = b.details ? String(typeof b.details === "string" ? b.details : JSON.stringify(b.details, null, 1)).slice(0, 4000) : "";
+	const ip = await sha256hex("ip:" + (req.headers.get("CF-Connecting-IP") || "?"));
+	const hour = await env.DB.prepare("SELECT COUNT(*) AS n FROM support WHERE ip = ? AND created_at > ?").bind(ip, now() - 3600e3).first();
+	const day = await env.DB.prepare("SELECT COUNT(*) AS n FROM support WHERE email = ? AND created_at > ?").bind(email, now() - 86400e3).first();
+	if ((hour && hour.n >= 5) || (day && day.n >= 6)) throw fail(429, "We've got your messages. We'll answer those first: no need to send more.");
+	const t = await openTicket(env, { user, email, category, message, details, ip });
+	return json({ ok: true, id: t.id, mailed: t.mailed });
+}
+async function supportList(env, user) {
+	const rows = await env.DB.prepare("SELECT id, category, subject, status, created_at FROM support WHERE user_id = ? ORDER BY created_at DESC LIMIT 20").bind(user.id).all();
+	return json({ requests: rows.results || [] });
+}
+async function supportSolved(env, user, tid) {
+	const r = await env.DB.prepare("UPDATE support SET status = 'solved' WHERE id = ? AND user_id = ?").bind(tid, user.id).run();
+	if (!(r.meta && r.meta.changes)) throw fail(404, "That request isn't yours, or isn't there.");
+	return json({ ok: true });
+}
+// A refund the customer asks for themselves: a payment of theirs (QRIS or card), within the policy's days, with less than
+// its share used since (a plan: what's been charged since it started, against its month of credits; a pack: what's left of
+// its credits). What it bought ends at once; the owner gets a request with exactly what to send back and to whom.
+async function refundAsk(req, env, user) {
+	const c = await config(env), b = await body(req);
+	const pay = await env.DB.prepare("SELECT * FROM payments WHERE id = ? AND user_id = ?").bind(String(b.payment || ""), user.id).first();
+	if (!pay) throw fail(404, "That payment isn't on your account.");
+	if (pay.status !== "approved" || !["qris", "card"].includes(pay.method)) throw fail(400, pay.status === "refund_requested" ? "That refund is already on its way." : "That payment can't be refunded here: write to us and we'll sort it out.");
+	const since = Number(pay.decided_at || pay.created_at) || 0, days = Number(c.refund.days) || 7, share = Number(c.refund.usedShare) || 0.2;
+	if (now() - since > days * 86400e3) throw fail(400, "Refunds are for the first " + days + " days after paying. Write to us if something went wrong, and we'll see what we can do.");
+	const plan = /^plan:/.test(pay.pack || "") ? c.plans.find((x) => "plan:" + x.id === pay.pack) : null;
+	const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first();
+	let undo;
+	if (plan) {
+		const used = await env.DB.prepare("SELECT COALESCE(SUM(charged_mc), 0) AS mc FROM usage WHERE user_id = ? AND created_at >= ?").bind(user.id, since).first();
+		if ((Number(used && used.mc) || 0) > share * plan.month * 1000) throw fail(400, "More than " + Math.round(share * 100) + "% of that month's credits are used, so it can't be refunded. Write to us if something went wrong.");
+		// that month comes off the end (and its credits off what's left); with nothing left, the plan ends now
+		const until = Math.max(now(), Number(u.plan_until || 0) - plan.days * 86400e3);
+		undo = env.DB.prepare("UPDATE users SET plan_until = ?, plan_mc = MAX(0, plan_mc - ?) WHERE id = ?").bind(until, plan.month * 1000, user.id);
+	} else {
+		if ((Number(u.balance_mc) || 0) < (1 - share) * pay.credits_mc) throw fail(400, "More than " + Math.round(share * 100) + "% of those credits are used, so they can't be refunded. Write to us if something went wrong.");
+		undo = env.DB.prepare("UPDATE users SET balance_mc = MAX(0, balance_mc - ?) WHERE id = ?").bind(pay.credits_mc, user.id);
+	}
+	const ok = await env.DB.prepare("UPDATE payments SET status = 'refund_requested' WHERE id = ? AND status = 'approved'").bind(pay.id).run();
+	if (!(ok.meta && ok.meta.changes)) throw fail(409, "That refund is already on its way.");
+	await undo.run();
+	const what = plan ? plan.name + " (a month)" : (c.packs.find((x) => x.id === pay.pack) || {}).name + " pack";
+	const money = (pay.currency === "IDR" ? "Rp" + Number(pay.amount).toLocaleString("id-ID") : pay.amount + " " + pay.currency);
+	const how = pay.method === "card" ? "Refund it in Lemon Squeezy (Orders, find this order, Refund)." : "Send " + money + " back to the account it was paid from (it was paid as: " + (pay.note || "no name given") + "), then reply to the customer that it's on its way.";
+	const t = await openTicket(env, { user, email: user.email, category: "Payments and refunds", message: "Refund request: " + what + ", " + money + " (" + pay.method.toUpperCase() + ").\n\nTO DO: " + how, details: "Payment " + pay.id + ", paid " + new Date(since).toISOString().slice(0, 16).replace("T", " ") + " UTC. What it bought has been taken off the account already.", ip: null });
+	return json({ ok: true, ticket: t.id, me: await meOf(env, user) });
 }
 
 // ------------------------------------------------------------------ pictures shared with a connected app

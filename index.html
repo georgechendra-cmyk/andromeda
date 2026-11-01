@@ -282,6 +282,18 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .qa details { border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; margin-bottom: 6px; background: var(--bg); }
 .qa summary { cursor: pointer; padding: 11px 0; font-size: 14px; font-weight: 500; list-style: none; }
 .qa summary::-webkit-details-marker { display: none; }
+.act.ic.on { color: var(--text); background: var(--bg3); }
+.hl-search { margin: 4px 0 6px; }
+.hl-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
+.hl-cats button { border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 999px; padding: 4px 11px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.hl-cats button.on { color: var(--text); border-color: var(--line2); background: var(--bg3); }
+.hl-box { margin-top: 18px; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--bg2); }
+.hl-box h3 { margin: 0 0 4px; font-size: 16px; }
+.hl-box textarea.inp { min-height: 110px; resize: vertical; padding-top: 10px; }
+.hl-req { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font-size: 13.5px; }
+.hl-req:first-child { border-top: 0; }
+.hl-req .sp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.hl-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .qa details p { margin: 0 0 12px; font-size: 13.5px; color: var(--muted); line-height: 1.55; }
 .qris { display: grid; grid-template-columns: 220px 1fr; gap: 18px; align-items: start; }
 .qris img { width: 100%; border-radius: 14px; border: 1px solid var(--line2); background: #fff; }
@@ -1692,7 +1704,7 @@ html { scroll-behavior: smooth; }
 	<div class="wrap reveal">
 		<div class="cta-end"><h2>Ask your first question.</h2><p class="sub2" style="margin:0 auto 26px">It already knows who should answer it.</p><button class="b pri lg" data-open-app>Try Celestin</button></div>
 	</div>
-	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Celestin</span><span class="sp"></span><a href="terms.html">Terms</a><a href="terms.html#usage">Usage Policy</a><a href="privacy.html">Privacy</a><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>© 2026 Celestin · all rights reserved · your chats stay in your browser</span></div></footer>
+	<footer class="foot"><div class="wrap"><span class="logo" style="font-size:14px"><svg class="mark" style="width:18px;height:18px"><use href="#logo"/></svg>Celestin</span><span class="sp"></span><a href="#help">Help</a><a href="terms.html">Terms</a><a href="terms.html#usage">Usage Policy</a><a href="privacy.html">Privacy</a><a href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener">GitHub</a><span>© 2026 Celestin · all rights reserved · your chats stay in your browser</span></div></footer>
 </div>
 
 <!-- ============================== the app ============================== -->
@@ -1727,6 +1739,7 @@ html { scroll-behavior: smooth; }
 				<button class="mi" role="menuitem" data-open-memory><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17l-7-4-7 4z"/></svg><span><b>Memory</b></span></button>
 				<button class="mi" role="menuitem" id="themeBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg><span><b>Light or dark</b></span></button>
 				<button class="mi" role="menuitem" data-go-home><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span><b>Celestin's home page</b></span></button>
+				<button class="mi" role="menuitem" data-open-help><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 4"/><path d="M12 17h.01"/></svg><span><b>Help and support</b></span></button>
 				<hr>
 				<button class="mi" role="menuitem" id="signOutBtn"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l-5-5 5-5M5 12h11"/></svg><span><b>Sign out</b></span></button>
 			</div>
@@ -2960,7 +2973,7 @@ const CAPS = {
 	study: ["Study sets", "Flashcards, quizzes, mind maps, podcasts and simulations"],
 	panel: ["Open what's made beside the chat", "Apps, games and pages open in a panel next to the conversation"],
 	computer: ["Your computer and connected apps", "Through the connector, asking you before anything changes"],
-	learn: ["Learn which models do best", "Shares anonymous results (a few topic words and whether each piece held up, never what you wrote), so every answer gets better"],
+	learn: ["Help improve Celestin", "On by default. Celestin learns which AI models give the best answers from your 👍 and 👎, when you ask for another answer, and whether code runs: only which model answered, a few topic words and the outcome, never what you wrote"],
 };
 const capOn = (k) => !(settings.off || {})[k];
 const skillOn = (k) => !(settings.offSkills || {})[k];
@@ -3778,8 +3791,28 @@ const ACT_IC = {
 	regen: '<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>',
 	edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
 	go: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+	up: '<path d="M7 10v11H4V10z"/><path d="M7 10l4-7a2 2 0 0 1 3 2l-1 5h6a2 2 0 0 1 2 2.3l-1.4 7A2 2 0 0 1 17.6 21H7"/>',
+	down: '<path d="M7 14V3H4v11z"/><path d="M7 14l4 7a2 2 0 0 0 3-2l-1-5h6a2 2 0 0 0 2-2.3l-1.4-7A2 2 0 0 0 17.6 3H7"/>',
 	canvas: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 16.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>',
 };
+// 👍 and 👎 on an answer whose model is known (Help improve Celestin)
+const rateBtns = (m, i) => (m.by && creditsMode() && account ? [[1, "Good answer", ACT_IC.up], [0, "Bad answer", ACT_IC.down]].map(([v, l, ic]) => actBtn("rate", v + ":" + i, l, ic).replace('class="act ic"', 'class="act ic' + (m.rated === v ? " on" : "") + '"')).join("") : "");
+// What Celestin learns from: which model answered, a few topic words, and whether it was good (never what was written),
+// into its own record of which models do best at exactly that. Only with Help improve Celestin on
+function learnSend(results) {
+	if (!capOn("learn") || !creditsMode() || !account) return;
+	const rs = results.filter((r) => r && r.model).map((r) => ({ model: r.model, ok: !!r.ok, tags: (r.tags && r.tags.length ? r.tags : ["general"]).slice(0, 6) }));
+	if (rs.length) api("/api/skills", { method: "POST", body: JSON.stringify({ results: rs }) }).catch(() => {});
+}
+function rateMsg(v) {
+	const [ok, i] = String(v).split(":"), m = current && current.msgs[+i];
+	if (!m || !m.by) return;
+	const good = ok === "1" ? 1 : 0, was = m.rated;
+	m.rated = was === good ? null : good;
+	if (m.rated != null) learnSend([{ model: m.by, tags: m.tags, ok: good }]);
+	save();
+	toast(m.rated == null ? "Rating removed" : good ? "Thanks! Celestin learns from this which models answer best" : "Thanks. Celestin learns from this. Try again (↻) for another answer");
+}
 const actBtn = (attr, v, label, d) => '<button class="act ic" data-' + attr + '="' + v + '" title="' + esc(label) + '" aria-label="' + esc(label) + '"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg></button>";
 // what the model thought: open while it thinks, folded once it answers ("Thought for 6s")
 function thinkHtml(m) {
@@ -3886,7 +3919,7 @@ function renderMsg(m, i) {
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
 		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? councilHtml(m, body) : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
-		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
+		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + rateBtns(m, i) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
 // Streaming: the network delivers text in bursts; what's on screen is revealed a few characters every frame
@@ -5670,6 +5703,8 @@ async function runAuto(text, atts) {
 	for (const m of tryList) {
 		msg.chips = [routeChip(m, task)];
 		msg.model = m.id;
+		msg.by = m.id;
+		msg.tags = tags;
 			msg.task = task;
 			msg.spec = specFor(task);
 		updateLast();
@@ -5693,6 +5728,7 @@ async function runAuto(text, atts) {
 				for (const f of [...strongest.slice(0, 3), m].filter((x, k, a) => a.findIndex((y) => y.id === x.id) === k)) {
 					try {
 						msg.model = f.id;
+						msg.by = f.id;
 						msg.chips = [routeChip(f, task)];
 						await stream(f.id, [...hist, { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive the whole answer again with the code fixed. Check the fix line by line before you answer." }], (t) => { msg.text = t; updateLast(); }, busy.signal, effortExtra(f.id), msg);
 						fixer = f;
@@ -6346,7 +6382,7 @@ async function runQuarks(text, atts) {
 			const each = g.pieces.length > 1 && !writes ? splitGroup(out, g.pieces) : null;
 			g.pieces.forEach((p, k) => outs.set(p.id, each ? each[k] : k === 0 ? out : "(in " + g.pieces[0].label + ", above)"));
 			sts.forEach((s) => { s.model = st.model; s.id = st.id; done(s); });
-			if (writes) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; }
+			if (writes) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; msg.by = st.id; msg.tags = (PROFILE && PROFILE.tags) || []; }
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
 			sts.forEach((s) => done(s, niceError(e)));
@@ -9809,7 +9845,7 @@ function openAccount() {
 			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:' + (lines.length || plan ? 8 : 18) + 'px"><div><div class="acct-bal">' + (me ? (me.owner ? "Unlimited" : creditsText(me.credits)) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">' + (me && me.owner ? "no limits on your account" : "credits you can use now") + '</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>' + (plan && plan.paid ? "Plans and packs" : "Get more") + "</button></div></div>" +
 			(plan ? '<div class="help" style="font-size:13px;margin-bottom:4px"><b style="color:var(--text)">' + esc(plan.name) + "</b>" + (plan.paid && plan.until ? " · until " + new Date(plan.until).toLocaleDateString() : "") + "</div>" : "") +
 			(lines.length ? '<div class="help" style="font-size:13px;margin-bottom:18px;line-height:1.6">' + lines.join("<br>") + "</div>" : "") +
-			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>For</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(planName(p.pack) || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + (p.credits ? creditsText(p.credits) : "") + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status) + "</span></td></tr>").join("") + "</table></div>" : "") +
+			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>For</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(planName(p.pack) || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + (p.credits ? creditsText(p.credits) : "") + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status === "refund_requested" ? "refund on its way" : p.status) + "</span>" + (p.status === "approved" && (p.method === "qris" || p.method === "card") && Date.now() - p.created_at < (((pricing && pricing.refund && pricing.refund.days) || 7) * 86400e3) ? ' <button class="btn" data-refund="' + esc(p.id) + '" style="padding:2px 9px;font-size:12px">Refund</button>' : "") + "</td></tr>").join("") + "</table></div>" : "") +
 			'<div class="row" style="justify-content:space-between;align-items:center;margin-top:6px"><button class="btn" id="acOut">Sign out</button><span class="legal-links">' + LEGAL_LINKS + ' · <a href="#" id="acDelete">Delete account</a></span><button class="btn" id="acDone">Done</button></div>');
 		$("#acRefresh").onclick = async () => { await refreshMe(); draw(); };
 		// deleting the account: everything the server keeps for it goes (payments stay, as the law requires, without the
@@ -9841,6 +9877,94 @@ function openAccount() {
 	refreshMe().then(() => { if ($("#acRefresh")) draw(); });
 }
 
+// ---------------------------------------------------------------- help and support
+// What people ask most, answered right here; anything else is a request with a number, read by a person, answered by
+// email (usually within a day); and their own requests, with where each one is. Refunds, within the policy, they do
+// themselves from their payments.
+const SUPPORT_KINDS = ["Payments and refunds", "Plans and credits", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
+const HELP = [
+	["Plans and credits", "What is a credit, and how many do I have?", "Credits measure how much you use. An everyday answer uses about 3, a change to your code about 6 to 25, a full app or game about 150 to 250. Your account (the menu at the bottom left) shows what you can use now, and when more comes back."],
+	["Plans and credits", "When do my credits come back?", "Free: your 5-hour window refills 5 hours after you first use it, up to your weekly limit. A paid plan gives you a month of credits, used at most so much in any 5 hours; ran out early? Pay for next month early and its credits arrive at once."],
+	["Plans and credits", "What's the difference between plans and credit packs?", "A plan is a month of credits at the best price. A pack is extra credits that never expire, used once your plan's credits for now are gone, so you never have to wait."],
+	["Payments and refunds", "I paid with QRIS. When does my plan start?", "QRIS payments are checked by hand, usually within a few hours. Your plan or credits start as soon as it's confirmed. If it's been more than a day, write to us below with the name you paid from."],
+	["Payments and refunds", "Can I get a refund?", "Yes. Within 7 days of paying, if you've used less than a fifth of what you bought, open Account, find the payment and press Refund. The plan or credits end right away, and the money goes back to the account you paid from, usually within 2 working days. Outside that, write to us: if something didn't work as it should, we'll put it right."],
+	["Signing in", "My sign-in code didn't arrive", "It comes from celestinsupportai@gmail.com within a minute. Look in Spam or Promotions, and check the email is spelled right. Still nothing? Press Send a new code, or write to us below."],
+	["Signing in", "I forgot my password", "On the sign-in page press Forgot your password?, type your email, and we'll send a code that lets you choose a new one."],
+	["Something isn't working", "An app or game didn't build, or stopped halfway", "Ask again in the same chat with what went wrong (\"it shows a white screen\", \"the player can't jump\"): Celestin fixes it from there. If it keeps failing, write to us below and we'll look at it."],
+	["An answer was wrong", "An answer was wrong or made something up", "Press 👎 under it: Celestin learns which models get this kind of question right. Press ↻ for another answer, from another model if you like. Celestin is told never to make things up and to say when it isn't sure, but AI can still be wrong, so check what matters."],
+	["Privacy and my data", "Where are my chats kept?", "In your browser, on your device. Our server passes your messages to the AI models that answer them and doesn't keep them, except chats you share and scheduled tasks. Settings lets you export everything or delete your chats; Account lets you delete your account."],
+	["Privacy and my data", "What does Help improve Celestin do?", "When it's on (it is by default, in Settings), Celestin learns which AI models give the best answers from your 👍 and 👎, retries and whether code runs: only which model answered, a few topic words and the outcome, never what you wrote. Turn it off anytime."],
+	["Other", "Can Celestin use my other apps, like Higgsfield?", "Yes: Connect apps (in the sidebar) links apps that speak MCP. Celestin then uses them when a request needs them; Higgsfield, for example, makes pictures and videos on your own Higgsfield account."],
+];
+function openHelp(kind) {
+	const signed = !!account;
+	let cat = kind && SUPPORT_KINDS.includes(kind) ? kind : "";
+	openModal('<h2>Help and support</h2><p class="sub">Answers to what people ask most. Still stuck? Write to us below: a real person reads every message, and we usually answer within 24 hours.</p>' +
+		'<input class="inp hl-search" id="hlSearch" placeholder="Search help: credits, refund, sign in…" autocomplete="off">' +
+		'<div class="hl-cats" id="hlCats"></div><div class="qa" id="hlList" style="margin-top:10px"></div>' +
+		'<div class="hl-box" id="hlBox"><h3>Write to us</h3><p class="help" style="margin:0 0 12px">You get a request number and a copy by email. Reply to that email anytime to add more.</p>' +
+		'<div class="field"><label for="hlKind">What is it about?</label><select class="inp" id="hlKind">' + SUPPORT_KINDS.map((k) => '<option' + (k === cat ? " selected" : "") + ">" + esc(k) + "</option>").join("") + "</select></div>" +
+		(signed ? "" : '<div class="field"><label for="hlEmail">Your email</label><input class="inp" id="hlEmail" type="email" autocomplete="email" placeholder="So we can answer you"></div>') +
+		'<div class="field"><label for="hlMsg">What happened?</label><textarea class="inp" id="hlMsg" placeholder="What you did, what you expected, and what happened instead"></textarea></div>' +
+		'<input class="hl-hp" id="hlWeb" tabindex="-1" autocomplete="off" aria-hidden="true">' +
+		'<label class="chk" style="margin:2px 0 12px"><input type="checkbox" id="hlDetails" checked> Include details that help us fix it faster (your plan, recent payments and this browser; never your chats)</label>' +
+		'<div class="status" id="hlStatus" role="status"></div><div class="row" style="justify-content:flex-end"><button class="btn dark" id="hlSend">Send</button></div></div>' +
+		(signed ? '<div class="field" style="margin-top:18px"><label>Your requests</label><div id="hlMine" class="help">Loading…</div></div>' : "") +
+		'<div class="row" style="justify-content:space-between;align-items:center;margin-top:14px"><span class="legal-links">' + LEGAL_LINKS + '</span><button class="btn" id="hlClose">Close</button></div>', "wide");
+	const list = () => {
+		const q = $("#hlSearch").value.trim().toLowerCase();
+		const hits = HELP.filter(([k, t, a]) => (!cat || k === cat) && (!q || (t + " " + a + " " + k).toLowerCase().includes(q)));
+		$("#hlList").innerHTML = hits.length ? hits.map(([, t, a]) => "<details" + (hits.length <= 2 ? " open" : "") + "><summary>" + esc(t) + "</summary><p>" + esc(a) + "</p></details>").join("") : '<p class="help">Nothing on that yet: write to us below and we\'ll answer you directly.</p>';
+		$("#hlCats").innerHTML = ["", ...SUPPORT_KINDS.filter((k) => HELP.some((h) => h[0] === k))].map((k) => '<button data-hlcat="' + esc(k) + '"' + (k === cat ? ' class="on"' : "") + ">" + esc(k || "All") + "</button>").join("");
+		$$("[data-hlcat]").forEach((b) => (b.onclick = () => { cat = b.dataset.hlcat; if (cat) $("#hlKind").value = cat; list(); }));
+	};
+	list();
+	$("#hlSearch").oninput = list;
+	$("#hlClose").onclick = closeModal;
+	const say = (t, bad) => { $("#hlStatus").className = "status" + (bad ? " bad" : ""); $("#hlStatus").textContent = t; };
+	$("#hlSend").onclick = async () => {
+		const message = $("#hlMsg").value.trim();
+		if (message.length < 10) { say("Tell us a little more, so we can help (at least a sentence).", true); return; }
+		const last = current && [...current.msgs].reverse().find((m) => m.error);
+		const details = $("#hlDetails").checked ? { plan: me && me.plan && me.plan.id, credits: me && me.credits, payments: ((me && me.payments) || []).slice(0, 3).map((p) => p.id + " " + p.status + " " + (p.pack || "")), lastError: last ? String(last.error).slice(0, 300) : "", browser: navigator.userAgent, page: location.origin + location.pathname, at: new Date().toString() } : null;
+		$("#hlSend").disabled = true;
+		say("Sending…");
+		try {
+			const j = await api("/api/support", { method: "POST", body: JSON.stringify({ category: $("#hlKind").value, email: signed ? "" : ($("#hlEmail") && $("#hlEmail").value) || "", message, details, website: $("#hlWeb").value }) });
+			$("#hlBox").innerHTML = '<h3>Sent: request #' + esc(j.id) + "</h3><p class=\"help\" style=\"margin:6px 0 0\">" + (j.mailed ? "We've emailed you a copy (look in Spam if you don't see it). " : "") + "A person reads it and usually answers within 24 hours, by email." + "</p>";
+			if (signed) mine();
+		} catch (e) { say(e instanceof TypeError ? "Couldn't reach Celestin's server. Check your connection and try again." : e.message, true); $("#hlSend").disabled = false; }
+	};
+	const mine = async () => {
+		const box = $("#hlMine");
+		if (!box) return;
+		try {
+			const j = await api("/api/support");
+			box.innerHTML = (j.requests || []).length ? j.requests.map((r) => '<div class="hl-req"><b>#' + esc(r.id) + '</b><span class="sp">' + esc(r.category + ": " + r.subject) + '</span><span class="badge-s">' + (r.status === "solved" ? "solved" : "open") + "</span>" + (r.status === "solved" ? "" : '<button class="btn" data-hlsolved="' + esc(r.id) + '">Solved</button>') + "</div>").join("") : "None yet.";
+			$$("[data-hlsolved]").forEach((b) => (b.onclick = async () => { try { await api("/api/support/" + b.dataset.hlsolved + "/solved", { method: "POST" }); mine(); } catch (e) { toast(e.message); } }));
+		} catch { box.textContent = "Couldn't load them just now."; }
+	};
+	mine();
+}
+// A refund, asked for from the payment itself: the policy said plainly first, then done at once if it fits
+function askRefund(id) {
+	const p = ((me && me.payments) || []).find((x) => x.id === id);
+	if (!p) return;
+	const P = pricing || DEFAULT_PRICING, plan = /^plan:/.test(p.pack || "") && (P.plans || []).find((x) => "plan:" + x.id === p.pack), pack = !plan && (P.packs || []).find((x) => x.id === p.pack);
+	const what = plan ? plan.name + " (a month)" : pack ? pack.name + " pack" : "this payment";
+	openModal("<h2>Refund " + esc(what) + "?</h2><p class=\"sub\">You get " + money(p.amount, p.currency) + " back" + (p.method === "qris" ? " to the account you paid from, usually within 2 working days" : " to your card through our payment partner") + ". " + (plan ? "This month of " + esc(plan.name) + " ends now, with its credits." : "Its credits are removed now.") + " Refunds are for the first 7 days, when less than a fifth of what you bought is used.</p>" +
+		'<div class="status" id="rfStatus"></div><div class="row" style="justify-content:flex-end;gap:8px;margin-top:10px"><button class="btn" id="rfNo">Keep it</button><button class="btn dark" id="rfGo">Refund it</button></div>');
+	$("#rfNo").onclick = () => openAccount();
+	$("#rfGo").onclick = async () => {
+		$("#rfGo").disabled = true;
+		try {
+			const j = await api("/api/refunds", { method: "POST", body: JSON.stringify({ payment: id }) });
+			if (j.me) me = j.me;
+			drawAccount();
+			openModal("<h2>Refund on its way</h2><p class=\"sub\">Request #" + esc(j.ticket || "") + ". " + (p.method === "qris" ? "The money goes back to the account you paid from, usually within 2 working days." : "Your card is refunded through our payment partner, usually within a few days.") + " We've emailed you a copy.</p><div class=\"row\" style=\"justify-content:flex-end\"><button class=\"btn dark\" data-open-account>Done</button></div>");
+		} catch (e) { $("#rfStatus").className = "status bad"; $("#rfStatus").textContent = e.message; $("#rfGo").disabled = false; }
+	};
+}
 function money(amount, cur) {
 	try { return new Intl.NumberFormat(cur === "IDR" ? "id-ID" : undefined, { style: "currency", currency: cur || "USD", maximumFractionDigits: cur === "IDR" ? 0 : 2 }).format(amount || 0); }
 	catch { return (cur || "") + " " + amount; }
@@ -9927,7 +10051,7 @@ async function openPricing() {
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +
 		"<details><summary>Which models do I get?</summary><p>All of them, on every plan. Celestin picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
-		"<details><summary>My payment hasn't shown up</summary><p>QRIS payments are confirmed by hand, usually within a few hours. Card payments arrive within a minute. If anything goes wrong" + (P.support ? ", contact " + esc(P.support) : ", contact us") + " and we'll sort it out.</p></details></div>" +
+		"<details><summary>My payment hasn't shown up</summary><p>QRIS payments are confirmed by hand, usually within a few hours. Card payments arrive within a minute. If anything goes wrong" + ", " + '<a href="#help">write to us</a>' + " and we'll sort it out.</p></details></div>" +
 		'<div class="row" style="justify-content:space-between;align-items:center;margin-top:14px"><span class="legal-links">' + LEGAL_LINKS + '</span><div class="row">' + (SERVER && !account ? '<button class="btn" data-open-account>Sign in</button>' : "") + '<button class="btn" id="prClose">Close</button></div></div>', "wide");
 	$("#prClose").onclick = closeModal;
 	$$("[data-cur]").forEach((b) => b.onclick = () => { payCur = b.dataset.cur; store.set("payCur", payCur); openPricing(); });
@@ -10029,7 +10153,7 @@ function openChats(on) {
 }
 
 document.addEventListener("click", (e) => {
-	const t = e.target.closest("button, a[data-go-home], .convo, .member, .step .sh, [data-open-settings], [data-open-account], [data-open-pricing], [data-pick], [data-project], [data-selffix]");
+	const t = e.target.closest("button, a[data-go-home], .convo, .member, .step .sh, [data-open-settings], [data-open-account], [data-open-pricing], [data-open-help], [data-pick], [data-project], [data-selffix]");
 	if (!t) { if (e.target === $("#overlay")) closeModal(); return; }
 	if (t.hasAttribute("data-open-app")) { navTo(() => showApp(true)); return; }
 	if (t.hasAttribute("data-go-home")) { e.preventDefault(); navTo(() => showApp(false)); return; }
@@ -10074,6 +10198,9 @@ document.addEventListener("click", (e) => {
 		save();
 		send({ mindmap: "Make a mind map of " + topic, sim: "Make a simulation of " + topic, flashcards: "Make 10 flashcards on " + topic, quiz: "Quiz me on " + topic, podcast: "Make a 5 minute podcast about " + topic }[k]);
 	}
+	else if (t.dataset.rate != null) { const box = t.closest(".msg"), i = +t.dataset.rate.split(":")[1]; rateMsg(t.dataset.rate); if (box && current.msgs[i]) box.outerHTML = renderMsg(current.msgs[i], i); }
+	else if (t.dataset.openHelp != null) openHelp();
+	else if (t.dataset.refund != null) askRefund(t.dataset.refund);
 	else if (t.dataset.copymsg != null) { navigator.clipboard.writeText(current.msgs[t.dataset.copymsg].text); toast("Copied"); }
 	else if (t.dataset.speak != null) { speech.say(current.msgs[t.dataset.speak].text); }
 	// a new answer to the last message, the one there kept as a version
@@ -10851,6 +10978,8 @@ $("#regenPop").addEventListener("click", (e) => {
 	const i = current.msgs.map((x) => x.role).lastIndexOf("user");
 	if (i < 0) return;
 	const how = REGEN.find((x) => x[0] === b.dataset.rg);
+	const prev = current.msgs[current.msgs.length - 1];
+	if (prev && prev.role === "assistant" && prev.by && !prev.retried && prev.rated == null && (b.dataset.rgpin || !(how && how[2]))) { prev.retried = true; learnSend([{ model: prev.by, tags: prev.tags, ok: false }]); }
 	ONCE = b.dataset.rgpin ? { pin: b.dataset.rgpin } : how && how[2] ? { note: how[2] } : null;
 	editAt(i, current.msgs[i].text);
 });
@@ -11320,6 +11449,7 @@ addEventListener("hashchange", () => {
 	if (sh) { openShared(sh[1]); return; }
 	if (document.body.classList.contains("in-share")) closeShared();
 	if (location.hash === "#pricing") { showApp(true); openPricing(); return; }
+	if (location.hash === "#help") { openHelp(); return; }
 	const want = location.hash === "#app";
 	if (want !== document.body.classList.contains("in-app")) showApp(want);
 });
@@ -11383,6 +11513,7 @@ async function loadKept() {
 	if (SERVER && account) await refreshMe();
 	syncTasks();
 	if (location.hash === "#pricing") openPricing();
+	else if (location.hash === "#help") openHelp();
 	else if (inApp && !connected()) setTimeout(SERVER ? openAccount : openSettings, 600);
 	else if (inApp && !shareId) setTimeout(() => { if (!$("#overlay").classList.contains("show")) showWhatsNew(); }, 700);
 })();

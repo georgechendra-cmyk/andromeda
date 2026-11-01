@@ -126,6 +126,21 @@ CREATE TABLE IF NOT EXISTS skill_days (
 	PRIMARY KEY (user_id, day)
 );
 
+-- help requests: what someone wrote, its number, and whether it's solved (deleted with the account)
+CREATE TABLE IF NOT EXISTS support (
+	id TEXT PRIMARY KEY, -- six digits: the number people quote
+	user_id TEXT,
+	email TEXT NOT NULL,
+	category TEXT,
+	subject TEXT,
+	message TEXT NOT NULL,
+	details TEXT,
+	status TEXT NOT NULL DEFAULT 'open', -- open | solved
+	ip TEXT, -- a hash, to keep floods out
+	created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS support_user ON support (user_id, created_at);
+
 -- pictures shared with an app the user connected (it fetches them from a link): deleted after a day
 CREATE TABLE IF NOT EXISTS uploads (
 	id TEXT PRIMARY KEY, -- 96 random hex characters: the link
