@@ -9717,7 +9717,8 @@ async function googleButton(clientId, mode) {
 	if (!$("#gsiBtn")) return;
 	google.accounts.id.initialize({ client_id: clientId, callback: (r) => googleDone(r && r.credential), ux_mode: "popup", auto_select: false, cancel_on_tap_outside: true, itp_support: true });
 	const dark = document.documentElement.getAttribute("data-theme") !== "light";
-	google.accounts.id.renderButton($("#gsiBtn"), { type: "standard", theme: dark ? "filled_black" : "outline", size: "large", shape: "pill", text: mode === "in" ? "signin_with" : "signup_with", logo_alignment: "center", width: Math.max(220, Math.min(400, $("#gsiBtn").clientWidth || 320)) });
+	// (in the page's language, like the rest of the card, not the browser's)
+	google.accounts.id.renderButton($("#gsiBtn"), { type: "standard", theme: dark ? "filled_black" : "outline", size: "large", shape: "pill", text: mode === "in" ? "signin_with" : "signup_with", logo_alignment: "center", locale: document.documentElement.lang || "en", width: Math.max(220, Math.min(400, $("#gsiBtn").clientWidth || 320)) });
 }
 async function googleDone(credential) {
 	const st = $("#acStatus");
