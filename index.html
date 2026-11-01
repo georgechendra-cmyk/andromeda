@@ -295,7 +295,7 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 @media (max-width: 900px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .plans { grid-template-columns: 1fr; } .qris { grid-template-columns: 1fr; } }
 /* the shop: plans (Free, Plus, Max) in a row, credit packs as small top-ups under them */
-.plans.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.plans.three { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .plans.packs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .plans.packs .plan { padding: 14px 14px 12px; }
 .plans.packs .price { font-size: 22px; }
@@ -1661,7 +1661,7 @@ html { scroll-behavior: smooth; }
 		<div class="wrap">
 			<div class="split">
 				<div class="card big"><h3>Private by design</h3><p>Your chats, projects and memory stay on your device and export to a file whenever you want. No keys of yours to look after.</p><div class="kv"><div>Where chats live<b>this browser</b></div><div>Keys to manage<b>none</b></div><div>Card needed<b>no</b></div></div></div>
-				<div class="card big"><h3>Credits, not bills</h3><p>Free credits that come back every few hours. Plus and Max give you far more for a month, and a credit pack keeps you going whenever you don't want to wait.</p><div class="kv"><div>Free<b>every 5 hours</b></div><div>Plans<b>Plus, Max</b></div><div>Packs<b>instant</b></div></div></div>
+				<div class="card big"><h3>Credits, not bills</h3><p>Free credits that come back every few hours. Nova, Pulsar and Quasar give you far more for a month, and a credit pack keeps you going whenever you don't want to wait.</p><div class="kv"><div>Free<b>every 5 hours</b></div><div>Plans<b>from $20</b></div><div>Packs<b>instant</b></div></div></div>
 			</div>
 		</div>
 	</section>
@@ -1673,7 +1673,7 @@ html { scroll-behavior: smooth; }
 			<details><summary>Why not just use one model?</summary><p>No single model is best at everything. Labs leapfrog each other every few weeks, and the best coder is rarely the best researcher or the best writer. Andromeda keeps track so you don't have to.</p></details>
 			<details><summary>How does it decide?</summary><p>A fast model reads every request and decides what would serve you (an answer, an app, a video, research...) and how to do it. Then each part goes to the models that score highest on exactly that work: on LMArena's leaderboards (which answer people prefer) and on <a href="https://epoch.ai/benchmarks" target="_blank" rel="noopener">Epoch AI's benchmarks</a> (whether the code passes its tests, the maths is right, the facts are true), at the price that buys that quality and no more. You can also choose Fast, Max, or one model yourself.</p></details>
 			<details><summary>Can it use my computer?</summary><p>Only if you run its small connector on your computer, and it asks before it changes anything. Without it, Andromeda still runs code, searches and builds right in your browser.</p></details>
-			<details><summary>What does it cost?</summary><p>Everyone with an account gets free credits that come back every 5 hours. For more, Plus or Max gives you far more for a month (no auto-renewal), and a credit pack tops you up instantly.</p></details>
+			<details><summary>What does it cost?</summary><p>Everyone with an account gets free credits that come back every 5 hours. For more, a plan (Nova, Pulsar or Quasar) gives you far more for a month (no auto-renewal), and a credit pack tops you up instantly.</p></details>
 			<details><summary>Is my data safe?</summary><p>Your chats, projects and memory stay in this browser. What you ask goes through Andromeda's server to the model answering it, and isn't kept there.</p></details>
 			<details><summary>Which model answered me?</summary><p>The best one for each part, picked for you. "Show models used" on any answer shows who did what, and why.</p></details>
 		</div>
@@ -2739,7 +2739,7 @@ const quarkTied = (top, x, most = QUARK_MAX) => x.mid != null && top.mid != null
 // that the benchmarks measure costing nothing (Gemini 4 Argon coding at medium) is still taken on hard work, one that
 // costs a few points of getting it right isn't. (cap: the piece's own level; without one, how hard the request was read)
 const TIE_AT = { low: QUARK_MAX, medium: 0.45, high: 0.2 };
-function quarkFirst(list, cap, used, cost = callCost, worth) {
+function quarkFirst(list, cap, used, cost = callCost, worth, role) {
 	if (speed() === "max" || list.length < 2) return list;
 	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
 	const stakes = worth ?? STAKES[list[0] && list[0].task];
@@ -2747,6 +2747,21 @@ function quarkFirst(list, cap, used, cost = callCost, worth) {
 	// (a light model never writes the answer when the best isn't light: not tied, not cheaper, not as the next in line)
 	const light = (x) => FAST.test(x.m.id) && !FAST.test(top.m.id);
 	list = list.filter((x) => !light(x));
+	// Code isn't traded for price (the user's rule, Nov 1: the best coder writes and builds). Among the models level with
+	// the best on this exact request, the one whose code people prefer once it runs (the web-app board, where they use
+	// what was built) writes it; only its thinking may be lighter, where that's level with its own best. Checks and
+	// reviews (role "check") read code rather than write it, and stay on price.
+	if (role !== "check" && list[0] && list[0].task === "code" && top.mid != null) {
+		const idx = arenaIndex(), board = idx && idx["webdev:overall"];
+		const runs = (x) => { const e = board && board.get(x.m.id); return e ? Math.max(e.z ?? -Infinity, ...Object.values(e.eff || {})) : -Infinity; };
+		const level = list.filter((x) => x.mid != null && top.mid - x.mid <= WORTH_MAX && (x.learned || 0) >= (top.learned || 0) - 0.25 && Number.isFinite(cost(x, cap)));
+		const coder = level.length && level.reduce((a, b) => (runs(b) > runs(a) ? b : a));
+		if (coder && Number.isFinite(runs(coder))) {
+			const own = level.filter((x) => x.m.id === coder.m.id), best = own.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
+			const pick = own.filter((x) => x === best || quarkTied(best, x, most)).reduce((a, b) => (cost(b, cap) < cost(a, cap) ? b : a));
+			return [pick, ...list.filter((x) => x !== pick)];
+		}
+	}
 	const tied = list.filter((x) => x === top || quarkTied(top, x, most));
 	const low = Math.min(...tied.map((x) => cost(x, cap)));
 	if (!Number.isFinite(low)) return list;
@@ -4729,7 +4744,7 @@ const REVIEWER = "You review work before it's handed over, as the most exacting 
 // of work (or the cheapest a quark from it), never the one that did it
 async function reviewWork(what, work, kind, notModel, msg) {
 	const w = kind === "code" ? { "text:coding": 0.45, "factuality:coding": 0.2, "text:hard_prompts": 0.2, "text:industry_software_and_it_services": 0.15 } : { "text:expert": 0.35, "factuality:overall": 0.35, "text:hard_prompts": 0.3 };
-	const cands = otherLabFirst(bestFirst(quarkFirst(arenaRank(kind === "code" ? "code" : "reasoning", w).filter((x) => x.m.id !== notModel), "high")), notModel && provider(notModel), "high").slice(0, 3);
+	const cands = otherLabFirst(bestFirst(quarkFirst(arenaRank(kind === "code" ? "code" : "reasoning", w).filter((x) => x.m.id !== notModel), "high", null, undefined, undefined, "check")), notModel && provider(notModel), "high").slice(0, 3);
 	let lastErr;
 	for (const x of cands) {
 		try {
@@ -5454,7 +5469,8 @@ async function runAuto(text, atts) {
 				const first = msg.text;
 				msg.status = "Its code failed when run: fixing it";
 				updateLast();
-				const strongest = bestFirst(arenaRank(task).slice().sort((a, b) => b.score - a.score)).map((x) => x.m);
+				// (code: the best coder fixes it too, by the same rule that picked who writes it)
+				const strongest = bestFirst(task === "code" ? quarkFirst(arenaRank(task), "high") : arenaRank(task).slice().sort((a, b) => b.score - a.score)).map((x) => x.m);
 				let fixer = null;
 				for (const f of [...strongest.slice(0, 3), m].filter((x, k, a) => a.findIndex((y) => y.id === x.id) === k)) {
 					try {
@@ -5938,7 +5954,7 @@ async function runQuarks(text, atts) {
 		let ranked = arenaRank(kind, w);
 		if (seen && seen.except) ranked = ranked.filter((x) => x.m.id !== seen.except);
 		if (seen && seen.record) ranked = learned(ranked, seen.tags, seen.record, ranked);
-		ranked = quarkFirst(ranked, cap, seen && seen.used);
+		ranked = quarkFirst(ranked, cap, seen && seen.used, undefined, undefined, seen && seen.except ? "check" : undefined);
 		for (const x of ranked) {
 			const p = provider(x.m.id);
 			if (out.some((y) => y.m.id === x.m.id)) continue;
@@ -6665,7 +6681,7 @@ async function runApp(text, atts, pick) {
 		if (k < 0) {
 			// (when they come back, and what builds it now; never what it costs)
 			const w = me && (me.window || me.free), paidPlan = !!(me && me.plan && me.plan.paid);
-			throw fail("Building this app takes more credits than you have right now." + (w && w.backAt > Date.now() ? " Yours come back in " + untilText(w.backAt) + "." : "") + (paidPlan ? " A credit pack builds it now." : " Plus builds apps and games by the best builder at full effort, or a credit pack builds this one now."), 402);
+			throw fail("Building this app takes more credits than you have right now." + (w && w.backAt > Date.now() ? " Yours come back in " + untilText(w.backAt) + "." : "") + (paidPlan ? " A credit pack builds it now." : " A plan builds apps and games by the best builder at full effort, or a credit pack builds this one now."), 402);
 		}
 		buildCap = steps[k];
 	}
@@ -9418,18 +9434,22 @@ function money(amount, cur) {
 	catch { return (cur || "") + " " + amount; }
 }
 const DEFAULT_PRICING = {
-	creditUsd: 0.01, open: false, free: { credits: 50, hours: 5, every: 5, week: 200 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
+	creditUsd: 0.01, open: false, free: { credits: 150, hours: 5, every: 5, week: 200 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	plans: [
-		{ id: "plus", name: "Plus", credits: 300, hours: 5, week: 900, days: 30, popular: true, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
-		{ id: "max", name: "Max", credits: 1000, hours: 5, week: 2800, days: 30, prices: { USD: 60, IDR: 949000, EUR: 56, GBP: 48, SGD: 80, AUD: 92 } },
+		{ id: "nova", name: "Nova", credits: 900, hours: 5, week: 900, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "pulsar", name: "Pulsar", credits: 1100, hours: 5, week: 4850, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
+		{ id: "quasar", name: "Quasar", credits: 1800, hours: 5, week: 10150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
 	packs: [
-		{ id: "mini", name: "Mini", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
-		{ id: "starter", name: "Small", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
-		{ id: "plus", name: "Medium", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
-		{ id: "pro", name: "Large", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "mini", name: "Spark", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
+		{ id: "starter", name: "Flare", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
+		{ id: "plus", name: "Comet", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
+		{ id: "pro", name: "Meteor", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 	],
 };
+// nonstop coding by the best coder comes to about 360 credits an hour (about 12 requests of about 30)
+const CODE_HOUR = 360;
+const hoursText = (credits) => { const h = Math.round((credits / CODE_HOUR) * 2) / 2; return (h >= 1 ? String(h).replace(".5", "½") : "½").replace(/^0½$/, "½") + " h"; };
 let payCur = store.get("payCur", "") || (/^id\b/i.test(navigator.language || "") || /Jakarta|Makassar|Jayapura|Pontianak/.test(Intl.DateTimeFormat().resolvedOptions().timeZone || "") ? "IDR" : "USD");
 async function openPricing() {
 	await loadPricing();
@@ -9444,23 +9464,24 @@ async function openPricing() {
 	// card checkout links are per pack id, and "plan:<id>" per plan
 	const canPay = (key, price) => live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[key]));
 	const payLabel = (key, price) => (!live ? "Coming soon" : !canPay(key, price) ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card");
-	// a plan's window and week, and what a week comes to in everyday answers (about 5 credits each)
-	const tiles = (x) => '<div class="tiles"><div class="tile full"><b>' + creditsText(x.credits) + "</b><span>credits every " + x.hours + " hours</span></div>" +
-		(x.week ? '<div class="tile"><b>' + creditsText(x.week) + '</b><span>at most a week</span></div><div class="tile"><b>≈' + creditsText(Math.round(x.week / 5)) + "</b><span>answers a week</span></div>" : "") + "</div>";
+	// a plan's week, what one sitting holds, and what a week comes to in hours of nonstop coding (Free: everyday answers)
+	const tiles = (x, free) => '<div class="tiles"><div class="tile full"><b>' + creditsText(x.week || x.credits) + "</b><span>credits a week</span></div>" +
+		'<div class="tile"><b>' + creditsText(Math.min(x.credits, x.week || x.credits)) + "</b><span>in any " + x.hours + " hours</span></div>" +
+		(free ? '<div class="tile"><b>≈' + creditsText(Math.round((x.week || x.credits) / 3)) + "</b><span>answers a week</span></div>" : '<div class="tile"><b>≈' + hoursText(x.week || x.credits) + "</b><span>of coding a week</span></div>") + "</div>";
 	const times = (a, b) => { const r = a / b; return (Math.abs(r - Math.round(r)) < 0.05 ? String(Math.round(r)) : r.toFixed(1)) + "×"; };
-	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">just an account, no card</div>' + tiles(fp) +
-		'<ul class="feat"><li>Every model: the best one for each part of what you ask</li><li>Apps, study sets, documents and research</li><li>All back ' + fp.hours + " hours after you start</li></ul>" +
+	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">just an account, no card</div>' + tiles(fp, true) +
+		'<ul class="feat"><li>Every model: the best one for each part of what you ask</li><li>Build an app or game, then wait for your credits to come back</li><li>All back ' + fp.hours + " hours after you start</li></ul>" +
 		(SERVER && !account ? '<button class="btn" data-open-account>Create a free account</button>' : '<button class="btn" disabled>' + (account ? (mine ? "Included" : "Your plan") : "Coming soon") + "</button>") + "</div>";
 	const planCard = (p, i) => {
-		const price = p.prices[payCur], key = "plan:" + p.id, prev = i ? plans[i - 1] : fp;
+		const price = p.prices[payCur], key = "plan:" + p.id, prev = i ? plans[i - 1] : null;
 		const cur = !!mine && mine.id === p.id, lower = !!mine && rank(mine.id) > i;
-		const feats = [times(p.credits, prev.credits) + " " + (i ? prev.name + "'s" : "Free's") + " credits" + (p.week && prev.week ? ", " + times(p.week, prev.week) + " its week" : ""),
-			i ? "For building big apps and games all day" : "Every answer thought through fully (Free thinks a step lighter)",
-			"Big apps and games built by the best builder at full effort", "Credit packs on top whenever you need more"];
-		const tag = cur ? "Your plan" : p.popular && !mine ? "Most popular" : "";
+		const feats = ["Up to " + hoursText(Math.min(p.credits, p.week || p.credits)) + " of nonstop coding in one sitting",
+			prev ? times(p.week, prev.week) + " " + prev.name + "'s week, more for every rupiah" : "Code and apps by the best coder (Claude Opus 5.5 today)",
+			"Every answer thought through fully", "Credit packs on top whenever you need more"];
+		const tag = cur ? "Your plan" : p.popular && !mine ? "Recommended" : "";
 		return '<div class="plan' + (tag ? " popular" : "") + '">' + (tag ? '<span class="tag">' + tag + "</span>" : "") +
 			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">a month · ' + (cur && mine.until ? "yours until " + new Date(mine.until).toLocaleDateString() : "no auto-renewal") + "</div>" + tiles(p) +
-			'<ul class="feat">' + feats.map((f) => "<li>" + esc(f) + "</li>").join("") + "</ul>" +
+			'<ul class="feat">' + feats.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" +
 			'<button class="btn' + (tag ? " dark" : "") + '" data-plan="' + esc(p.id) + '"' + (canPay(key, price) && !lower ? "" : " disabled") + ">" + (lower ? "You're on " + esc(mine.name) : cur && canPay(key, price) ? "Add a month" : payLabel(key, price)) + "</button></div>";
 	};
 	const packCard = (p) => {
@@ -9477,8 +9498,9 @@ async function openPricing() {
 		'<div class="plans packs">' + P.packs.map(packCard).join("") + "</div>" +
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Your plan or credits start as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". It arrives automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
-		"<details><summary>How do plans work?</summary><p>Each plan gives you credits that all come back " + fp.hours + " hours after you start using them, the way Claude's limits work, up to a most per week. " + plans.map((p, i) => p.name + " gives you " + times(p.credits, (i ? plans[i - 1] : fp).credits) + " " + (i ? plans[i - 1].name + "'s" : "Free's")).join(", ") + ". Ran out? Wait for them to come back, or use a credit pack to keep going right away.</p></details>" +
-		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 to 5 credits. Big jobs use more: a hard question checked by a second top model about 40, a full app built by the best builder about 200. Your account shows what's left.</p></details>" +
+		"<details><summary>How do plans work?</summary><p>Each plan gives you credits for the week, and how many you can use in any " + fp.hours + " hours, the way Claude's limits work. Ran out? Wait for them to come back, or use a credit pack to keep going right away. The bigger plans give more for every rupiah.</p></details>" +
+		"<details><summary>How much coding is that?</summary><p>Nonstop coding with the best coder is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + " is about " + hoursText(p.week) + " a week").join(", ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
+		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a coding request about 20 to 40, a hard question checked by a second top model about 40, a full app built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +
 		"<details><summary>Which models do I get?</summary><p>All of them, on every plan. Andromeda picks the strongest model for each part of your request (for example Claude for code, GPT for maths, Gemini for long documents) and you can see which ones worked on any answer.</p></details>" +
@@ -9557,11 +9579,9 @@ async function openAdmin() {
 		'<div class="field"><label>QRIS image address</label><input class="inp" id="adQris" placeholder="e.g. qris.png (upload it next to index.html)" value="' + esc((c.qris && c.qris.image) || "") + '"></div>' +
 		'<div class="field"><label>Name shown on QRIS</label><input class="inp" id="adQrisName" value="' + esc((c.qris && c.qris.name) || "") + '"></div>' +
 		'<div class="field"><label>Card checkout links (one per plan and pack)</label>' + [...plans.map((p) => ({ key: "plan:" + p.id, name: p.name + " (a month)", variant: p.lemonVariant })), ...c.packs.map((p) => ({ key: p.id, name: p.name + " pack", variant: p.lemonVariant }))].map((x) => '<div class="row" style="margin-bottom:6px"><span style="width:110px;font-size:13px">' + esc(x.name) + '</span><input class="inp" data-link="' + esc(x.key) + '" placeholder="https://…lemonsqueezy.com/checkout/buy/…" value="' + esc((c.checkout.links || {})[x.key] || "") + '"><input class="inp" style="max-width:130px" data-variant="' + esc(x.key) + '" placeholder="variant id" value="' + esc(x.variant || "") + '"></div>').join("") + "</div>" +
-		'<div class="field"><label>Mark-up on OpenRouter cost</label><div class="row"><span style="font-size:13px">cheap ×</span><input class="inp" id="adM1" type="number" step="0.1" value="' + c.multipliers.cheap + '"><span style="font-size:13px">mid ×</span><input class="inp" id="adM2" type="number" step="0.1" value="' + c.multipliers.mid + '"><span style="font-size:13px">top ×</span><input class="inp" id="adM3" type="number" step="0.1" value="' + c.multipliers.top + '"></div><div class="help">Cheap means under $' + c.bands.cheapBelow + ", top means $" + c.bands.topFrom + " or more per million output tokens.</div></div>" +
-		'<div class="field"><label>Free plan</label><div class="row"><input class="inp" id="adFree" type="number" min="0" step="1" value="' + ((c.free && c.free.credits) ?? 50) + '"><span style="font-size:13px">credits, all back</span><input class="inp" id="adFreeH" type="number" min="1" step="1" value="' + ((c.free && c.free.hours) ?? 5) + '"><span style="font-size:13px">hours after they start (a share every</span><input class="inp" id="adFreeE" type="number" min="0" step="1" value="' + ((c.free && c.free.every) ?? 5) + '"><span style="font-size:13px">hours), at most</span><input class="inp" id="adFreeW" type="number" min="0" step="10" value="' + ((c.free && c.free.week) ?? 200) + '"><span style="font-size:13px">a week</span></div><div class="help">Everyone on Free gets these, used before bought credits. 50 back 5 hours after they start, at most 200 a week, is about 10 everyday answers a session, and costs you at most about Rp14,000 a week for someone who uses all of it. A share every fewer hours hands it back in parts. 0 turns them off (for the week: no weekly limit).</div></div>' +
-		'<div class="field"><label>The most you spend on free use a day</label><div class="row"><span style="font-size:13px">Rp</span><input class="inp" id="adFreeBudget" type="number" min="0" step="5000" value="' + ((c.free && c.free.budgetIdr) ?? 50000) + '"><span style="font-size:13px">at 1 US$ = Rp</span><input class="inp" id="adUsdIdr" type="number" min="1000" step="100" value="' + ((c.free && c.free.usdIdr) ?? 18000) + '"></div><div class="help">What free credits really cost you (the AI labs\' prices), added up each day (UTC). Past it, nobody\'s free credits refill until tomorrow; bought credits still work. ' + freeSpentText + '0 means no limit: then a crowd arriving at once costs whatever they use.</div></div>' +		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
-		'<div class="field"><label>Plans and prices (advanced)</label><textarea class="inp" id="adPlans" style="height:150px;padding:10px;font-family:var(--mono);font-size:12px">' + esc(JSON.stringify(plans.map(({ lemonVariant, ...p }) => p), null, 1)) + '</textarea><div class="help">credits: what comes back each window; hours: until it\'s all back; week: the most a week (0: no limit); days: how long a payment lasts. A credit costs you about Rp69 at the labs\' prices, so Plus used to its very limit (900 a week, about 3,900 a month) is about Rp270,000 of AI for Rp319,000.</div></div>' +
-		'<div class="field"><label>Packs and prices (advanced)</label><textarea class="inp" id="adPacks" style="height:150px;padding:10px;font-family:var(--mono);font-size:12px">' + esc(JSON.stringify(c.packs.map(({ lemonVariant, ...p }) => p), null, 1)) + '</textarea><div class="status" id="adStatus"></div></div>' +
+		'<div class="field"><label>Prices and plans</label><div class="help">Prices, plans, packs, free credits and the daily free budget are set in the code: ask Claude to change them. ' + freeSpentText + "</div></div>" +
+		'<div class="field"><label>Support contact (shown in the FAQ)</label><input class="inp" id="adSupport" value="' + esc(c.support || "") + '"></div>' +
+		'<div class="status" id="adStatus"></div>' +
 		'<div class="field"><label>Give a plan by hand</label><div class="row"><input class="inp" id="adPEmail" placeholder="email"><select class="inp" id="adPPlan" style="max-width:120px">' + plans.map((p) => '<option value="' + esc(p.id) + '">' + esc(p.name) + "</option>").join("") + '</select><input class="inp" id="adPDays" type="number" min="1" max="400" value="30" style="max-width:80px"><span style="font-size:13px">days</span><button class="btn" id="adPGive">Give</button></div><div class="help">From today, or added to the end of the plan they\'re on.</div></div>' +
 		'<div class="field"><label>Give or take credits by hand</label><div class="row"><input class="inp" id="adEmail" placeholder="email"><input class="inp" id="adCredits" type="number" placeholder="credits (- to take)" style="max-width:150px"><button class="btn" id="adGive">Apply</button></div></div>' +
 		'<div class="field"><label>Accounts (' + o.users.length + ')</label><table class="ptable"><tr><th>Email</th><th>Plan</th><th>Bought credits</th><th>Joined</th></tr>' + o.users.slice(0, 30).map((u) => "<tr><td>" + esc(u.email) + "</td><td>" + (u.plan && u.plan_until > Date.now() ? esc(planName("plan:" + u.plan)) + " until " + new Date(u.plan_until).toLocaleDateString() : "Free") + "</td><td>" + creditsText(u.balance_mc / 1000) + "</td><td>" + when(u.created_at) + "</td></tr>").join("") + "</table></div>" +
@@ -9578,16 +9598,11 @@ async function openAdmin() {
 	};
 	$("#adSave").onclick = async () => {
 		const st = $("#adStatus");
-		let packs;
-		try { packs = JSON.parse($("#adPacks").value); } catch { st.className = "status bad"; st.textContent = "The packs text isn't valid JSON."; return; }
-		packs = packs.map((p) => ({ ...p, lemonVariant: ($("[data-variant=\"" + p.id + "\"]") || {}).value || "" }));
-		let plansNext;
-		try { plansNext = JSON.parse($("#adPlans").value); } catch { st.className = "status bad"; st.textContent = "The plans text isn't valid JSON."; return; }
-		plansNext = plansNext.map((p) => ({ ...p, lemonVariant: ($("[data-variant=\"plan:" + p.id + "\"]") || {}).value || "" }));
+		const variants = {};
+		$$("[data-variant]").forEach((i) => { if (i.value.trim()) variants[i.dataset.variant] = i.value.trim(); });
 		const links = {};
 		$$("[data-link]").forEach((i) => { if (i.value.trim()) links[i.dataset.link] = i.value.trim(); });
-		const next = { ...c, open: $("#adOpen").checked, qris: { image: $("#adQris").value.trim(), name: $("#adQrisName").value.trim() }, checkout: { ...c.checkout, links },
-			multipliers: { cheap: Number($("#adM1").value) || c.multipliers.cheap, mid: Number($("#adM2").value) || c.multipliers.mid, top: Number($("#adM3").value) || c.multipliers.top, media: c.multipliers.media || 2 }, free: { credits: Math.max(0, Number($("#adFree").value) || 0), hours: Math.max(1, Number($("#adFreeH").value) || 24), every: Math.max(0, Number($("#adFreeE").value) || 0), week: Math.max(0, Number($("#adFreeW").value) || 0), budgetIdr: Math.max(0, Number($("#adFreeBudget").value) || 0), usdIdr: Math.max(1000, Number($("#adUsdIdr").value) || 18000), dailyCap: 0 }, support: $("#adSupport").value.trim(), plans: plansNext, packs };
+		const next = { open: $("#adOpen").checked, qris: { image: $("#adQris").value.trim(), name: $("#adQrisName").value.trim() }, checkout: { provider: c.checkout.provider, links, variants }, support: $("#adSupport").value.trim() };
 		try { await call("/api/admin/config", { method: "PUT", body: JSON.stringify(next) }); pricing = null; toast("Saved"); openAdmin(); }
 		catch (e) { st.className = "status bad"; st.textContent = e.message; }
 	};

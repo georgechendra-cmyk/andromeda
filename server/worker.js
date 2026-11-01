@@ -9,40 +9,45 @@
 //
 // 1 credit = creditUsd (default $0.01) of usage at Andromeda's prices. Andromeda's price is the model's list price
 // times a multiplier that depends on how expensive the model is (cheap models carry a bigger multiple, top models a
-// smaller one, so a big build never feels expensive). Everything is set from the admin page, nothing is hard-coded.
+// smaller one, so a big build never feels expensive). Prices, plans and free credits are set here in the code (the owner
+// asks for changes); the admin page only runs the shop (sales on, QRIS, checkout links, approving payments).
 
 const DEFAULT_CONFIG = {
 	creditUsd: 0.01,
 	// the model's list price x this. 3x is about where profit peaks for a new AI app with free rivals: a 10% higher price
 	// loses some 15-20% of buyers, so profit is nearly flat from 2.5x to 4x and falls past it. Bands are by the model's
 	// output price in dollars per million tokens.
-	multipliers: { cheap: 3, mid: 3, top: 3, media: 2 },
+	// (media at 3x too: a plan's worst case assumes no credit costs the owner more than a chat credit does)
+	multipliers: { cheap: 3, mid: 3, top: 3, media: 3 },
 	bands: { cheapBelow: 2, topFrom: 15 },
 	// the most one answer may write, whatever the balance (a model asked to think gets room for that on top); only what's
 	// written is charged, so this only keeps a long answer from being cut off
 	maxTokens: 32000,
-	// (the shape of these settings: 2 since plans; an older saved copy is brought up to it in config())
-	v: 2,
 	// Everyone is on a plan: Free, or one bought for a month. A plan is a window of credits that all comes back "hours"
-	// after it's first used (Claude's 5-hour limit), and at most "week" credits in 7 days, so a month's cost is known
-	// before anyone uses it. Free's "every" can hand the window back in shares instead (every 0 or = hours: all at once).
-	// budgetIdr: the most the owner spends on free use a day (the real cost of what free windows paid for, in rupiah at
-	// usdIdr); past it, no free window refills until tomorrow. dailyCap: an older limit on credits handed out (0 = off)
-	free: { credits: 50, hours: 5, every: 5, week: 200, budgetIdr: 25000, usdIdr: 18000, dailyCap: 0 },
-	// a month of a plan (QRIS, confirmed by hand like a pack; renewing early adds a month to the end). At the labs' list
-	// price plus the gateway's 15%, a credit costs the owner about Rp69, so a plan used to its very limit every week still
-	// leaves 12-15% (Plus: 900 a week, ~3,900 a month, Rp270k of AI for Rp319k), and an average subscriber uses far less
+	// after it's first used (Claude's 5-hour limit), and at most "week" credits in 7 days. Free's "every" can hand the
+	// window back in shares instead (every 0 or = hours: all at once). budgetIdr: the most the owner spends on free use a
+	// day (the real cost of what free windows paid for, in rupiah at usdIdr); past it, no free window refills until
+	// tomorrow. dailyCap: an older limit on credits handed out (0 = off).
+	// Free's window holds a small app by the best builder (about 100-150 credits), so anyone can build one, then wait.
+	free: { credits: 150, hours: 5, every: 5, week: 200, budgetIdr: 25000, usdIdr: 18000, dailyCap: 0 },
+	// A month of a plan (QRIS, confirmed by hand like a pack; renewing early adds a month to the end). A credit costs the
+	// owner at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), and a plan's month is 30/7 weeks,
+	// so even someone who uses every last credit of every week leaves the owner a profit: "week" x 30/7 x Rp69 is the most
+	// a plan can cost. The dearer the plan, the thinner that worst case (15%, 10%, 6%) and the more each rupiah buys, so
+	// the bigger plans are the better deal. Each window holds 2-3 hours of nonstop coding by Opus 5.5 (about 30 credits a
+	// request, about 12 an hour).
 	plans: [
-		{ id: "plus", name: "Plus", credits: 300, hours: 5, week: 900, days: 30, popular: true, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
-		{ id: "max", name: "Max", credits: 1000, hours: 5, week: 2800, days: 30, prices: { USD: 60, IDR: 949000, EUR: 56, GBP: 48, SGD: 80, AUD: 92 }, lemonVariant: "" },
+		{ id: "nova", name: "Nova", credits: 900, hours: 5, week: 900, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "pulsar", name: "Pulsar", credits: 1100, hours: 5, week: 4850, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
+		{ id: "quasar", name: "Quasar", credits: 1800, hours: 5, week: 10150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
 	],
 	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
 	// Round local prices, not exchange-rate conversions; a credit costs more this way than in a plan
 	packs: [
-		{ id: "mini", name: "Mini", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 }, lemonVariant: "" },
-		{ id: "starter", name: "Small", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
-		{ id: "plus", name: "Medium", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
-		{ id: "pro", name: "Large", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "mini", name: "Spark", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 }, lemonVariant: "" },
+		{ id: "starter", name: "Flare", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
+		{ id: "plus", name: "Comet", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
+		{ id: "pro", name: "Meteor", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 	],
 	currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"],
 	// QRIS for rupiah: the owner's QR image (a URL, e.g. qris.png in the site) and the name it shows
@@ -190,20 +195,23 @@ async function config(env) {
 	try {
 		saved = row ? JSON.parse(row.v) : {};
 	} catch {}
-	// saved before plans: the old free bucket (100 a day) and the packs' old names give way to the new ones; the owner's
-	// own budget, sales switch, QRIS and checkout links stay
-	if (!(saved.v >= 2)) {
-		const { budgetIdr, usdIdr } = saved.free || {};
-		saved = { ...saved, free: { ...(budgetIdr != null ? { budgetIdr } : {}), ...(usdIdr != null ? { usdIdr } : {}) } };
-		delete saved.packs;
-	}
-	// 8192 was the old default answer length, saved by any admin page that was saved back then: it cut long answers off
-	const maxTokens = !saved.maxTokens || saved.maxTokens === 8192 ? DEFAULT_CONFIG.maxTokens : saved.maxTokens;
-	return { ...DEFAULT_CONFIG, ...saved, v: 2, maxTokens, multipliers: { ...DEFAULT_CONFIG.multipliers, ...(saved.multipliers || {}) }, bands: { ...DEFAULT_CONFIG.bands, ...(saved.bands || {}) }, free: { ...DEFAULT_CONFIG.free, ...(saved.free || {}) }, plans: Array.isArray(saved.plans) ? saved.plans : DEFAULT_CONFIG.plans };
+	// Prices, plans, packs and free credits come from the code, always (an admin page saved before could otherwise hold
+	// old prices): what's saved is how the shop runs (sales on, QRIS, checkout links and their product ids, support)
+	const ck = saved.checkout || {}, variants = ck.variants || {};
+	const vary = (list, pre) => list.map((p) => ({ ...p, lemonVariant: String(variants[pre + p.id] || "") }));
+	return {
+		...DEFAULT_CONFIG,
+		open: !!saved.open,
+		qris: { ...DEFAULT_CONFIG.qris, ...(saved.qris || {}) },
+		checkout: { ...DEFAULT_CONFIG.checkout, ...ck, links: { ...(ck.links || {}) }, variants: { ...variants } },
+		support: String(saved.support || ""),
+		plans: vary(DEFAULT_CONFIG.plans, "plan:"),
+		packs: vary(DEFAULT_CONFIG.packs, ""),
+	};
 }
 function publicConfig(c) {
 	const { every, share } = freeStep(c);
-	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share, week: Number(c.free.week) || 0 }, plans: c.plans.map(({ lemonVariant, ...p }) => p), packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: c.checkout, support: c.support, open: !!c.open };
+	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share, week: Number(c.free.week) || 0 }, plans: c.plans.map(({ lemonVariant, ...p }) => p), packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: { provider: c.checkout.provider, links: c.checkout.links }, support: c.support, open: !!c.open };
 }
 
 // ------------------------------------------------------------------ accounts
@@ -2197,8 +2205,10 @@ async function admin(req, env, p, m) {
 		if (m === "GET") return json(await config(env));
 		if (m === "PUT") {
 			const b = await body(req);
-			if (!b || !Array.isArray(b.packs)) throw fail(400, "The settings need a list of packs.");
-			await env.DB.prepare("INSERT INTO config (k, v) VALUES ('pricing', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(b)).run();
+			if (!b || typeof b !== "object") throw fail(400, "Those settings aren't valid.");
+			// (only how the shop runs is kept: prices are in the code)
+			const keep = { open: !!b.open, qris: b.qris || {}, checkout: { provider: (b.checkout && b.checkout.provider) || DEFAULT_CONFIG.checkout.provider, links: (b.checkout && b.checkout.links) || {}, variants: (b.checkout && b.checkout.variants) || {} }, support: String(b.support || "") };
+			await env.DB.prepare("INSERT INTO config (k, v) VALUES ('pricing', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(keep)).run();
 			return json({ ok: true, config: await config(env) });
 		}
 	}
