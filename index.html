@@ -290,6 +290,8 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .learn-note p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; line-height: 1.5; }
 .learn-note .row { gap: 8px; align-items: center; }
 .learn-note a { color: var(--muted); font-size: 13px; }
+/* out of the way while the chats are open (on a phone it sat over the last ones), back when they close */
+body.chats-open .learn-note, body:has(.sidebar.open) .learn-note { visibility: hidden; }
 .act.ic.on { color: var(--text); background: var(--bg3); }
 .hl-search { margin: 4px 0 6px; }
 .hl-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
@@ -1102,6 +1104,9 @@ textarea#input { padding: 16px 20px 6px; }
 /* ---- on a computer: the sidebar folds to a rail of icons */
 @media (min-width: 861px) {
 	.sidebar { position: relative; z-index: 6; }
+	/* with the chats out: the whole sidebar above the dimming behind them (its glass blur keeps the chats panel inside the
+	   sidebar's layer, so the panel's own z-index can't lift it over the dimming, which then caught every click on a chat) */
+	body.chats-open .sidebar { z-index: 31; }
 	body.sb-closed .app { grid-template-columns: var(--rail) 1fr; }
 	body.sb-closed .sidebar { opacity: 1; visibility: visible; overflow: visible; }
 	body.sb-closed #menuBtn { display: none; }
