@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <!-- opened as a file on this computer (index.html double-clicked): Google only lets real websites sign in with Google, so
-     it opens the real site instead, where everything works ("?local" keeps the file, for checking it) -->
-<script>if (location.protocol === "file:" && !/[?&]local\b/.test(location.search)) location.replace("https://celestin.pages.dev/" + location.hash);</script>
+     it opens the real site instead, where everything works. A copy used before may hold chats of its own (they live only
+     in it): it opens, says so, and helps take them along ("?local" keeps the file, for checking it) -->
+<script>if (location.protocol === "file:" && !/[?&]local\b/.test(location.search)) { let used = false; try { for (let i = 0; i < localStorage.length; i++) if (/^andromeda\./.test(localStorage.key(i))) { used = true; break; } } catch {} if (used) window.FILE_COPY = true; else location.replace("https://celestin.pages.dev/" + location.hash); }</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Celestin — the right model for every message</title>
 <meta name="description" content="Celestin makes anything from one message: answers, research, code, apps and games, documents and study sets, each step by the AI model rated best at it. Free credits every day.">
@@ -225,6 +226,10 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .convo .x { opacity: 0; padding: 2px 4px; border-radius: 6px; color: var(--faint); transition: opacity .15s; }
 .convo:hover .x { opacity: 1; }
 .convo .x:hover { color: var(--err); }
+.convo .x { display: grid; place-items: center; margin-left: auto; flex: none; }
+/* the delete button: on hover with a mouse; always there on a touch screen (nothing hovers there), and with the keyboard */
+@media (hover: none) { .convo .x { opacity: .7; padding: 6px; } }
+.convo:focus-within .x, .convo .x:focus-visible { opacity: 1; }
 .sb-foot { border-top: 1px solid var(--line); padding: 8px; display: flex; gap: 4px; }
 .sb-btn { flex: 1; display: flex; align-items: center; gap: 9px; padding: 9px 10px; border-radius: 9px; color: var(--muted); font-size: 14px; transition: background .15s, color .15s; }
 .sb-btn:hover { background: var(--bg3); color: var(--text); }
@@ -3780,7 +3785,7 @@ function renderConvoList() {
 		const g = list.filter((c) => !used.has(c) && test(c));
 		if (!g.length) continue;
 		g.forEach((c) => used.add(c));
-		html += '<div class="convo-group">' + label + "</div>" + g.map((c) => '<div class="convo' + (c === current ? " active" : "") + '" data-id="' + c.id + '"><span class="t">' + esc(c.title) + '</span><button class="x" data-del="' + c.id + '" title="Delete">✕</button></div>').join("");
+		html += '<div class="convo-group">' + label + "</div>" + g.map((c) => '<div class="convo' + (c === current ? " active" : "") + '" data-id="' + c.id + '"><span class="t">' + esc(c.title) + '</span><button class="x" data-del="' + c.id + '" title="Delete" aria-label="Delete this chat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></div>').join("");
 	}
 	const sp = spaces().filter((s) => !q || s.name.toLowerCase().includes(q)), here = SPACE_VIEW || (current && current.msgs.length && current.space);
 	const projects = q && !sp.length ? "" : '<div class="convo-group">Projects</div>' + (q ? "" : '<button class="sp-i sp-new" data-spacenew>' + svgOf(FOLDER_D + '<path d="M12 10.5v5M9.5 13h5"/>', 17) + '<span class="t">New project</span></button>') +
@@ -3863,7 +3868,7 @@ function renderThread() {
 	const box = $("#composer"), leaving = box.parentElement !== $("#dock");
 	const was = leaving ? box.getBoundingClientRect() : null;
 	if (leaving) { $("#dock").appendChild(box); $("#dock").classList.remove("hide"); }
-	$("#view").innerHTML = '<div class="thread" id="thread">' + current.msgs.map(renderMsg).join("") + "</div>";
+	$("#view").innerHTML = '<div class="thread" id="thread">' + current.msgs.map(safeMsg).join("") + "</div>";
 	// a chat just opened shows as it is; in this one, what's new since the last draw comes in
 	const seen = leaving ? 0 : SEEN.id === current.id ? SEEN.n : current.msgs.length;
 	for (const el of $("#thread").querySelectorAll(".msg[data-i]")) if (+el.dataset.i >= seen) el.classList.add("enter");
@@ -3872,8 +3877,8 @@ function renderThread() {
 		const now = box.getBoundingClientRect();
 		box.animate([{ transform: "translate(" + (was.left - now.left) + "px," + (was.top - now.top) + "px)", width: was.width + "px" }, { transform: "none", width: now.width + "px" }], { duration: 560, easing: "cubic-bezier(.22,.9,.25,1)" });
 	}
-	drawDiagrams($("#thread"));
-	drawPreviews($("#thread"));
+	try { drawDiagrams($("#thread")); } catch (e) { console.error(e); }
+	try { drawPreviews($("#thread")); } catch (e) { console.error(e); }
 }
 // the models behind an answer: shown only when asked for
 function modelsUsed(m) {
@@ -3928,6 +3933,15 @@ function offerHtml(m, i) {
 	const phrase = names.length > 1 ? names.slice(0, -1).join(", ") + " or " + names[names.length - 1] : names[0];
 	return '<div class="offer"><p>Would you like me to create ' + phrase + ' to help?</p><div class="offer-btns">' +
 		m.offer.map((k) => '<button class="mu-btn" data-offer="' + k + '" data-i="' + i + '">' + OFFER_BTN[k] + "</button>").join("") + "</div></div>";
+}
+// A message that can't be drawn (one saved by an older version, say) never keeps its chat from opening: the rest shows,
+// and in its place, what went wrong
+function safeMsg(m, i) {
+	try { return renderMsg(m, i); }
+	catch (e) {
+		console.error("message " + i + " couldn't be drawn", e);
+		return '<div class="msg' + (m && m.role === "user" ? " user" : "") + '" data-i="' + i + '"><div class="err">This part of the chat couldn\'t be shown (' + esc(String((e && e.message) || e).slice(0, 140)) + "). The rest of the chat is fine.</div></div>";
+	}
 }
 function renderMsg(m, i) {
 	if (m.role === "user") {
@@ -4005,7 +4019,7 @@ function render() {
 	if (ART && (!current || ART.cid !== current.id || (ART.kind === "app" || ART.kind === "sim") && (current.msgs[ART.i] || {}).kind !== ART.kind || ART.kind === "doc" && !(current.msgs[ART.i] || {}).text)) closeArt();
 	renderConvoList();
 	renderThread();
-	current?.msgs.forEach((m, i) => STUDY[m.kind] && renderStudy(m, i));
+	current?.msgs.forEach((m, i) => { try { if (m && STUDY[m.kind]) renderStudy(m, i); } catch (e) { console.error(e); } });
 	updateRoute();
 	$("#chatMenuBtn").hidden = !(current && current.msgs.length);
 	$("#chatTitle").textContent = current && current.msgs.length ? current.title : "";
@@ -4018,7 +4032,7 @@ function render() {
 function redrawMsg(i) {
 	const el = $('.msg[data-i="' + i + '"]');
 	if (!el || !current.msgs[i]) { render(); return; }
-	el.outerHTML = renderMsg(current.msgs[i], i);
+	el.outerHTML = safeMsg(current.msgs[i], i);
 	const now = $('.msg[data-i="' + i + '"]');
 	if (now) { drawDiagrams(now); drawPreviews(now); }
 }
@@ -9685,6 +9699,21 @@ function callName() {
 
 // signed in (with a password or with Google): kept in this browser (twice: in its database too, so it's never lost with
 // one of them), and straight into the app
+// The copy on this computer (index.html opened as a file) holding chats of its own: they live only here, so how to take
+// them to the real site, where Google sign-in and every update are
+function fileCopyNote() {
+	const n = convos.filter((c) => c && c.msgs && c.msgs.length).length;
+	const box = document.createElement("div");
+	box.className = "learn-note";
+	box.style.cssText = "top:18px;bottom:auto";
+	box.setAttribute("role", "dialog");
+	box.innerHTML = "<b>The copy saved on this computer</b><p>Its " + n + (n === 1 ? " chat lives" : " chats live") + " only here. Google sign-in and every update are on celestin.pages.dev: save your chats to a file, then open them there with Settings → Your data → Import.</p>" +
+		'<div class="row" style="flex-wrap:wrap"><a href="#" id="fcLater">Not now</a><span style="flex:1"></span><button class="btn" id="fcSave">Save my chats to a file</button><button class="btn dark" id="fcGo">Open celestin.pages.dev</button></div>';
+	document.body.appendChild(box);
+	$("#fcLater").onclick = (e) => { e.preventDefault(); box.remove(); };
+	$("#fcSave").onclick = () => exportAll();
+	$("#fcGo").onclick = () => { location.href = "https://celestin.pages.dev/" + location.hash; };
+}
 // once, the first time someone is in Celestin signed in (on this device): what Help improve Celestin does, and a way off
 function learnNote(tries = 0) {
 	if (!account || !creditsMode() || store.get("learnNoted", false) || !capOn("learn")) return;
@@ -10189,6 +10218,22 @@ function setMode() {
 	updateRoute();
 }
 function openSidebar(open) { $("#sidebar").classList.toggle("open", open); $("#scrim").classList.toggle("show", open); if (!open) openChats(false); }
+// Deleting a chat, from the list or from its menu: asked first, then gone from this browser; a link it was shared at stops
+// working too
+function askDelete(id) {
+	const c = convos.find((x) => x.id === id);
+	if (!c) return;
+	openModal('<h2>Delete this chat?</h2><p class="sub">“' + esc(c.title || "Untitled") + '” will be gone from this browser, with every version of it.' + (c.shared ? " The link it was shared at stops working too." : "") + '</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="dlCancel">Cancel</button><button class="btn dark danger" id="dlOk">Delete</button></div>');
+	$("#dlOk").onclick = () => {
+		const sid = c.shared && c.shared.id;
+		convos = convos.filter((x) => x.id !== id);
+		if (current && current.id === id) { current = null; EDITING = -1; }
+		save(); render(); closeModal(); toast("Deleted");
+		if (sid && account) api("/api/shares/" + sid, { method: "DELETE" }).catch(() => {});
+	};
+	$("#dlCancel").onclick = closeModal;
+	$("#dlOk").focus();
+}
 // the chats panel beside the rail (on a phone it's part of the drawer, always there)
 function openChats(on) {
 	document.body.classList.toggle("chats-open", !!on);
@@ -10203,7 +10248,7 @@ document.addEventListener("click", (e) => {
 	if (t.hasAttribute("data-go-home")) { e.preventDefault(); navTo(() => showApp(false)); return; }
 	if (t.hasAttribute("data-theme-toggle")) { toggleTheme(); return; }
 	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { openSidebar(false); navTo(() => { current = convos.find((c) => c.id === t.dataset.id); SPACE_VIEW = (current && current.space) || null; EDITING = -1; pinned = true; render(); stick(); }); }
-	else if (t.dataset.del) { convos = convos.filter((c) => c.id !== t.dataset.del); if (current?.id === t.dataset.del) { current = null; EDITING = -1; } save(); render(); }
+	else if (t.dataset.del) askDelete(t.dataset.del);
 	else if (t.dataset.sug) { $("#input").value = t.dataset.sug; autosize(); updateRoute(); send(); }
 	else if (t.dataset.cat) {
 		welcomeCat = t.dataset.cat;
@@ -10307,12 +10352,7 @@ function chatAction(kind) {
 		box.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); ok(); } };
 		$("#rnOk").onclick = ok;
 		$("#rnCancel").onclick = closeModal;
-	} else if (kind === "delete") {
-		openModal('<h2>Delete this chat?</h2><p class="sub">“' + esc(current.title) + '” will be gone from this browser, with every version of it.</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="dlCancel">Cancel</button><button class="btn dark" id="dlOk">Delete</button></div>');
-		$("#dlOk").onclick = () => { const id = current.id; convos = convos.filter((c) => c.id !== id); current = null; EDITING = -1; save(); render(); closeModal(); toast("Deleted"); };
-		$("#dlCancel").onclick = closeModal;
-		$("#dlOk").focus();
-	}
+	} else if (kind === "delete") askDelete(current.id);
 }
 $("#jumpBtn").onclick = jumpToEnd;
 // what you were typing survives a reload
@@ -11537,6 +11577,8 @@ async function loadKept() {
 	const shareId = (location.hash.match(/^#share=([a-f0-9]{24})$/) || [])[1];
 	document.body.classList.toggle("in-app", inApp && !shareId);
 	await loadKept();
+	// the copy on this computer: with no chats of its own, straight to the real site; with some, they're here to take along
+	if (window.FILE_COPY) { if (!convos.some((c) => c && c.msgs && c.msgs.length)) { location.replace("https://celestin.pages.dev/" + location.hash); return; } setTimeout(fileCopyNote, 900); }
 	convos = convos.filter((c) => c.msgs.length);
 	if (!hadAccount && connected() && !shareId && wantApp()) { inApp = true; document.body.classList.add("in-app"); }
 	if (shareId) openShared(shareId);
