@@ -64,7 +64,7 @@ const DEFAULT_CONFIG = {
 	// and each one's variant id, which is how a paid order is matched to what was bought
 	checkout: { provider: "Lemon Squeezy", links: {}, variants: {} },
 	// how to reach the owner, shown in the shop's questions
-	support: "",
+	support: "celestinsupportai@gmail.com",
 	// plans and packs on sale
 	open: false,
 };
@@ -74,7 +74,7 @@ const DEFAULT_CONFIG = {
 const OWNER_IDS = new Set(["36c872cb39f4da74877b3207"]);
 const isOwner = (userId) => OWNER_IDS.has(String(userId || ""));
 // the most the owner's own use may really cost in 24 hours (about one full app build, or a hundred everyday answers)
-const OWNER_DAY_IDR = 15000;
+const OWNER_DAY_IDR = 0; // (0: no limit, the owner's choice)
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -530,8 +530,8 @@ async function take(env, userId, mc, c) {
 		// the owner: nothing is held (what's used is still written down when it's charged), but their own use is kept inside
 		// a daily budget of real money, so testing can never eat into their savings (OWNER_DAY_IDR, the last 24 hours)
 		if (isOwner(userId)) {
-			const day = await env.DB.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage WHERE user_id = ? AND created_at > ?").bind(userId, now() - 86400e3).first();
-			if ((Number(day && day.usd) || 0) * (Number(c.free.usdIdr) || 18000) >= OWNER_DAY_IDR) throw fail(402, "Your own testing budget for today (Rp" + OWNER_DAY_IDR.toLocaleString("id-ID") + ") is used up, so nothing more is spent. It frees up over the next 24 hours.");
+			const day = OWNER_DAY_IDR > 0 && await env.DB.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage WHERE user_id = ? AND created_at > ?").bind(userId, now() - 86400e3).first();
+			if (OWNER_DAY_IDR > 0 && (Number(day && day.usd) || 0) * (Number(c.free.usdIdr) || 18000) >= OWNER_DAY_IDR) throw fail(402, "Your own testing budget for today (Rp" + OWNER_DAY_IDR.toLocaleString("id-ID") + ") is used up, so nothing more is spent. It frees up over the next 24 hours.");
 			return { fromFree: 0, fromPaid: 0, free: false, owner: true };
 		}
 		const u = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until FROM users WHERE id = ?").bind(userId).first();
