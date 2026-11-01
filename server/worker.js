@@ -541,7 +541,7 @@ function columns(env) {
 		const jcols = new Set(((await env.DB.prepare("PRAGMA table_info(jobs)").all()).results || []).map((r) => r.name));
 		if (jcols.size && !jcols.has("owner")) { try { await env.DB.prepare("ALTER TABLE jobs ADD COLUMN owner INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		const ucols = new Set(((await env.DB.prepare("PRAGMA table_info(usage)").all()).results || []).map((r) => r.name));
-		for (const k of ["in_tok", "cached_tok", "out_tok"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		for (const k of ["in_tok", "cached_tok", "out_tok", "ms", "first_ms"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS support (id TEXT PRIMARY KEY, user_id TEXT, email TEXT NOT NULL, category TEXT, subject TEXT, message TEXT NOT NULL, details TEXT, status TEXT NOT NULL DEFAULT 'open', ip TEXT, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS support_user ON support (user_id, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS email_codes (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, pass TEXT, tries INTEGER NOT NULL DEFAULT 0, sent INTEGER NOT NULL DEFAULT 0, window_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL)").run();
@@ -1342,6 +1342,8 @@ async function chat(req, env, ctx, user) {
 	const effort = b.reasoning && b.reasoning.effort;
 	const thinkRoom = THINK_ROOM[effort] || 0;
 	const started = now();
+	// (when its first word came: how long a reply kept someone waiting, kept with what it cost)
+	let firstAt = 0;
 	let maxOut = Math.min((Number(b.max_tokens) || c.maxTokens) + thinkRoom, c.maxTokens + thinkRoom);
 	if (price.mo > 0) maxOut = Math.min(maxOut, price.mo);
 	if (price.pout > 0) maxOut = Math.min(maxOut, Math.floor(room / price.pout));
@@ -1364,7 +1366,7 @@ async function chat(req, env, ctx, user) {
 		await env.DB.batch([
 			giveBack(env, user.id, held, charged),
 			// (what it read, how much of that came from the cache, and what it wrote: whether the gateway passes the cache on)
-			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at, in_tok, cached_tok, out_tok) VALUES (?, ?, ?, ?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now(), Number(usage && usage.prompt_tokens) || 0, Number(usage && (usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens)) || 0, Number(usage && usage.completion_tokens) || 0),
+			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at, in_tok, cached_tok, out_tok, ms, first_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now(), Number(usage && usage.prompt_tokens) || 0, Number(usage && (usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens)) || 0, Number(usage && usage.completion_tokens) || 0, now() - started, firstAt ? firstAt - started : 0),
 			...freeSpend(env, held, charged, real),
 		]);
 		return charged;
@@ -1510,7 +1512,9 @@ async function chat(req, env, ctx, user) {
 							delete x.usage;
 							if (!(Array.isArray(x.choices) && x.choices.length) && !x.error) continue;
 						}
-						outChars += (x.choices?.[0]?.delta?.content || "").length;
+						const said = (x.choices?.[0]?.delta?.content || "").length;
+						if (said && !firstAt) firstAt = now();
+						outChars += said;
 						out += "data: " + JSON.stringify(x) + "\n\n";
 					}
 					if (conv && conv.finished) {

@@ -297,6 +297,19 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 .learn-note a { color: var(--muted); font-size: 13px; }
 /* out of the way while the chats are open (on a phone it sat over the last ones), back when they close */
 body.chats-open .learn-note, body:has(.sidebar.open) .learn-note { visibility: hidden; }
+/* the limit: one quiet line on the message box, in its own colours (never a window over everything) */
+.limit-bar { display: flex; align-items: center; gap: 9px; margin: 7px 7px 0; padding: 5px 5px 5px 12px; border-radius: 19px; font-size: 13px; line-height: 1.35; color: var(--muted); background: color-mix(in srgb, var(--text) 4.5%, transparent); }
+.limit-bar[hidden] { display: none; }
+.limit-bar:not([hidden]) { animation: lbIn .45s var(--ease) both; }
+.limit-bar svg { flex: none; color: var(--brand); }
+.limit-bar.out svg { color: var(--warn); }
+.limit-bar b { color: var(--text); font-weight: 600; }
+.limit-bar .lb-act { margin-left: auto; flex: none; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--bg2); color: var(--text); font-size: 12.5px; font-weight: 600; white-space: nowrap; transition: background-color .15s var(--ease); }
+.limit-bar .lb-act:hover { background: color-mix(in srgb, var(--text) 7%, var(--bg2)); }
+.limit-bar.nudge { animation: lbNudge .6s var(--ease); }
+@keyframes lbIn { from { opacity: 0; transform: translateY(4px); } }
+@keyframes lbNudge { 35% { background: color-mix(in srgb, var(--warn) 16%, transparent); transform: translateY(-2px); } }
+@media (prefers-reduced-motion: reduce) { .limit-bar, .limit-bar.nudge { animation: none !important; } }
 .act.ic.on { color: var(--text); background: var(--bg3); }
 .hl-search { margin: 4px 0 6px; }
 .hl-cats { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 2px; }
@@ -1793,6 +1806,7 @@ html { scroll-behavior: smooth; }
 		<div class="composer-wrap" id="dock">
 			<button class="jump" id="jumpBtn" aria-label="Jump to the newest message" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
 			<div class="composer empty" id="composer">
+				<div class="limit-bar" id="limitBar" role="status" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="lbText"></span><button class="lb-act" id="lbAct" data-open-pricing>See plans</button></div>
 				<div class="route" id="route"></div>
 				<div class="attached" id="attached"></div>
 				<textarea id="input" rows="1" placeholder="Ask anything, or make anything" aria-label="Message Celestin"></textarea>
@@ -5537,6 +5551,10 @@ async function send(textOverride, fork) {
 		else openModal('<h2>Celestin isn\'t open yet</h2><p class="sub">It answers through its credits server, and that isn\'t connected to this page yet.</p><div class="help" style="font-size:13px;color:var(--faint)">If this is your site: double-click <b>SET UP SERVER.bat</b> in the <b>server</b> folder, then upload index.html again.</div><div class="row" style="justify-content:flex-end;margin-top:16px"><button class="btn" id="nyOk">OK</button></div>'), $("#nyOk").onclick = closeModal;
 		return;
 	}
+	if (creditsMode() && me && !me.owner && !(me.plan && me.plan.unlimited) && (Number(me.credits) || 0) < 1 && Date.now() - ME_AT < 120e3) {
+		const w = me.window || me.free;
+		if (!(w && w.backAt && w.backAt <= Date.now())) { drawLimit(true); refreshMe(); return; }
+	}
 	if (!catalog.length) await loadCatalog();
 	if (!ARENA) await loadArena();
 	if (!current) newConvo();
@@ -5640,6 +5658,19 @@ async function send(textOverride, fork) {
 	} catch (e) {
 		const last = current.msgs[current.msgs.length - 1];
 		if (e.name === "AbortError") { if (last.role !== "user") { last.streaming = false; last.text = (last.text || "") + "\n\n*Stopped.*"; } }
+		else if (e.status === 402 && creditsMode()) {
+			// out of credits: no error in the chat and no window over it. What wasn't answered at all goes back into the box
+			// to send later, and the line on the box says when the credits are back
+			if (last.role === "assistant" && !last.text && !last.kind) current.msgs.pop();
+			const mine = current.msgs[current.msgs.length - 1];
+			if (mine && mine.role === "user" && !(mine.atts || []).length && !mine.alts && !$("#input").value.trim()) {
+				current.msgs.pop();
+				$("#input").value = mine.text;
+				store.set("draft", mine.text);
+				autosize();
+			}
+			refreshMe().then(() => drawLimit(true));
+		}
 		else {
 			if (last.role === "assistant" && !last.text && !last.kind) current.msgs.pop();
 			const shown = niceError(e);
@@ -5683,7 +5714,7 @@ function niceError(e) {
 	const s = String(e.message || e), st = e.status || 0;
 	if (e.plain) return s;
 	if (creditsMode() && st === 401) { signOut(true); setTimeout(openAccount, 300); return "Your session ended. Sign in again to use your credits."; }
-	if (creditsMode() && st === 402) { refreshMe().then(() => outOfCredits(s)); return s || "You're out of credits."; }
+	if (creditsMode() && st === 402) { refreshMe().then(() => drawLimit(true)); return s || "You're out of credits."; }
 	if (st === 401) { setTimeout(openAccount, 300); return "Sign in to use Celestin."; }
 	if (st === 429 || /rate.?limit|too many|quota|capacity|overloaded|temporarily/i.test(s)) return "The models are busy right now. Wait a moment and try again.";
 	return "Something went wrong: " + s;
@@ -5692,17 +5723,41 @@ function untilText(ts) {
 	const mins = Math.max(1, Math.ceil((ts - Date.now()) / 60e3)), d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60;
 	return d ? d + "d" + (h ? " " + h + "h" : "") : h ? h + "h" + (m ? " " + m + "m" : "") : m + "m";
 }
-// the plan's credits for now (or for the week) are used: when they're back, and what keeps them going meanwhile
-function outOfCredits(msg) {
-	const w = me && (me.window || me.free), wk = me && me.week, mo = me && me.month;
-	const monthOut = !!(mo && mo.backAt && mo.backAt > Date.now() && mo.left < 1);
-	const weekOut = !monthOut && !!(wk && wk.backAt && wk.backAt > Date.now() && wk.left < 1);
-	const at = monthOut ? mo.backAt : weekOut ? wk.backAt : w && w.backAt && w.backAt > Date.now() ? w.backAt : 0;
-	const paidPlan = !!(me && me.plan && me.plan.paid);
-	openModal('<h2>' + (at && !(me.paid > 0) ? (monthOut ? "That's this month's credits" : weekOut ? "That's this week's credits" : "That's your credits for now") : "Not enough credits") + '</h2><p class="sub">' + esc(msg || "") + "</p>" +
-		(at ? '<div class="acct-bal">' + untilText(at) + '</div><div class="help" style="font-size:13px;color:var(--faint)">until ' + (monthOut ? "a new month starts" : weekOut ? "a new week starts" : w.share && w.share < w.of ? w.share + " come back" : "they're all back") + "</div>" : "") +
-		'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:18px"><button class="btn" id="ocWait">' + (at ? "I'll wait" : "OK") + '</button><button class="btn dark" data-open-pricing>' + (paidPlan ? "Get a credit pack" : "See plans") + "</button></div>");
-	$("#ocWait").onclick = closeModal;
+// Running low or out of credits: one quiet line on the message box (like Claude's), never a window over everything. Low:
+// how many are left and when more come; out: when they're back; the way to more on the right. hit: a request was just
+// turned down for credits (the line gives a small nudge)
+let LIMIT_HIT = 0, LIMIT_T = 0, ME_AT = 0;
+function clockText(ts) {
+	// (written the page's way, like the words around it: "3:00 AM", "Tue 3:00 AM", "Dec 1")
+	const d = new Date(ts), now = new Date(), L = document.documentElement.lang || "en";
+	const time = d.toLocaleTimeString(L, { hour: "numeric", minute: "2-digit" });
+	if (d.toDateString() === now.toDateString()) return time;
+	if (ts - Date.now() < 6 * 864e5) return d.toLocaleDateString(L, { weekday: "short" }) + " " + time;
+	return d.toLocaleDateString(L, { month: "short", day: "numeric" });
+}
+function drawLimit(hit) {
+	const bar = $("#limitBar");
+	if (!bar) return;
+	if (hit) LIMIT_HIT = Date.now();
+	if (!creditsMode() || !me || me.owner || (me.plan && me.plan.unlimited)) { bar.hidden = true; return; }
+	const w = me.window || me.free, wk = me.week, mo = me.month, credits = Math.max(0, Number(me.credits) || 0);
+	const monthOut = !!(mo && mo.left < 1 && !(me.paid > 0)), weekOut = !monthOut && !!(wk && wk.left < 1 && wk.backAt && !(me.paid > 0));
+	const at = monthOut ? mo.backAt || 0 : weekOut ? wk.backAt : w && w.backAt && w.backAt > Date.now() ? w.backAt : 0;
+	const justHit = LIMIT_HIT && Date.now() - LIMIT_HIT < 10 * 60e3;
+	const out = credits < 1, short = !out && justHit && hit;
+	const low = !out && !short && w && w.of > 0 && credits <= Math.max(10, w.of * 0.15);
+	if (!out && !short && !low) { bar.hidden = true; return; }
+	const when = at ? " <b>" + esc(clockText(at)) + "</b>" : "";
+	$("#lbText").innerHTML = out ? (monthOut ? "This month's credits are used" : weekOut ? "This week's credits are used" : "You're out of credits") + (when ? " until" + when : "")
+		: short ? "Not enough credits for that one" + (when ? " · more at" + when : "")
+		: "<b>" + creditsText(credits) + (credits === 1 ? " credit" : " credits") + "</b> left" + (when ? " · more at" + when : "");
+	$("#lbAct").textContent = me.plan && me.plan.paid ? "Get credits" : "See plans";
+	bar.classList.toggle("out", out || short);
+	bar.hidden = false;
+	if (hit) { bar.classList.remove("nudge"); void bar.offsetWidth; bar.classList.add("nudge"); }
+	// back when they're back
+	clearTimeout(LIMIT_T);
+	if (at && at - Date.now() < 864e5) LIMIT_T = setTimeout(() => refreshMe(), Math.max(1000, at - Date.now() + 1500));
 }
 function setBusy(on) {
 	const b = $("#sendBtn");
@@ -7078,11 +7133,14 @@ async function runApp(text, atts, pick) {
 	// design pass. The best builder at its full effort when the balance covers it; when it doesn't, the same builder
 	// thinking a step less (never another model), the most it can and still finish; and when not even its lightest would
 	// finish, nothing starts and the person sees what it costs. A build never stops half-made
-	let buildCap;
+	// in Auto a build thinks at most "high" (the deeper levels mostly add minutes, and thinking is paid as writing); Max
+	// builds at the builder's full effort, Fast lightly. Less only when the balance wouldn't cover it
+	const autoCap = speed() === "max" ? undefined : speed() === "fast" ? "low" : "high";
+	let buildCap = autoCap;
 	if (creditsMode()) {
 		await refreshMe();
 		const builder = bestFor(atts.some((a) => a.kind === "image" && a.data) ? "appFromImage" : "app")[0];
-		const steps = speed() === "max" ? [undefined] : [undefined, "xhigh", "high", "medium"];
+		const steps = speed() === "max" ? [undefined] : speed() === "fast" ? ["low"] : ["high", "medium"];
 		const need = steps.map((cap) => (builder ? Math.max(APP_MIN_CREDITS, appCredits(builder, cap, FEATURE_W.app.out)) : APP_MIN_CREDITS));
 		const have = me ? me.credits : Infinity;
 		let k = steps.findIndex((cap, n) => need[n] * 1.5 <= have);
@@ -7090,7 +7148,7 @@ async function runApp(text, atts, pick) {
 		if (k < 0) {
 			// (when they come back, and what builds it now; never what it costs)
 			const w = me && (me.window || me.free), paidPlan = !!(me && me.plan && me.plan.paid);
-			throw fail("Building this app takes more credits than you have right now." + (w && w.backAt > Date.now() ? " Yours come back in " + untilText(w.backAt) + "." : "") + (paidPlan ? " A credit pack builds it now." : " A plan builds apps and games by the best builder at full effort, or a credit pack builds this one now."), 402);
+			throw fail("Building this app takes more credits than you have right now." + (w && w.backAt > Date.now() ? " Yours come back in " + untilText(w.backAt) + "." : "") + (paidPlan ? " A credit pack builds it now." : " A plan builds apps and games by the best builder, or a credit pack builds this one now."), 402);
 		}
 		buildCap = steps[k];
 	}
@@ -7122,7 +7180,8 @@ async function runApp(text, atts, pick) {
 		msg.used = [{ name: shortName(m), desc: "Code: " + (prev ? "edited the project" : "wrote the project") }];
 		try {
 			msg.cut = false;
-			const lighter = !!buildCap && capEffort(EFFORT.get(m.id) || "", buildCap, m.id) !== (EFFORT.get(m.id) || "");
+			// (thinking less than this mode's most only because of the balance: said so)
+			const lighter = !!buildCap && buildCap !== autoCap && capEffort(EFFORT.get(m.id) || "", buildCap, m.id) !== (autoCap ? capEffort(EFFORT.get(m.id) || "", autoCap, m.id) : EFFORT.get(m.id) || "");
 			const out = await stream(m.id, asked, (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, buildCap ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", buildCap, m.id)) : effortExtra(m.id), msg);
 			msg.lighter = lighter;
 			parsed = parseFiles(out);
@@ -9655,7 +9714,7 @@ async function api(path, opts = {}) {
 }
 async function refreshMe() {
 	if (!SERVER || !account) return null;
-	try { me = await api("/api/me"); }
+	try { me = await api("/api/me"); ME_AT = Date.now(); }
 	catch (e) { if (e.status === 401) signOut(true); }
 	drawAccount();
 	updateRoute();
@@ -9680,6 +9739,7 @@ function signOut(quiet) {
 	updateRoute();
 }
 function drawAccount() {
+	drawLimit();
 	const b = $("#acctBtn"), l = $("#acctLabel");
 	if (!b) return;
 	b.style.display = SERVER ? "" : "none";
@@ -9788,7 +9848,7 @@ function signedIn(j, made) {
 	closeAuth();
 	if (!document.body.classList.contains("in-app")) showApp(true);
 	else setTimeout(() => $("#input").focus(), 50);
-	if (me.credits > 0) { closeModal(); toast(made ? "You have " + creditsText(me.credits) + " free credits. Ask anything." : "Signed in · " + creditsText(me.credits) + " credits"); } else openPricing();
+	if (me.credits > 0) { closeModal(); toast(made ? "You have " + creditsText(me.credits) + " free credits. Ask anything." : "Signed in · " + creditsText(me.credits) + " credits"); } else { closeModal(); drawLimit(true); }
 	setTimeout(learnNote, 1200);
 }
 // The sign-in page: over the front page (or the app), opaque, its own logo back to the front page; Escape too
