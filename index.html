@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <!-- opened as a file on this computer (index.html double-clicked): Google only lets real websites sign in with Google, so
      it opens the real site instead, where everything works. A copy used before may hold chats of its own (they live only
-     in it): it opens, says so, and helps take them along ("?local" keeps the file, for checking it) -->
+     in it): those go along (carryToSite) ("?local" keeps the file, for checking it) -->
 <script>if (location.protocol === "file:" && !/[?&]local\b/.test(location.search)) { let used = false; try { for (let i = 0; i < localStorage.length; i++) if (/^andromeda\./.test(localStorage.key(i))) { used = true; break; } } catch {} if (used) window.FILE_COPY = true; else location.replace("https://celestin.pages.dev/" + location.hash); }</script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Celestin — the right model for every message</title>
@@ -9699,8 +9699,58 @@ function callName() {
 
 // signed in (with a password or with Google): kept in this browser (twice: in its database too, so it's never lost with
 // one of them), and straight into the app
-// The copy on this computer (index.html opened as a file) holding chats of its own: they live only here, so how to take
-// them to the real site, where Google sign-in and every update are
+// The copy on this computer (index.html opened as a file) goes to the real site, where Google sign-in and every update
+// are, taking along the chats it holds (they live only in it): packed small after the # of the address (never sent to any
+// server) and offered there to be brought in. Only when something's new since they were last taken; too much to fit in an
+// address, and it stays here with a way to save them to a file instead (false).
+const REAL_SITE = "https://celestin.pages.dev/";
+async function carryToSite() {
+	const chats = convos.filter((c) => c && c.msgs && c.msgs.length && !c.temp);
+	const mark = chats.map((c) => c.id + ":" + (c.at || 0) + ":" + c.msgs.length).join("|");
+	if (!chats.length || store.get("carried", "") === mark) { location.replace(REAL_SITE + location.hash); return true; }
+	try {
+		const data = { app: "andromeda", version: 1, at: Date.now(), convos: slimChats().filter((c) => c.msgs && c.msgs.length), memories: memories() };
+		const bytes = new Uint8Array(await new Response(new Blob([JSON.stringify(data)]).stream().pipeThrough(new CompressionStream("gzip"))).arrayBuffer());
+		let bin = "";
+		for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+		const packed = btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+		if (packed.length > 1800000) return false;
+		store.set("carried", mark);
+		location.replace(REAL_SITE + "#carry=" + packed);
+		return true;
+	} catch { return false; }
+}
+// The chats brought from the copy on this computer (carryToSite), unpacked (never past 40 MB) and offered: only the ones
+// not here yet are added, and only if they're wanted (an address anyone could make can't add chats unasked)
+async function offerCarry(packed) {
+	let d;
+	try {
+		const bin = atob(packed.replace(/-/g, "+").replace(/_/g, "/"));
+		const bytes = new Uint8Array(bin.length);
+		for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+		const rd = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip")).getReader();
+		const parts = [];
+		let size = 0;
+		for (;;) {
+			const { done, value } = await rd.read();
+			if (done) break;
+			size += value.length;
+			if (size > 40e6) { rd.cancel(); return; }
+			parts.push(value);
+		}
+		d = JSON.parse(await new Blob(parts).text());
+	} catch { return; }
+	const have = new Set(convos.map((c) => c.id));
+	const n = (Array.isArray(d && d.convos) ? d.convos : []).filter((c) => c && c.id && Array.isArray(c.msgs) && c.msgs.length && !have.has(c.id)).length;
+	if (!n) return;
+	openModal("<h2>Bring your chats here?</h2><p class=\"sub\">" + n + (n === 1 ? " chat" : " chats") + " from the copy of Celestin saved on your computer. They're added to the chats here; nothing here changes.</p>" +
+		'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="cyNo">Not now</button><button class="btn dark" id="cyOk">Bring them</button></div>');
+	$("#cyNo").onclick = closeModal;
+	$("#cyOk").onclick = () => importData(d);
+	$("#cyOk").focus();
+}
+// The copy on this computer when its chats are too many to take along in an address: they live only here, so how to take
+// them to the real site by a file
 function fileCopyNote() {
 	const n = convos.filter((c) => c && c.msgs && c.msgs.length).length;
 	const box = document.createElement("div");
@@ -9712,7 +9762,7 @@ function fileCopyNote() {
 	document.body.appendChild(box);
 	$("#fcLater").onclick = (e) => { e.preventDefault(); box.remove(); };
 	$("#fcSave").onclick = () => exportAll();
-	$("#fcGo").onclick = () => { location.href = "https://celestin.pages.dev/" + location.hash; };
+	$("#fcGo").onclick = () => { location.href = REAL_SITE + location.hash; };
 }
 // once, the first time someone is in Celestin signed in (on this device): what Help improve Celestin does, and a way off
 function learnNote(tries = 0) {
@@ -11253,6 +11303,10 @@ async function exportAll() {
 async function importAll(f) {
 	let d;
 	try { d = JSON.parse(await f.text()); } catch { toast("That file isn't a Celestin export"); return; }
+	await importData(d);
+}
+// (an export file's contents, or the chats brought from the copy on this computer)
+async function importData(d) {
 	// an older export is just the list of chats
 	if (Array.isArray(d)) d = { convos: d };
 	if (!d || typeof d !== "object" || (!Array.isArray(d.convos) && !Array.isArray(d.spaces))) { toast("That file isn't a Celestin export"); return; }
@@ -11568,6 +11622,9 @@ async function loadKept() {
 	applyBg();
 	if (window.matchMedia) matchMedia("(prefers-color-scheme: light)").addEventListener("change", applyTheme);
 	refreshKeyDot();
+	// chats brought from the copy on this computer ride after the # (carryToSite): out of the address before anything reads it
+	const carry = (location.hash.match(/^#carry=([A-Za-z0-9_-]{8,})$/) || [])[1];
+	if (carry) history.replaceState(null, "", location.pathname + location.search + "#app");
 	// someone signed in goes straight to the app; anyone new sees what it is first, and asking for the app without being
 	// signed in shows the sign-in page over the front page (not the app behind it). Decided before the first paint, on
 	// what localStorage says; a sign-in only the database still had is caught up with just after
@@ -11577,13 +11634,14 @@ async function loadKept() {
 	const shareId = (location.hash.match(/^#share=([a-f0-9]{24})$/) || [])[1];
 	document.body.classList.toggle("in-app", inApp && !shareId);
 	await loadKept();
-	// the copy on this computer: with no chats of its own, straight to the real site; with some, they're here to take along
-	if (window.FILE_COPY) { if (!convos.some((c) => c && c.msgs && c.msgs.length)) { location.replace("https://celestin.pages.dev/" + location.hash); return; } setTimeout(fileCopyNote, 900); }
+	// the copy on this computer: to the real site, with its chats (only when they're too many does it stay, to save them)
+	if (window.FILE_COPY) { if (await carryToSite()) return; setTimeout(fileCopyNote, 900); }
 	convos = convos.filter((c) => c.msgs.length);
 	if (!hadAccount && connected() && !shareId && wantApp()) { inApp = true; document.body.classList.add("in-app"); }
 	if (shareId) openShared(shareId);
 	else if (wantApp() && !inApp) { history.replaceState(null, "", location.pathname + location.search); openAccount(); }
 	render();
+	if (carry) setTimeout(() => offerCarry(carry), 900);
 	setMode("auto");
 	{
 		const draft = store.get("draft", "");
