@@ -41,12 +41,14 @@ const userOf = (email) => {
 	return u;
 };
 // a month (or days) of a plan, from today or from the end of the one running; a plan that wasn't running starts with a
-// full window and a fresh week and month (the same as startPlan in worker.js)
+// full window (the same as startPlan in worker.js)
 function startPlan(u, plan, days) {
 	const t = Date.now(), running = u.plan && Number(u.plan_until) > t;
 	const until = (running ? Number(u.plan_until) : t) + (Number(days) || plan.days || 30) * 86400e3;
-	if (running && u.plan === plan.id) sql("UPDATE users SET plan_until = " + q(until) + " WHERE id = " + q(u.id));
-	else sql("UPDATE users SET plan = " + q(plan.id) + ", plan_until = " + q(until) + ", free_mc = " + q(plan.credits * 1000) + ", free_reset_at = 0, week_mc = 0, week_at = 0, month_mc = 0, month_at = 0 WHERE id = " + q(u.id));
+	// (each payment adds one month of credits: to what's left of the same plan, or to what's left of the plan it replaces)
+	const add = Math.round((plan.month || 0) * 1000 * ((Number(days) || plan.days || 30) / (plan.days || 30)));
+	if (running && u.plan === plan.id) sql("UPDATE users SET plan_until = " + q(until) + ", plan_mc = plan_mc + " + q(add) + " WHERE id = " + q(u.id));
+	else sql("UPDATE users SET plan = " + q(plan.id) + ", plan_until = " + q(until) + ", plan_mc = " + (running ? "MAX(0, plan_mc) + " : "") + q(add) + ", free_mc = " + q(plan.credits * 1000) + ", free_reset_at = 0, week_mc = 0, week_at = 0 WHERE id = " + q(u.id));
 	return new Date(until).toISOString().slice(0, 10);
 }
 

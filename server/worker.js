@@ -23,35 +23,38 @@ const DEFAULT_CONFIG = {
 	// the most one answer may write, whatever the balance (a model asked to think gets room for that on top); only what's
 	// written is charged, so this only keeps a long answer from being cut off
 	maxTokens: 32000,
-	// Everyone is on a plan: Free, or one bought for a month. A plan is a window of credits that all comes back "hours"
-	// after it's first used (Claude's 5-hour limit), and at most "week" credits in 7 days. Free's "every" can hand the
-	// window back in shares instead (every 0 or = hours: all at once). budgetIdr: the most the owner spends on free use a
-	// day (the real cost of what free windows paid for, in rupiah at usdIdr); past it, no free window refills until
-	// tomorrow. dailyCap: an older limit on credits handed out (0 = off).
-	// Free's window holds a small app by the best builder (about 100-150 credits), so anyone can build one, then wait.
-	free: { credits: 150, hours: 5, every: 5, week: 200, budgetIdr: 25000, usdIdr: 18000, dailyCap: 0 },
-	// A month of a plan (QRIS confirmed by hand, cards automatic; renewing early adds a month to the end). Each plan has
-	// three limits: a window of credits that all comes back "hours" after it's first used (Claude's 5-hour limit), at most
-	// "week" credits in 7 days, and at most "month" credits in 30 days (each starts with its first credit).
-	// The owner's choice (Nov 1): limits as generous as Claude's and ChatGPT's, priced for profit on average (most people
-	// use a small part of theirs), with a safety cap so nobody costs more than about twice what they paid. A credit costs
-	// the owner at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), so "month" x Rp69 is the
-	// most a plan's month can cost: 1.95x, 2.03x and 2.11x the price, and the dearer the plan, the more each rupiah buys.
-	// Nonstop coding is about 140 credits an hour (CODE_HOUR in the site, measured): Nova is about 3½ hours of it in any 5,
-	// 30 in a week and about 64 in a month; Pulsar never runs out in a sitting, about 97 hours a week and 335 a month;
-	// Quasar the same in a sitting, about 180 a week and 700 a month (more than anyone can sit and code).
+	// Everyone is on a plan: Free, or one bought for a month. Free is a window of credits that all comes back "hours" after
+	// it's first used (Claude's 5-hour limit), at most "week" credits in 7 days, inside a daily budget for all free use
+	// together (budgetIdr: the most the owner spends on free use a day, at its real cost in rupiah at usdIdr; past it, no
+	// free window refills until tomorrow). Free's "every" can hand the window back in shares instead (every 0 or = hours:
+	// all at once). dailyCap: an older limit on credits handed out (0 = off).
+	// A free account costs the owner at most "week" x Rp69 a week (about Rp10,000), and all of them together never more
+	// than budgetIdr a day. 150 credits a week is about 50 everyday answers, 20 changes to code, or an app by the best
+	// builder (the window holds one at its medium effort, about 100).
+	free: { credits: 100, hours: 5, every: 5, week: 150, budgetIdr: 15000, usdIdr: 18000, dailyCap: 0 },
+	// A plan, bought for a month (30 days; QRIS confirmed by hand, cards automatic). Each payment gives that plan's month of
+	// credits ("month"), used at most "credits" in any "hours" (Claude's 5-hour limit). Ran out before the month is over?
+	// Paying for the next month early adds its credits at once and its 30 days to the end; a credit pack works too. What's
+	// left of a month's credits ends with the plan.
+	// The owner's rule (Nov 2): at least twice what it costs on every plan even when someone uses every last credit, the
+	// most on the $20 plan and less the dearer the plan, so the bigger plans are the better deal. A credit costs the owner
+	// at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), so a payment's worst case is "month" x
+	// Rp69, and the price is 2.5x, 2.25x and 2x that. Each payment adds exactly one month of credits, so no timing of
+	// renewals, upgrades or bursts can cost more. Packs sell a credit dearer still (about 2.6x), and never expire.
+	// Nonstop coding is about 140 credits an hour (CODE_HOUR in the site, measured): Nova is 3 hours of it in any 5 and
+	// about 13 hours a month; Pulsar never runs out in a sitting and is about 74 hours a month; Quasar about 165.
 	plans: [
-		{ id: "nova", name: "Nova", credits: 510, hours: 5, week: 4250, month: 9000, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
-		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 13600, month: 47000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
-		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 25500, month: 98000, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
+		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 1850, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 10300, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
+		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
 	],
 	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
 	// Round local prices, not exchange-rate conversions; a credit costs more this way than in a plan
 	packs: [
-		{ id: "mini", name: "Spark", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 }, lemonVariant: "" },
-		{ id: "starter", name: "Flare", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
-		{ id: "plus", name: "Comet", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
-		{ id: "pro", name: "Meteor", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "mini", name: "Spark", credits: 110, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 }, lemonVariant: "" },
+		{ id: "starter", name: "Flare", credits: 430, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
+		{ id: "plus", name: "Comet", credits: 800, bonus: 80, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
+		{ id: "pro", name: "Meteor", credits: 1600, bonus: 160, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 	],
 	currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"],
 	// How the shop runs (no admin page: changed here). QRIS for rupiah: the owner's QR image (a URL, e.g. qris.png in the
@@ -66,16 +69,10 @@ const DEFAULT_CONFIG = {
 	open: false,
 };
 
-// The owner's own accounts: no limits at all (what they use is still counted). Kept as the SHA-256 of the email, so the
-// address itself isn't in this code, which is public.
-const OWNERS = new Set(["c2ba2d71f9fa5f902da38bf0fdf93652b1940cc0907b9f9248baf853de4c31b6"]);
-const OWNER_SEEN = new Map();
-async function isOwner(email) {
-	const e = String(email || "").trim().toLowerCase();
-	if (!e) return false;
-	if (!OWNER_SEEN.has(e)) OWNER_SEEN.set(e, OWNERS.has(await sha256hex(e)));
-	return OWNER_SEEN.get(e);
-}
+// The owner's own account: no limits at all (what it uses is still counted). Named by its account id, never its email: a
+// password account's email isn't checked, so an email alone would let anyone who signs up with it in.
+const OWNER_IDS = new Set(["36c872cb39f4da74877b3207"]);
+const isOwner = (userId) => OWNER_IDS.has(String(userId || ""));
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -362,7 +359,7 @@ async function authUser(req, env) {
 	if (!token) throw fail(401, "Sign in to use Andromeda credits.");
 	const row = await env.DB.prepare("SELECT u.* , s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?").bind(await sha256hex(token)).first();
 	if (!row || row.expires_at < now()) throw fail(401, "Your session ended. Sign in again.");
-	row.owner = await isOwner(row.email);
+	row.owner = isOwner(row.id);
 	return refill(env, row, await config(env));
 }
 
@@ -390,28 +387,32 @@ function planOf(u, c) {
 	const every = !bought && Number(c.free.every) > 0 && Number(c.free.every) < hours ? Number(c.free.every) : hours;
 	return { id: bought ? bought.id : "free", name: bought ? bought.name : "Free", paid: !!bought, credits, hours, every, share: Math.round(credits * every / hours * 1000) / 1000, stepMs: every * 3600e3, week: Math.max(0, Number(p.week) || 0), month: Math.max(0, Number(p.month) || 0), until: bought ? Number(u.plan_until) : 0 };
 }
-// what's been spent from windows this week, and this month (one that's over counts nothing)
+// what's been spent from windows this week (a week that's over counts nothing)
 const weekUsed = (u) => (u.week_at && now() < u.week_at ? Math.max(0, u.week_mc || 0) : 0);
-const monthUsed = (u) => (u.month_at && now() < u.month_at ? Math.max(0, u.month_mc || 0) : 0);
 const UNLIMITED_MC = 1e9;
-// what can come out of the window right now: what's left in it, no more than the week and the month have left
+// a bought plan's month of credits still to use (what its payments added, less what's been used)
+const monthLeft = (u, plan) => (plan.paid && plan.month ? Math.max(0, u.plan_mc || 0) : Infinity);
+// what can come out of the window right now: what's left in it, no more than the week (Free) or the plan's month of
+// credits (a bought plan) has left
 function windowLeft(u, c) {
 	const plan = planOf(u, c);
 	if (plan.owner) return UNLIMITED_MC;
 	let win = Math.max(0, u.free_mc || 0);
 	if (plan.week) win = Math.min(win, Math.max(0, plan.week * 1000 - weekUsed(u)));
-	if (plan.month) win = Math.min(win, Math.max(0, plan.month * 1000 - monthUsed(u)));
-	return win;
+	return Math.min(win, monthLeft(u, plan));
 }
-// a month of a plan, from today or from the end of the one running (renewing early loses nothing). A plan that wasn't
-// running starts with a full window and a fresh week.
+// A month of a plan, from today or from the end of the one running (renewing early loses nothing), with its month of
+// credits: added to what's left when the same plan is running (paid early: they're there at once), or what's left of the
+// plan it replaces plus the new one's (an upgrade: both were paid for). A plan that wasn't running starts with a full
+// window. Days given by hand bring that share of a month's credits.
 async function startPlan(env, userId, plan, days) {
-	const u = await env.DB.prepare("SELECT plan, plan_until FROM users WHERE id = ?").bind(userId).first();
+	const u = await env.DB.prepare("SELECT plan, plan_until, plan_mc FROM users WHERE id = ?").bind(userId).first();
 	if (!u) return false;
-	const running = u.plan && Number(u.plan_until) > now();
-	const until = (running ? Number(u.plan_until) : now()) + (Number(days ?? plan.days) || 30) * 86400e3;
-	if (running && u.plan === plan.id) await env.DB.prepare("UPDATE users SET plan_until = ? WHERE id = ?").bind(until, userId).run();
-	else await env.DB.prepare("UPDATE users SET plan = ?, plan_until = ?, free_mc = ?, free_reset_at = 0, week_mc = 0, week_at = 0, month_mc = 0, month_at = 0 WHERE id = ?").bind(plan.id, until, Math.round((Number(plan.credits) || 0) * 1000), userId).run();
+	const d = Number(days ?? plan.days) || 30, running = u.plan && Number(u.plan_until) > now();
+	const until = (running ? Number(u.plan_until) : now()) + d * 86400e3;
+	const add = Math.round((Number(plan.month) || 0) * 1000 * (d / (Number(plan.days) || 30)));
+	if (running && u.plan === plan.id) await env.DB.prepare("UPDATE users SET plan_until = ?, plan_mc = plan_mc + ? WHERE id = ?").bind(until, add, userId).run();
+	else await env.DB.prepare("UPDATE users SET plan = ?, plan_until = ?, plan_mc = ?, free_mc = ?, free_reset_at = 0, week_mc = 0, week_at = 0 WHERE id = ?").bind(plan.id, until, (running ? Math.max(0, u.plan_mc || 0) : 0) + add, Math.round((Number(plan.credits) || 0) * 1000), userId).run();
 	return true;
 }
 // the columns and tables added since the first version, put on an older database once (the first request after a deploy)
@@ -419,7 +420,7 @@ let COLS = null;
 function columns(env) {
 	if (!COLS) COLS = (async () => {
 		const have = new Set(((await env.DB.prepare("PRAGMA table_info(users)").all()).results || []).map((r) => r.name));
-		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["month_mc", "INTEGER NOT NULL DEFAULT 0"], ["month_at", "INTEGER NOT NULL DEFAULT 0"]]) {
+		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"]]) {
 			if (have.has(k)) continue;
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
@@ -464,10 +465,10 @@ async function refill(env, user, c) {
 	// week spent on the plan doesn't lock them out of Free's)
 	if (user.plan && !(Number(user.plan_until) > now())) {
 		const cap = Math.round((Number(c.free.credits) || 0) * 1000);
-		await env.DB.prepare("UPDATE users SET plan = NULL, free_mc = MIN(free_mc, ?), week_mc = 0, week_at = 0, month_mc = 0, month_at = 0 WHERE id = ? AND plan = ?").bind(cap, user.id, user.plan).run();
+		await env.DB.prepare("UPDATE users SET plan = NULL, plan_mc = 0, free_mc = MIN(free_mc, ?), week_mc = 0, week_at = 0 WHERE id = ? AND plan = ?").bind(cap, user.id, user.plan).run();
 		user.plan = null;
 		user.free_mc = Math.min(user.free_mc || 0, cap);
-		user.week_mc = user.week_at = user.month_mc = user.month_at = 0;
+		user.plan_mc = user.week_mc = user.week_at = 0;
 	}
 	const plan = planOf(user, c);
 	if (plan.owner) return user;
@@ -514,7 +515,7 @@ const waitText = (t) => {
 function outOfCredits(u, c) {
 	const plan = planOf(u, c);
 	const more = plan.paid ? " A credit pack keeps you going right now." : " A plan gives you far more, or a credit pack keeps you going right now.";
-	if (plan.month && u.month_at > now() && monthUsed(u) >= plan.month * 1000 - 999) return fail(402, "You've used this month's credits on " + plan.name + ". They're back in " + waitText(u.month_at) + "." + more);
+	if (plan.paid && plan.month && monthLeft(u, plan) < 1000) return fail(402, "You've used this month's credits on " + plan.name + ". Pay for next month early and its credits are there at once, or a credit pack keeps you going right now.");
 	if (plan.week && u.week_at > now() && weekUsed(u) >= plan.week * 1000 - 999) return fail(402, "You've used this week's credits" + (plan.paid ? " on " + plan.name : "") + ". They're back in " + waitText(u.week_at) + "." + more);
 	if (u.free_capped && u.free_reset_at > now()) return fail(402, "Andromeda's free credits for today are all used up. Yours come back in " + waitText(u.free_reset_at) + "." + more);
 	if (u.free_reset_at > now() && plan.credits > 0) return fail(402, (plan.share < plan.credits ? "You've used your free credits for now. " + plan.share + " more come back in " : "You've used " + (plan.paid ? "your " + plan.name + " credits" : "your free credits") + " for these " + plan.hours + " hours. They're back in ") + waitText(u.free_reset_at) + "." + more);
@@ -524,34 +525,36 @@ function outOfCredits(u, c) {
 // clock and the week's start with their first credit.
 async function take(env, userId, mc, c) {
 	for (let tries = 0; tries < 6; tries++) {
-		const u = await env.DB.prepare("SELECT email, balance_mc, free_mc, free_reset_at, week_mc, week_at, month_mc, month_at, plan, plan_until FROM users WHERE id = ?").bind(userId).first();
-		if (!u) return null;
 		// the owner: nothing is held (what's used is still written down when it's charged)
-		if (await isOwner(u.email)) return { fromFree: 0, fromPaid: 0, free: false, owner: true };
+		if (isOwner(userId)) return { fromFree: 0, fromPaid: 0, free: false, owner: true };
+		const u = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until FROM users WHERE id = ?").bind(userId).first();
+		if (!u) return null;
 		const plan = planOf(u, c), t = now();
 		const fromFree = Math.min(windowLeft(u, c), mc), fromPaid = mc - fromFree;
 		if (fromPaid > Math.max(0, u.balance_mc)) return null;
+		// (a bought plan: what comes out of the window comes out of its month of credits too)
+		const fromMonth = plan.paid && plan.month ? fromFree : 0;
 		// one statement, so requests running at once (a team's pieces) can't overspend the window, the week, the month or
-		// the balance, and don't trip over each other's either: the window's clock, the week and the month start with their
-		// first credit, one that's over starts again from nothing, and only a real shortfall goes round again
-		const r = await env.DB.prepare("UPDATE users SET free_mc = free_mc - ?1, balance_mc = balance_mc - ?2, free_reset_at = CASE WHEN free_reset_at = 0 AND ?1 > 0 THEN ?3 ELSE free_reset_at END, week_mc = (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1, week_at = CASE WHEN week_at > ?4 THEN week_at WHEN ?1 > 0 THEN ?5 ELSE 0 END, month_mc = (CASE WHEN month_at > ?4 THEN month_mc ELSE 0 END) + ?1, month_at = CASE WHEN month_at > ?4 THEN month_at WHEN ?1 > 0 THEN ?8 ELSE 0 END WHERE id = ?6 AND free_mc >= ?1 AND balance_mc >= ?2 AND (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1 <= ?7 AND (CASE WHEN month_at > ?4 THEN month_mc ELSE 0 END) + ?1 <= ?9")
-			.bind(fromFree, fromPaid, t + plan.stepMs, t, t + 7 * 86400e3, userId, plan.week ? plan.week * 1000 : Number.MAX_SAFE_INTEGER, t + 30 * 86400e3, plan.month ? plan.month * 1000 : Number.MAX_SAFE_INTEGER).run();
-		if (r.meta && r.meta.changes) return { fromFree, fromPaid, free: !plan.paid };
+		// the balance, and don't trip over each other's either: the window's clock and the week start with their first
+		// credit, a week that's over starts again from nothing, and only a real shortfall goes round again
+		const r = await env.DB.prepare("UPDATE users SET free_mc = free_mc - ?1, balance_mc = balance_mc - ?2, free_reset_at = CASE WHEN free_reset_at = 0 AND ?1 > 0 THEN ?3 ELSE free_reset_at END, week_mc = (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1, week_at = CASE WHEN week_at > ?4 THEN week_at WHEN ?1 > 0 THEN ?5 ELSE 0 END, plan_mc = plan_mc - ?8 WHERE id = ?6 AND free_mc >= ?1 AND balance_mc >= ?2 AND plan_mc >= ?8 AND (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1 <= ?7")
+			.bind(fromFree, fromPaid, t + plan.stepMs, t, t + 7 * 86400e3, userId, plan.week ? plan.week * 1000 : Number.MAX_SAFE_INTEGER, fromMonth).run();
+		if (r.meta && r.meta.changes) return { fromFree, fromPaid, free: !plan.paid, month: fromMonth > 0 };
 	}
 	return null;
 }
-// What wasn't used goes back where it came from (and out of the week's and month's count): the window is counted as
-// spent first. (The owner held nothing, so nothing goes back.)
+// What wasn't used goes back where it came from (and out of the week's count, and into the plan's month of credits): the
+// window is counted as spent first. (The owner held nothing, so nothing goes back.)
 function giveBack(env, userId, held, charged) {
 	if (held.owner) return env.DB.prepare("SELECT 1");
 	const usedFree = Math.min(held.fromFree, charged), back = held.fromFree - usedFree;
-	return env.DB.prepare("UPDATE users SET free_mc = free_mc + ?, balance_mc = balance_mc + ?, week_mc = MAX(0, week_mc - ?), month_mc = MAX(0, month_mc - ?) WHERE id = ?").bind(back, held.fromPaid - (charged - usedFree), back, back, userId);
+	return env.DB.prepare("UPDATE users SET free_mc = free_mc + ?, balance_mc = balance_mc + ?, week_mc = MAX(0, week_mc - ?), plan_mc = plan_mc + ? WHERE id = ?").bind(back, held.fromPaid - (charged - usedFree), back, held.month ? back : 0, userId);
 }
 async function meOf(env, user) {
 	const c = await config(env);
-	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, month_mc, month_at, plan, plan_until FROM users WHERE id = ?").bind(user.id).first();
+	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until FROM users WHERE id = ?").bind(user.id).first();
 	const u = { ...user, ...(fresh || {}) };
-	if (u.owner == null) u.owner = await isOwner(u.email);
+	u.owner = isOwner(u.id);
 	const plan = planOf(u, c);
 	const pays = await env.DB.prepare("SELECT id, method, pack, amount, currency, credits_mc, status, created_at FROM payments WHERE user_id = ? ORDER BY created_at DESC LIMIT 10").bind(user.id).all();
 	const win = plan.owner ? null : { left: windowLeft(u, c) / 1000, of: plan.credits, hours: plan.hours, every: plan.every, share: plan.share, backAt: u.free_reset_at || null };
@@ -566,7 +569,8 @@ async function meOf(env, user) {
 		owner: !!plan.owner,
 		window: win,
 		week: plan.week ? { left: Math.max(0, plan.week * 1000 - weekUsed(u)) / 1000, of: plan.week, backAt: weekUsed(u) ? u.week_at : null } : null,
-		month: plan.month ? { left: Math.max(0, plan.month * 1000 - monthUsed(u)) / 1000, of: plan.month, backAt: monthUsed(u) ? u.month_at : null } : null,
+		// a bought plan's month of credits (what's left of every month paid for)
+		month: plan.paid && plan.month ? { left: monthLeft(u, plan) / 1000, of: plan.month, backAt: null } : null,
 		// (the window, as pages from before plans read it)
 		free: win,
 		payments: (pays.results || []).map((x) => ({ ...x, credits: x.credits_mc / 1000 })),
@@ -1487,7 +1491,7 @@ async function videoPoll(env, user, jobId) {
 		const mine = await env.DB.prepare("UPDATE jobs SET settled = 1 WHERE id = ? AND settled = 0").bind(jobId).run();
 		if (mine.meta && mine.meta.changes) {
 			const usd = done ? Number(j.usage?.cost) : 0;
-			const held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !planOf(user, c).paid, owner: !!user.owner };
+			const pl = planOf(user, c), held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !pl.paid, owner: !!user.owner, month: !!(pl.paid && pl.month && job.from_free) };
 			const charged = await charge(env, user.id, job.model, held, Number.isFinite(usd) ? usd : mt.toUsd(job.reserve_mc), mt);
 			j.usage = { ...(j.usage || {}), cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 };
 		}
@@ -1909,7 +1913,7 @@ async function wsVideoPoll(env, user, job, c, mt) {
 		// only one check gets to settle it
 		const mine = await env.DB.prepare("UPDATE jobs SET settled = 1 WHERE id = ? AND settled = 0").bind(job.id).run();
 		if (mine.meta && mine.meta.changes) {
-			const held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !planOf(user, c).paid, owner: !!user.owner };
+			const pl = planOf(user, c), held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !pl.paid, owner: !!user.owner, month: !!(pl.paid && pl.month && job.from_free) };
 			const charged = await charge(env, user.id, job.model, held, done ? mt.toUsd(job.reserve_mc) : 0, mt);
 			usage = { cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 };
 		}

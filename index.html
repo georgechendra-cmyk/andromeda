@@ -3212,7 +3212,34 @@ function placeNote(messages) {
 	return out;
 }
 // Stream a chat completion; calls onText(fullTextSoFar). Resolves with the full text.
+// A model that thinks for minutes before its first word: the way to it (the gateway) drops a connection that sends nothing
+// for about two minutes, and the call fails with nothing to show (an app build at Opus 5.5's max thinking did, every time,
+// and the owner still paid for what it thought). So the highest level is never asked for, and a call cut off after a long
+// silence is asked again at once one level lower, and that model starts at that level from then on (on this device).
+const SLOW = store.get("slowEffort", {});
+const TOP_SENT = "xhigh";
+function slowCap(model, extra) {
+	const e = extra && extra.reasoning && extra.reasoning.effort;
+	if (!e) return extra;
+	const cap = [TOP_SENT, SLOW[model]].filter(Boolean).reduce((a, b) => (LEVELS.indexOf(b) < LEVELS.indexOf(a) ? b : a));
+	return LEVELS.indexOf(e) > LEVELS.indexOf(cap) ? { ...extra, reasoning: { ...extra.reasoning, effort: cap } } : extra;
+}
 async function stream(model, messages, onText, signal, extra = {}, acc = null) {
+	extra = slowCap(model, extra);
+	for (let tries = 0; ; tries++) {
+		const t0 = Date.now();
+		try { return await streamOnce(model, messages, onText, signal, extra, acc); }
+		catch (e) {
+			const e0 = extra.reasoning && extra.reasoning.effort, at = LEVELS.indexOf(e0 || "");
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.said || tries >= 2 || Date.now() - t0 < 80e3 || at <= LEVELS.indexOf("low")) throw e;
+			const lower = LEVELS[at - 1];
+			SLOW[model] = lower;
+			store.set("slowEffort", SLOW);
+			extra = { ...extra, reasoning: { ...extra.reasoning, effort: lower } };
+		}
+	}
+}
+async function streamOnce(model, messages, onText, signal, extra = {}, acc = null) {
 	const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra }) });
 	if (!r.ok) {
 		let msg = r.statusText;
@@ -3222,7 +3249,10 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 	const reader = r.body.getReader(), dec = new TextDecoder();
 	let buf = "", text = "";
 	for (;;) {
-		const { done, value } = await reader.read();
+		let got;
+		// (cut off after it had started answering: not asked again, the caller decides)
+		try { got = await reader.read(); } catch (e) { if (text) e.said = true; throw e; }
+		const { done, value } = got;
 		if (done) break;
 		buf += dec.decode(value, { stream: true });
 		let i;
@@ -3249,6 +3279,12 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 	return text;
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// The models that may stand in when the first one fails: none that costs more than half again as much (the next best by
+// score can be several times the price: Fable 5.1 for Opus 5.5)
+function noDearer(list) {
+	const m0 = list[0] && (list[0].m || list[0]), p0 = m0 && Number(m0.pout);
+	return p0 > 0 ? list.filter((x, k) => !k || !(Number((x.m || x).pout) > p0 * 1.5)) : list;
+}
 function fail(message, status) {
 	const e = new Error(message);
 	e.status = Number(status) || 0;
@@ -3408,7 +3444,7 @@ const TONES = {
 const langLine = () => (LANGS.find((l) => l[0] === settings.lang) || LANGS[0])[2];
 function sys(extra) {
 	// every word written is paid for: as long as the question needs, never padded (a big task still gets all of it)
-	const base = "You are Andromeda, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable. Make the answer exactly as long as the question needs: a quick question gets a short answer, a big task a complete one. No restating the question, no warm-up, no closing summary of what you just said, and no offers of more help unless something is truly worth offering.";
+	const base = "You are Andromeda, a precise, warm assistant. Answer directly, use Markdown when it helps, and keep code complete and runnable. Make the answer exactly as long as the question needs: a quick question gets a short answer, a big task a complete one. No restating the question, no warm-up, no closing summary of what you just said, and no offers of more help unless something is truly worth offering. Be completely honest: never make up facts, numbers, names, quotes, sources, links, APIs or results. If you don't know something or can't check it, say so plainly and say what would settle it; mark what's uncertain instead of guessing as if you knew. If the user believes something that isn't so (a bug that isn't there, a wrong fact, code that's actually fine), say so respectfully with your reasons rather than going along with it. Never say you ran, tested or checked something you didn't.";
 	const safe = settings.safelock !== false ? "Safelock is on: keep every answer suitable for all ages, and politely decline sexual, graphic or hateful content." : "";
 	// their custom instructions (Settings): every answer; a build keeps to its own rules
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
@@ -4228,7 +4264,7 @@ const AGENT_RULES = `You are Andromeda Code, the lead engineer on a team, workin
 3. Build in precise edits: edit_file with old_string copied exactly from read_file (without the line-number prefix); write_file only for new files or rewriting small ones. Match the project's style, naming and structure; change only what the task needs. Before writing code against a library or API you aren't certain of, call docs; web_search for anything recent. A hard, narrow piece (an algorithm, a tricky regex, a security-sensitive function, a migration) can go to ask_expert with its exact skills.
 4. Prove it works: call check and fix everything it reports; run the code (run_python or run_javascript for logic you can test here, the real build and tests on the user's computer when it's connected); write a quick test for anything tricky. Read back what you changed.
 5. Before you finish anything beyond a trivial change, call review: a different top model reads every change looking for real bugs. Fix what it finds that's real (it can be wrong: check before you change anything), and review again after big fixes.
-6. Don't ask the user questions mid-task: make sensible decisions and say what they were. Never write secrets, passwords or API keys into code.
+6. Don't ask the user questions mid-task: make sensible decisions and say what they were. Never write secrets, passwords or API keys into code. Be strictly honest: never claim something works, ran or passed unless you saw it; if a bug the user describes isn't there, say so and show why; if you don't know, say so.
 7. Finish with the finish tool: what changed (file names), what you checked and how (which tests ran, what the review found), how to try it, and anything the user must do. If they only asked a question about the code, answer it in finish without editing anything.`;
 function issuesLog() { return store.get("issues", []); }
 // only the owner works on Andromeda's own code: signed in to the owner's account, or to GitHub as the repo's owner
@@ -4897,7 +4933,7 @@ const POWER_TOOLS = [
 	["review", "Before you finish, have a different top model review the work like the most exacting senior reviewer: it reads exactly what you changed or made and reports only real problems (bugs, unhandled cases that will happen, missing requirements, crashes, security holes), each with the fix. Fix the ones that are real; review again after big fixes.", { what: { type: "string", description: "What the work is meant to do: the user's request and the decisions you made" }, content: { type: "string", description: "Only when there are no project files you changed: the work to review" }, kind: { type: "string", enum: ["code", "writing", "analysis"] } }, ["what"]],
 	["helpers", "Send helpers off to look into things in parallel, each with a fresh context of its own, and get back what each found: e.g. how auth works in this codebase, every caller of a function, a library's current API, the facts on a topic. They read and report; they never change anything. Up to 4 at once; each task complete on its own.", { tasks: { type: "array", items: { type: "string" } } }, ["tasks"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
-const REVIEWER = "You review work before it's handed over, as the most exacting senior reviewer at the best company in the world. Find only REAL problems: bugs (wrong logic, off-by-one, wrong conditions, cases that will happen and aren't handled), anything the request asked for that's missing or wrong, code that won't run (wrong imports, the wrong API for the version in use, syntax), crashes, security holes (injection, secrets, unsafe input), races, and for writing or analysis, wrong facts, numbers or reasoning. Not style, naming or taste. For each: where (the file and line, or the part), what's wrong, why it matters, and the exact fix. If there are no real problems, say exactly: No real problems.";
+const REVIEWER = "You review work before it's handed over, as the most exacting senior reviewer at the best company in the world. Find only REAL problems: bugs (wrong logic, off-by-one, wrong conditions, cases that will happen and aren't handled), anything the request asked for that's missing or wrong, code that won't run (wrong imports, the wrong API for the version in use, syntax), crashes, security holes (injection, secrets, unsafe input), races, and for writing or analysis, wrong facts, numbers or reasoning. Not style, naming or taste. For each: where (the file and line, or the part), what's wrong, why it matters, and the exact fix. Never invent a problem to have something to say, and don't count a guess as a finding: if you're not sure, say what you'd need to check. If there are no real problems, say exactly: No real problems.";
 // a second, different top model looks at the work: the model measured best at finding what's wrong in exactly this kind
 // of work (or the cheapest a quark from it), never the one that did it
 async function reviewWork(what, work, kind, notModel, msg) {
@@ -5073,6 +5109,7 @@ async function runAct(text, atts, resume) {
 	// working with tools is its own measured skill (LMArena's agent board), with what this request needs on top
 	// the cheapest a quark from the best: a long job is many steps, so this saves the most of all
 	const cands = bestFirst(quarkFirst(arenaRank("code", blendW({ "agent:overall": 0.25, "agent_outcome:overall": 0.15, "agent_honest_tools:overall": 0.12, "agent_reliability:overall": 0.1, "agent_recovery:overall": 0.08, "agent_steerability:overall": 0.1, "text:instruction_following": 0.1, "text:hard_prompts": 0.1 }, PROFILE && PROFILE.weights, 0.3)).filter((x) => x.m.tools !== false))).map((x) => x.m);
+	cands.splice(0, cands.length, ...noDearer(cands));
 	let ci = 0, model = cands[0] || best("code"), summary = null, step = resume && resume.state ? resume.state.step : 0;
 	const keep = () => vault.set("act:" + msg.data.id, { messages, step }).catch(() => {});
 	try {
@@ -5627,7 +5664,7 @@ async function runAuto(text, atts) {
 	if (code) hist[hist.length - 1] = withText(hist[hist.length - 1], textOf(hist[hist.length - 1]) + editNote(code));
 	// try the best model; if it fails before saying anything, the next one in line takes over
 	let lastErr;
-	const tryList = cands.length ? cands.slice(0, 5) : [best(task)].filter(Boolean);
+	const tryList = cands.length ? noDearer(cands).slice(0, 5) : [best(task)].filter(Boolean);
 	if (!tryList.length) throw Object.assign(new Error("No AI model is reachable for this right now. Try again later."), { plain: true });
 	for (const m of tryList) {
 		msg.chips = [routeChip(m, task)];
@@ -6121,7 +6158,7 @@ async function runQuarks(text, atts) {
 	// one step: the candidates in turn (a busy one is skipped), each at the effort it scored best at unless told otherwise
 	async function run(step, cands, build, onText, extra, effort, cap) {
 		let lastErr;
-		for (const c of cands.slice(0, 6)) {
+		for (const c of noDearer(cands).slice(0, 6)) {
 			const m = c.m || c;
 			step.model = shortName(m);
 			step.id = m.id;
@@ -6384,7 +6421,7 @@ async function runQuarks(text, atts) {
 		// there's no other model at all, the writer checks its own work
 		if (!checkers.length) checkers = arenaRank(...checkW).filter((x) => x.m.id !== fin.id).slice(0, 4);
 		if (!checkers.length) checkers = pick(...checkW);
-		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, or a requirement of the request it misses. Not style or taste. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, checkCap);
+		const raw = await run(chk, checkers, () => [{ role: "user", content: "You check an answer before the user sees it. The request:\n" + request + "\n\nThe team's work it was made from:\n" + parts.slice(0, 60000) + "\n\nThe answer:\n" + msg.text + "\n\nFind only REAL problems: a wrong fact, date, name or number, broken code, a mistake in reasoning, a claim stated as certain that isn't, anything made up (a source, a figure, an API that doesn't exist), or a requirement of the request it misses. Not style or taste, and never invent a problem: an answer that's right passes. Reply with ONLY JSON: {\"pass\": true or false, \"issues\": [\"each problem: what's wrong, and what's right\"], \"pieces\": {" + plan.pieces.map((p) => "\"" + p.id + "\": true").join(", ") + "}}\nIn \"pieces\", say for each piece of the team's work (" + plan.pieces.map((p) => p.id + " = " + p.label).join("; ") + ") whether its work held up (true) or caused one of the problems (false)." }], null, null, checkCap);
 		verdict = readVerdict(raw);
 		if (verdict) { try { const pj = JSON.parse(String(raw).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).pieces; if (pj && typeof pj === "object") verdict.pieces = pj; } catch {} }
 		shareRecord(plan, steps, verdict);
@@ -6995,7 +7032,7 @@ async function runApp(text, atts, pick) {
 		? "The project right now:\n\n" + have + "\n\nThe user asks: " + text + (source ? "\n\nReference material:\n" + source : "") + "\n\nApply the change. " + CHANGE_FORMAT
 		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : ""))
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
-	const cands = bestFor(pics.length ? "appFromImage" : "app");
+	const cands = noDearer(bestFor(pics.length ? "appFromImage" : "app"));
 	let parsed = null, lastErr, unfinished = "", said = "", by = null;
 	const asked = [sys(rules), { role: "user", content: withPics(ask, pics) }];
 	for (const m of cands.slice(0, 5)) {
@@ -9753,17 +9790,17 @@ function money(amount, cur) {
 // Andromeda's Terms of Service, Usage Policy and Privacy Policy (pages beside this one)
 const LEGAL_LINKS = '<a href="terms.html" target="_blank" rel="noopener">Terms</a> · <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>';
 const DEFAULT_PRICING = {
-	creditUsd: 0.01, open: false, free: { credits: 150, hours: 5, every: 5, week: 200 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
+	creditUsd: 0.01, open: false, free: { credits: 100, hours: 5, every: 5, week: 150 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
 	plans: [
-		{ id: "nova", name: "Nova", credits: 510, hours: 5, week: 4250, month: 9000, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
-		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 13600, month: 47000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
-		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 25500, month: 98000, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
+		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 1850, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 10300, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
+		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
 	packs: [
-		{ id: "mini", name: "Spark", credits: 120, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
-		{ id: "starter", name: "Flare", credits: 500, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
-		{ id: "plus", name: "Comet", credits: 1000, bonus: 100, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
-		{ id: "pro", name: "Meteor", credits: 2000, bonus: 400, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "mini", name: "Spark", credits: 110, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
+		{ id: "starter", name: "Flare", credits: 430, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
+		{ id: "plus", name: "Comet", credits: 800, bonus: 80, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
+		{ id: "pro", name: "Meteor", credits: 1600, bonus: 160, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 	],
 };
 // nonstop coding comes to about 140 credits an hour (a measured 10-turn session: about 12 credits a request, about 12
@@ -9794,7 +9831,7 @@ async function openPricing() {
 			'<div class="tile"><b>' + creditsText(Math.min(x.credits, x.week || x.credits)) + "</b><span>in any " + x.hours + " hours</span></div>" +
 			'<div class="tile"><b>≈' + creditsText(Math.round((x.week || x.credits) / 3)) + "</b><span>answers a week</span></div></div>"
 		: '<div class="tiles"><div class="tile full"><b>≈' + hoursText(monthOf(x)) + "</b><span>of coding a month · " + creditsText(monthOf(x)) + " credits</span></div>" +
-			'<div class="tile"><b>' + hoursText(x.week || x.credits) + "</b><span>in a week</span></div>" +
+			'<div class="tile"><b>≈' + creditsText(Math.round(monthOf(x) / 3)) + "</b><span>everyday answers a month</span></div>" +
 			'<div class="tile"><b>' + (nonstop(x) ? "Nonstop" : hoursText(x.credits)) + "</b><span>in any " + x.hours + " hours</span></div></div>";
 	const times = (a, b) => { const r = a / b; return (Math.abs(r - Math.round(r)) < 0.05 ? String(Math.round(r)) : r.toFixed(1)) + "×"; };
 	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">just an account, no card</div>' + tiles(fp, true) +
@@ -9805,7 +9842,7 @@ async function openPricing() {
 		const cur = !!mine && mine.id === p.id, lower = !!mine && rank(mine.id) > i;
 		const feats = [nonstop(p) ? "Code nonstop: a whole " + p.hours + "-hour sitting never runs out" : "Up to " + hoursText(p.credits) + " of nonstop coding in any " + p.hours + " hours",
 			prev ? times(monthOf(p), monthOf(prev)) + " " + prev.name + "'s month, more for every rupiah" : "Apps and games built by the best builder (Claude Opus 5.5 today)",
-			"Every answer thought through fully", "Credit packs on top whenever you need more"];
+			"Every answer thought through fully", "Ran out early? Pay for next month and its credits arrive at once"];
 		const tag = cur ? "Your plan" : p.popular && !mine ? "Recommended" : "";
 		return '<div class="plan' + (tag ? " popular" : "") + '">' + (tag ? '<span class="tag">' + tag + "</span>" : "") +
 			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">a month · ' + (cur && mine.until ? "yours until " + new Date(mine.until).toLocaleDateString() : "no auto-renewal") + "</div>" + tiles(p) +
@@ -9826,8 +9863,8 @@ async function openPricing() {
 		'<div class="plans packs">' + P.packs.map(packCard).join("") + "</div>" +
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Your plan or credits start as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". It arrives automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
-		"<details><summary>How do plans work?</summary><p>Each plan has three limits, the way Claude's work: what you can use in any " + fp.hours + " hours, in a week, and in a month. Each starts with your first message and comes back on its own. Ran out? Wait, or use a credit pack to keep going right away. The bigger plans give more for every rupiah.</p></details>" +
-		"<details><summary>How much coding is that?</summary><p>Nonstop coding is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + ": " + (nonstop(p) ? "nonstop in any " + p.hours + " hours" : "about " + hoursText(p.credits) + " in any " + p.hours + " hours") + ", " + hoursText(p.week) + " a week, about " + hoursText(monthOf(p)) + " a month").join(". ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
+		"<details><summary>How do plans work?</summary><p>Each plan gives you a month of credits, and how many of them you can use in any " + fp.hours + " hours, the way Claude's limits work. Used them all before the month is over? Pay for the next month early: its credits arrive at once and its 30 days are added to the end. Or use a credit pack. The bigger plans give more for every rupiah. Free has its own small window and week.</p></details>" +
+		"<details><summary>How much coding is that?</summary><p>Nonstop coding is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + ": " + (nonstop(p) ? "nonstop in any " + p.hours + " hours" : "about " + hoursText(p.credits) + " in any " + p.hours + " hours") + ", about " + hoursText(monthOf(p)) + " a month").join(". ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
 		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a change to your code about 6 to 25, a hard question checked by a second top model about 35, a full app or game built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +

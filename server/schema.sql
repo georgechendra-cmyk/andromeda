@@ -12,11 +12,10 @@ CREATE TABLE IF NOT EXISTS users (
 	plan_until INTEGER NOT NULL DEFAULT 0, -- when its month runs out
 	week_mc INTEGER NOT NULL DEFAULT 0, -- spent from windows this week
 	week_at INTEGER NOT NULL DEFAULT 0, -- when this week ends (0 = no week running)
-	month_mc INTEGER NOT NULL DEFAULT 0, -- spent from windows in this 30 days
-	month_at INTEGER NOT NULL DEFAULT 0, -- when these 30 days end (0 = none running)
+	plan_mc INTEGER NOT NULL DEFAULT 0, -- a bought plan's month of credits still to use (each payment adds one month)
 	created_at INTEGER NOT NULL
 );
--- (an older database gets plan, plan_until, week_mc, week_at, month_mc and month_at added by the server itself)
+-- (an older database gets plan, plan_until, week_mc, week_at and plan_mc added by the server itself)
 
 CREATE TABLE IF NOT EXISTS sessions (
 	token_hash TEXT PRIMARY KEY,
