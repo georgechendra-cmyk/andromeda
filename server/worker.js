@@ -498,7 +498,7 @@ function planOf(u, c) {
 	const p = bought || c.free;
 	const credits = Number(p.credits) || 0, hours = Number(p.hours) || 24;
 	const every = !bought && Number(c.free.every) > 0 && Number(c.free.every) < hours ? Number(c.free.every) : hours;
-	return { id: bought ? bought.id : "free", name: bought ? bought.name : "Free", paid: !!bought, credits, hours, every, share: Math.round(credits * every / hours * 1000) / 1000, stepMs: every * 3600e3, week: Math.max(0, Number(p.week) || 0), month: Math.max(0, Number(p.month) || 0), until: bought ? Number(u.plan_until) : 0 };
+	return { id: bought ? bought.id : "free", name: bought ? bought.name : "Free", paid: !!bought, credits, hours, every, share: Math.round(credits * every / hours * 1000) / 1000, stepMs: every * 3600e3, week: Math.max(0, Number(p.week) || 0), month: Math.max(0, Number(p.month) || 0), days: Number(p.days) || 30, until: bought ? Number(u.plan_until) : 0 };
 }
 // what's been spent from windows this week (a week that's over counts nothing)
 const weekUsed = (u) => (u.week_at && now() < u.week_at ? Math.max(0, u.week_mc || 0) : 0);
@@ -514,26 +514,46 @@ function windowLeft(u, c) {
 	if (plan.week) win = Math.min(win, Math.max(0, plan.week * 1000 - weekUsed(u)));
 	return Math.min(win, monthLeft(u, plan));
 }
-// A month of a plan, from today or from the end of the one running (renewing early loses nothing), with its month of
-// credits: added to what's left when the same plan is running (paid early: they're there at once), or what's left of the
-// plan it replaces plus the new one's (an upgrade: both were paid for). A plan that wasn't running starts with a full
-// window. Days given by hand bring that share of a month's credits.
+// What a month of a plan (or days of one given by hand) does to an account. Credits never pile up: each month of a plan
+// brings that month's credits, and what isn't used by the month's end is gone (period_at: when this month ends). The same
+// plan paid early: its days go on the end, and its credits come when its month begins. Another plan: it starts now with
+// its month of credits, and what was left of the old one (the smaller of its time and its credits left this month, plus
+// any months paid ahead, as a share of its price) becomes extra days of the new one at the new one's price, so nobody
+// loses what they paid for and nothing is given twice. A plan that wasn't running starts with a full window. (Pure:
+// owner.mjs runs this same function.)
+function planChange(u, plans, plan, days, t) {
+	const span = (Number(plan.days) || 30) * 86400e3, d = (Number(days ?? plan.days) || 30) * 86400e3;
+	const until = Number(u.plan_until) || 0, per = Number(u.period_at) || 0, running = !!u.plan && until > t;
+	if (running && u.plan === plan.id) return { same: true, plan_until: until + d, period_at: per > 0 ? per : until };
+	let extra = 0;
+	if (running) {
+		const old = plans.find((p) => p.id === u.plan) || plans[0] || plan, ospan = (Number(old.days) || 30) * 86400e3;
+		const end = per > 0 ? Math.min(per, until) : until, price = (p) => Number(p.prices && p.prices.IDR) || 0;
+		const left = Math.min(Math.max(0, end - t) / ospan, Number(old.month) > 0 ? Math.max(0, Number(u.plan_mc) || 0) / (old.month * 1000) : 1);
+		const ahead = Math.max(0, until - Math.max(end, t)) / ospan;
+		if (price(old) > 0 && price(plan) > 0) extra = Math.round((left + ahead) * price(old) / price(plan) * span);
+	}
+	const first = Math.min(d + extra, span);
+	return { same: false, plan: plan.id, plan_until: t + d + extra, period_at: t + first, plan_mc: Math.round((Number(plan.month) || 0) * 1000 * first / span), free_mc: Math.round((Number(plan.credits) || 0) * 1000) };
+}
 async function startPlan(env, userId, plan, days) {
-	const u = await env.DB.prepare("SELECT plan, plan_until, plan_mc FROM users WHERE id = ?").bind(userId).first();
-	if (!u) return false;
-	const d = Number(days ?? plan.days) || 30, running = u.plan && Number(u.plan_until) > now();
-	const until = (running ? Number(u.plan_until) : now()) + d * 86400e3;
-	const add = Math.round((Number(plan.month) || 0) * 1000 * (d / (Number(plan.days) || 30)));
-	if (running && u.plan === plan.id) await env.DB.prepare("UPDATE users SET plan_until = ?, plan_mc = plan_mc + ? WHERE id = ?").bind(until, add, userId).run();
-	else await env.DB.prepare("UPDATE users SET plan = ?, plan_until = ?, plan_mc = ?, free_mc = ?, free_reset_at = 0, week_mc = 0, week_at = 0 WHERE id = ?").bind(plan.id, until, (running ? Math.max(0, u.plan_mc || 0) : 0) + add, Math.round((Number(plan.credits) || 0) * 1000), userId).run();
-	return true;
+	// (two payments approved at once: the second goes again with what the first did)
+	for (let tries = 0; tries < 5; tries++) {
+		const u = await env.DB.prepare("SELECT plan, plan_until, plan_mc, period_at FROM users WHERE id = ?").bind(userId).first();
+		if (!u) return false;
+		const x = planChange(u, (await config(env)).plans || [], plan, days, now());
+		const r = x.same ? await env.DB.prepare("UPDATE users SET plan_until = ?, period_at = ? WHERE id = ? AND plan_until = ?").bind(x.plan_until, x.period_at, userId, u.plan_until).run()
+			: await env.DB.prepare("UPDATE users SET plan = ?, plan_until = ?, period_at = ?, plan_mc = ?, free_mc = ?, free_reset_at = 0, week_mc = 0, week_at = 0 WHERE id = ? AND plan_until = ?").bind(x.plan, x.plan_until, x.period_at, x.plan_mc, x.free_mc, userId, u.plan_until).run();
+		if (r.meta && r.meta.changes) return true;
+	}
+	return false;
 }
 // the columns and tables added since the first version, put on an older database once (the first request after a deploy)
 let COLS = null;
 function columns(env) {
 	if (!COLS) COLS = (async () => {
 		const have = new Set(((await env.DB.prepare("PRAGMA table_info(users)").all()).results || []).map((r) => r.name));
-		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"], ["email_ok", "INTEGER NOT NULL DEFAULT 0"]]) {
+		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"], ["email_ok", "INTEGER NOT NULL DEFAULT 0"], ["period_at", "INTEGER NOT NULL DEFAULT 0"]]) {
 			if (have.has(k)) continue;
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
@@ -585,10 +605,23 @@ async function refill(env, user, c) {
 	// week spent on the plan doesn't lock them out of Free's)
 	if (user.plan && !(Number(user.plan_until) > now())) {
 		const cap = Math.round((Number(c.free.credits) || 0) * 1000);
-		await env.DB.prepare("UPDATE users SET plan = NULL, plan_mc = 0, free_mc = MIN(free_mc, ?), week_mc = 0, week_at = 0 WHERE id = ? AND plan = ?").bind(cap, user.id, user.plan).run();
+		await env.DB.prepare("UPDATE users SET plan = NULL, plan_mc = 0, period_at = 0, free_mc = MIN(free_mc, ?), week_mc = 0, week_at = 0 WHERE id = ? AND plan = ?").bind(cap, user.id, user.plan).run();
 		user.plan = null;
 		user.free_mc = Math.min(user.free_mc || 0, cap);
-		user.plan_mc = user.week_mc = user.week_at = 0;
+		user.plan_mc = user.period_at = user.week_mc = user.week_at = 0;
+	}
+	// a bought plan's next month: that month's credits, fresh (what the last one didn't use doesn't carry over; someone
+	// away for months gets this month's, not all of them). The plan's last month is as long as what's left of it.
+	const per = Number(user.period_at) || 0;
+	if (user.plan && Number(user.plan_until) > now() && per > 0 && now() >= per) {
+		const bought = (c.plans || []).find((p) => p.id === user.plan) || (c.plans || [])[0];
+		if (bought) {
+			const span = (Number(bought.days) || 30) * 86400e3, start = per + Math.floor((now() - per) / span) * span, end = Math.min(start + span, Number(user.plan_until));
+			const mc = Math.round((Number(bought.month) || 0) * 1000 * Math.min(1, (end - start) / span));
+			await env.DB.prepare("UPDATE users SET plan_mc = ?, period_at = ? WHERE id = ? AND period_at = ?").bind(mc, end, user.id, per).run();
+			user.plan_mc = mc;
+			user.period_at = end;
+		}
 	}
 	const plan = planOf(user, c);
 	if (plan.owner) return user;
@@ -635,7 +668,10 @@ const waitText = (t) => {
 function outOfCredits(u, c) {
 	const plan = planOf(u, c);
 	const more = plan.paid ? " A credit pack keeps you going right now." : " A plan gives you far more, or a credit pack keeps you going right now.";
-	if (plan.paid && plan.month && monthLeft(u, plan) < 1000) return fail(402, "You've used this month's credits on " + plan.name + ". Pay for next month early and its credits are there at once, or a credit pack keeps you going right now.");
+	if (plan.paid && plan.month && monthLeft(u, plan) < 1000) {
+		const next = Number(u.period_at) > now() && Number(u.period_at) < plan.until;
+		return fail(402, "You've used this month's credits on " + plan.name + ". " + (next ? "Next month's arrive in " + waitText(u.period_at) + "." : "Your plan ends in " + waitText(plan.until) + "; another month of it brings new credits from then.") + " A credit pack keeps you going right now.");
+	}
 	if (plan.week && u.week_at > now() && weekUsed(u) >= plan.week * 1000 - 999) return fail(402, "You've used this week's credits" + (plan.paid ? " on " + plan.name : "") + ". They're back in " + waitText(u.week_at) + "." + more);
 	if (u.free_capped && u.free_reset_at > now()) return fail(402, "Celestin's free credits for today are all used up. Yours come back in " + waitText(u.free_reset_at) + "." + more);
 	if (u.free_reset_at > now() && plan.credits > 0) return fail(402, (plan.share < plan.credits ? "You've used your free credits for now. " + plan.share + " more come back in " : "You've used " + (plan.paid ? "your " + plan.name + " credits" : "your free credits") + " for these " + plan.hours + " hours. They're back in ") + waitText(u.free_reset_at) + "." + more);
@@ -664,7 +700,7 @@ async function take(env, userId, mc, c, owner = false) {
 		// credit, a week that's over starts again from nothing, and only a real shortfall goes round again
 		const r = await env.DB.prepare("UPDATE users SET free_mc = free_mc - ?1, balance_mc = balance_mc - ?2, free_reset_at = CASE WHEN free_reset_at = 0 AND ?1 > 0 THEN ?3 ELSE free_reset_at END, week_mc = (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1, week_at = CASE WHEN week_at > ?4 THEN week_at WHEN ?1 > 0 THEN ?5 ELSE 0 END, plan_mc = plan_mc - ?8 WHERE id = ?6 AND free_mc >= ?1 AND balance_mc >= ?2 AND plan_mc >= ?8 AND (CASE WHEN week_at > ?4 THEN week_mc ELSE 0 END) + ?1 <= ?7")
 			.bind(fromFree, fromPaid, t + plan.stepMs, t, t + 7 * 86400e3, userId, plan.week ? plan.week * 1000 : Number.MAX_SAFE_INTEGER, fromMonth).run();
-		if (r.meta && r.meta.changes) return { fromFree, fromPaid, free: !plan.paid, month: fromMonth > 0 };
+		if (r.meta && r.meta.changes) return { fromFree, fromPaid, free: !plan.paid, month: fromMonth > 0, monthMc: plan.month * 1000 };
 	}
 	return null;
 }
@@ -673,11 +709,12 @@ async function take(env, userId, mc, c, owner = false) {
 function giveBack(env, userId, held, charged) {
 	if (held.owner) return env.DB.prepare("SELECT 1");
 	const usedFree = Math.min(held.fromFree, charged), back = held.fromFree - usedFree;
-	return env.DB.prepare("UPDATE users SET free_mc = free_mc + ?, balance_mc = balance_mc + ?, week_mc = MAX(0, week_mc - ?), plan_mc = plan_mc + ? WHERE id = ?").bind(back, held.fromPaid - (charged - usedFree), back, held.month ? back : 0, userId);
+	// (a request that ran across a new month gives back into the new one, which is full already)
+	return env.DB.prepare("UPDATE users SET free_mc = free_mc + ?, balance_mc = balance_mc + ?, week_mc = MAX(0, week_mc - ?), plan_mc = MIN(plan_mc + ?, MAX(plan_mc, ?)) WHERE id = ?").bind(back, held.fromPaid - (charged - usedFree), back, held.month ? back : 0, held.monthMc || 0, userId);
 }
 async function meOf(env, user) {
 	const c = await config(env);
-	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until FROM users WHERE id = ?").bind(user.id).first();
+	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until, period_at FROM users WHERE id = ?").bind(user.id).first();
 	const u = { ...user, ...(fresh || {}) };
 	u.owner = !!user.owner && isOwner(u.id);
 	const plan = planOf(u, c);
@@ -696,8 +733,9 @@ async function meOf(env, user) {
 		...(isOwner(u.id) && !plan.owner ? { ownerAway: true } : {}),
 		window: win,
 		week: plan.week ? { left: Math.max(0, plan.week * 1000 - weekUsed(u)) / 1000, of: plan.week, backAt: weekUsed(u) ? u.week_at : null } : null,
-		// a bought plan's month of credits (what's left of every month paid for)
-		month: plan.paid && plan.month ? { left: monthLeft(u, plan) / 1000, of: plan.month, backAt: null } : null,
+		// a bought plan's month of credits (what's left of this month's; backAt: when the next month's arrive, if the plan
+		// runs on)
+		month: plan.paid && plan.month ? { left: monthLeft(u, plan) / 1000, of: plan.month, backAt: Number(u.period_at) > now() && Number(u.period_at) < plan.until ? Number(u.period_at) : null } : null,
 		// (the window, as pages from before plans read it)
 		free: win,
 		payments: (pays.results || []).map((x) => ({ ...x, credits: x.credits_mc / 1000 })),
@@ -2568,9 +2606,13 @@ async function refundAsk(req, env, user) {
 	if (plan) {
 		const used = await env.DB.prepare("SELECT COALESCE(SUM(charged_mc), 0) AS mc FROM usage WHERE user_id = ? AND created_at >= ?").bind(user.id, since).first();
 		if ((Number(used && used.mc) || 0) > share * plan.month * 1000) throw fail(400, "More than " + Math.round(share * 100) + "% of that month's credits are used, so it can't be refunded. Write to us if something went wrong.");
-		// that month comes off the end (and its credits off what's left); with nothing left, the plan ends now
-		const until = Math.max(now(), Number(u.plan_until || 0) - plan.days * 86400e3);
-		undo = env.DB.prepare("UPDATE users SET plan_until = ?, plan_mc = MAX(0, plan_mc - ?) WHERE id = ?").bind(until, plan.month * 1000, user.id);
+		// that month comes off the end (a plan since swapped for another: what it became there, the same share of its price);
+		// cutting into the month running cuts its credits to the days left; with nothing left, the plan ends now
+		const cur = (u.plan && c.plans.find((x) => x.id === u.plan)) || plan, price = (p) => Number(p.prices && p.prices.IDR) || 0;
+		const off = plan.days * 86400e3 * (cur.id === plan.id || !price(cur) ? 1 : price(plan) / price(cur));
+		const until = Math.max(now(), Number(u.plan_until || 0) - off), per = Number(u.period_at) || 0;
+		const keep = until <= now() ? 0 : per > until || !per ? Math.round(cur.month * 1000 * (until - now()) / (cur.days * 86400e3)) : -1;
+		undo = env.DB.prepare("UPDATE users SET plan_until = ?1, period_at = CASE WHEN ?2 = 0 THEN 0 WHEN period_at > ?1 THEN ?1 ELSE period_at END, plan_mc = CASE WHEN ?2 >= 0 THEN MIN(plan_mc, ?2) ELSE plan_mc END WHERE id = ?3").bind(until, keep, user.id);
 	} else {
 		if ((Number(u.balance_mc) || 0) < (1 - share) * pay.credits_mc) throw fail(400, "More than " + Math.round(share * 100) + "% of those credits are used, so they can't be refunded. Write to us if something went wrong.");
 		undo = env.DB.prepare("UPDATE users SET balance_mc = MAX(0, balance_mc - ?) WHERE id = ?").bind(pay.credits_mc, user.id);

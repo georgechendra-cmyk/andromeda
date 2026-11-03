@@ -12,11 +12,12 @@ CREATE TABLE IF NOT EXISTS users (
 	plan_until INTEGER NOT NULL DEFAULT 0, -- when its month runs out
 	week_mc INTEGER NOT NULL DEFAULT 0, -- spent from windows this week
 	week_at INTEGER NOT NULL DEFAULT 0, -- when this week ends (0 = no week running)
-	plan_mc INTEGER NOT NULL DEFAULT 0, -- a bought plan's month of credits still to use (each payment adds one month)
+	plan_mc INTEGER NOT NULL DEFAULT 0, -- what's left of a bought plan's credits for this month (they don't carry over)
+	period_at INTEGER NOT NULL DEFAULT 0, -- when this month of the plan ends and the next month's credits arrive
 	email_ok INTEGER NOT NULL DEFAULT 0, -- someone has proven the email is theirs (a code sent to it, or Google)
 	created_at INTEGER NOT NULL
 );
--- (an older database gets plan, plan_until, week_mc, week_at, plan_mc and email_ok added by the server itself)
+-- (an older database gets plan, plan_until, week_mc, week_at, plan_mc, email_ok and period_at added by the server itself)
 
 CREATE TABLE IF NOT EXISTS sessions (
 	token_hash TEXT PRIMARY KEY,
