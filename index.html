@@ -7328,6 +7328,33 @@ function liveParse(text) {
 	if (last && last[1] === "FILE") delete p.files[last[2].replace(/^\.?\//, "")];
 	return p;
 }
+// The style sheets and scripts a page loads from the app itself (not three.js and the like from outside): it can't run
+// until each one is written
+function pageNeeds(page) {
+	const out = [];
+	for (const m of String(page).matchAll(/<link\b[^>]*>/gi)) if (/rel=["']?stylesheet/i.test(m[0])) { const h = (m[0].match(/href=["']?([^"'\s>]+)/i) || [])[1]; if (h) out.push(h); }
+	for (const m of String(page).matchAll(/<script\b[^>]*\bsrc=["']?([^"'\s>]+)/gi)) out.push(m[1]);
+	return [...new Set(out.map((f) => f.replace(/^\.?\//, "")).filter((f) => !/^(https?:)?\/\//i.test(f) && !/^data:/i.test(f)))];
+}
+// What the panel shows while a new app is written and can't run yet: that it's being built, and its files, each ticked
+// off as it's written (in the panel's own light or dark)
+function buildingDoc(done, pending) {
+	const rows = [...done.map((f) => '<li class="done">' + esc(f) + "</li>"), ...pending.filter((f) => !done.includes(f)).map((f) => "<li>" + esc(f) + "</li>")].join("");
+	return '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>' +
+		":root{color-scheme:light dark;--bg:#f6f6fa;--card:#fff;--text:#1c1c26;--muted:#757585;--ok:#5b4cf0;--line:#e4e4ee}" +
+		"@media (prefers-color-scheme:dark){:root{--bg:#111117;--card:#1a1a23;--text:#ececf3;--muted:#9a9aab;--ok:#8f84ff;--line:#2b2b38}}" +
+		"html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif}" +
+		"body{display:grid;place-items:center;padding:16px;box-sizing:border-box}" +
+		".box{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:26px 30px;width:min(320px,100%);box-sizing:border-box;box-shadow:0 12px 32px rgba(20,20,40,.07)}" +
+		"h1{font-size:17px;margin:14px 0 2px;font-weight:650}p{margin:0 0 16px;color:var(--muted);font-size:13.5px}" +
+		"ul{list-style:none;margin:0;padding:0}li{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:14px;color:var(--muted)}li.done{color:var(--text)}" +
+		"li::before{content:'';flex:none;width:16px;height:16px;border-radius:50%;border:2px solid var(--line);box-sizing:border-box}" +
+		"li.done::before{content:'\\2713';border-color:var(--ok);background:var(--ok);color:#fff;font-size:10px;line-height:12px;text-align:center}" +
+		".dots{display:flex;gap:6px}.dots i{width:8px;height:8px;border-radius:50%;background:var(--ok);animation:b 1.2s infinite ease-in-out}" +
+		".dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}" +
+		"@keyframes b{0%,80%,100%{opacity:.25;transform:scale(.8)}40%{opacity:1;transform:scale(1)}}" +
+		'</style></head><body><div class="box"><div class="dots"><i></i><i></i><i></i></div><h1>Building your app</h1><p>It opens here the moment it can run.</p><ul>' + rows + "</ul></div></body></html>";
+}
 // Code in a chat being changed: its words as they come, and each changed file shown whole with every change put in the
 // moment it's written, so the code takes shape while it's written (the final merge, with any change that didn't match
 // redone, replaces it at the end)
@@ -7588,24 +7615,35 @@ async function buildApp(text, atts, pick) {
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
 	const cands = noDearer(bestFor(pics.length ? "appFromImage" : "app", autoCap)).slice(0, 5);
 	let parsed = null, lastErr, unfinished = "", said = "", by = null;
-	// Each file, and each change, goes into the preview the moment it's written (the one still being written waits), so
-	// the app takes shape while it's built, the panel opening with the first of it; what's checked and fixed at the end
-	// replaces it. Stopped or failed part way, what was made so far stays, marked unfinished
+	// Each change goes into the preview the moment it's written (the one still being written waits), so an app being
+	// changed updates while it's changed. A new app shows once it can run: every style sheet and script its page loads
+	// is written (a page without them looks broken); until then the panel says it's being built, each file ticked off as
+	// it's written. What's checked and fixed at the end replaces it. Stopped or failed part way, what was made so far
+	// stays, marked unfinished
 	const title = pick.title || (prev && prev.data.title) || text.slice(0, 60);
 	let marks = -1;
+	const show = (a) => {
+		const i = current ? current.msgs.indexOf(msg) : -1;
+		if (i < 0) return;
+		a = { ...a, i };
+		if (ART && ART.cid === current.id && ART.i === i) { ART = { ...ART, ...a }; drawArt(); }
+		else if (msg.artShown == null && innerWidth > 860 && capOn("panel")) { msg.artShown = true; openArt(a); }
+	};
 	const live = (t) => {
 		const n = (String(t).match(LIVE_MARK) || []).length;
 		if (n === marks) return;
 		marks = n;
 		const p = liveParse(t), files = Object.assign({}, prev ? prev.data.files : {}, p.files);
 		p.del.forEach((x) => delete files[x]);
-		const now = applyEdits(files, p.edits).files;
-		if (!now["index.html"]) return;
+		const now = applyEdits(files, p.edits).files, page = now["index.html"];
+		const missing = page ? pageNeeds(page).filter((f) => now[f] == null) : ["index.html"];
+		if (missing.length) {
+			if (!prev) show({ kind: "app", title, sub: "Building…", sandbox: "allow-scripts", doc: sealed(buildingDoc(Object.keys(now), missing)), page: "", files: [] });
+			return;
+		}
 		msg.data = { files: now, title, live: true };
 		const i = current ? current.msgs.indexOf(msg) : -1;
-		if (i < 0) return;
-		if (ART && ART.cid === current.id && ART.i === i) { ART = { ...ART, ...artFor(i) }; drawArt(); }
-		else if (msg.artShown == null && innerWidth > 860 && capOn("panel")) { msg.artShown = true; openArt(artFor(i)); }
+		if (i >= 0) show(artFor(i));
 	};
 	const asked = [sys(rules), { role: "user", content: withPics(ask, pics) }];
 	// (the models that have written this in parts: one cut off writing it whole gets one go in parts first)
@@ -11274,8 +11312,11 @@ function drawArt() {
 	$("#artViews").hidden = !hasCode;
 	$$("[data-artview]").forEach((b) => { b.classList.toggle("on", b.dataset.artview === a.view); b.setAttribute("aria-selected", String(b.dataset.artview === a.view)); });
 	const isDoc = a.kind === "doc";
-	$("#artTab").hidden = isDoc;
-	$("#artReload").hidden = $("#artFull").hidden = isDoc || a.view !== "preview";
+	// (an app still being built: nothing to copy, download, open or restart yet)
+	const building = a.kind === "app" && !hasCode;
+	$("#artTab").hidden = isDoc || building;
+	$("#artCopy").hidden = $("#artDl").hidden = building;
+	$("#artReload").hidden = $("#artFull").hidden = isDoc || building || a.view !== "preview";
 	if (isDoc) { $("#artViews").hidden = true; drawCanvas(); return; }
 	const body = $("#artBody");
 	if (a.view === "preview") {
