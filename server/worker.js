@@ -1553,7 +1553,7 @@ async function chat(req, env, ctx, user) {
 		const status = !last ? 502 : [401, 402, 403].includes(last.status) ? 503 : last.status;
 		// the gateway turning down Celestin's own key: no model will answer, so nobody is told to pick another. The owner
 		// is told the gateway's own words and what to do (and emailed); everyone else, that it's being fixed
-		const keyRefused = !!last && [401, 402, 403].includes(last.status) && /key|auth|block|balance|budget|credit|quota|insufficient|payment|unauthori[sz]ed|forbidden/i.test(last.message || "");
+		const keyRefused = !!last && [401, 402, 403].includes(last.status) && /\bkey\b|auth|balance|budget|credit|quota|insufficient funds|payment|unauthori[sz]ed/i.test(last.message || "");
 		// (the model itself failing, not the key or a crowd: counted, and three in a quarter hour leave it out for a while)
 		if (!keyRefused && !(last && last.status === 429)) await modelFailed(env, b.model);
 		if (keyRefused) await alertOwner(env, "gateway", "Your AI gateway turned down Celestin's key, so nobody can get answers right now. What it said: " + last.message + "\n\nWhat to do: open your gateway's dashboard (Flaz), go to the API keys, and unblock the key Celestin uses (or make a new key and send it to Claude). Check the wallet balance, and any budget cap on the key.");

@@ -2096,6 +2096,8 @@ let REACH = readReach(store.get("reach", null));
 // how fast each really is here (the server's measure), the model that answered just before in this chat with the chat
 // cached, and this session's failures by model
 const DOWN = new Map(), SESSION_FAIL = {};
+// (how many are left out right now: more than five at once is the connection or the gateway, not them, and none is)
+const downNow = () => { let n = 0; const t = Date.now(); for (const until of DOWN.values()) if (until > t) n++; return n; };
 let SPEED = {}, HOT = null;
 // small talk: answered straight away, without the reading call
 const SMALL_TALK = /^(hi+|hello+|hey+|heya|yo|sup|hai|halo|thanks?|thank you|thank u|thx|ty|tq|makasih|terima kasih|ok(ay)?|k|cool|nice|great|awesome|good (morning|afternoon|evening|night)|bye|goodbye|see (you|ya))[\s!.?,:)]*$/i;
@@ -2106,7 +2108,7 @@ function readReach(r) {
 	return { only: re(r.only || "^$"), skip: re(r.skip), models: Array.isArray(r.models) ? new Set(r.models) : null };
 }
 function usable(m, task) {
-	if (DOWN.size && (DOWN.get(m.id) || 0) > Date.now()) return false;
+	if (DOWN.size && (DOWN.get(m.id) || 0) > Date.now() && downNow() <= 5) return false;
 	if (REACH) {
 		const byLab = REACH.only && REACH.only.test(m.id) && !(REACH.skip && REACH.skip.test(m.id));
 		if (!byLab && !(REACH.models && REACH.models.has(m.id))) return false;
@@ -3367,7 +3369,8 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 		catch (e) {
 			// the model itself failing (not stopped, not out of credits, not the gateway turning Celestin's key down): twice in
 			// this session and it's left out here for ten minutes
-			if (e.name !== "AbortError" && (e.status >= 500 || e.status === 404 || e instanceof TypeError) && !/turned down Celestin's key|can't reach its AI models/.test(e.message || "")) {
+			// (the person's own connection dropping isn't the model failing: not counted)
+			if (e.name !== "AbortError" && (e.status >= 500 || e.status === 404) && !/turned down Celestin's key|can't reach its AI models/.test(e.message || "")) {
 				SESSION_FAIL[model] = (SESSION_FAIL[model] || 0) + 1;
 				if (SESSION_FAIL[model] >= 2) DOWN.set(model, Date.now() + 10 * 60e3);
 			}
@@ -6878,7 +6881,9 @@ function snapApp(files, W = 1280, H = 800) {
 }
 // the model measured best at reading pictures (or the cheapest a quark from it) looks at it: null if it would ship
 // the picture-reading models that turned pictures down through this gateway (not asked to look again)
-const NO_EYES = new Set(store.get("noEyes", []));
+// (each with when it turned them down: asked again after three days, the gateway may change)
+const NO_EYES_AT = (() => { const v = store.get("noEyes", {}); return v && !Array.isArray(v) && typeof v === "object" ? v : {}; })();
+const NO_EYES = new Set(Object.keys(NO_EYES_AT).filter((id) => Date.now() - NO_EYES_AT[id] < 3 * 864e5));
 async function lookAtApp(files, request, msg) {
 	const ranked = arenaRank("vision", { "vision:overall": 0.4, "vision:diagram": 0.2, "vision:captioning": 0.2, "vision:ocr": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
 	const eyes = bestFirst(quarkFirst(ranked, "low")).filter((x) => !NO_EYES.has(x.m.id)).slice(0, 3);
@@ -6894,7 +6899,7 @@ async function lookAtApp(files, request, msg) {
 		catch (err) {
 			if (err.name === "AbortError" || err.status === 401 || err.status === 402) throw err;
 			// (refused outright: it can't take pictures this way, and isn't asked again; the next one looks)
-			if (err.status >= 400 && err.status < 500 && err.status !== 429) { NO_EYES.add(eye.m.id); store.set("noEyes", [...NO_EYES]); }
+			if (err.status >= 400 && err.status < 500 && err.status !== 429) { NO_EYES.add(eye.m.id); NO_EYES_AT[eye.m.id] = Date.now(); store.set("noEyes", NO_EYES_AT); }
 		}
 	}
 	if (out == null) return null;
