@@ -541,7 +541,7 @@ function columns(env) {
 		const jcols = new Set(((await env.DB.prepare("PRAGMA table_info(jobs)").all()).results || []).map((r) => r.name));
 		if (jcols.size && !jcols.has("owner")) { try { await env.DB.prepare("ALTER TABLE jobs ADD COLUMN owner INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		const ucols = new Set(((await env.DB.prepare("PRAGMA table_info(usage)").all()).results || []).map((r) => r.name));
-		for (const k of ["in_tok", "cached_tok", "out_tok", "ms", "first_ms"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		for (const k of ["in_tok", "cached_tok", "out_tok", "ms", "first_ms", "write_tok"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS support (id TEXT PRIMARY KEY, user_id TEXT, email TEXT NOT NULL, category TEXT, subject TEXT, message TEXT NOT NULL, details TEXT, status TEXT NOT NULL DEFAULT 'open', ip TEXT, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS support_user ON support (user_id, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS email_codes (email TEXT PRIMARY KEY, code_hash TEXT NOT NULL, pass TEXT, tries INTEGER NOT NULL DEFAULT 0, sent INTEGER NOT NULL DEFAULT 0, window_at INTEGER NOT NULL DEFAULT 0, expires_at INTEGER NOT NULL)").run();
@@ -1183,10 +1183,16 @@ function priceOf(way, u, price, inTokens, outChars) {
 	const prompt = u.prompt_tokens || inTokens;
 	// (LiteLLM-style gateways also say Claude's as cache_read_input_tokens / cache_creation_input_tokens)
 	const read = Math.min(prompt, u.prompt_tokens_details?.cached_tokens || u.cache_read_input_tokens || 0);
-	const wrote = Math.min(prompt - read, u.prompt_tokens_details?.cache_write_tokens || u.cache_creation_input_tokens || 0);
+	const claude = way.lab === "anthropic";
+	let wrote = Math.min(prompt - read, u.prompt_tokens_details?.cache_write_tokens || u.cache_creation_input_tokens || 0);
+	// a gateway that keeps Claude's cache marks bills writing the cache at 1.25x: when its reply doesn't say how much it
+	// wrote, what wasn't read from the cache is taken as written, once there's enough to cache (from 1,024 tokens), so the
+	// price never comes in under what the owner pays
+	const pd = u.prompt_tokens_details && typeof u.prompt_tokens_details === "object" ? u.prompt_tokens_details : {};
+	const told = "cache_write_tokens" in pd || "cache_creation_input_tokens" in u || "cache_creation_input_tokens" in pd;
+	if (claude && way.kind === "gw" && !told && !GW_NOCACHE.has(way.gw) && prompt - read >= 1024) wrote = prompt - read;
 	// Gemini leaves its thinking out of completion_tokens but bills it: it's in the total
 	const out = Math.max(u.completion_tokens || 0, (u.total_tokens || 0) - (u.prompt_tokens || 0)) || Math.ceil((outChars || 0) / 4);
-	const claude = way.lab === "anthropic";
 	const list = (prompt - read - wrote) * price.pin + read * (price.pcr ?? (claude ? price.pin * 0.1 : price.pin)) + wrote * (price.pcw ?? (claude ? price.pin * 1.25 : price.pin)) + out * price.pout + (u.web_searches || 0) * 0.01;
 	return { list, real: list * (way.fee ?? 1) };
 }
@@ -1366,7 +1372,7 @@ async function chat(req, env, ctx, user) {
 		await env.DB.batch([
 			giveBack(env, user.id, held, charged),
 			// (what it read, how much of that came from the cache, and what it wrote: whether the gateway passes the cache on)
-			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at, in_tok, cached_tok, out_tok, ms, first_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now(), Number(usage && usage.prompt_tokens) || 0, Number(usage && (usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens)) || 0, Number(usage && usage.completion_tokens) || 0, now() - started, firstAt ? firstAt - started : 0),
+			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at, in_tok, cached_tok, out_tok, ms, first_ms, write_tok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now(), Number(usage && usage.prompt_tokens) || 0, Number(usage && (usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens)) || 0, Number(usage && usage.completion_tokens) || 0, now() - started, firstAt ? firstAt - started : 0, Number(usage && (usage.prompt_tokens_details?.cache_write_tokens || usage.cache_creation_input_tokens || usage.prompt_tokens_details?.cache_creation_input_tokens)) || 0),
 			...freeSpend(env, held, charged, real),
 		]);
 		return charged;
@@ -1459,7 +1465,8 @@ async function chat(req, env, ctx, user) {
 		if (j && way.kind === "claude") j = fromClaude(j, b.model);
 		else if (j && way.kind === "responses") j = fromResponses(j, b.model);
 		if (!j || !Array.isArray(j.choices)) {
-			await settle(way, j && j.usage, 0);
+			// (nothing came back: the gateway doesn't bill it, so neither is anyone's credits)
+			await settle(j && j.usage ? way : null, j && j.usage, 0);
 			return json({ error: { message: "The model sent back nothing usable. Try again.", code: 502 } }, 502);
 		}
 		const mc = await settle(way, j.usage, (j.choices[0]?.message?.content || "").length);
@@ -1481,7 +1488,8 @@ async function chat(req, env, ctx, user) {
 		const end = async () => {
 			if (ended) return;
 			ended = true;
-			const mc = await settle(way, used(), outChars);
+			// (a stream that ended with no word and no bill from the gateway, cut off by its time limit: nothing charged)
+			const mc = await settle(outChars || used() ? way : null, used(), outChars);
 			const tail = mc == null ? "" : "data: " + JSON.stringify({ id: "usage", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: b.model, choices: [], usage: shown(used() || {}, mc) }) + "\n\n";
 			await writer.write(enc.encode(tail + "data: [DONE]\n\n"));
 		};
@@ -1531,7 +1539,7 @@ async function chat(req, env, ctx, user) {
 		} finally {
 			// cut off before a word came, after a long wait: too slow at this level
 			if (!outChars && !used() && now() - started >= 80e3) await tooSlow(env, b.model, effort);
-			await settle(way, used(), outChars);
+			await settle(outChars || used() ? way : null, used(), outChars);
 			try { await writer.close(); } catch {}
 		}
 	})());

@@ -1177,6 +1177,16 @@ body.art-dragging { cursor: col-resize; user-select: none; -webkit-user-select: 
 body.art-dragging iframe { pointer-events: none; }
 body.art-dragging .app { transition: none; }
 @container (max-width: 520px) { #artTab, #artFull { display: none; } .art-h { padding-left: 12px; } }
+@media (min-width: 861px) {
+	/* floating in its column, clear of the window's edges: rounded, its own border and a soft shadow, the page's colours */
+	.art { margin: 12px 12px 12px 4px; border: 1px solid var(--glass-line); border-radius: 18px; background: var(--bg2); box-shadow: 0 24px 60px -28px rgba(0,0,0,.5), 0 2px 10px -4px rgba(0,0,0,.18); animation: artIn .4s var(--ease) both; }
+	.art-h { border-radius: 18px 18px 0 0; }
+	.art-b { border-radius: 0 0 17px 17px; overflow: hidden; }
+	/* (the handle sits in the gap between the chat and the card) */
+	.art-drag { left: -12px; width: 12px; }
+	.art-drag::after { left: 5px; top: 18px; bottom: 18px; border-radius: 2px; }
+}
+@keyframes artIn { from { opacity: 0; transform: translateX(14px) scale(.985); } to { opacity: 1; transform: none; } }
 @media (max-width: 860px) {
 	.art { position: fixed; inset: 0; z-index: 45; border: 0; padding-top: env(safe-area-inset-top); animation: sheet .35s var(--ease) both; }
 	.art-drag { display: none; }
@@ -3084,6 +3094,41 @@ function mathFacts(text) {
 	const facts = [...new Set(out)].filter((x) => !/= null$/.test(x)).slice(0, 8);
 	return facts.length ? "Exact values, already worked out by code (use them as they are; don't redo them): " + facts.join("; ") : "";
 }
+// The chat so far, briefly, the request itself left out: what "keep going", "make it blue" or "try again" lean on. Each
+// message trimmed, code left out, what was made said in a few words, a build that was stopped or failed said so
+function recentContext(turns) {
+	const msgs = (current && current.msgs) || [];
+	let end = msgs.length - 1;
+	while (end >= 0 && !(msgs[end] && msgs[end].role === "user")) end--;
+	const out = [];
+	for (let i = Math.max(0, end - turns * 2); i < end; i++) {
+		const m = msgs[i];
+		if (!m) continue;
+		if (m.role === "user") { out.push("User: " + String(m.text || "").replace(/\s+/g, " ").trim().slice(0, 800)); continue; }
+		const stopped = /\*Stopped\.\*/.test(m.text || "");
+		const made = m.kind === "app" ? (m.data ? "[built it as an app] " : stopped ? "[started building it as an app; it was stopped before it was finished, so nothing was made] " : "[an app build that didn't finish] ")
+			: m.kind === "file" ? "[made a file] " : m.kind === "studio" ? "[made " + ((m.data && m.data.kind) || "pictures or video") + "] " : m.kind && STUDY[m.kind] ? "[made a " + m.kind + "] " : stopped ? "[stopped before it finished] " : "";
+		const said = String(m.error ? "(it failed: " + m.error + ")" : m.text || "").replace(/```[\s\S]*?```/g, "[code]").replace(/\*Stopped\.\*/g, "").replace(/\s+/g, " ").trim().slice(0, 400);
+		out.push("Celestin: " + made + said);
+	}
+	return out.join("\n");
+}
+// for the ways that don't read the chat themselves: what came before, so the request is read in it
+function chatNote() { const c = recentContext(3); return c ? "\n\nThe conversation before this request (what it follows on from):\n" + c : ""; }
+// What to make, written out whole: the conductor read the chat, so a follow-up ("keep going", "try again", "make it 3D")
+// is what it means here. A request that stands on its own keeps the person's own words; one the conductor didn't write out
+// gets, when it's a short follow-up, the request it follows
+function wholeRequest(plan, text) {
+	const t = String(text || "").trim(), r = String((plan && plan.request) || "").trim();
+	const short = t.split(/\s+/).length <= 12;
+	if (r && r.toLowerCase() !== t.toLowerCase() && (short || r.length > t.length * 1.3)) return r;
+	if (short) {
+		const users = ((current && current.msgs) || []).filter((m) => m.role === "user");
+		const before = users.length >= 2 ? users[users.length - 2] : null;
+		if (before && before.text && before.text.trim() !== t) return before.text.trim() + "\n\n(Then they said: " + t + ")";
+	}
+	return t;
+}
 // what was made just before (so "make it calmer" changes that one)
 function lastMade() {
 	const last = current.msgs[current.msgs.length - 1];
@@ -3119,6 +3164,8 @@ async function conduct(text, atts, tried, only) {
 	// what's worth remembering about the user is noticed in this same read (no call of its own after every answer)
 	const mem = settings.memory !== false && !(current && current.temp);
 	const known = mem ? memories().slice(-40).map((x) => "- " + x.text).join("\n") : "";
+	// the chat so far (the newest last), so a follow-up means what it means here
+	const ctx = recentContext(3);
 	// what's the same for every message comes first and this request's own context after it, so the reader's provider
 	// bills that long start at its cached price
 	const prompt = "You are Celestin's conductor. Celestin is an AI that makes whatever people ask for, using the best AI model for every part. Read the request and decide for yourself what would truly serve this person, then how Celestin should do it.\n\n"
@@ -3126,8 +3173,9 @@ async function conduct(text, atts, tried, only) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
+		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); otherwise the request as it is. Choose the way and judge everything else from what it really asks for."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
 		+ " \"tags\": 2 to 6 short lowercase words for exactly what the work involves (its language, library, framework, field, topic, kind of task), the most specific that are true: generic words only, never names or personal details."
 		+ (mem ? " \"remember\": lasting facts about the user that this request states, worth knowing in future chats (who they are, their projects and goals, their preferences and rules for how things should be done, decisions they made), each written about the user; not the topic of a one-off question, never secrets or passwords, nothing already remembered; [] if none." : "") + "\n"
@@ -3138,6 +3186,7 @@ async function conduct(text, atts, tried, only) {
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
 		+ (tried && tried.length ? "\nAlready tried, and it failed:\n" + tried.map((t) => "- " + t.way + ": " + t.error).join("\n") + "\nChoose a different way, or the same way only if that error clearly won't happen again.\n" : "")
 		+ (known ? "\nWhat's already remembered about the user:\n" + known + "\n" : "")
+		+ (ctx ? "\nThe conversation so far (the newest last; the request below comes right after it):\n" + ctx + "\n" : "")
 		+ "\nThe request:\n" + text.slice(0, 4000);
 	const signal = AbortSignal.any && AbortSignal.timeout ? AbortSignal.any([busy.signal, AbortSignal.timeout(20000)]) : busy.signal;
 	// deciding how to serve "hi" or "a name for my cat" takes little thought; a longer request, files, or a way that
@@ -3168,27 +3217,29 @@ async function conduct(text, atts, tried, only) {
 		const tags = [...new Set((Array.isArray(j.tags) ? j.tags : []).map((t) => String(t).toLowerCase().trim().replace(/\s+/g, "-").slice(0, 40)).filter((t) => /^[a-z0-9][a-z0-9+#.\-]{0,39}$/.test(t)))].slice(0, 6);
 		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), level: ["easy", "medium", "hard"].includes(j.level) ? j.level : "medium", weights, check: j.check === true, language: lang, tags };
 	}
-	return { way, skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [] };
+	return { way, request: String(j.request || "").slice(0, 3000), skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [] };
 }
 // the way it chose, done by the part of Celestin that does it
 async function runWay(plan, text, atts) {
 	const w = plan.way;
+	// (the ways below that don't read the chat themselves are given the request written out whole)
+	const whole = wholeRequest(plan, text);
 	if (STUDY_WAYS.includes(w)) {
-		const read = studyIntent(text, atts);
-		if (read && read.kind === w && !(plan.edit && !read.edit)) return runStudy(text, atts, read);
+		const read = studyIntent(whole, atts);
+		if (read && read.kind === w && !(plan.edit && !read.edit)) return runStudy(whole, atts, read);
 		const cap = STUDY[w].qty;
 		const qty = cap ? Math.max(cap[0], Math.min(cap[cap.length - 1], plan.qty || cap[1])) : 0;
 		const keys = Object.keys(PODCAST), mins = parseInt(plan.length) * (/hour/i.test(plan.length) ? 60 : 1);
 		const dur = mins ? keys.reduce((a, k) => (Math.abs(parseInt(k) * (/hour/.test(k) ? 60 : 1) - mins) < Math.abs(parseInt(a) * (/hour/.test(a) ? 60 : 1) - mins) ? k : a), keys[0]) : "5 min";
-		return runStudy(text, atts, { kind: w, qty, dur, topic: plan.topic || "", edit: plan.edit });
+		return runStudy(whole, atts, { kind: w, qty, dur, topic: plan.topic || "", edit: plan.edit });
 	}
 	if (FILE_WAYS.includes(w)) {
-		const read = fileIntent(text, atts);
-		return runFile(text, atts, read && read.fmt === w ? read : { fmt: w, edit: plan.edit });
+		const read = fileIntent(whole, atts);
+		return runFile(whole, atts, read && read.fmt === w ? read : { fmt: w, edit: plan.edit });
 	}
 	if (STUDIO_WAYS.includes(w)) {
-		const read = mediaIntent(text, atts);
-		return runStudio(text, atts, read && read.kind === w ? read : { kind: w, edit: plan.edit });
+		const read = mediaIntent(whole, atts);
+		return runStudio(whole, atts, read && read.kind === w ? read : { kind: w, edit: plan.edit });
 	}
 	if (w === "project") {
 		// no project open: one is started right here, named for the work
@@ -3200,8 +3251,8 @@ async function runWay(plan, text, atts) {
 		}
 		return runAgent(text, atts);
 	}
-	if (w === "app") return runApp(text, atts, { edit: plan.edit });
-	if (w === "task") return runTaskWay(plan, text);
+	if (w === "app") return runApp(whole, atts, { edit: plan.edit });
+	if (w === "task") return runTaskWay(plan, whole);
 	if (w === "act" || w === "apps") return runAct(text, atts);
 	if (w === "research") {
 		if (!SKILLS_ON.includes("research")) SKILLS_ON.unshift("research");
@@ -7171,7 +7222,7 @@ async function runApp(text, atts, pick) {
 	const pics = atts.filter((a) => a.kind === "image" && a.data).map((a) => a.data);
 	const ask = (prev
 		? "The project right now:\n\n" + have + "\n\nThe user asks: " + text + (source ? "\n\nReference material:\n" + source : "") + "\n\nApply the change. " + CHANGE_FORMAT
-		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : ""))
+		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : "") + chatNote())
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
 	const cands = noDearer(bestFor(pics.length ? "appFromImage" : "app"));
 	let parsed = null, lastErr, unfinished = "", said = "", by = null;

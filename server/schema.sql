@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS usage (
 	out_tok INTEGER NOT NULL DEFAULT 0, -- tokens written (thinking included)
 	created_at INTEGER NOT NULL,
 	ms INTEGER NOT NULL DEFAULT 0, -- how long the call took in all
-	first_ms INTEGER NOT NULL DEFAULT 0 -- until its first word (0: not streamed)
+	first_ms INTEGER NOT NULL DEFAULT 0, -- until its first word (0: not streamed)
+	write_tok INTEGER NOT NULL DEFAULT 0 -- of what it read, how much the gateway says it wrote to the cache
 );
 
 -- videos take minutes: what was held for each, settled once when it finishes
