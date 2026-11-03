@@ -878,9 +878,42 @@ async function reachOf(env) {
 		if (cats.some((c) => c.ids.length)) {
 			const ids = [...(await prices(env)).keys()].filter((id) => !/:/.test(id));
 			out.models = ids.filter((id) => gws.some((g, i) => cats[i].ids.length && gatewayNames(g, id).length));
-		} else out.all = true; // no list could be read: every model is tried, the names a gateway doesn't know fall through
+			await keepReach(env, out.models);
+		} else {
+			// no list could be read: the last one that was (a model the gateway doesn't have is never asked for); none
+			// kept yet, every model is tried, the names a gateway doesn't know falling through
+			const last = await lastReach(env);
+			if (last.length) { out.models = last; out.stale = true; } else out.all = true;
+			// the gateway turning down the owner's key itself: the owner is told, by email
+			const refused = cats.find((c) => /^40[123]\b/.test(c.error || ""));
+			if (refused) await alertOwner(env, "gateway", "Your AI gateway turned down Celestin's key, so nobody can get answers right now. What it said: " + refused.error.replace(/ \(its key:.*$/, "") + "\n\nWhat to do: open your gateway's dashboard (Flaz), go to the API keys, and unblock the key Celestin uses (or make a new key and send it to Claude). Check the wallet balance, and any budget cap on the key.");
+		}
 	}
 	return out;
+}
+// The last list of models the gateway gave, kept (only when it changes) for when it can't be read
+let REACH_LAST = null;
+async function keepReach(env, models) {
+	const v = JSON.stringify(models);
+	if (REACH_LAST === v || !models.length) return;
+	REACH_LAST = v;
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('reach-last', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(v).run().catch(() => {});
+}
+async function lastReach(env) {
+	try { const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'reach-last'").first(); const list = row ? JSON.parse(row.v) : []; return Array.isArray(list) ? list : []; }
+	catch { return []; }
+}
+// Telling the owner something's wrong that only they can fix, by email, at most once an hour for each kind of problem
+async function alertOwner(env, kind, text) {
+	try {
+		if (!mailOn(env)) return;
+		const k = "alert-" + kind, row = await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind(k).first();
+		if (row && now() - Number(row.v) < 3600e3) return;
+		await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(k, String(now())).run();
+		const to = String((await config(env)).support || "").trim();
+		if (!to) return;
+		await sendMail(env, to, "[Celestin] Needs you: " + (kind === "gateway" ? "the AI gateway turned down Celestin's key" : kind), text, "<div style=\"font-family:system-ui,sans-serif;font-size:15px;color:#111;white-space:pre-wrap\">" + escHtml(text) + "</div>");
+	} catch {}
 }
 function errorText(t, fallback) {
 	try {
@@ -1476,7 +1509,12 @@ async function chat(req, env, ctx, user) {
 		await settle(null);
 		// the owner's provider account refusing (no balance, a bad key) isn't the person's credits running out
 		const status = !last ? 502 : [401, 402, 403].includes(last.status) ? 503 : last.status;
+		// the gateway turning down Celestin's own key: no model will answer, so nobody is told to pick another. The owner
+		// is told the gateway's own words and what to do (and emailed); everyone else, that it's being fixed
+		const keyRefused = !!last && [401, 402, 403].includes(last.status) && /key|auth|block|balance|budget|credit|quota|insufficient|payment|unauthori[sz]ed|forbidden/i.test(last.message || "");
+		if (keyRefused) await alertOwner(env, "gateway", "Your AI gateway turned down Celestin's key, so nobody can get answers right now. What it said: " + last.message + "\n\nWhat to do: open your gateway's dashboard (Flaz), go to the API keys, and unblock the key Celestin uses (or make a new key and send it to Claude). Check the wallet balance, and any budget cap on the key.");
 		const message = !last ? "Couldn't reach the AI provider. Try again."
+			: keyRefused ? (isOwner(user.id) ? "Your AI gateway turned down Celestin's key, so no model can answer: \"" + String(last.message).slice(0, 200) + "\". Open the gateway's dashboard (Flaz) → API keys, and unblock it or make a new one. Check the balance and any budget cap too." : "Celestin can't reach its AI models right now. It's being fixed: please try again in a little while.")
 			: status === 503 && last.status !== 503 ? "That model can't be reached right now. Pick another, or try again later."
 			: status === 429 ? "That model is busy right now. Try again in a minute, or pick another."
 			: last.message;
