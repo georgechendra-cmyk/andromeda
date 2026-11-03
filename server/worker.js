@@ -917,6 +917,13 @@ async function reachOf(env) {
 		if (cats.some((c) => c.ids.length)) {
 			const ids = [...(await prices(env)).keys()].filter((id) => !/:/.test(id));
 			out.models = ids.filter((id) => gws.some((g, i) => cats[i].ids.length && gatewayNames(g, id).length));
+			// (and what it has that OpenRouter doesn't list yet, with the price to be safe with: the site uses one only where
+			// the leaderboards rate it)
+			const fresh = await freshModels(env);
+			if (fresh.length) {
+				out.models.push(...fresh.map((f) => f.id));
+				out.fresh = fresh.map((f) => ({ id: f.id, name: f.gw, pin: f.pin * 1e6, pout: f.pout * 1e6 }));
+			}
 			await keepReach(env, out.models);
 		} else {
 			// no list could be read: the last one that was (a model the gateway doesn't have is never asked for); none
@@ -929,6 +936,46 @@ async function reachOf(env) {
 		}
 	}
 	return out;
+}
+// A model the gateway has that OpenRouter doesn't list yet (a new release the gateway added first): what it is, from the
+// gateway's own name (its maker by its family word, or the maker it's filed under), and a price to be safe with until
+// OpenRouter lists it: twice the dearest of that maker's models the gateway also has, so a new model never costs the
+// owner more than it brings in. Text models only. The day OpenRouter lists it, its own entry and price take over.
+const LAB_BY_NAME = [[/^(claude|opus|sonnet|haiku|fable)/, "anthropic"], [/^(gpt|chatgpt|o\d)/, "openai"], [/^(gemini|gemma)/, "google"], [/^grok/, "x-ai"], [/^deepseek/, "deepseek"], [/^(qwen|qwq)/, "qwen"], [/^kimi/, "moonshotai"], [/^glm/, "z-ai"], [/^minimax/, "minimax"], [/^mimo/, "xiaomi"], [/^(mistral|codestral|magistral|devstral)/, "mistralai"], [/^llama/, "meta-llama"]];
+const NOT_TEXT = /image|video|veo|imagen|flux|banana|sora|kling|tts|whisper|embed|audio|music|lyria|speech|realtime|moderation|seedance|seedream|hailuo|midjourney|dall-?e|transcri|rerank|search|deep-research/i;
+let FRESH = { at: 0, list: [] };
+async function freshModels(env) {
+	if (Date.now() - FRESH.at < 600e3) return FRESH.list;
+	const gws = gateways(env), list = [];
+	if (gws.length) {
+		const cats = await Promise.all(gws.map(gatewayCatalog));
+		const map = await prices(env);
+		const known = [...map.keys()].filter((id) => !/:/.test(id) && !NOT_TEXT.test(id));
+		const seen = new Set();
+		gws.forEach((g, i) => {
+			if (!cats[i].ids.length) return;
+			// what the gateway's names already stand for, and what each maker's models cost there
+			const served = known.filter((id) => gatewayNames(g, id).length);
+			const taken = new Set(served.flatMap((id) => gatewayNames(g, id)));
+			for (const gid of cats[i].ids) {
+				if (taken.has(gid) || NOT_TEXT.test(gid) || /-(openrouter(-backup)?|or|backup)$/i.test(gid)) continue;
+				const bare = gid.toLowerCase().replace(/^.*\//, "");
+				const lab = gid.includes("/") ? gid.split("/")[0].toLowerCase().replace(/^xai$/, "x-ai") : (LAB_BY_NAME.find(([re]) => re.test(bare)) || [])[1];
+				if (!lab) continue;
+				const id = lab + "/" + bare;
+				if (map.has(id) || seen.has(id)) continue;
+				const theirs = served.filter((k) => k.startsWith(lab + "/")).map((k) => map.get(k)).filter((p) => p && p.pout > 0);
+				if (!theirs.length) continue;
+				const dear = theirs.reduce((a, b) => (b.pout > a.pout ? b : a));
+				seen.add(id);
+				list.push({ id, gw: gid, pin: dear.pin * 2, pout: dear.pout * 2, pcr: undefined, pcw: undefined, mo: dear.mo, fresh: true });
+			}
+		});
+		// (what the gateway turned out to have that's new, for the server's log)
+		if (list.length) console.log("new on the gateway, not on OpenRouter yet: " + list.map((f) => f.id + " (as " + f.gw + ")").join(", "));
+	}
+	FRESH = { at: Date.now(), list };
+	return list;
 }
 // The last list of models the gateway gave, kept (only when it changes) for when it can't be read
 let REACH_LAST = null;
@@ -1291,22 +1338,30 @@ async function searchWeb(env, q, n) {
 	} catch {}
 	return [];
 }
-// No search key: a model that searches the web for itself finds the sources (WaveSpeed's models with web search, or
-// OpenRouter's web plugin), so search works from the start. Only what it actually cites is kept (a model that answered
-// from memory isn't searching, and its links aren't trusted). About a cent a search, charged like anything else.
+// No search key: a model that searches the web for itself finds the sources (through the rupiah gateway, which has the
+// same searching models; WaveSpeed's models with web search; or OpenRouter's web plugin), so search works from the start.
+// Only what it actually cites is kept (a model that answered from memory isn't searching, and its links aren't trusted),
+// however the way says it: OpenAI-style annotations, a list of citations (Grok, Perplexity), Gemini's grounding, or
+// Claude's own citations. A way that answered without searching isn't asked again for an hour. About a cent a search,
+// charged like anything else.
 const SEARCHERS = ["x-ai/grok-4.7", "openai/gpt-5.4-nano", "google/gemini-3.5-flash-lite", "anthropic/claude-haiku-5.5", "openai/gpt-4o-mini"];
 const SEARCH_OFF = new Map(); // a gateway that answered without searching: not asked again for an hour
 async function modelSearch(env, q, n) {
-	const ways = [...gateways(env).filter((g) => g.n === "ws").map((g) => ({ id: "ws", base: g.base, key: g.key })), ...(env.OPENROUTER_KEY ? [{ id: "or", base: orBase(env), key: env.OPENROUTER_KEY }] : [])];
+	const gws = gateways(env);
+	await Promise.all(gws.map(gatewayCatalog));
+	const ways = [...gws.map((g) => ({ id: g.n === "ws" ? "ws" : "gw" + g.n, base: g.base, key: g.key, g })), ...(env.OPENROUTER_KEY ? [{ id: "or", base: orBase(env), key: env.OPENROUTER_KEY }] : [])];
 	const ask = "Search the web now for: " + q + "\n\nThen reply with ONLY JSON: {\"results\": [{\"title\": \"...\", \"url\": \"the page's address\", \"text\": \"what that page says that matters here, in 2 to 4 sentences, with its date if it has one\"}]}: up to " + n + " results from different sources, the most useful and recent first.";
 	let usd = 0;
 	for (const w of ways) {
 		if (Date.now() - (SEARCH_OFF.get(w.id) || 0) < 3600e3) continue;
 		models: for (const model of SEARCHERS) {
+			// (a gateway's own name for it; one it doesn't have: the next)
+			const name = w.g ? gatewayNames(w.g, model)[0] : model;
+			if (!name) continue;
 			for (const extra of [{ plugins: [{ id: "web", max_results: n }], web_search_options: { search_context_size: "medium" } }, { web_search_options: { search_context_size: "medium" } }]) {
 				let r;
 				try {
-					r = await fetch(w.base + "/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + w.key, "Content-Type": "application/json" }, body: JSON.stringify({ model, messages: [{ role: "user", content: ask }], max_tokens: 2000, temperature: 0, ...extra }), signal: AbortSignal.timeout(40000) });
+					r = await fetch(w.base + "/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + w.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: name, messages: [{ role: "user", content: ask }], max_tokens: 2000, temperature: 0, ...extra }), signal: AbortSignal.timeout(40000) });
 				} catch { continue models; }
 				// a model it doesn't have: the next one; settings it doesn't take: the plainer form
 				if (r.status === 400 || r.status === 422) continue;
@@ -1314,7 +1369,9 @@ async function modelSearch(env, q, n) {
 				const j = await r.json().catch(() => null);
 				usd += Number(j?.usage?.cost) || 0.012;
 				const msg = j?.choices?.[0]?.message || {};
-				const cites = (msg.annotations || []).map((a) => a.url_citation || a).filter((c) => c && /^https?:\/\//.test(String(c.url || "")));
+				const grounding = (Array.isArray(j?.vertex_ai_grounding_metadata) ? j.vertex_ai_grounding_metadata : [j?.vertex_ai_grounding_metadata]).flatMap((g) => (g && g.groundingChunks) || []).map((c) => c && c.web && { url: c.web.uri, title: c.web.title });
+				const claude = ((msg.provider_specific_fields && msg.provider_specific_fields.citations) || []).flat();
+				const cites = [...(msg.annotations || []).map((a) => a.url_citation || a), ...(Array.isArray(j?.citations) ? j.citations : []).map((u) => (typeof u === "string" ? { url: u } : u)), ...grounding, ...claude].filter((c) => c && /^https?:\/\//.test(String(c.url || "")));
 				if (!cites.length) { SEARCH_OFF.set(w.id, Date.now()); break models; }
 				let said = [];
 				try { said = JSON.parse(String(msg.content || "").replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).results || []; } catch {}
@@ -1457,7 +1514,12 @@ async function chat(req, env, ctx, user) {
 	const c = await config(env);
 	const b = await body(req);
 	if (typeof b.model !== "string" || b.model.startsWith("openrouter/")) throw fail(400, "Pick a specific model.");
-	const price = (await prices(env)).get(b.model);
+	// a reply written in parts (a model the gateway cuts off after about two minutes): this part's whole length, thinking
+	// included, so it finishes in time (the site asks for the next part); never sent on to anyone
+	const part = Math.floor(Number(b.chunk) || 0);
+	delete b.chunk;
+	// (a model the gateway has that OpenRouter doesn't list yet: the price to be safe with, until it does)
+	const price = (await prices(env)).get(b.model) || (await freshModels(env)).find((x) => x.id === b.model);
 	if (!price) throw fail(400, "That model isn't available.");
 	if (spendable(user, c) < 1000) throw outOfCredits(user, c);
 	// a live web search, when the site asks for one: the model's own search where the way allows it (how the search
@@ -1489,6 +1551,7 @@ async function chat(req, env, ctx, user) {
 	let firstAt = 0;
 	let maxOut = Math.min((Number(b.max_tokens) || c.maxTokens) + thinkRoom, c.maxTokens + thinkRoom);
 	if (price.mo > 0) maxOut = Math.min(maxOut, price.mo);
+	if (part > 0) maxOut = Math.min(maxOut, Math.max(1024, part));
 	if (price.pout > 0) maxOut = Math.min(maxOut, Math.floor(room / price.pout));
 	if (maxOut < 64) throw fail(402, "Not enough credits for this model. Buy credits or choose a lower Quality.");
 
@@ -2274,7 +2337,7 @@ async function toolSearch(req, env, user) {
 	const b = await body(req);
 	const q = String(b.query || "").trim();
 	if (!q) throw fail(400, "Search for what?");
-	if (!env.TAVILY_KEY && !env.BRAVE_KEY && !env.WAVESPEED_KEY && !env.OPENROUTER_KEY) throw fail(503, "Web search isn't set up on this server yet. Read pages directly with fetch_url instead.");
+	if (!env.TAVILY_KEY && !env.BRAVE_KEY && !gateways(env).length && !env.OPENROUTER_KEY) throw fail(503, "Web search isn't set up on this server yet. Read pages directly with fetch_url instead.");
 	return json({ results: await searchFor(env, user, q, Math.max(1, Math.min(10, Number(b.n) || 6))) });
 }
 async function toolFetch(req, env) {

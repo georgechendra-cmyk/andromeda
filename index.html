@@ -1983,7 +1983,7 @@ async function loadCatalog(force) {
 			output: m.architecture?.output_modalities || ["text"],
 			tools: Array.isArray(m.supported_parameters) ? m.supported_parameters.includes("tools") : null,
 		})).filter((m) => m.id && m.output.includes("text"));
-		store.set("catalog", { at: Date.now(), models: catalog });
+		store.set("catalog", { at: Date.now(), models: catalog.filter((m) => !m.fresh) });
 	} catch (e) {
 		catalog = cached?.models || [];
 	}
@@ -2191,7 +2191,7 @@ function rank(task, cap, seen) {
 	// (seen: this request's tags and Celestin's own record on them, which moves a model where it has real evidence)
 	let list = arenaRank(task);
 	if (seen && seen.record && seen.tags) list = learned(list, seen.tags, seen.record, list);
-	const data = bestFirst(quarkFirst(list, cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800), STAKES[task]));
+	const data = bestFirst(quarkFirst(list, cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800)));
 	if (data.length >= 2) return pinFirst(diversify(data), task);
 	const out = [];
 	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
@@ -2466,8 +2466,8 @@ function effortFor(id, f) {
 // What each of Celestin's own features needs, as the leaderboards measure it, so each goes to the model that measurably
 // does exactly that best, blended with what this request needs on top (its field, its language)
 // (bench: how much getting it right on Epoch AI's benchmarks weighs here, where it isn't the kind of work's own share: a
-// web app is judged best by people building and using web apps, which the WebDev board measures directly. stakes: the
-// standard a cheaper model must meet, for what the rest depends on. in: what it reads, when that's known)
+// web app is judged best by people building and using web apps, which the WebDev board measures directly. in: what it
+// reads, when that's known)
 const FEATURE_W = {
 	app: { task: "code", out: 12000, bench: 0.25, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
 	// a video's drawn shots: frame-by-frame canvas animation, a web page's craft with a storyteller's eye
@@ -2493,18 +2493,21 @@ const FEATURE_W = {
 	// about as well)
 	// (own: picked on reading and planning alone, not on what the request is about: reading a coding request well is
 	// still reading)
-	reader: { task: "quick", out: 300, in: 4500, fast: true, own: true, bench: 0.15, stakes: 0.1, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
+	reader: { task: "quick", out: 300, in: 4500, fast: true, own: true, bench: 0.15, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
 	// splitting a request into its smallest pieces of work, and putting the pieces back together into one answer
-	planner: { task: "reasoning", out: 900, in: 3500, own: true, bench: 0.3, stakes: 0.1, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
+	planner: { task: "reasoning", out: 900, in: 3500, own: true, bench: 0.3, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
 	assemble: { task: "write", out: 2500, w: { "text:instruction_following": 0.35, "text:expert": 0.25, "text:creative_writing": 0.2, "factuality:overall": 0.2 } },
 };
 // The models for one of those features, best first (at most two from one lab near the top, so if a lab is down the next
 // in line is another); without the leaderboards, the labs known for that kind of work
-function bestFor(feature) {
+function bestFor(feature, cap) {
 	const f = FEATURE_W[feature];
 	let data = arenaRank(f.task, f.own ? f.w : blendW(f.w, PROFILE && PROFILE.weights, 0.6), f.bench);
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
-	data = bestFirst(quarkFirst(data, undefined, undefined, (x, cap) => callCost(x, cap, f.out || 800, f.in), f.stakes ?? STAKES[f.task]));
+	// (a cap on how hard it may think: it's judged by what it scored at that much thought or less, which is what will run)
+	if (cap) { const under = data.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) data = under; }
+	// (the quick reader sorts every message, so the best of the fast ones, not the cheapest that's nearly as good)
+	data = bestFirst(f.fast ? data : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -2788,11 +2791,14 @@ function arenaRank(task, weights, share) {
 	if (speed() === "fast") { const quick = out.filter((x) => FAST.test(x.m.id)); if (quick.length) return quick; }
 	return out;
 }
-// A quark isn't worth a dollar. Among the models (and how hard each thinks) that the leaderboards can't tell apart from
-// the best (the gap smaller than the two ratings' own 95% uncertainty, and never more than QUARK_MAX), the one that costs
-// least for this work does it: often the same model thinking less, or another lab's at a fraction of the price. Within
-// a quarter of the cheapest, one already on the team is preferred (its pieces then go in the same call). Max: the best.
-const QUARK_MAX = 0.6;
+// Which model does each piece: the owner's rule (Nov 3). One whose work the best's would beat at most 51 times in 100
+// (about 7 Elo, "a hair") is as good, and the cheapest of those does it: often the same model thinking less, or another
+// lab's at a fraction of the price. Past a hair, up to 54 in 100 (about 28 Elo), one that costs at most half what the
+// best does is fair too (the owner, Nov 4: "2x or more is fair"), and the cheapest of everything fair does it; further
+// behind than that, never, whatever it saves. Within a quarter of the cheapest, one already on the team is preferred (its
+// pieces then go in the same call). Max: the best, whatever it costs. (A unit of score here is 15 Elo.)
+const PREFER = (p) => (400 * Math.log10(p / (100 - p))) / 15;
+const HAIR = PREFER(51), PRICE_MAX = PREFER(54);
 // (the thinking an effort takes, in tokens: what Epoch AI's coding benchmarks count, each effort about half again or
 // twice the one below)
 const THINK_TOK = { none: 0, minimal: 400, low: 1500, medium: 3000, high: 5000, xhigh: 7500, max: 11000 };
@@ -2822,29 +2828,13 @@ function tokensOf(messages) {
 	}
 	return Math.round(n);
 }
-// What a lead must be worth. Past a tie, a model behind the best still does the work when the best's lead is smaller than
-// its extra price has to buy: each doubling of price must buy WORTH of score (a unit is 15 Elo, about two points of how
-// often people prefer it), less for hard work (quality first), more for easy work. Never more than WORTH_MAX behind: 10
-// Elo, a gap nobody notices (51 in 100); Claude Opus 5.5 to Sonnet 5.5, 20 to 40 Elo, is a different class of answer and
-// is never traded for money. And never a quick, light model when the best isn't one: the owner's rule, they read, plan
-// and route, they don't write what people read. Max ignores price.
-const WORTH = { low: 0.5, medium: 0.35, high: 0.2 }, WORTH_MAX = 0.67;
-// code and reasoning hold out for quality: the leaderboards measure which answer people preferred, and code and proofs
-// also have to be right, which a small preference gap can hide. How far by how hard the work is: a short script can go
-// to a strong coder at a twentieth of the price, a hard system goes to the best
-const STAKES = { code: WORTH.high, reasoning: WORTH.high }, STAKES_AT = { low: 0.35, medium: 0.25, high: 0.2 };
 // (Celestin's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
 // record here is clearly worse than the best's isn't level with it, whatever the ratings say)
-const quarkTied = (top, x, most = QUARK_MAX) => x.mid != null && top.mid != null && top.mid - x.mid <= Math.min(most, Math.hypot(top.hw || 0, x.hw || 0)) && (x.learned || 0) >= (top.learned || 0) - 0.25;
-// Code and reasoning that must be right count a smaller gap as a real one, the harder the work: thinking a step less
-// that the benchmarks measure costing nothing (Gemini 4 Argon coding at medium) is still taken on hard work, one that
-// costs a few points of getting it right isn't. (cap: the piece's own level; without one, how hard the request was read)
-const TIE_AT = { low: QUARK_MAX, medium: 0.45, high: 0.2 };
-function quarkFirst(list, cap, used, cost = callCost, worth, role) {
+const quarkTied = (top, x, most = HAIR) => x.mid != null && top.mid != null && top.mid - x.mid <= most && (x.learned || 0) >= (top.learned || 0) - 0.25;
+function quarkFirst(list, cap, used, cost = callCost) {
 	if (speed() === "max" || list.length < 2) return list;
 	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
-	const stakes = worth ?? STAKES[list[0] && list[0].task];
-	const most = stakes == null ? QUARK_MAX : cap ? TIE_AT[cap] ?? QUARK_MAX : PROFILE && PROFILE.level === "hard" ? TIE_AT.high : QUARK_MAX;
+	const most = HAIR;
 	// (a light model never writes the answer when the best isn't light: not tied, not cheaper, not as the next in line)
 	const light = (x) => FAST.test(x.m.id) && !FAST.test(top.m.id);
 	list = list.filter((x) => !light(x));
@@ -2866,17 +2856,13 @@ function quarkFirst(list, cap, used, cost = callCost, worth, role) {
 	const wait = (x) => { const sp = SPEED[x.m.id]; return sp && sp.tps > 0 ? sp.first + (1000 * 800) / sp.tps : Infinity; };
 	const quick = fair.filter((x) => x !== pick && cost(x, cap) <= cost(pick, cap) * 1.1 && wait(x) < wait(pick) * 0.8);
 	if (quick.length) pick = quick.reduce((a, b) => (wait(b) < wait(a) ? b : a));
-	// then worth its price: the tied pick counts as level with the best; one further behind wins only if the money it saves
-	// is worth more than the lead it gives up
+	// then past a hair: one no more than 54 in 100 behind that costs at most half what the best does is fair too, and the
+	// cheapest of all that are fair does it
 	if (top.mid != null) {
-		// (code and reasoning never go below their own standard for how hard the piece is, checks included)
-		const lam = stakes != null ? Math.min(WORTH[cap] ?? WORTH.medium, STAKES_AT[cap] ?? stakes) : WORTH[cap] ?? WORTH.medium;
-		const val = (x, mid) => mid - lam * Math.log2(cost(x, cap));
-		let bestVal = val(pick, top.mid);
+		const half = cost(top, cap) / 2;
 		for (const x of list) {
-			if (tied.includes(x) || x.mid == null || top.mid - x.mid > WORTH_MAX || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
-			const v = val(x, x.mid);
-			if (v > bestVal) { bestVal = v; pick = x; }
+			if (tied.includes(x) || x.mid == null || top.mid - x.mid > PRICE_MAX || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
+			if (cost(x, cap) <= half && cost(x, cap) < cost(pick, cap)) pick = x;
 		}
 	}
 	return pick === list[0] ? list : [pick, ...list.filter((x) => x !== pick)];
@@ -3198,7 +3184,7 @@ async function conduct(text, atts, tried, only) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
@@ -3414,20 +3400,53 @@ const netDropped = (e) => !!(e && e.net) || !!(busy && busy.signal.reason && bus
 // how long a connection that says it's there may keep failing, with nothing getting through, before the request stops
 let NET_GIVE_UP = 5 * 60e3;
 const RESUME = "Your answer above was cut off by a dropped connection. Continue it exactly where it stopped, mid-word or mid-line if that's where it was, without repeating anything or mentioning the break.";
+// Long work by a model the gateway can't finish long work with (it cuts off any reply still going after about two minutes:
+// Claude through Flaz) is written in parts that each finish in time, each picking up exactly where the last stopped, and
+// joined into one reply: the first part thinks at most "high" (what fits before the cut-off), the rest just write. Every
+// three days the server lets one long reply try whole again: the day the gateway lifts its limit it finishes, nothing is
+// marked, and long work goes back to one call by itself.
+const PART_TOK = 5500, PART_MAX = 10;
+const PART_NEXT = "Your reply above stopped at its length limit. Continue it from the very next character, exactly where it stopped (mid-word or mid-line if that's where it was): no repeating, no note, only the rest.";
+// (a part that starts by repeating the end of the one before: the repeat left out)
+const joinPart = (a, b) => { for (let k = Math.min(300, a.length, b.length); k >= 16; k--) if (a.endsWith(b.slice(0, k))) return a + b.slice(k); return a + b; };
 async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 	extra = slowCap(model, extra);
+	const parts = LONG_RUN && CANT_FINISH.has(model) && !(Number(extra.max_tokens) > 0 && Number(extra.max_tokens) <= PART_TOK);
+	if (parts) {
+		extra = { ...extra, chunk: PART_TOK };
+		if (extra.reasoning && LEVELS.indexOf(extra.reasoning.effort) > LEVELS.indexOf("high")) extra.reasoning = { ...extra.reasoning, effort: "high" };
+	}
+	// (whether a reply reached its length is known even when the caller keeps no record)
+	const box = acc || {};
+	let part = 0;
 	// (what came before the connection dropped: kept, shown, and the same model asked to carry on from there)
 	// (resumes: at most 20 pick-ups in one answer, so a connection that always breaks part way can't go on forever)
 	let sofar = "", ask = messages, net = 0, since = 0, resumes = 0;
 	const show = (t) => onText(sofar + t);
 	for (let tries = 0; ; tries++) {
 		const t0 = Date.now(), think0 = acc ? acc.think : undefined;
-		try { const out = await streamOnce(model, ask, show, signal, extra, acc); delete SESSION_FAIL[model]; if (net || sofar) netBar("ok"); return sofar + out; }
+		try {
+			if (parts) box.cut = false;
+			const out = await streamOnce(model, ask, show, signal, extra, box);
+			delete SESSION_FAIL[model];
+			if (net || sofar) netBar("ok");
+			// a part that reached its length: the next one carries on from there (no thinking: it's already worked out)
+			if (parts && box.cut && out && ++part < PART_MAX) {
+				sofar = joinPart(sofar, out);
+				ask = [...messages, { role: "assistant", content: sofar }, { role: "user", content: PART_NEXT }];
+				extra = { ...extra };
+				delete extra.reasoning;
+				onText(sofar);
+				tries--;
+				continue;
+			}
+			return joinPart(sofar, out);
+		}
 		catch (e) {
 			// the connection, not the model: wait for it, then carry on (part of the answer came: from there)
 			if (isNet(e) && !(signal && signal.aborted)) {
 				if (e.partial) {
-					sofar += e.partial;
+					sofar = joinPart(sofar, e.partial);
 					ask = [...messages, { role: "assistant", content: sofar }, { role: "user", content: RESUME }];
 					net = 0;
 					since = 0;
@@ -3713,7 +3732,9 @@ function sys(extra) {
 	// their custom instructions (Settings): every answer; a build keeps to its own rules
 	const about = !extra && String(settings.about || "").trim(), how = !extra && String(settings.style || "").trim();
 	const mine = [about && "What the user has told you about themselves (use it where it's relevant; don't bring it up otherwise):\n" + about.slice(0, 1500), how && "How the user wants you to answer:\n" + how.slice(0, 1500)].filter(Boolean).join("\n\n");
-	const plan = (!extra && PLAN_NOTE ? "What Celestin decided to deliver for this request (do exactly this, completely): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
+	// (the quick model that read the request only sorted it: what it took them to want is a pointer, never how to do it; the
+	// expert doing the work plans it, and does better than this if it can)
+	const plan = (!extra && PLAN_NOTE ? "A first read of this request, by the quick model that passed it to you (only for your bearings: their own words come first, and how to do it, and doing it better than this, is yours to decide): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
 	// what was decided for this one request goes with the newest message (placeNote), not here
 	return { role: "system", content: [extra || base, mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n"), note: [plan, skillLine(), MATH_NOTE].filter(Boolean).join("\n\n") };
 }
@@ -5394,7 +5415,7 @@ async function runAct(text, atts, resume) {
 				+ (MATH_NOTE ? "\n\n" + MATH_NOTE : "")
 			+ "\n\nSpend like it's your own money; every step costs the user. ask_expert already takes the cheapest model the ratings can't tell apart from the best: a model 20 times cheaper and only a hair behind does the piece. On top of that: mark easy pieces easy (they think lightly); give an expert everything it needs in one go rather than in rounds; reuse what you already have instead of asking again; for media, pictures with a moving camera or animation drawn in code cost a fraction of filmed video (the makers choose this themselves, so describe what you want, not how); and stop when the job is done well, with no extra rounds of polish nobody asked for."
 			+ (skills.length ? "\n\nThe measured skills ask_expert can weigh (key: what it measures):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") : "")
-			+ (PLAN_NOTE ? "\n\nWhat Celestin decided to deliver: " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
+			+ (PLAN_NOTE ? "\n\nA first read of what they want (only for your bearings: how to do it is yours to decide): " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
 		const hist = chatHistory(), last = hist[hist.length - 1];
 		const prior = hist.slice(0, -1).slice(-6).map((m) => ({ role: m.role, content: (typeof m.content === "string" ? m.content : m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")).slice(0, 4000) }));
 		const material = sourceOf(atts, 30000);
@@ -6004,7 +6025,11 @@ async function runAuto(text, atts) {
 	// what Celestin measured itself on exactly this kind of work (never held up waiting for it)
 	const tags = PROFILE && PROFILE_TEXT === text && PROFILE.tags || [];
 	const record = tags.length && PROFILE.record ? await Promise.race([PROFILE.record, sleep(800).then(() => null)]) : null;
-	const cands = rank(task, light || undefined, record ? { tags, record } : null);
+	// an everyday message (a greeting, an everyday question): the best-rated fast model (the owner's call, Nov 3: it answers
+	// these as well as the big ones do, for a fraction); a model the person pinned, or Max, as for everything else
+	const everyday = task === "quick" && !atts.length && speed() !== "max" && !pinModel(task);
+	const fast = everyday ? bestFirst(arenaRank("quick").filter((x) => FAST.test(x.m.id))).map((x) => x.m) : [];
+	const cands = fast.length ? fast : rank(task, light || undefined, record ? { tags, record } : null);
 	// what running its code showed, added to that record: whose code ran first time, on exactly this
 	const share = (results) => { if (tags.length && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results: results.map((r) => ({ ...r, tags })) }) }).catch(() => {}); };
 	const code = task === "code" ? chatCode() : null;
@@ -6400,7 +6425,7 @@ function oneModelPlan(text) {
 	for (const k of major) {
 		const r = arenaRank(kind, { [k]: 1 });
 		const best = midOf(r), mine = midOf(r.filter((x) => x.m.id === who.m.id));
-		if (!Number.isFinite(best) || !Number.isFinite(mine) || best - mine > WORTH_MAX) return null;
+		if (!Number.isFinite(best) || !Number.isFinite(mine) || best - mine > HAIR) return null;
 	}
 	const goal = String(PROFILE.task || text).slice(0, 700);
 	return { understanding: "", check: PROFILE.check, one: shortName(who.m), pieces: [{ id: "p1", label: "The whole request", goal, skill: "", kind, weights: { ...w }, tags: PROFILE.tags || [], level: PROFILE.level || "medium", needs: [], web: false }] };
@@ -6575,10 +6600,10 @@ async function runQuarks(text, atts) {
 				+ "- weights: for EACH piece, how much each measured skill matters for exactly that piece (0 to 1, only the ones that matter). This is what picks each piece's model, so be precise and different per piece: a history-facts piece leans on factuality and its field, a story piece on creative writing, a write-for-a-child piece on instruction following, a maths piece on maths. From:\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n")
 				+ "\n\nReply with ONLY this JSON:\n{\"understanding\": \"1-2 sentences: what they really want, who it's for, and any hidden requirement\", \"check\": true, \"pieces\": [{\"id\": \"p1\", \"label\": \"3 to 6 words\", \"goal\": \"exactly what this piece must produce\", \"skill\": \"the precise skill, e.g. 'Python regex for Indonesian mobile numbers'\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"weights\": {\"skill\": 0.0}, \"tags\": [\"rust\", \"tokio\", \"async-lifetimes\"], \"level\": \"easy|medium|hard\", \"needs\": [], \"web\": false}]}\n\"level\": how hard that piece is to get exactly right: easy (a known fact, a short rewrite, a simple formula), medium, or hard (a tricky bug, a proof, a subtle judgement).\n\"tags\": 2 to 6 short lowercase words for exactly what that piece involves (its language, library, framework, field, topic, audience, kind of task), the most specific that are true, e.g. [\"rust\", \"tokio\", \"async-lifetimes\"] or [\"french-revolution\", \"kids-9\", \"storytelling\"]: generic words only, never names or personal details.\n\"check\" is true when facts, numbers, code or reasoning in the answer could be wrong.\n\n"
 			+ "The request:\n" + request.slice(0, 8000) + (material ? "\n\nThe attached material begins:\n" + material.slice(0, 5000) : "");
-		// a careful plan, but not a slow one: light thinking
-		// the split is careful structured work the fastest strong reader does well (the one that already reads every message);
-		// Max plans with the strongest
-		const planners = speed() === "max" ? pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights)) : [...bestFor("reader").slice(0, 2).map((m) => ({ m, effort: "" })), ...pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights))];
+		// a careful plan, but not a slow one: light thinking. The split decides how the whole job is done, so a big model
+		// makes it (the owner, Nov 3: a quick model leading the experts caps them at its own ideas); the quick reader only
+		// sorted the message. Max plans with the strongest, thinking more
+		const planners = pick("reasoning", blendW(FEATURE_W.planner.w, PROFILE && PROFILE.weights));
 		const out = await run(lead, planners, () => [{ role: "user", content: ask }], null, null, speed() === "max" ? "medium" : "low");
 		plan = readQuarks(out, idx);
 	} catch (e) {
@@ -7413,8 +7438,6 @@ async function runApp(text, atts, pick) {
 	LONG_RUN = true;
 	try { return await buildApp(text, atts, pick); } finally { LONG_RUN = false; }
 }
-// the models that can finish long work through the gateway first, the ones it gives up on last
-const longOk = (list) => [...list.filter((m) => !CANT_FINISH.has((m.m || m).id)), ...list.filter((m) => CANT_FINISH.has((m.m || m).id))];
 async function buildApp(text, atts, pick) {
 	// a build is written whole by the best builder at the thought it's run at: not started on a balance that would cut it
 	// off half-written (what this build will cost, worked out from that builder and how much an app writes)
@@ -7428,7 +7451,7 @@ async function buildApp(text, atts, pick) {
 	let buildCap = autoCap;
 	if (creditsMode()) {
 		await refreshMe();
-		const builder = bestFor(atts.some((a) => a.kind === "image" && a.data) ? "appFromImage" : "app")[0];
+		const builder = bestFor(atts.some((a) => a.kind === "image" && a.data) ? "appFromImage" : "app", autoCap)[0];
 		const steps = speed() === "max" ? [undefined] : speed() === "fast" ? ["low"] : ["high", "medium"];
 		const need = steps.map((cap) => (builder ? Math.max(APP_MIN_CREDITS, appCredits(builder, cap, FEATURE_W.app.out)) : APP_MIN_CREDITS));
 		const have = me ? me.credits : Infinity;
@@ -7463,10 +7486,14 @@ async function buildApp(text, atts, pick) {
 		? "The project right now:\n\n" + have + "\n\nThe user asks: " + text + (source ? "\n\nReference material:\n" + source : "") + "\n\nApply the change. " + CHANGE_FORMAT
 		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : "") + chatNote())
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
-	const cands = noDearer(longOk(bestFor(pics.length ? "appFromImage" : "app")));
+	const cands = noDearer(bestFor(pics.length ? "appFromImage" : "app", autoCap)).slice(0, 5);
 	let parsed = null, lastErr, unfinished = "", said = "", by = null;
 	const asked = [sys(rules), { role: "user", content: withPics(ask, pics) }];
-	for (const m of cands.slice(0, 5)) {
+	// (the models that have written this in parts: one cut off writing it whole gets one go in parts first)
+	const parted = new Set();
+	for (let k = 0; k < cands.length; k++) {
+		const m = cands[k];
+		if (CANT_FINISH.has(m.id)) parted.add(m.id);
 		msg.used = [{ name: shortName(m), desc: "Code: " + (prev ? "edited the project" : "wrote the project") }];
 		try {
 			msg.cut = false;
@@ -7488,8 +7515,10 @@ async function buildApp(text, atts, pick) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
 			lastErr = e;
 			if (e.status === 429) await sleep(1200);
+			// cut off writing it whole (the gateway's limit): the same model again, in parts
+			if (CANT_FINISH.has(m.id) && !parted.has(m.id)) { msg.status = shortName(m) + " is writing it in parts (its gateway cuts off long replies)"; updateLast(); k--; continue; }
 			// (said so, as the next one starts)
-			const next = cands[cands.indexOf(m) + 1];
+			const next = cands[k + 1];
 			if (next) { msg.status = shortName(m) + " couldn't finish it in time, so " + shortName(next) + " is building it"; updateLast(); }
 		}
 	}
@@ -10036,7 +10065,21 @@ async function loadPricing() {
 		store.set("reach", pricing.reach);
 		REACH = readReach(pricing.reach);
 	}
+	addFresh();
 	return pricing;
+}
+// Models the gateway already has that OpenRouter doesn't list yet (a new release): the server says what they are and a
+// price to be safe with (the dearest of their lab's, and half again, until the real one is known). They're used only
+// where the leaderboards rate them, like every other model, and give way to OpenRouter's own entry the day it appears.
+function addFresh() {
+	const list = pricing && pricing.reach && Array.isArray(pricing.reach.fresh) ? pricing.reach.fresh : [];
+	let added = 0;
+	for (const f of list) {
+		if (!f || !f.id || catalog.some((m) => m.id === f.id)) continue;
+		catalog.push({ id: f.id, name: f.name || f.id, created: Math.floor(Date.now() / 1000), ctx: Number(f.ctx) || 200000, pin: Number(f.pin) || 0, pout: Number(f.pout) || 0, pcr: null, efforts: null, input: ["text"], output: ["text"], tools: null, fresh: true });
+		added++;
+	}
+	if (added) ARENA_IDX = null;
 }
 function signOut(quiet) {
 	if (account && !quiet) api("/api/logout", { method: "POST" }).catch(() => {});
