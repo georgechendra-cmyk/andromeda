@@ -957,14 +957,20 @@ async function freshModels(env) {
 			// what the gateway's names already stand for, and what each maker's models cost there
 			const served = known.filter((id) => gatewayNames(g, id).length);
 			const taken = new Set(served.flatMap((id) => gatewayNames(g, id)));
+			// (every model OpenRouter lists, by its bare name: one the gateway only spells differently, "gemini-2.0-flash" for
+			// "gemini-2.0-flash-001" or "kimi-k2-5-260127" for "kimi-k2.5", is an old one, not a new release)
+			const keys = known.map(bareKey);
 			for (const gid of cats[i].ids) {
 				if (taken.has(gid) || NOT_TEXT.test(gid) || /-(openrouter(-backup)?|or|backup)$/i.test(gid)) continue;
 				const bare = gid.toLowerCase().replace(/^.*\//, "");
 				const lab = gid.includes("/") ? gid.split("/")[0].toLowerCase().replace(/^xai$/, "x-ai") : (LAB_BY_NAME.find(([re]) => re.test(bare)) || [])[1];
 				if (!lab) continue;
-				const id = lab + "/" + bare;
-				if (map.has(id) || seen.has(id)) continue;
-				const theirs = served.filter((k) => k.startsWith(lab + "/")).map((k) => map.get(k)).filter((p) => p && p.pout > 0);
+				const id = lab + "/" + bare, bk = bareKey(id);
+				if (map.has(id) || seen.has(id) || keys.some((k) => k.length >= 6 && bk.length >= 6 && (k.startsWith(bk) || bk.startsWith(k)))) continue;
+				// what it's safe to charge: twice the dearest of that maker's models, on the gateway or anywhere OpenRouter lists
+				// them (OpenAI's -pro ones aside, which think for minutes at many times the price), so a new model never costs the
+				// owner more than it brings in
+				const theirs = known.filter((k) => k.startsWith(lab + "/") && !/^openai\/.*-pro$/.test(k)).map((k) => map.get(k)).filter((p) => p && p.pout > 0);
 				if (!theirs.length) continue;
 				const dear = theirs.reduce((a, b) => (b.pout > a.pout ? b : a));
 				seen.add(id);
