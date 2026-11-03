@@ -3330,6 +3330,9 @@ function placeNote(messages) {
 // and the owner still paid for what it thought). So the highest level is never asked for, and a call cut off after a long
 // silence is asked again at once one level lower, and that model starts at that level from then on (on this device).
 const SLOW = store.get("slowEffort", {});
+// Long work (a whole app): the models the gateway gives up on before they finish one (the server's list, and any seen here),
+// and whether long work is running (a model cut off waiting then isn't asked again at less thought: the next one is)
+let CANT_FINISH = new Set(), LONG_RUN = false;
 const TOP_SENT = "xhigh";
 function slowCap(model, extra) {
 	const e = extra && extra.reasoning && extra.reasoning.effort;
@@ -3343,6 +3346,8 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 		const t0 = Date.now();
 		try { return await streamOnce(model, messages, onText, signal, extra, acc); }
 		catch (e) {
+			// long work that went quiet and was cut off: thinking less won't make it shorter, so the caller's next model takes it
+			if (LONG_RUN && !e.said && e.name !== "AbortError" && Date.now() - t0 >= 80e3) { CANT_FINISH.add(model); throw e; }
 			const e0 = extra.reasoning && extra.reasoning.effort, at = LEVELS.indexOf(e0 || "");
 			if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.said || tries >= 2 || Date.now() - t0 < 80e3 || at <= LEVELS.indexOf("low")) throw e;
 			const lower = LEVELS[at - 1];
@@ -6838,15 +6843,27 @@ function snapApp(files, W = 1280, H = 800) {
 	}));
 }
 // the model measured best at reading pictures (or the cheapest a quark from it) looks at it: null if it would ship
+// the picture-reading models that turned pictures down through this gateway (not asked to look again)
+const NO_EYES = new Set(store.get("noEyes", []));
 async function lookAtApp(files, request, msg) {
 	const ranked = arenaRank("vision", { "vision:overall": 0.4, "vision:diagram": 0.2, "vision:captioning": 0.2, "vision:ocr": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
-	const eye = bestFirst(quarkFirst(ranked, "low"))[0];
-	if (!eye) return null;
+	const eyes = bestFirst(quarkFirst(ranked, "low")).filter((x) => !NO_EYES.has(x.m.id)).slice(0, 3);
+	if (!eyes.length) return null;
 	const shots = await snapApp(files);
 	if (!shots.length) return null;
-	const out = await stream(eye.m.id, [{ role: "user", content: [{ type: "text", text: "Pictures of an app or game that was just built, running in a browser: " + (shots.length > 1 ? "at the start, and after its main button and some keys were pressed automatically" : "as it opens") + ".\nWhat was asked for: " + String(request).slice(0, 1500) +
+	let eye = null, out = null;
+	for (const e of eyes) {
+		eye = e;
+		try { out = await stream(eye.m.id, [{ role: "user", content: [{ type: "text", text: "Pictures of an app or game that was just built, running in a browser: " + (shots.length > 1 ? "at the start, and after its main button and some keys were pressed automatically" : "as it opens") + ".\nWhat was asked for: " + String(request).slice(0, 1500) +
 		"\n\nWould a top product designer or game studio ship it as it looks? Name only real problems a person would notice: text cut off, overlapping or hard to read; low contrast; a broken, cramped or unbalanced layout; things off the screen; a game or scene that isn't visible or doesn't react; something asked for that's missing; looking generic or amateur. (The pictures are renderings of the page, so small differences in blur or shadow don't count.) Reply with ONLY JSON: {\"ship\": true or false, \"problems\": [\"what's wrong, and how to fix it\"]}" },
-		...shots.map((url) => ({ type: "image_url", image_url: { url } }))] }], () => {}, busy.signal, { max_tokens: 1500, ...effortFor(eye.m.id, capEffort(eye.effort || "", "low", eye.m.id)) }, msg);
+		...shots.map((url) => ({ type: "image_url", image_url: { url } }))] }], () => {}, busy.signal, { max_tokens: 1500, ...effortFor(eye.m.id, capEffort(eye.effort || "", "low", eye.m.id)) }, msg); break; }
+		catch (err) {
+			if (err.name === "AbortError" || err.status === 401 || err.status === 402) throw err;
+			// (refused outright: it can't take pictures this way, and isn't asked again; the next one looks)
+			if (err.status >= 400 && err.status < 500 && err.status !== 429) { NO_EYES.add(eye.m.id); store.set("noEyes", [...NO_EYES]); }
+		}
+	}
+	if (out == null) return null;
 	if (!msg.used.some((u) => /^Designer/.test(u.desc))) msg.used.push({ name: shortName(eye.m), desc: "Designer: looked at it running, as a person would see it" });
 	const j = parseJSON(out) || {};
 	return j.ship === false && Array.isArray(j.problems) && j.problems.length ? j.problems.slice(0, 6).map((p) => String(p).slice(0, 300)) : null;
@@ -6890,20 +6907,68 @@ async function polishLook(files, request, msg, rules) {
 // up to three rounds: run it, and if anything breaks, the errors go back to a coder; the second round goes to a
 // different lab, so a blind spot in one model is not repeated. Then, once it runs clean, it's looked at (look: false
 // for a change the person asked for, which shouldn't come back restyled)
-async function heal(files, request, msg, rules, look = true) {
+// A tester from another lab reads a new build and plays it through in their head, for what doesn't work as asked: an AI
+// that holds the ball and never acts, a timer that can't run out because it's counted back every frame, starting
+// positions against the real rules, a control that does nothing, a state there's no way out of. Only real bugs, the worst
+// first; the builder fixes the ones that are real (only what changes). Null when it couldn't be done (it's then left as
+// it was): too big to read whole, too few credits, or no tester answered.
+async function reviewLogic(files, request, msg, rules, by) {
+	try {
+		if (creditsMode()) { await refreshMe(); if (me && me.credits < APP_MIN_CREDITS) return null; }
+		const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
+		if (code.length > 120000) return null;
+		const testers = checkersFor("code", by ? provider(by.id) : "");
+		if (!testers.length) return null;
+		msg.status = "A second AI is playing it through, looking for bugs";
+		updateLast();
+		const look = await askFirst(testers.slice(0, 3), [{ role: "user", content: "You test apps and games for a living. Someone asked for:\n" + String(request).slice(0, 3000) + "\n\nThis was built for them:\n\n" + code +
+			"\n\nRead the code and play it through in your head, start to finish: the first screen, every control, every state it can be in, a few minutes of real use. Find only REAL bugs: things that don't work, get stuck, or break the rules of the real thing it imitates. For example: an AI player or goalkeeper that holds the ball and never acts again; a timer or cooldown that can never run out because it's reset or counted back every frame; starting positions or rules that are wrong for the real thing (players in the wrong half at kick-off); a pass or move that comes straight back to whoever made it; a control or button that does nothing; a state with no way out; a score, clock or win condition that's wrong. Not style, not wording, not ideas for new features.\n\nReply with ONLY this JSON:\n{\"bugs\": [\"where it is (file and function), what's wrong, and what should happen instead\"]}\nAn empty list if there are none. At most 8, the worst first." }], msg, undefined, "medium");
+		const bugs = ((parseJSON(look.out) || {}).bugs || []).map((x) => String(x).slice(0, 400)).filter((x) => x.trim()).slice(0, 8);
+		if (!msg.used.some((u) => /^Tester/.test(u.desc))) msg.used.push({ name: shortName(look.model), desc: "Tester: played it through, looking for what doesn't work" });
+		if (!bugs.length) return { files, found: 0, fixed: 0 };
+		msg.status = "Fixing " + bugs.length + (bugs.length === 1 ? " bug" : " bugs") + " the tester found";
+		updateLast();
+		const fixers = bestFor("app"), fixer = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
+		const room = await roundCap(fixer, files, "high");
+		if (room.need) return { files, found: bugs.length, fixed: 0 };
+		msg.cut = false;
+		const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + code.slice(0, 80000) +
+			"\n\nA tester from another lab played it through and found these bugs:\n- " + bugs.join("\n- ") +
+			"\n\nFix every one that's real, properly, keeping every feature and everything that already works (one that isn't real: leave it, and say why in NOTES). " + CHANGE_FORMAT + " (In NOTES, one line on what was wrong.)" }];
+		const r = await askFirst([fixer, ...fixers.filter((m) => m !== fixer)].slice(0, 3), ask, msg, undefined, room.cap);
+		const p = parseFiles(r.out);
+		if (cutShort(p, msg.cut) || !changed(p)) { delete msg.cut; return { files, found: bugs.length, fixed: 0 }; }
+		delete msg.cut;
+		const next = await applyChange(files, p, r.model, ask, r.out, msg);
+		return { files: next, found: bugs.length, fixed: bugs.length };
+	} catch (e) {
+		delete msg.cut;
+		if (e.name === "AbortError" || e.status === 401) throw e;
+		return null;
+	}
+}
+async function heal(files, request, msg, rules, look = true, by = null) {
 	const fixers = bestFor("app");
-	let fixed = 0, lastModel = null;
-	for (let round = 1; round <= 3; round++) {
+	let fixed = 0, lastModel = null, reviewed = !look, logic = 0;
+	// (a round more when the tester's fixes need running again)
+	const rounds = () => 3 + (logic ? 1 : 0);
+	for (let round = 1; round <= rounds(); round++) {
 		msg.status = round === 1 ? "Testing it" : "Testing the fix";
 		updateLast();
 		const t = await probeApp(files);
 		if (!t.errors.length && !t.blank) {
+			// it runs clean: once, before the look, the tester plays it through; what they fix is run again
+			if (!reviewed) {
+				reviewed = true;
+				const lg = await reviewLogic(files, request, msg, rules, by);
+				if (lg && lg.fixed) { files = lg.files; logic = lg.fixed; continue; }
+			}
 			const seen = look ? await polishLook(files, request, msg, rules) : { files, polished: 0 };
-			msg.tested = { ok: true, fixed, rounds: round - 1, polished: seen.polished };
+			msg.tested = { ok: true, fixed, rounds: round - 1, polished: seen.polished, logic };
 			return seen.files;
 		}
 		const problems = t.errors.length ? t.errors : ["The page loads blank: nothing is drawn or shown."];
-		if (round === 3) {
+		if (round === rounds()) {
 			msg.tested = { ok: false, fixed, rounds: 2, problems };
 			return files;
 		}
@@ -6942,7 +7007,7 @@ async function heal(files, request, msg, rules, look = true) {
 }
 function testedLine(t) {
 	if (!t) return "";
-	const looked = t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "";
+	const looked = (t.logic ? " A second AI played it through and fixed " + t.logic + (t.logic === 1 ? " bug" : " bugs") + " in how it works." : "") + (t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "");
 	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean." + looked + "*" : "\n\n*Tested in the browser: it runs clean." + looked + "*";
 	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them. Get more credits, then say \"fix it\".*";
 	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
@@ -7177,7 +7242,14 @@ async function askFirst(cands, messages, msg, onText, cap) {
 const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text }, ...pics.map((url) => ({ type: "image_url", image_url: { url } }))] : text);
 // (one builder, the one measured best at it or the cheapest a quark from it, then the build is run and fixed: several
 // models each building the same thing to pick or merge one costs several times as much and isn't how a team works)
+// (long work: a model cut off waiting isn't asked again, the next one builds it)
 async function runApp(text, atts, pick) {
+	LONG_RUN = true;
+	try { return await buildApp(text, atts, pick); } finally { LONG_RUN = false; }
+}
+// the models that can finish long work through the gateway first, the ones it gives up on last
+const longOk = (list) => [...list.filter((m) => !CANT_FINISH.has((m.m || m).id)), ...list.filter((m) => CANT_FINISH.has((m.m || m).id))];
+async function buildApp(text, atts, pick) {
 	// a build is written whole by the best builder at the thought it's run at: not started on a balance that would cut it
 	// off half-written (what this build will cost, worked out from that builder and how much an app writes)
 	// The whole job is priced before anything is spent: the build, and about half again for a round of fixes and the
@@ -7213,6 +7285,7 @@ async function runApp(text, atts, pick) {
 	const rules = "You are an expert engineer working in a browser sandbox with a live preview.\n" +
 		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no CDN links, no external fonts, images or network requests (the preview is offline). Use emoji, CSS and canvas/SVG for visuals.\n" +
 		"- Complete and working on the first run: no placeholders, no TODOs. Polished, responsive, good-looking UI with clear states and keyboard support where it makes sense.\n" +
+		"- A game or simulation: play it through in your head before you finish. Every computer-controlled player or character acts in every state (one holding the ball passes, shoots or runs on; none just stands there), every timer and cooldown really runs out (never reset or counted back every frame), starting positions and rules follow the real thing (at a football kick-off each team is in its own half), and every control does what it says.\n" +
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
 		"- Don't store anything the app can't lose (no localStorage needed).\n" +
 		"OUTPUT FORMAT, exactly, nothing before or after:\n=== FILE: index.html ===\n(full file)\n=== FILE: style.css ===\n(full file)\n=== NOTES ===\n(2-4 short plain sentences: what you built or changed and how to use it)\n" +
@@ -7224,7 +7297,7 @@ async function runApp(text, atts, pick) {
 		? "The project right now:\n\n" + have + "\n\nThe user asks: " + text + (source ? "\n\nReference material:\n" + source : "") + "\n\nApply the change. " + CHANGE_FORMAT
 		: "Build this: " + text + (source ? "\n\nMaterial to use:\n" + source : "") + chatNote())
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
-	const cands = noDearer(bestFor(pics.length ? "appFromImage" : "app"));
+	const cands = noDearer(longOk(bestFor(pics.length ? "appFromImage" : "app")));
 	let parsed = null, lastErr, unfinished = "", said = "", by = null;
 	const asked = [sys(rules), { role: "user", content: withPics(ask, pics) }];
 	for (const m of cands.slice(0, 5)) {
@@ -7249,12 +7322,15 @@ async function runApp(text, atts, pick) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
 			lastErr = e;
 			if (e.status === 429) await sleep(1200);
+			// (said so, as the next one starts)
+			const next = cands[cands.indexOf(m) + 1];
+			if (next) { msg.status = shortName(m) + " couldn't finish it in time, so " + shortName(next) + " is building it"; updateLast(); }
 		}
 	}
 	if (!parsed) throw lastErr || new Error("No model could build that.");
 	let files = prev ? await applyChange(prev.data.files, parsed, by, asked, said, msg) : Object.assign({}, parsed.files);
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
-	else files = await heal(files, text, msg, rules, !prev);
+	else files = await heal(files, text, msg, rules, !prev, by);
 	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
 	msg.tab = "preview";
 	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested)
@@ -9774,6 +9850,9 @@ async function refreshMe() {
 async function loadPricing() {
 	if (pricing || !SERVER) return pricing;
 	try { pricing = await api("/api/pricing"); } catch {}
+	// the models the gateway can't finish long work with: builds go to another first, and their thinking isn't held down
+	// here for it (that wasn't what was slow)
+	if (pricing && Array.isArray(pricing.cantFinish)) for (const id of pricing.cantFinish) { CANT_FINISH.add(id); if (SLOW[id]) { delete SLOW[id]; store.set("slowEffort", SLOW); } }
 	if (pricing && pricing.reach) {
 		store.set("reach", pricing.reach);
 		REACH = readReach(pricing.reach);

@@ -115,7 +115,7 @@ async function route(req, env, ctx, url) {
 	const p = url.pathname.replace(/\/+$/, "");
 	const m = req.method;
 	await columns(env);
-	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env) });
+	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env) });
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
 	if (p === "/api/login/resend" && m === "POST") return loginResend(req, env);
@@ -1307,14 +1307,39 @@ async function slowEfforts(env) {
 	catch { SLOW = { at: Date.now(), map: SLOW.map || {} }; }
 	return SLOW.map;
 }
+const saveSlow = (env, map) => env.DB.prepare("INSERT INTO config (k, v) VALUES ('slow-efforts', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(map)).run().catch(() => {});
 async function tooSlow(env, model, effort) {
 	const at = EFFORTS.indexOf(effort);
-	if (at <= EFFORTS.indexOf("medium")) return;
-	const map = await slowEfforts(env), lower = EFFORTS[at - 1];
+	const map = await slowEfforts(env);
+	// cut off while thinking little, or again at the level it was lowered to: thinking isn't what takes too long, the
+	// answer's length is (a gateway that waits for the whole answer gives up on a long one). Its thinking is put back for
+	// everything else, and it's remembered as one that can't finish long work this way (a build goes to another model)
+	if (at <= EFFORTS.indexOf("medium") || (map[model] && at <= EFFORTS.indexOf(map[model]))) {
+		if (map[model]) { delete map[model]; await saveSlow(env, map); }
+		await cantFinish(env, model);
+		return;
+	}
+	const lower = EFFORTS[at - 1];
 	if (map[model] && EFFORTS.indexOf(map[model]) <= EFFORTS.indexOf(lower)) return;
 	map[model] = lower;
-	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('slow-efforts', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(map)).run().catch(() => {});
+	await saveSlow(env, map);
 }
+// The models the gateway cuts off on long work (a whole app) even thinking little, kept for a few days (it may change):
+// the site gives long work to another model first
+let CANT = { at: 0, map: {} };
+const CANT_DAYS = 3;
+async function cantMap(env) {
+	if (Date.now() - CANT.at < 300e3) return CANT.map;
+	try { const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'cant-finish'").first(); CANT = { at: Date.now(), map: row ? JSON.parse(row.v) || {} : {} }; }
+	catch { CANT = { at: Date.now(), map: CANT.map || {} }; }
+	return CANT.map;
+}
+async function cantFinish(env, model) {
+	const map = await cantMap(env);
+	map[model] = now();
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('cant-finish', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(map)).run().catch(() => {});
+}
+async function cantFinishList(env) { const map = await cantMap(env); return Object.keys(map).filter((m) => now() - map[m] < CANT_DAYS * 864e5); }
 
 async function chat(req, env, ctx, user) {
 	const c = await config(env);
