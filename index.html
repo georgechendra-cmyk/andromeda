@@ -10643,11 +10643,6 @@ const DEFAULT_PRICING = {
 		{ id: "pro", name: "Meteor", credits: 1600, bonus: 160, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 	],
 };
-// nonstop coding comes to about 60 credits an hour (a measured 10-turn session, Nov 4, with the owner's price rule: 50
-// credits, about 5 a request, about 12 requests an hour; it was 119 credits, 140 an hour, before that rule; changes sent
-// as edits, only a file's newest version read)
-const CODE_HOUR = 60;
-const hoursText = (credits) => { const r = credits / CODE_HOUR, h = r >= 20 ? Math.round(r) : Math.round(r * 2) / 2; return (h >= 1 ? String(h).replace(".5", "½") : "½") + " h"; };
 // a plan's month: its own, or (a plan without one) its week for 30 days
 const monthOf = (p) => p.month || Math.round(((p.week || p.credits) * 30) / 7);
 let payCur = store.get("payCur", "") || (/^id\b/i.test(navigator.language || "") || /Jakarta|Makassar|Jayapura|Pontianak/.test(Intl.DateTimeFormat().resolvedOptions().timeZone || "") ? "IDR" : "USD");
@@ -10664,26 +10659,31 @@ async function openPricing() {
 	// card checkout links are per pack id, and "plan:<id>" per plan
 	const canPay = (key, price) => live && price != null && (idr ? !!(P.qris && P.qris.image) : !!(P.checkout && P.checkout.links && P.checkout.links[key]));
 	const payLabel = (key, price) => (!live ? "Coming soon" : !canPay(key, price) ? (price == null ? "Not sold in " + payCur : idr ? "QRIS coming soon" : "Card payment coming soon") : idr ? "Pay with QRIS" : "Pay by card");
-	// Free: its week, what one sitting holds, and about how many everyday answers. A plan: what its month comes to in hours
-	// of nonstop coding, its week, and one sitting (a sitting that never runs out says so)
-	const nonstop = (x) => x.credits >= CODE_HOUR * x.hours;
-	const tiles = (x, free) => free
-		? '<div class="tiles"><div class="tile full"><b>' + creditsText(x.week || x.credits) + "</b><span>credits a week</span></div>" +
-			'<div class="tile"><b>' + creditsText(Math.min(x.credits, x.week || x.credits)) + "</b><span>in any " + x.hours + " hours</span></div>" +
-			'<div class="tile"><b>≈' + creditsText(Math.round((x.week || x.credits) / 3)) + "</b><span>answers a week</span></div></div>"
-		: '<div class="tiles"><div class="tile full"><b>≈' + hoursText(monthOf(x)) + "</b><span>of coding a month · " + creditsText(monthOf(x)) + " credits</span></div>" +
-			'<div class="tile"><b>≈' + creditsText(Math.round(monthOf(x) / 3)) + "</b><span>everyday answers a month</span></div>" +
-			'<div class="tile"><b>' + (nonstop(x) ? "Nonstop" : hoursText(x.credits)) + "</b><span>in any " + x.hours + " hours</span></div></div>";
+	// What each plan holds, in credits (no hours or answer counts: what a credit buys depends on what's asked): its month
+	// (Free: its week), what any 5 hours hold, and one more thing it has
+	const tiles = (x, free) => '<div class="tiles"><div class="tile full"><b>' + creditsText(free ? x.week || x.credits : monthOf(x)) + "</b><span>credits a " + (free ? "week" : "month") + "</span></div>" +
+		'<div class="tile"><b>' + creditsText(free ? Math.min(x.credits, x.week || x.credits) : x.credits) + "</b><span>in any " + x.hours + " hours</span></div>" +
+		'<div class="tile"><b>' + (free ? "No card" : "Fresh") + "</b><span>" + (free ? "just an account" : "credits every month") + "</span></div></div>";
 	const times = (a, b) => { const r = a / b; return (Math.abs(r - Math.round(r)) < 0.05 ? String(Math.round(r)) : r.toFixed(1)) + "×"; };
+	// What each plan is for, in its own words (the owner, Nov 4: Nova sounds great, Pulsar and Quasar each sound like
+	// themselves, "nonstop" only for Quasar, no hours or answer counts). Every line is true of the plan: Pulsar holds about
+	// twice Nova's credits in any 5 hours, Quasar's month comes to well over 12 hours of coding a day
+	const pitch = (p, i) => {
+		const prev = i ? plans[i - 1] : null, more = prev ? times(monthOf(p), monthOf(prev)) + " " + prev.name + "'s credits" : "";
+		const own = {
+			nova: ["Everything Celestin does: chat, code, apps and games, documents and more", "Top AI models on every part of what you ask", "Room for real work every day"],
+			pulsar: [more + ", and more for every rupiah", "Twice Nova's room every " + p.hours + " hours: build whole apps and games in one sitting", "Made for building every day"],
+			quasar: ["Nonstop: code all day, every day", more + ", the most for every rupiah", "Our biggest plan, for power users"],
+		}[p.id];
+		return own || (prev ? [more + ", and more for every rupiah", "Every model, the right one for each part of what you ask"] : ["Every model, the right one for each part of what you ask", "Apps and games, documents and more"]);
+	};
 	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">just an account, no card</div>' + tiles(fp, true) +
-		'<ul class="feat"><li>Every model: the best one for each part of what you ask</li><li>Build an app or game, then wait for your credits to come back</li><li>All back ' + fp.hours + " hours after you start</li></ul>" +
+		'<ul class="feat"><li>Every model, the right one for each part of what you ask</li><li>Build an app or game, then wait for your credits to come back</li><li>All back ' + fp.hours + " hours after you start</li></ul>" +
 		(SERVER && !account ? '<button class="btn" data-open-account>Create a free account</button>' : '<button class="btn" disabled>' + (account ? (mine ? "Included" : "Your plan") : "Coming soon") + "</button>") + "</div>";
 	const planCard = (p, i) => {
 		const price = p.prices[payCur], key = "plan:" + p.id, prev = i ? plans[i - 1] : null;
 		const cur = !!mine && mine.id === p.id, lower = !!mine && rank(mine.id) > i;
-		const feats = [nonstop(p) ? "Code nonstop: a whole " + p.hours + "-hour sitting never runs out" : "Up to " + hoursText(p.credits) + " of nonstop coding in any " + p.hours + " hours",
-			prev ? times(monthOf(p), monthOf(prev)) + " " + prev.name + "'s month, more for every rupiah" : "Apps and games built by the best builder (Claude Opus 5.5 today)",
-			"Every answer thought through fully", "A fresh month of credits every month"];
+		const feats = pitch(p, i);
 		const tag = cur ? "Your plan" : p.popular && !mine ? "Recommended" : "";
 		return '<div class="plan' + (tag ? " popular" : "") + '">' + (tag ? '<span class="tag">' + tag + "</span>" : "") +
 			'<div class="pname">' + esc(p.name) + '</div><div class="price">' + (price != null ? money(price, payCur) : "—") + '</div><div class="once">a month · ' + (cur && mine.until ? "yours until " + new Date(mine.until).toLocaleDateString() : "no auto-renewal") + "</div>" + tiles(p) +
@@ -10696,7 +10696,7 @@ async function openPricing() {
 			'<button class="btn" data-buy="' + esc(p.id) + '"' + (canPay(p.id, price) ? "" : " disabled") + ">" + payLabel(p.id, price) + "</button></div>";
 	};
 	const methods = idr ? ["QRIS", "GoPay", "DANA", "OVO", "ShopeePay", "Bank apps"] : ["Visa", "Mastercard", "Apple Pay", "PayPal"];
-	openModal('<div style="text-align:center"><h2>Plans</h2><p class="sub" style="margin-bottom:14px">Every plan gets every model, the best one for each part of what you ask. Credits come back every ' + fp.hours + " hours; a credit pack keeps you going in between.</p></div>" +
+	openModal('<div style="text-align:center"><h2>Plans</h2><p class="sub" style="margin-bottom:14px">Every plan gets every model: the right one for each part of what you ask, picked from real leaderboard results. Credits come back every ' + fp.hours + " hours, with a fresh month of them every month; a credit pack keeps you going in between.</p></div>" +
 		'<div class="cur">' + P.currencies.map((c) => '<button data-cur="' + c + '"' + (c === payCur ? ' class="on"' : "") + ">" + c + "</button>").join("") + "</div>" +
 		(live ? "" : '<div class="notice">' + (SERVER ? "Plans and packs aren't on sale yet." : "Plans and packs are coming soon.") + " Your free credits work in the meantime.</div>") +
 		'<div class="plans three">' + free + plans.map(planCard).join("") + "</div>" +
@@ -10705,7 +10705,6 @@ async function openPricing() {
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Your plan or credits start as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". It arrives automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
 		"<details><summary>How do plans work?</summary><p>Each plan gives you a month of credits, and how many of them you can use in any " + fp.hours + " hours, the way Claude's limits work. Each new month starts with a full month of credits; what wasn't used doesn't carry over, so they never pile up. Paying for the next month early adds its 30 days to the end, and its credits come when that month begins. Used them all before the month is over? A credit pack keeps you going. Switching plans starts the new one today, and what was left of the old one becomes extra days of it. The bigger plans give more for every rupiah. Free has its own small window and week.</p></details>" +
-		"<details><summary>How much coding is that?</summary><p>Nonstop coding is about " + CODE_HOUR + " credits an hour (about a dozen requests). " + plans.map((p) => p.name + ": " + (nonstop(p) ? "nonstop in any " + p.hours + " hours" : "about " + hoursText(p.credits) + " in any " + p.hours + " hours") + ", about " + hoursText(monthOf(p)) + " a month").join(". ") + ". Everyday questions use far less: about 3 credits each.</p></details>" +
 		"<details><summary>What is a credit?</summary><p>An everyday answer uses about 3 credits. Big jobs use more: a change to your code about 6 to 25, a hard question checked by a second top model about 35, a full app or game built by the best builder about 150 to 250. Your account shows what's left.</p></details>" +
 		"<details><summary>What are credit packs?</summary><p>Credits that never expire, for when you don't want to wait. They're used only after your plan's credits for now are gone. A credit costs more in a pack than in a plan.</p></details>" +
 		"<details><summary>Does a plan renew by itself?</summary><p>No. A plan lasts " + ((plans[0] && plans[0].days) || 30) + " days. Pay again whenever you like to add another month: paying early adds it to the end, so nothing is lost.</p></details>" +
