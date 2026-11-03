@@ -308,6 +308,9 @@ body.chats-open .learn-note, body:has(.sidebar.open) .learn-note { visibility: h
 .limit-bar .lb-act:hover { background: color-mix(in srgb, var(--text) 7%, var(--bg2)); }
 .limit-bar.nudge { animation: lbNudge .6s var(--ease); }
 @keyframes lbIn { from { opacity: 0; transform: translateY(4px); } }
+/* the connection gone or weak: the same quiet line; an answer it cut off says so under what came, with a way to carry on */
+.limit-bar.net svg { color: var(--warn); }
+.limit-bar.dropnote { margin: 10px 0 0; max-width: 520px; }
 @keyframes lbNudge { 35% { background: color-mix(in srgb, var(--warn) 16%, transparent); transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .limit-bar, .limit-bar.nudge { animation: none !important; } }
 .act.ic.on { color: var(--text); background: var(--bg3); }
@@ -1817,6 +1820,7 @@ html { scroll-behavior: smooth; }
 			<button class="jump" id="jumpBtn" aria-label="Jump to the newest message" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
 			<div class="composer empty" id="composer">
 				<div class="limit-bar" id="limitBar" role="status" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="lbText"></span><button class="lb-act" id="lbAct" data-open-pricing>See plans</button></div>
+				<div class="limit-bar net" id="netBar" role="status" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.3-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.7 5M12 20h.01"/></svg><span id="nbText"></span></div>
 				<div class="route" id="route"></div>
 				<div class="attached" id="attached"></div>
 				<textarea id="input" rows="1" placeholder="Ask anything, or make anything" aria-label="Message Celestin"></textarea>
@@ -3194,9 +3198,10 @@ async function conduct(text, atts, tried, only) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one or two sentences: exactly what you'll deliver, and why that serves them best\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
-		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); otherwise the request as it is. Choose the way and judge everything else from what it really asks for."
+		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
+		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
 		+ " \"tags\": 2 to 6 short lowercase words for exactly what the work involves (its language, library, framework, field, topic, kind of task), the most specific that are true: generic words only, never names or personal details."
 		+ (mem ? " \"remember\": lasting facts about the user that this request states, worth knowing in future chats (who they are, their projects and goals, their preferences and rules for how things should be done, decisions they made), each written about the user; not the topic of a one-off question, never secrets or passwords, nothing already remembered; [] if none." : "") + "\n"
@@ -3361,12 +3366,85 @@ function slowCap(model, extra) {
 	const cap = [TOP_SENT, SLOW[model]].filter(Boolean).reduce((a, b) => (LEVELS.indexOf(b) < LEVELS.indexOf(a) ? b : a));
 	return LEVELS.indexOf(e) > LEVELS.indexOf(cap) ? { ...extra, reasoning: { ...extra.reasoning, effort: cap } } : extra;
 }
+// ---------------------------------------------------------------- a weak connection
+// The person's own connection failing (weak wifi, a lift, a train) isn't a model failing: nothing is counted against the
+// model, and no other model is tried (it would fail the same way, or start the work over and be paid for twice). Celestin
+// waits for the connection and carries on by itself: a call that got nothing back is sent again, and an answer cut off part
+// way is picked up by the same model exactly where it stopped, so the person sees one answer. It keeps waiting as long as
+// the device is plainly offline; the send button (stop, while it works) ends it whenever they like. Only a connection that
+// says it's there but fails for minutes on end stops the request (the way pressing stop does: what came is kept).
+const NET_RE = /failed to fetch|networkerror|network ?error|load failed|network connection was lost|internet connection appears to be offline|error in input stream|err_(network|internet|connection|http2|quic|timed_out|name_not_resolved)|connection (was )?(reset|closed|aborted|refused)/i;
+const isNet = (e) => !!e && (e.net === true || (e.name !== "AbortError" && !e.status && NET_RE.test(String(e.message || ""))));
+function netBar(state) {
+	const bar = $("#netBar");
+	if (!bar) return;
+	const off = navigator.onLine === false;
+	if (state === "ok" || (!off && state !== "retry")) { bar.hidden = true; return; }
+	$("#nbText").textContent = off ? "You're offline. Celestin carries on when you're back." : "Weak connection: trying again…";
+	bar.hidden = false;
+}
+addEventListener("offline", () => netBar("off"));
+addEventListener("online", () => {
+	netBar("ok");
+	// (what couldn't load while it was gone)
+	if (typeof account !== "undefined" && account) refreshMe();
+	if (!catalog.length) loadCatalog().catch(() => {});
+});
+setTimeout(() => { if (navigator.onLine === false) netBar("off"); }, 0);
+// until the connection's back (or ms have gone by, or it's stopped)
+function waitOnline(signal, ms) {
+	return new Promise((res) => {
+		const done = () => { clearTimeout(t); removeEventListener("online", done); if (signal) signal.removeEventListener("abort", done); res(); };
+		const t = setTimeout(done, ms);
+		addEventListener("online", done);
+		if (signal) signal.addEventListener("abort", done);
+	});
+}
+// how long to wait before sending again: until it's back when it's plainly gone, a little longer each time when it's weak
+const netWait = (n) => (navigator.onLine === false ? 90e3 : [1500, 4000, 8000, 15000][Math.min(n, 3)]);
+// the connection's gone: the whole request stops the way it does when stop is pressed (what it made is kept), and the
+// chat says what happened instead of "Stopped"
+function netStop(e) {
+	netBar(navigator.onLine === false ? "off" : "ok");
+	const x = Object.assign(new Error("Your connection dropped"), { name: "AbortError", net: true, said: !!(e && e.said) });
+	if (busy && !busy.signal.aborted) busy.abort(x);
+	return x;
+}
+const netDropped = (e) => !!(e && e.net) || !!(busy && busy.signal.reason && busy.signal.reason.net);
+// how long a connection that says it's there may keep failing, with nothing getting through, before the request stops
+let NET_GIVE_UP = 5 * 60e3;
+const RESUME = "Your answer above was cut off by a dropped connection. Continue it exactly where it stopped, mid-word or mid-line if that's where it was, without repeating anything or mentioning the break.";
 async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 	extra = slowCap(model, extra);
+	// (what came before the connection dropped: kept, shown, and the same model asked to carry on from there)
+	// (resumes: at most 20 pick-ups in one answer, so a connection that always breaks part way can't go on forever)
+	let sofar = "", ask = messages, net = 0, since = 0, resumes = 0;
+	const show = (t) => onText(sofar + t);
 	for (let tries = 0; ; tries++) {
-		const t0 = Date.now();
-		try { const out = await streamOnce(model, messages, onText, signal, extra, acc); delete SESSION_FAIL[model]; return out; }
+		const t0 = Date.now(), think0 = acc ? acc.think : undefined;
+		try { const out = await streamOnce(model, ask, show, signal, extra, acc); delete SESSION_FAIL[model]; if (net || sofar) netBar("ok"); return sofar + out; }
 		catch (e) {
+			// the connection, not the model: wait for it, then carry on (part of the answer came: from there)
+			if (isNet(e) && !(signal && signal.aborted)) {
+				if (e.partial) {
+					sofar += e.partial;
+					ask = [...messages, { role: "assistant", content: sofar }, { role: "user", content: RESUME }];
+					net = 0;
+					since = 0;
+				} else if (acc && !sofar) { if (think0 === undefined) delete acc.think; else acc.think = think0; }
+				if (!since) since = Date.now();
+				if (e.partial) resumes++;
+				if (resumes <= 20 && (navigator.onLine === false || Date.now() - since < NET_GIVE_UP)) {
+					netBar("retry");
+					await waitOnline(signal, netWait(net++));
+					if (signal && signal.aborted) throw Object.assign(new Error("Stopped"), { name: "AbortError" });
+					tries--;
+					continue;
+				}
+				throw netStop(Object.assign(e, { said: !!sofar }));
+			}
+			// (something else went wrong after part of the answer came: it isn't started over at less thought)
+			if (sofar) { try { e.said = true; } catch {} }
 			// the model itself failing (not stopped, not out of credits, not the gateway turning Celestin's key down): twice in
 			// this session and it's left out here for ten minutes
 			// (the person's own connection dropping isn't the model failing: not counted)
@@ -3385,19 +3463,38 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 		}
 	}
 }
+// A connection silent for longer than any model ever is (the gateway gives up on a silent one after about two minutes,
+// and the server keeps a quiet one open with keep-alives) has died without saying so: it's let go, to be sent again
+const STALL_MS = 150e3;
 async function streamOnce(model, messages, onText, signal, extra = {}, acc = null) {
-	const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra }) });
+	// (what ends a wait on the network at once, whatever the browser does: the watchdog, or stop pressed)
+	let kill = null;
+	const dead = new Promise((_, rej) => { kill = rej; });
+	dead.catch(() => {});
+	const ctl = new AbortController(), stop = () => { ctl.abort(signal.reason); kill(signal.reason || Object.assign(new Error("Stopped"), { name: "AbortError" })); };
+	if (signal) { if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true }); }
+	let quiet = 0, stalled = false, answered = false, text = "";
+	const watch = () => { clearTimeout(quiet); quiet = setTimeout(() => { stalled = true; ctl.abort(); kill(new Error("stalled")); }, STALL_MS); };
+	const lost = (e) => (stalled && !(signal && signal.aborted) ? Object.assign(new Error("network error: nothing came for " + STALL_MS / 1000 + " s"), { net: true }) : e);
+	watch();
+	try {
+	let r;
+	try { r = await Promise.race([fetch(chatURL(), { method: "POST", headers: headers(), signal: ctl.signal, body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra }) }), dead]); }
+	catch (e) { throw lost(e); }
 	if (!r.ok) {
 		let msg = r.statusText;
 		try { const j = await r.json(); msg = j.error?.message || msg; } catch {}
 		throw fail(msg, r.status);
 	}
+	// (from here the answer is being worked on: a connection lost now is sent again only once)
+	answered = true;
 	const reader = r.body.getReader(), dec = new TextDecoder();
-	let buf = "", text = "";
+	let buf = "";
 	for (;;) {
 		let got;
 		// (cut off after it had started answering: not asked again, the caller decides)
-		try { got = await reader.read(); } catch (e) { if (text) e.said = true; throw e; }
+		try { got = await Promise.race([reader.read(), dead]); } catch (e) { e = lost(e); if (text) { try { e.said = true; e.partial = text; } catch {} } reader.cancel().catch(() => {}); throw e; }
+		watch();
 		const { done, value } = got;
 		if (done) break;
 		buf += dec.decode(value, { stream: true });
@@ -3423,6 +3520,13 @@ async function streamOnce(model, messages, onText, signal, extra = {}, acc = nul
 		}
 	}
 	return text;
+	} catch (e) {
+		if (e && typeof e === "object" && answered) { try { e.got = true; } catch {} }
+		throw e;
+	} finally {
+		clearTimeout(quiet);
+		if (signal) signal.removeEventListener("abort", stop);
+	}
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // The models that may stand in when the first one fails: none that costs more than half again as much (the next best by
@@ -3437,8 +3541,22 @@ function fail(message, status) {
 	return e;
 }
 async function once(model, messages, extra = {}, acc = null) {
-	const r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), ...extra }) });
-	const j = await r.json();
+	let r, j;
+	for (let net = 0, since = Date.now(); ; net++) {
+		try {
+			r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), ...extra }) });
+			j = await r.json();
+			if (net) netBar("ok");
+			break;
+		} catch (e) {
+			// (a weak connection: asked again once it's back, the same way as a streamed answer)
+			if (!isNet(e) || (busy && busy.signal.aborted)) throw e;
+			if (navigator.onLine !== false && Date.now() - since >= NET_GIVE_UP) throw netStop(e);
+			netBar("retry");
+			await waitOnline(busy && busy.signal, netWait(net));
+			if (busy && busy.signal.aborted) throw Object.assign(new Error("Stopped"), { name: "AbortError" });
+		}
+	}
 	if (!r.ok || j.error) throw fail(j.error?.message || r.statusText, r.ok ? j.error?.code : r.status);
 	if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) { acc.cost = (acc.cost || 0) + c; acc.unit = creditsMode() ? "credits" : "usd"; } addSpend(c); }
 	return j.choices?.[0]?.message?.content || "";
@@ -4060,7 +4178,8 @@ function renderMsg(m, i) {
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
 		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? councilHtml(m, body) : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
-		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + rateBtns(m, i) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
+			(m.dropped && !m.streaming ? '<div class="limit-bar net dropnote" role="note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.3-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.7 5M12 20h.01"/></svg><span>Your connection dropped here, and didn\'t come back. Ask again when it\'s back.</span></div>' : "") +
+		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + rateBtns(m, i) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut && !m.dropped ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
 // fast path while streaming: only touch the last message
 // Streaming: the network delivers text in bursts; what's on screen is revealed a few characters every frame
@@ -5750,7 +5869,15 @@ async function send(textOverride, fork) {
 		}
 	} catch (e) {
 		const last = current.msgs[current.msgs.length - 1];
-		if (e.name === "AbortError") { if (last.role !== "user") { last.streaming = false; last.text = (last.text || "") + "\n\n*Stopped.*"; } }
+		if (e.name === "AbortError" && netDropped(e)) {
+			// the connection dropped: what came stays, with a way to carry on; nothing at all: said so, with Try again
+			if (last.role === "assistant" && (last.text || last.kind)) { last.streaming = false; last.dropped = true; }
+			else {
+				if (last.role === "assistant") current.msgs.pop();
+				current.msgs.push({ role: "assistant", error: "Your connection dropped before the answer came. Try again once you're back online." });
+			}
+		}
+		else if (e.name === "AbortError") { if (last.role !== "user") { last.streaming = false; last.text = (last.text || "") + "\n\n*Stopped.*"; } }
 		else if (e.status === 402 && creditsMode()) {
 			// out of credits: no error in the chat and no window over it. What wasn't answered at all goes back into the box
 			// to send later, and the line on the box says when the credits are back
@@ -9872,7 +9999,16 @@ function creditsText(n) {
 	return Math.abs(v) >= 100 ? Math.floor(v).toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
 }
 async function api(path, opts = {}) {
-	const r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", ...(account && account.token ? { Authorization: "Bearer " + account.token } : {}), ...ownerHeader(true), ...(opts.headers || {}) } });
+	const look = !opts.method || /^(GET|HEAD)$/i.test(opts.method);
+	let r;
+	for (let net = 0; ; net++) {
+		try { r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", ...(account && account.token ? { Authorization: "Bearer " + account.token } : {}), ...ownerHeader(true), ...(opts.headers || {}) } }); break; }
+		catch (e) {
+			// (a weak connection: a look is asked again a little later; something that changes anything isn't sent twice)
+			if (!look || !isNet(e) || net >= 2) throw e;
+			await waitOnline(null, navigator.onLine === false ? 20e3 : [1500, 4000][net]);
+		}
+	}
 	let j = {};
 	try { j = await r.json(); } catch {}
 	if (!r.ok) throw fail((j.error && j.error.message) || r.statusText, r.status);
@@ -10589,7 +10725,7 @@ document.addEventListener("click", (e) => {
 	else if (t.hasAttribute("data-edit-cancel")) { const i = EDITING; EDITING = -1; redrawMsg(i); }
 	else if (t.dataset.editSend != null) { const v = ($("#editBox")?.value || "").trim(); if (v) editAt(+t.dataset.editSend, v); }
 	else if (t.dataset.ver != null) { switchVersion(+t.dataset.ver, +t.dataset.to); }
-	else if (t.hasAttribute("data-continue")) { const m = current.msgs[current.msgs.length - 1]; if (m) delete m.cut; send("Continue exactly where you stopped, without repeating anything."); }
+	else if (t.hasAttribute("data-continue")) { const m = current.msgs[current.msgs.length - 1]; if (m) { delete m.cut; delete m.dropped; } send("Continue exactly where you stopped, without repeating anything."); }
 	else if (t.hasAttribute("data-mmcode")) {
 		const box = t.closest(".code"), fig = box.querySelector(".diagram"), pre = box.querySelector("pre");
 		const showCode = pre.hidden;

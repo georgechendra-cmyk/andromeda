@@ -32,15 +32,16 @@ const DEFAULT_CONFIG = {
 	// than budgetIdr a day. 150 credits a week is about 50 everyday answers, 20 changes to code, or an app by the best
 	// builder (the window holds one at its medium effort, about 100).
 	free: { credits: 100, hours: 5, every: 5, week: 150, budgetIdr: 15000, usdIdr: 18000, dailyCap: 0 },
-	// A plan, bought for a month (30 days; QRIS confirmed by hand, cards automatic). Each payment gives that plan's month of
-	// credits ("month"), used at most "credits" in any "hours" (Claude's 5-hour limit). Ran out before the month is over?
-	// Paying for the next month early adds its credits at once and its 30 days to the end; a credit pack works too. What's
-	// left of a month's credits ends with the plan.
+	// A plan, bought for a month (30 days; QRIS confirmed by hand, cards automatic). Each month of it gives that plan's month
+	// of credits ("month"), used at most "credits" in any "hours" (Claude's 5-hour limit). Nothing piles up: the window and
+	// the month each start again full, never more, and what wasn't used is gone. Paying early adds 30 days to the end, with
+	// their credits when that month begins (planChange). Ran out before the month is over? A credit pack keeps them going.
 	// The owner's rule (Nov 2): at least twice what it costs on every plan even when someone uses every last credit, the
 	// most on the $20 plan and less the dearer the plan, so the bigger plans are the better deal. A credit costs the owner
 	// at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), so a payment's worst case is "month" x
-	// Rp69, and the price is 2.2x, 2.1x and 2x that. Each payment adds exactly one month of credits, so no timing of
-	// renewals, upgrades or bursts can cost more. Packs sell a credit dearer still (about 2.6x), and never expire.
+	// Rp69, and the price is 2.2x, 2.1x and 2x that. Each paid month brings at most one month of credits (a switch to another
+	// plan turns what was left into days of the new one at its price), so no timing of renewals, upgrades or bursts can cost
+	// more. Packs sell a credit dearer still (about 2.6x), and never expire.
 	// Nonstop coding is about 140 credits an hour (CODE_HOUR in the site, measured): Nova is 3 hours of it in any 5 and
 	// about 15 hours a month; Pulsar never runs out in a sitting and is about 79 hours a month; Quasar about 165.
 	plans: [
@@ -1630,18 +1631,22 @@ async function chat(req, env, ctx, user) {
 		// (its own decoder: a character split across two chunks mustn't carry into another answer streaming meanwhile)
 		const mine = new TextDecoder();
 		const used = () => (conv ? conv.usage() : usage);
+		// the person's side went away (weak wifi, a closed tab) while the model was still at it: not the model being slow
+		let gone = false, upDone = false;
+		const put = (t) => writer.write(enc.encode(t)).catch((e) => { if (!upDone) gone = true; throw e; });
 		const end = async () => {
 			if (ended) return;
 			ended = true;
+			upDone = true;
 			// (a stream that ended with no word and no bill from the gateway, cut off by its time limit: nothing charged)
 			const mc = await settle(outChars || used() ? way : null, used(), outChars);
 			const tail = mc == null ? "" : "data: " + JSON.stringify({ id: "usage", object: "chat.completion.chunk", created: Math.floor(Date.now() / 1000), model: b.model, choices: [], usage: shown(used() || {}, mc) }) + "\n\n";
-			await writer.write(enc.encode(tail + "data: [DONE]\n\n"));
+			await put(tail + "data: [DONE]\n\n");
 		};
 		try {
 			read: for (;;) {
-				const { done, value } = await reader.read();
-				if (done) break;
+				const { done, value } = await reader.read().catch((e) => { upDone = true; throw e; });
+				if (done) { upDone = true; break; }
 				buf += mine.decode(value, { stream: true });
 				let out = "", i;
 				while ((i = buf.indexOf("\n")) >= 0) {
@@ -1652,7 +1657,8 @@ async function chat(req, env, ctx, user) {
 					if (!line.startsWith("data:")) continue;
 					const data = line.slice(5).trim();
 					if (data === "[DONE]") {
-						if (out) await writer.write(enc.encode(out));
+						upDone = true;
+						if (out) await put(out);
 						await end();
 						break read;
 					}
@@ -1671,19 +1677,20 @@ async function chat(req, env, ctx, user) {
 						out += "data: " + JSON.stringify(x) + "\n\n";
 					}
 					if (conv && conv.finished) {
-						if (out) await writer.write(enc.encode(out));
+						upDone = true;
+						if (out) await put(out);
 						await end();
 						break read;
 					}
 				}
-				if (out) await writer.write(enc.encode(out));
+				if (out) await put(out);
 			}
 			await end();
 		} catch {
 			try { await reader.cancel(); } catch {}
 		} finally {
-			// cut off before a word came, after a long wait: too slow at this level
-			if (!outChars && !used() && now() - started >= 80e3) await tooSlow(env, b.model, effort);
+			// cut off before a word came, after a long wait: too slow at this level (unless it was the person who went away)
+			if (!gone && !outChars && !used() && now() - started >= 80e3) await tooSlow(env, b.model, effort);
 			await settle(outChars || used() ? way : null, used(), outChars);
 			try { await writer.close(); } catch {}
 		}
