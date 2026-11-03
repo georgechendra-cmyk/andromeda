@@ -115,7 +115,7 @@ async function route(req, env, ctx, url) {
 	const p = url.pathname.replace(/\/+$/, "");
 	const m = req.method;
 	await columns(env);
-	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env) });
+	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
 	if (p === "/api/login/resend" && m === "POST") return loginResend(req, env);
@@ -1362,7 +1362,7 @@ async function tooSlow(env, model, effort) {
 let CANT = { at: 0, map: {} };
 const CANT_DAYS = 3;
 async function cantMap(env) {
-	if (Date.now() - CANT.at < 300e3) return CANT.map;
+	if (Date.now() - CANT.at < 300e3 && Date.now() >= CANT.at) return CANT.map;
 	try { const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'cant-finish'").first(); CANT = { at: Date.now(), map: row ? JSON.parse(row.v) || {} : {} }; }
 	catch { CANT = { at: Date.now(), map: CANT.map || {} }; }
 	return CANT.map;
@@ -1371,6 +1371,46 @@ async function cantFinish(env, model) {
 	const map = await cantMap(env);
 	map[model] = now();
 	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('cant-finish', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(map)).run().catch(() => {});
+}
+// Models failing right now, kept for a quarter of an hour: { model: { n, at } }
+let HEALTH = { at: 0, map: {} };
+const HEALTH_FOR = 15 * 60e3;
+async function healthMap(env) {
+	if (Date.now() - HEALTH.at < 60e3 && Date.now() >= HEALTH.at) return HEALTH.map;
+	try { const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'health'").first(); HEALTH = { at: Date.now(), map: row ? JSON.parse(row.v) || {} : {} }; }
+	catch { HEALTH = { at: Date.now(), map: HEALTH.map || {} }; }
+	return HEALTH.map;
+}
+const saveHealth = (env, map) => env.DB.prepare("INSERT INTO config (k, v) VALUES ('health', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(map)).run().catch(() => {});
+async function modelFailed(env, model) {
+	const map = await healthMap(env), h = map[model] && now() - map[model].at < HEALTH_FOR ? map[model] : { n: 0 };
+	map[model] = { n: h.n + 1, at: now() };
+	for (const k of Object.keys(map)) if (now() - map[k].at >= HEALTH_FOR) delete map[k];
+	await saveHealth(env, map);
+}
+async function modelOk(env, model) {
+	const map = await healthMap(env);
+	if (!map[model]) return;
+	delete map[model];
+	await saveHealth(env, map);
+}
+// (more than five failing at once: the gateway is down, not those models; none is left out)
+async function downList(env) {
+	const map = await healthMap(env);
+	const down = Object.keys(map).filter((m) => map[m].n >= 3 && now() - map[m].at < HEALTH_FOR);
+	return down.length > 5 ? [] : down;
+}
+// How fast each model really is here, from the last week's calls (three at least): until its first word, and words a second
+let SPEEDS = { at: 0, map: {} };
+async function speedList(env) {
+	if (Date.now() - SPEEDS.at < 600e3 && Date.now() >= SPEEDS.at) return SPEEDS.map;
+	const map = {};
+	try {
+		const rows = (await env.DB.prepare("SELECT model, COUNT(*) AS n, AVG(CASE WHEN first_ms > 0 THEN first_ms END) AS first, SUM(CASE WHEN ms > first_ms AND first_ms > 0 THEN out_tok END) AS out, SUM(CASE WHEN ms > first_ms AND first_ms > 0 THEN ms - first_ms END) AS rest FROM usage WHERE created_at > ? AND ms > 0 AND out_tok > 0 GROUP BY model").bind(now() - 7 * 864e5).all()).results || [];
+		for (const r of rows) if (r.n >= 3 && r.first > 0 && r.out > 0 && r.rest > 0) map[r.model] = { first: Math.round(r.first), tps: Math.round((r.out * 1000) / r.rest), n: r.n };
+	} catch {}
+	SPEEDS = { at: Date.now(), map };
+	return map;
 }
 async function cantFinishList(env) { const map = await cantMap(env); return Object.keys(map).filter((m) => now() - map[m] < CANT_DAYS * 864e5); }
 
@@ -1427,6 +1467,8 @@ async function chat(req, env, ctx, user) {
 		// The output was capped to what the balance covers, so any overshoot is small, and a balance below zero only
 		// blocks the next request until credits are bought.
 		const charged = toMc(list);
+		// (it answered: whatever was counted against it goes)
+		if (way) await modelOk(env, b.model);
 		await env.DB.batch([
 			giveBack(env, user.id, held, charged),
 			// (what it read, how much of that came from the cache, and what it wrote: whether the gateway passes the cache on)
@@ -1512,6 +1554,8 @@ async function chat(req, env, ctx, user) {
 		// the gateway turning down Celestin's own key: no model will answer, so nobody is told to pick another. The owner
 		// is told the gateway's own words and what to do (and emailed); everyone else, that it's being fixed
 		const keyRefused = !!last && [401, 402, 403].includes(last.status) && /key|auth|block|balance|budget|credit|quota|insufficient|payment|unauthori[sz]ed|forbidden/i.test(last.message || "");
+		// (the model itself failing, not the key or a crowd: counted, and three in a quarter hour leave it out for a while)
+		if (!keyRefused && !(last && last.status === 429)) await modelFailed(env, b.model);
 		if (keyRefused) await alertOwner(env, "gateway", "Your AI gateway turned down Celestin's key, so nobody can get answers right now. What it said: " + last.message + "\n\nWhat to do: open your gateway's dashboard (Flaz), go to the API keys, and unblock the key Celestin uses (or make a new key and send it to Claude). Check the wallet balance, and any budget cap on the key.");
 		const message = !last ? "Couldn't reach the AI provider. Try again."
 			: keyRefused ? (isOwner(user.id) ? "Your AI gateway turned down Celestin's key, so no model can answer: \"" + String(last.message).slice(0, 200) + "\". Open the gateway's dashboard (Flaz) → API keys, and unblock it or make a new one. Check the balance and any budget cap too." : "Celestin can't reach its AI models right now. It's being fixed: please try again in a little while.")

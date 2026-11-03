@@ -1971,6 +1971,8 @@ async function loadCatalog(force) {
 			ctx: m.context_length || m.max_input_tokens || 0,
 			pin: Number(m.pricing?.prompt || 0) * 1e6,
 			pout: Number(m.pricing?.completion || 0) * 1e6,
+			// (what reading it back from the cache costs, when the catalog says)
+			pcr: m.pricing && m.pricing.input_cache_read != null ? Number(m.pricing.input_cache_read) * 1e6 : null,
 			// the thinking levels it takes (null: any)
 			efforts: Array.isArray(m.supported_efforts) ? m.supported_efforts : null,
 			input: m.architecture?.input_modalities || (m.capabilities?.image_input ? ["text", "image"] : ["text"]),
@@ -2090,6 +2092,13 @@ const TIERS = { best: { label: "Best", cap: 0, help: "Each lab's top model" } };
 // What the credits server can answer with (its /api/pricing says: without an OpenRouter key, only the labs it reaches
 // another way). Kept between visits, so the first message after opening already goes to a model that answers
 let REACH = readReach(store.get("reach", null));
+// Models failing right now, left out until a time (the server's list for everyone; any failing twice here, for a while),
+// how fast each really is here (the server's measure), the model that answered just before in this chat with the chat
+// cached, and this session's failures by model
+const DOWN = new Map(), SESSION_FAIL = {};
+let SPEED = {}, HOT = null;
+// small talk: answered straight away, without the reading call
+const SMALL_TALK = /^(hi+|hello+|hey+|heya|yo|sup|hai|halo|thanks?|thank you|thank u|thx|ty|tq|makasih|terima kasih|ok(ay)?|k|cool|nice|great|awesome|good (morning|afternoon|evening|night)|bye|goodbye|see (you|ya))[\s!.?,:)]*$/i;
 function readReach(r) {
 	if (!r || r.all) return null;
 	const re = (s) => { try { return s ? new RegExp(s) : null; } catch { return null; } };
@@ -2097,6 +2106,7 @@ function readReach(r) {
 	return { only: re(r.only || "^$"), skip: re(r.skip), models: Array.isArray(r.models) ? new Set(r.models) : null };
 }
 function usable(m, task) {
+	if (DOWN.size && (DOWN.get(m.id) || 0) > Date.now()) return false;
 	if (REACH) {
 		const byLab = REACH.only && REACH.only.test(m.id) && !(REACH.skip && REACH.skip.test(m.id));
 		if (!byLab && !(REACH.models && REACH.models.has(m.id))) return false;
@@ -2789,7 +2799,11 @@ function callCost(x, cap, out = 800, inTok = IN_TOK) {
 	const m = x.m || x, eff = capEffort(x.effort || "", cap, m.id);
 	const thinks = Array.isArray(m.efforts) && m.efforts.some((e) => e !== "none");
 	const t = (eff ? THINK_TOK[eff] ?? 2000 : thinks ? 2000 : 0) * verbosity(m.id);
-	const v = (Number(m.pin) || 0) * inTok + (Number(m.pout) || 0) * (out + t);
+	// (the model that answered just before in this chat, a few minutes ago, has the chat so far cached: that part is read
+	// back at its cached price, as it's charged)
+	const hot = HOT && HOT.id === m.id && inTok === IN_TOK ? Math.min(inTok, HOT.tok) : 0;
+	const pin = Number(m.pin) || 0, read = m.pcr != null && pin > 0 ? m.pcr / pin : /^anthropic\//.test(m.id) ? 0.1 : 1;
+	const v = pin * (inTok - hot + hot * read) + (Number(m.pout) || 0) * (out + t);
 	return v > 0 ? v : Infinity;
 }
 // what a request reads, in tokens (about four characters each; a picture about a thousand)
@@ -2841,6 +2855,11 @@ function quarkFirst(list, cap, used, cost = callCost, worth, role) {
 	}
 	const fair = tied.filter((x) => cost(x, cap) <= low * 1.25);
 	let pick = fair.reduce((a, b) => (cost(b, cap) < cost(a, cap) || (cost(b, cap) === cost(a, cap) && b.score > a.score) ? b : a));
+	// as good, within a tenth of its price, and measurably a fifth quicker here: the quicker one (what a reply keeps someone
+	// waiting: until its first word, then its words)
+	const wait = (x) => { const sp = SPEED[x.m.id]; return sp && sp.tps > 0 ? sp.first + (1000 * 800) / sp.tps : Infinity; };
+	const quick = fair.filter((x) => x !== pick && cost(x, cap) <= cost(pick, cap) * 1.1 && wait(x) < wait(pick) * 0.8);
+	if (quick.length) pick = quick.reduce((a, b) => (wait(b) < wait(a) ? b : a));
 	// then worth its price: the tied pick counts as level with the best; one further behind wins only if the money it saves
 	// is worth more than the lead it gives up
 	if (top.mid != null) {
@@ -3344,8 +3363,14 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 	extra = slowCap(model, extra);
 	for (let tries = 0; ; tries++) {
 		const t0 = Date.now();
-		try { return await streamOnce(model, messages, onText, signal, extra, acc); }
+		try { const out = await streamOnce(model, messages, onText, signal, extra, acc); delete SESSION_FAIL[model]; return out; }
 		catch (e) {
+			// the model itself failing (not stopped, not out of credits, not the gateway turning Celestin's key down): twice in
+			// this session and it's left out here for ten minutes
+			if (e.name !== "AbortError" && (e.status >= 500 || e.status === 404 || e instanceof TypeError) && !/turned down Celestin's key|can't reach its AI models/.test(e.message || "")) {
+				SESSION_FAIL[model] = (SESSION_FAIL[model] || 0) + 1;
+				if (SESSION_FAIL[model] >= 2) DOWN.set(model, Date.now() + 10 * 60e3);
+			}
 			// long work that went quiet and was cut off: thinking less won't make it shorter, so the caller's next model takes it
 			if (LONG_RUN && !e.said && e.name !== "AbortError" && Date.now() - t0 >= 80e3) { CANT_FINISH.add(model); throw e; }
 			const e0 = extra.reasoning && extra.reasoning.effort, at = LEVELS.indexOf(e0 || "");
@@ -5652,11 +5677,15 @@ async function send(textOverride, fork) {
 		}
 		await useTools(text, atts);
 		// Celestin reads it and decides how to serve it (the strongest fast reader, by measurement)
-		const hold = { role: "assistant", text: "", streaming: true, status: "Working out the best way to do this" };
-		current.msgs.push(hold);
-		updateLast();
+		// small talk ("hi", "thanks", "ok") needs no reading: straight to an answer (a credit and several seconds saved)
+		const smallTalk = !atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim());
 		let plan;
-		try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+		if (!smallTalk) {
+			const hold = { role: "assistant", text: "", streaming: true, status: "Working out the best way to do this" };
+			current.msgs.push(hold);
+			updateLast();
+			try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+		}
 		// it couldn't be asked, but the person said what they want: that way
 		if (!plan && tool) plan = { way: TOOLS[tool].ways[0], skills: [], edit: false, how: "", qty: 0, length: "", topic: "", name: "", profile: null };
 		if (plan) (plan.remember || []).forEach((t) => remember(t));
@@ -5668,6 +5697,11 @@ async function send(textOverride, fork) {
 		// what this request reads (the whole chat, what's attached, the project's files): what each model would cost to read
 		// it decides as much as what it writes
 		try { IN_TOK = Math.max(1000, tokensOf([sys(), ...chatHistory()])); } catch { IN_TOK = 3000; }
+		// the model that answered just before, a few minutes ago: the chat so far is in its cache (all but this message)
+		{
+			const prev = [...current.msgs].reverse().find((m) => m.role === "assistant" && m.by && m.at);
+			HOT = prev && Date.now() - prev.at < 4.5 * 60e3 ? { id: prev.by, tok: Math.max(0, IN_TOK - tokensOf([{ content: text }])) } : null;
+		}
 		// Celestin's own record on exactly this kind of work, fetched while the work starts (it only moves a model where
 		// there's real evidence)
 		if (PROFILE && PROFILE.tags && PROFILE.tags.length) PROFILE.record = skillRecord(PROFILE.tags).catch(() => null);
@@ -5857,7 +5891,7 @@ async function runAuto(text, atts) {
 	for (const m of tryList) {
 		msg.chips = [routeChip(m, task)];
 		msg.model = m.id;
-		msg.by = m.id;
+		msg.by = m.id; msg.at = Date.now();
 		msg.tags = tags;
 			msg.task = task;
 			msg.spec = specFor(task);
@@ -5882,7 +5916,7 @@ async function runAuto(text, atts) {
 				for (const f of [...strongest.slice(0, 3), m].filter((x, k, a) => a.findIndex((y) => y.id === x.id) === k)) {
 					try {
 						msg.model = f.id;
-						msg.by = f.id;
+						msg.by = f.id; msg.at = Date.now();
 						msg.chips = [routeChip(f, task)];
 						await stream(f.id, [...hist, { role: "assistant", content: first }, { role: "user", content: "That code was run, and it failed:\n" + tested.error + "\n\nGive the whole answer again with the code fixed. Check the fix line by line before you answer." }], (t) => { msg.text = t; updateLast(); }, busy.signal, effortExtra(f.id), msg);
 						fixer = f;
@@ -6536,7 +6570,7 @@ async function runQuarks(text, atts) {
 			const each = g.pieces.length > 1 && !writes ? splitGroup(out, g.pieces) : null;
 			g.pieces.forEach((p, k) => outs.set(p.id, each ? each[k] : k === 0 ? out : "(in " + g.pieces[0].label + ", above)"));
 			sts.forEach((s) => { s.model = st.model; s.id = st.id; done(s); });
-			if (writes) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; msg.by = st.id; msg.tags = (PROFILE && PROFILE.tags) || []; }
+			if (writes) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; msg.by = st.id; msg.at = Date.now(); msg.tags = (PROFILE && PROFILE.tags) || []; }
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
 			sts.forEach((s) => done(s, niceError(e)));
@@ -9853,6 +9887,10 @@ async function loadPricing() {
 	// the models the gateway can't finish long work with: builds go to another first, and their thinking isn't held down
 	// here for it (that wasn't what was slow)
 	if (pricing && Array.isArray(pricing.cantFinish)) for (const id of pricing.cantFinish) { CANT_FINISH.add(id); if (SLOW[id]) { delete SLOW[id]; store.set("slowEffort", SLOW); } }
+	// the models failing right now for everyone (left out for a quarter of an hour, or until the next look), and how fast
+	// each really is here
+	if (pricing && Array.isArray(pricing.down)) for (const id of pricing.down) DOWN.set(id, Date.now() + 15 * 60e3);
+	if (pricing && pricing.speed && typeof pricing.speed === "object") SPEED = pricing.speed;
 	if (pricing && pricing.reach) {
 		store.set("reach", pricing.reach);
 		REACH = readReach(pricing.reach);
