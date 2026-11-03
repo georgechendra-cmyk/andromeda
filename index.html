@@ -7010,7 +7010,9 @@ async function runSim(text, atts, pick) {
 	msg.text = "**" + topic + "**: a simulation you can play with" + testedLine(msg.tested);
 }
 // ---- testing what was built: load it unseen, press everything, collect every error
-const SANDBOX_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
+// (the one library a build may load: three.js, for real 3D, from cdnjs; nothing else leaves the sandbox)
+const THREE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
+const SANDBOX_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com/ajax/libs/three.js/; img-src data: blob:; media-src data:">';
 function probeScript(id) {
 	return "<script>(function(){var id=" + JSON.stringify(id) + ";function send(t,d){try{parent.postMessage({andromedaProbe:id,type:t,data:d},'*')}catch(e){}}" +
 		"window.addEventListener('error',function(e){send('error',(e.message||'Error')+(e.lineno?' (line '+e.lineno+')':''))});" +
@@ -7570,7 +7572,7 @@ async function buildApp(text, atts, pick) {
 	const have = prev ? Object.entries(prev.data.files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 70000) : "";
 	const source = sourceOf(atts, 30000);
 	const rules = "You are an expert engineer working in a browser sandbox with a live preview.\n" +
-		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no CDN links, no external fonts, images or network requests (the preview is offline). Use emoji, CSS and canvas/SVG for visuals.\n" +
+		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no external fonts, images or network requests. The one library allowed: for real 3D, three.js r128, loaded with <script src=\"" + THREE_SRC + "\"><\/script> before your own script (only that file: no add-ons such as OrbitControls or loaders, so write camera controls yourself; r128's API: BufferGeometry, no Geometry). Otherwise use emoji, CSS and canvas/SVG for visuals.\n" +
 		"- Complete and working on the first run: no placeholders, no TODOs. Polished, responsive, good-looking UI with clear states and keyboard support where it makes sense.\n" +
 		"- A game or simulation: play it through in your head before you finish. Every computer-controlled player or character acts in every state (one holding the ball passes, shoots or runs on; none just stands there), every timer and cooldown really runs out (never reset or counted back every frame), starting positions and rules follow the real thing (at a football kick-off each team is in its own half), and every control does what it says.\n" +
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
@@ -11214,7 +11216,7 @@ const ART_ICONS = {
 	app: '<rect x="2" y="7" width="20" height="12" rx="4"/><path d="M7 11v4M5 13h4"/><circle cx="16" cy="12" r=".6"/><circle cx="18" cy="15" r=".6"/>',
 	sim: '<circle cx="12" cy="12" r="1.6"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/>',
 };
-const SANDBOX_META = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; script-src \'unsafe-inline\'; img-src data: blob:; media-src data:">';
+const SANDBOX_META = SANDBOX_CSP;
 const sealed = (h) => (/<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + SANDBOX_META) : "<!doctype html>" + SANDBOX_META + h);
 function artFor(i) {
 	const m = current && current.msgs[i];
