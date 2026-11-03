@@ -42,8 +42,8 @@ const DEFAULT_CONFIG = {
 	// Rp69, and the price is 2.2x, 2.1x and 2x that. Each paid month brings at most one month of credits (a switch to another
 	// plan turns what was left into days of the new one at its price), so no timing of renewals, upgrades or bursts can cost
 	// more. Packs sell a credit dearer still (about 2.6x), and never expire.
-	// Nonstop coding is about 140 credits an hour (CODE_HOUR in the site, measured): Nova is 3 hours of it in any 5 and
-	// about 15 hours a month; Pulsar never runs out in a sitting and is about 79 hours a month; Quasar about 165.
+	// Nonstop coding is about 60 credits an hour (CODE_HOUR in the site, measured Nov 4 with the owner's price rule; it was
+	// 140 before): every plan codes nonstop in any 5 hours; Nova about 35 hours a month, Pulsar about 183, Quasar about 386.
 	plans: [
 		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 2100, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 11000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
@@ -713,6 +713,14 @@ function giveBack(env, userId, held, charged) {
 	// (a request that ran across a new month gives back into the new one, which is full already)
 	return env.DB.prepare("UPDATE users SET free_mc = free_mc + ?, balance_mc = balance_mc + ?, week_mc = MAX(0, week_mc - ?), plan_mc = MIN(plan_mc + ?, MAX(plan_mc, ?)) WHERE id = ?").bind(back, held.fromPaid - (charged - usedFree), back, held.month ? back : 0, held.monthMc || 0, userId);
 }
+// what the owner's own use has really cost, in rupiah: the last day, week and 30 days
+async function ownerSpend(env, userId, c) {
+	const t = now(), rate = Number(c.free.usdIdr) || 18000;
+	const r = await env.DB.prepare("SELECT COALESCE(SUM(CASE WHEN created_at > ?2 THEN cost_usd ELSE 0 END), 0) AS d, COALESCE(SUM(CASE WHEN created_at > ?3 THEN cost_usd ELSE 0 END), 0) AS w, COALESCE(SUM(cost_usd), 0) AS m FROM usage WHERE user_id = ?1 AND created_at > ?4")
+		.bind(userId, t - 864e5, t - 7 * 864e5, t - 30 * 864e5).first().catch(() => null);
+	const idr = (usd) => Math.round((Number(usd) || 0) * rate);
+	return { day: idr(r && r.d), week: idr(r && r.w), month: idr(r && r.m) };
+}
 async function meOf(env, user) {
 	const c = await config(env);
 	const fresh = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until, period_at FROM users WHERE id = ?").bind(user.id).first();
@@ -730,6 +738,8 @@ async function meOf(env, user) {
 		paid: Math.max(0, u.balance_mc || 0) / 1000,
 		plan: { id: plan.id, name: plan.name, paid: plan.paid, until: plan.until || null, ...(plan.owner ? { unlimited: true } : {}) },
 		owner: !!plan.owner,
+		// the owner: what the AI has really cost (the gateway's price, its fee included), to weigh against a subscription
+		...(plan.owner ? { spend: await ownerSpend(env, u.id, c) } : {}),
 		// the owner's account somewhere without the owner key: told where its unlimited is
 		...(isOwner(u.id) && !plan.owner ? { ownerAway: true } : {}),
 		window: win,

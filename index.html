@@ -311,6 +311,14 @@ body.chats-open .learn-note, body:has(.sidebar.open) .learn-note { visibility: h
 /* the connection gone or weak: the same quiet line; an answer it cut off says so under what came, with a way to carry on */
 .limit-bar.net svg { color: var(--warn); }
 .limit-bar.dropnote { margin: 10px 0 0; max-width: 520px; }
+/* messages typed while Celestin works: waiting just above the box, each removable, read as soon as it's done */
+.queued { display: flex; flex-direction: column; gap: 4px; margin: 7px 7px 0; }
+.queued[hidden] { display: none; }
+.queued .limit-bar { margin: 0; }
+.queued .limit-bar span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.queued .limit-bar em { font-style: normal; color: var(--faint); flex: none; }
+.queued .lb-x { margin-left: auto; flex: none; width: 26px; height: 26px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; cursor: pointer; }
+.queued .lb-x:hover { background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
 @keyframes lbNudge { 35% { background: color-mix(in srgb, var(--warn) 16%, transparent); transform: translateY(-2px); } }
 @media (prefers-reduced-motion: reduce) { .limit-bar, .limit-bar.nudge { animation: none !important; } }
 .act.ic.on { color: var(--text); background: var(--bg3); }
@@ -1820,6 +1828,7 @@ html { scroll-behavior: smooth; }
 			<button class="jump" id="jumpBtn" aria-label="Jump to the newest message" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12l7 7 7-7"/></svg></button>
 			<div class="composer empty" id="composer">
 				<div class="limit-bar" id="limitBar" role="status" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span id="lbText"></span><button class="lb-act" id="lbAct" data-open-pricing>See plans</button></div>
+				<div class="queued" id="queued" aria-live="polite" hidden></div>
 				<div class="limit-bar net" id="netBar" role="status" hidden><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.3-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.7 5M12 20h.01"/></svg><span id="nbText"></span></div>
 				<div class="route" id="route"></div>
 				<div class="attached" id="attached"></div>
@@ -2793,12 +2802,13 @@ function arenaRank(task, weights, share) {
 }
 // Which model does each piece: the owner's rule (Nov 3). One whose work the best's would beat at most 51 times in 100
 // (about 7 Elo, "a hair") is as good, and the cheapest of those does it: often the same model thinking less, or another
-// lab's at a fraction of the price. Past a hair, up to 54 in 100 (about 28 Elo), one that costs at most half what the
-// best does is fair too (the owner, Nov 4: "2x or more is fair"), and the cheapest of everything fair does it; further
+// lab's at a fraction of the price. Past a hair, up to 54 in 100 (about 28 Elo), one at least 1.8 times cheaper than the
+// best is fair too (the owner, Nov 4: "2x or more is fair", then "1.9 or 1.8, just change"), and the cheapest of
+// everything fair does it; further
 // behind than that, never, whatever it saves. Within a quarter of the cheapest, one already on the team is preferred (its
 // pieces then go in the same call). Max: the best, whatever it costs. (A unit of score here is 15 Elo.)
 const PREFER = (p) => (400 * Math.log10(p / (100 - p))) / 15;
-const HAIR = PREFER(51), PRICE_MAX = PREFER(54);
+const HAIR = PREFER(51), PRICE_MAX = PREFER(54), FAIR_X = 1.8;
 // (the thinking an effort takes, in tokens: what Epoch AI's coding benchmarks count, each effort about half again or
 // twice the one below)
 const THINK_TOK = { none: 0, minimal: 400, low: 1500, medium: 3000, high: 5000, xhigh: 7500, max: 11000 };
@@ -2856,13 +2866,13 @@ function quarkFirst(list, cap, used, cost = callCost) {
 	const wait = (x) => { const sp = SPEED[x.m.id]; return sp && sp.tps > 0 ? sp.first + (1000 * 800) / sp.tps : Infinity; };
 	const quick = fair.filter((x) => x !== pick && cost(x, cap) <= cost(pick, cap) * 1.1 && wait(x) < wait(pick) * 0.8);
 	if (quick.length) pick = quick.reduce((a, b) => (wait(b) < wait(a) ? b : a));
-	// then past a hair: one no more than 54 in 100 behind that costs at most half what the best does is fair too, and the
-	// cheapest of all that are fair does it
+	// then past a hair: one no more than 54 in 100 behind that's at least FAIR_X times cheaper than the best is fair too, and
+	// the cheapest of all that are fair does it
 	if (top.mid != null) {
-		const half = cost(top, cap) / 2;
+		const fairAt = cost(top, cap) / FAIR_X;
 		for (const x of list) {
 			if (tied.includes(x) || x.mid == null || top.mid - x.mid > PRICE_MAX || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
-			if (cost(x, cap) <= half && cost(x, cap) < cost(pick, cap)) pick = x;
+			if (cost(x, cap) <= fairAt && cost(x, cap) < cost(pick, cap)) pick = x;
 		}
 	}
 	return pick === list[0] ? list : [pick, ...list.filter((x) => x !== pick)];
@@ -4250,6 +4260,8 @@ function paintLast() {
 	stick();
 }
 function render() {
+	drawQueue();
+	if (QUEUE.length) setTimeout(drainQueue, 0);
 	// a temporary chat is gone once you leave it
 	if (convos.some((c) => c.temp && c !== current)) convos = convos.filter((c) => !c.temp || c === current);
 	$("#tempBtn").hidden = !!(current && current.msgs.length && !current.temp);
@@ -5754,9 +5766,11 @@ async function projectFor(text) {
 }
 
 // ---------------------------------------------------------------- sending
-async function send(textOverride, fork) {
+async function send(textOverride, fork, attsOverride) {
+	// typed while Celestin works: waits just above the box, and is read as soon as it's done (another way of sending
+	// something meanwhile, a button or a suggestion, isn't)
+	if (busy) { if (textOverride == null) queueTyped(); return; }
 	let text = (textOverride ?? $("#input").value).trim();
-	if (busy) return;
 	// a slash command: one that just does something (a mode, the memory) clears the box; the rest shape this message
 	const sl = text.startsWith("/") ? slashCommand(text) : null;
 	slashPop.hidden = true;
@@ -5768,7 +5782,7 @@ async function send(textOverride, fork) {
 		// "/code" and nothing else: the tool is chosen, ready for what to do
 		if (!text && !attachments.length) { $("#input").value = ""; autosize(); if (sl.tool) $("#input").placeholder = TOOLS[sl.tool].ph; $("#input").focus(); return; }
 	}
-	if (!text && !attachments.length) return;
+	if (!text && !(attsOverride || attachments).length) return;
 	if (!connected()) {
 		// no credits server yet: say so, instead of a settings box that can't fix it
 		if (SERVER) openAccount();
@@ -5789,9 +5803,11 @@ async function send(textOverride, fork) {
 	ONCE_NOTE = (ONCE && ONCE.note) || "";
 	ONCE = null;
 	MATH_NOTE = mathFacts(text);
-	const atts = attachments;
-	attachments = [];
-	renderAttached();
+	const atts = attsOverride || attachments;
+	if (!attsOverride) {
+		attachments = [];
+		renderAttached();
+	}
 	// what was typed (or said, in talk mode) goes; a draft in the box stays when something else sent this
 	if (textOverride == null || text === $("#input").value.trim()) { $("#input").value = ""; store.set("draft", ""); }
 	autosize();
@@ -6002,12 +6018,62 @@ function drawLimit(hit) {
 }
 function setBusy(on) {
 	const b = $("#sendBtn");
-	b.disabled = !on && !$("#input").value.trim() && !attachments.length;
-	b.innerHTML = on ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>' : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
-	b.setAttribute("aria-label", on ? "Stop" : "Send");
+	// working, with something typed: the button sends it (it waits, and is read as soon as Celestin's done); with nothing
+	// typed: it stops the work
+	const typed = !!$("#input").value.trim() || attachments.length > 0, stop = !!on && !typed;
+	b.disabled = !on && !typed;
+	b.innerHTML = stop ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>' : '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+	b.setAttribute("aria-label", stop ? "Stop" : on ? "Send (Celestin reads it as soon as it's done)" : "Send");
 	$("#composer").classList.toggle("working", !!on);
 	// nothing written: the button there starts a spoken conversation instead (it becomes send as soon as there's something)
-	$("#composer").classList.toggle("empty", !on && !$("#input").value.trim() && !attachments.length);
+	$("#composer").classList.toggle("empty", !on && !typed);
+	// done: what was typed meanwhile goes now
+	if (!on && !busy && QUEUE.length) setTimeout(drainQueue, 0);
+}
+// ---------------------------------------------------------------- messages typed while Celestin works
+// Typed while it works, a message waits just above the box (each can be taken back), and as soon as the work is done,
+// everything waiting in this chat goes as one message, read with the chat so far. Stop pressed: they come back into the box,
+// to change or send. A message waits for its own chat: it isn't sent into another one being looked at.
+let QUEUE = [], QUEUE_HOLD = false;
+function queueTyped() {
+	const text = $("#input").value.trim();
+	if (!text && !attachments.length) return;
+	if (!current) newConvo();
+	QUEUE.push({ text, atts: attachments, cid: current.id });
+	attachments = [];
+	renderAttached();
+	$("#input").value = "";
+	store.set("draft", "");
+	autosize();
+	drawQueue();
+}
+function drawQueue() {
+	const box = $("#queued");
+	if (!box) return;
+	// (a chat deleted meanwhile: what waited for it goes too)
+	QUEUE = QUEUE.filter((q) => convos.some((c) => c.id === q.cid) || (current && current.id === q.cid));
+	const mine = QUEUE.filter((q) => current && q.cid === current.id);
+	box.hidden = !mine.length;
+	box.innerHTML = mine.map((q) => '<div class="limit-bar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v7a4 4 0 0 0 4 4h12M15 10l5 5-5 5"/></svg><em>Next</em><span>' + esc(q.text || q.atts.map((a) => a.name).join(", ")) + '</span><button class="lb-x" data-unqueue="' + QUEUE.indexOf(q) + '" aria-label="Don\'t send this" title="Don\'t send this">×</button></div>').join("");
+	box.querySelectorAll("[data-unqueue]").forEach((b) => { b.onclick = () => { QUEUE.splice(Number(b.dataset.unqueue), 1); drawQueue(); setBusy(!!busy); }; });
+}
+function drainQueue() {
+	if (busy || !current) return;
+	const mine = QUEUE.filter((q) => q.cid === current.id);
+	if (!mine.length) return;
+	QUEUE = QUEUE.filter((q) => !mine.includes(q));
+	drawQueue();
+	const text = mine.map((q) => q.text).filter(Boolean).join("\n\n"), atts = mine.flatMap((q) => q.atts);
+	// stopped: back into the box (before what's being typed now), to change or send
+	if (QUEUE_HOLD) {
+		QUEUE_HOLD = false;
+		$("#input").value = [text, $("#input").value.trim()].filter(Boolean).join("\n\n");
+		attachments = [...atts, ...attachments];
+		renderAttached();
+		autosize();
+		return;
+	}
+	send(text, null, atts);
 }
 
 async function runAuto(text, atts) {
@@ -6052,7 +6118,8 @@ async function runAuto(text, atts) {
 			msg.spec = specFor(task);
 		updateLast();
 		try {
-			const said = await stream(m.id, hist, (t) => { msg.text = code ? editView(t) : t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", light, m.id)) : effortExtra(m.id)) }, msg);
+			const view = code ? liveCodeView(code) : null;
+			const said = await stream(m.id, hist, (t) => { msg.text = view ? view(t) : t; updateLast(); }, busy.signal, { ...webExtra(m.id), ...(light ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", light, m.id)) : effortExtra(m.id)) }, msg);
 			if (code) {
 				const e = await withEdits(said, code, m, hist, msg);
 				if (e) { msg.text = e.text; msg.codeFiles = e.files; msg.codeOrder = e.order; } else msg.text = said;
@@ -7250,6 +7317,36 @@ function parseFiles(out) {
 	flush();
 	return { files, del, edits, notes, ended: cur && cur.t === "NOTES" || !!notes, last: Object.keys(files).pop(), lastKind, lastEdit };
 }
+// What's finished of a reply still being written: every file whose section has ended (the next one began), every change
+// whose REPLACE line has come, every deletion; the file still being written waits until it's whole
+const LIVE_MARK = /^(?:===\s*(?:FILE|EDIT|DELETE|NOTES)\b|>{7} ?REPLACE)/gm;
+function liveParse(text) {
+	const p = parseFiles(text);
+	const last = [...String(text).matchAll(/^===\s*(FILE|EDIT|DELETE|NOTES)\s*:?\s*(.*?)\s*===\s*$/gm)].pop();
+	if (last && last[1] === "FILE") delete p.files[last[2].replace(/^\.?\//, "")];
+	return p;
+}
+// Code in a chat being changed: its words as they come, and each changed file shown whole with every change put in the
+// moment it's written, so the code takes shape while it's written (the final merge, with any change that didn't match
+// redone, replaces it at the end)
+function liveCodeView(c) {
+	let marks = -1, shown = "";
+	return (t) => {
+		const k = String(t).search(/^===\s*(FILE|EDIT|DELETE|NOTES)\b/m);
+		if (k < 0) return t;
+		const n = (String(t).match(LIVE_MARK) || []).length;
+		if (n !== marks) {
+			marks = n;
+			const p = liveParse(t), next = Object.assign({}, c.files, p.files);
+			p.del.forEach((x) => delete next[x]);
+			const files = applyEdits(next, p.edits).files;
+			const touched = Object.keys(files).filter((x) => files[x] !== c.files[x]);
+			const lang = (x) => (c.order.find((o) => o.name === x) || {}).lang || x.split(".").pop();
+			shown = String(t).slice(0, k).trimEnd() + (touched.length ? "\n\n" + touched.map((x) => "**" + x + "**\n\n\x60\x60\x60" + lang(x) + "\n" + files[x].replace(/\n+$/, "") + "\n\x60\x60\x60").join("\n\n") : "") + "\n\n*Putting the changes into the code…*";
+		}
+		return shown;
+	};
+}
 // The edits put in: each pair's lines found as they are (or with the spaces at their ends ignored) and replaced. A file
 // with a pair whose lines aren't there is left as it was, and named
 function applyEdits(files, edits) {
@@ -7382,10 +7479,11 @@ function appDoc(files) {
 	if (!h) return "<!doctype html><body style='font-family:sans-serif;padding:24px'>This project has no index.html yet.</body>";
 	const get = (p) => files[String(p).replace(/^\.?\//, "")];
 	h = h.replace(/<link[^>]*>/gi, (tag) => {
-		const href = (tag.match(/href=["']([^"']+)["']/i) || [])[1];
+		// (with quotes round the address or without: href="style.css", href=style.css)
+		const href = (tag.match(/href=["']?([^"'\s>]+)/i) || [])[1];
 		return /rel=["']?stylesheet/i.test(tag) && href && get(href) != null ? "<style>" + get(href) + "</style>" : tag;
 	});
-	h = h.replace(/<script([^>]*)src=["']([^"']+)["']([^>]*)>\s*<\/script>/gi, (tag, a, src, b) => (get(src) != null ? "<script" + a + b + ">" + get(src).replace(/<\/script/gi, "<\\/script") + "<\/script>" : tag));
+	h = h.replace(/<script([^>]*)src=["']?([^"'\s>]+)["']?([^>]*)>\s*<\/script>/gi, (tag, a, src, b) => (get(src) != null ? "<script" + a + b + ">" + get(src).replace(/<\/script/gi, "<\\/script") + "<\/script>" : tag));
 	return h;
 }
 // ---- plenty of credit: the top models work on a build together
@@ -7488,6 +7586,25 @@ async function buildApp(text, atts, pick) {
 		+ (pics.length ? "\n\nThe attached picture" + (pics.length > 1 ? "s show" : " shows") + " what it should look like: match the layout, colours, text and details exactly." : "");
 	const cands = noDearer(bestFor(pics.length ? "appFromImage" : "app", autoCap)).slice(0, 5);
 	let parsed = null, lastErr, unfinished = "", said = "", by = null;
+	// Each file, and each change, goes into the preview the moment it's written (the one still being written waits), so
+	// the app takes shape while it's built, the panel opening with the first of it; what's checked and fixed at the end
+	// replaces it. Stopped or failed part way, what was made so far stays, marked unfinished
+	const title = pick.title || (prev && prev.data.title) || text.slice(0, 60);
+	let marks = -1;
+	const live = (t) => {
+		const n = (String(t).match(LIVE_MARK) || []).length;
+		if (n === marks) return;
+		marks = n;
+		const p = liveParse(t), files = Object.assign({}, prev ? prev.data.files : {}, p.files);
+		p.del.forEach((x) => delete files[x]);
+		const now = applyEdits(files, p.edits).files;
+		if (!now["index.html"]) return;
+		msg.data = { files: now, title, live: true };
+		const i = current ? current.msgs.indexOf(msg) : -1;
+		if (i < 0) return;
+		if (ART && ART.cid === current.id && ART.i === i) { ART = { ...ART, ...artFor(i) }; drawArt(); }
+		else if (msg.artShown == null && innerWidth > 860 && capOn("panel")) { msg.artShown = true; openArt(artFor(i)); }
+	};
 	const asked = [sys(rules), { role: "user", content: withPics(ask, pics) }];
 	// (the models that have written this in parts: one cut off writing it whole gets one go in parts first)
 	const parted = new Set();
@@ -7499,7 +7616,7 @@ async function buildApp(text, atts, pick) {
 			msg.cut = false;
 			// (thinking less than this mode's most only because of the balance: said so)
 			const lighter = !!buildCap && buildCap !== autoCap && capEffort(EFFORT.get(m.id) || "", buildCap, m.id) !== (autoCap ? capEffort(EFFORT.get(m.id) || "", autoCap, m.id) : EFFORT.get(m.id) || "");
-			const out = await stream(m.id, asked, (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, buildCap ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", buildCap, m.id)) : effortExtra(m.id), msg);
+			const out = await stream(m.id, asked, (t) => { msg.status = (prev ? "Editing the project" : "Writing the code") + " (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; live(t); updateLast(); }, busy.signal, buildCap ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", buildCap, m.id)) : effortExtra(m.id), msg);
 			msg.lighter = lighter;
 			parsed = parseFiles(out);
 			// stopped early: the file it was writing is left out (not run half-written), and the person is told
@@ -7526,8 +7643,12 @@ async function buildApp(text, atts, pick) {
 	let files = prev ? await applyChange(prev.data.files, parsed, by, asked, said, msg) : Object.assign({}, parsed.files);
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
 	else files = await heal(files, text, msg, rules, !prev, by);
-	msg.data = { files, title: pick.title || (prev && prev.data.title) || text.slice(0, 60) };
+	msg.data = { files, title };
 	msg.tab = "preview";
+	{
+		const i = current ? current.msgs.indexOf(msg) : -1;
+		if (i >= 0 && ART && ART.cid === current.id && ART.i === i) { ART = { ...ART, ...artFor(i) }; drawArt(); }
+	}
 	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested)
 		+ (msg.lighter ? "\n\n*Built thinking a little less than the builder's most, so it finishes within your credits.*" : "");
 	delete msg.lighter;
@@ -10366,6 +10487,8 @@ function openAccount() {
 		// the plan, its window (what's left for these hours, and when it's all back), its week, and bought credits
 		const plan = me && me.plan, win = me && (me.window || me.free), wk = me && me.week, mo = me && me.month, lines = [];
 		if (me && me.owner) lines.push("No limits: the owner's account, on the owner's own computer");
+		// (what it's really cost the owner, next to the subscription it replaces)
+		if (me && me.owner && me.spend) { const rp = (n) => "Rp" + Math.round(Number(n) || 0).toLocaleString("id-ID"); lines.push("What Celestin really cost you: " + rp(me.spend.day) + " today · " + rp(me.spend.week) + " this week · " + rp(me.spend.month) + " in 30 days (Claude Pro is about Rp360.000 a month)"); }
 		else if (me && me.ownerAway) lines.push("The owner's account: unlimited only on your own computer, opened with the demo shortcut");
 		if (win && win.of) lines.push(creditsText(win.left) + " of " + creditsText(win.of) + (win.backAt && win.backAt > Date.now() ? " for these " + win.hours + " hours · " + (win.share && win.share < win.of ? win.share + " more" : "all back") + " in " + untilText(win.backAt) : " ready · the " + win.hours + " hours start with your first message"));
 		if (wk && wk.of) lines.push(creditsText(wk.left) + " of " + creditsText(wk.of) + " left this week" + (wk.backAt && wk.backAt > Date.now() ? " · a new week in " + untilText(wk.backAt) : ""));
@@ -10520,9 +10643,10 @@ const DEFAULT_PRICING = {
 		{ id: "pro", name: "Meteor", credits: 1600, bonus: 160, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 	],
 };
-// nonstop coding comes to about 140 credits an hour (a measured 10-turn session: about 12 credits a request, about 12
-// requests an hour; changes sent as edits, only a file's newest version read, no planner when one model does it all)
-const CODE_HOUR = 140;
+// nonstop coding comes to about 60 credits an hour (a measured 10-turn session, Nov 4, with the owner's price rule: 50
+// credits, about 5 a request, about 12 requests an hour; it was 119 credits, 140 an hour, before that rule; changes sent
+// as edits, only a file's newest version read)
+const CODE_HOUR = 60;
 const hoursText = (credits) => { const r = credits / CODE_HOUR, h = r >= 20 ? Math.round(r) : Math.round(r * 2) / 2; return (h >= 1 ? String(h).replace(".5", "½") : "½") + " h"; };
 // a plan's month: its own, or (a plan without one) its week for 30 days
 const monthOf = (p) => p.month || Math.round(((p.week || p.credits) * 30) / 7);
@@ -10859,7 +10983,10 @@ $("#projBtn").onclick = $("#codeNav").onclick = () => openProjectModal();
 $("#fileInput").onchange = (e) => { addFiles([...e.target.files]); e.target.value = ""; };
 $("#micBtn").onclick = () => { const b = $("#micBtn"); b.classList.add("on"); listen(() => b.classList.remove("on")); };
 $("#talkBtn").onclick = () => talk.toggle();
-$("#sendBtn").onclick = () => (busy ? busy.abort() : send());
+$("#sendBtn").onclick = () => {
+	if (busy && !$("#input").value.trim() && !attachments.length) { QUEUE_HOLD = QUEUE.some((q) => current && q.cid === current.id); busy.abort(); }
+	else send();
+};
 $("#input").addEventListener("input", () => { autosize(); updateRoute(); });
 $("#input").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 $("#scroller").addEventListener("scroll", (e) => {
@@ -11105,6 +11232,8 @@ function artFor(i) {
 }
 function artCard(m, i) {
 	const on = !!ART && !!current && ART.cid === current.id && ART.i === i;
+	// (what was made before it stopped)
+	if (m.data && m.data.live && !m.streaming) m = { ...m, data: { ...m.data, title: (m.data.title || "App") + " (unfinished)" } };
 	const n = m.kind === "app" ? Object.keys(m.data.files || {}).length : 0;
 	return '<button class="art-card' + (on ? " on" : "") + '" data-artopen="' + i + '"><span class="art-ic">' + svgOf(ART_ICONS[m.kind] || ART_ICONS.app, 22) + '</span><span class="art-ct"><b>' + esc(m.data.title || (m.kind === "sim" ? "Simulation" : "App")) + "</b><small>" + (m.kind === "sim" ? "Simulation · interactive" : "App · " + n + " file" + (n === 1 ? "" : "s")) + '</small></span><span class="art-go">' + (on ? "Showing" : "Open") + "</span></button>";
 }
