@@ -129,7 +129,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/login" && m === "POST") return login(req, env);
 	if (p === "/api/auth/google" && m === "POST") return googleSignIn(req, env);
 	if (p === "/api/webhooks/lemonsqueezy" && m === "POST") return lemonWebhook(req, env);
-	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : { image: [], video: [], speech: [], music: [] });
+	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env)));
 	// a shared chat: anyone with its link can read it; a picture shared with an app, anyone with its link can fetch
 	let sh, up;
 	if ((sh = p.match(/^\/api\/shares\/([a-f0-9]{24})$/)) && m === "GET") return shareGet(env, sh[1]);
@@ -887,7 +887,9 @@ async function gatewayCatalog(g) {
 		for (const m of items.slice().sort((a, b) => a.id.length - b.id.length)) put(bareKey(m.id), m.id);
 		for (const m of items) put(bareKey(m.id.replace(/-(openrouter(-backup)?|or)$/i, "")), m.id);
 		for (const m of items) if (m.name && m.name !== m.id) put(bareKey(m.name), m.id);
-		c = { at: Date.now(), ids: items.map((m) => m.id), byKey, failed: 0, prices };
+		// its picture and video models (a gateway that lists them with type: image or video, as MarkasAI does)
+		const media = raw.filter((m) => m && m.id && /^(image|video)$/.test(String(m.type || ""))).map((m) => ({ id: String(m.id), type: String(m.type), pricing: m.pricing && typeof m.pricing === "object" ? m.pricing : {}, maxN: Number(m.max_images_per_request || m.max_videos_per_request) || 1, maxSecs: Number(m.max_duration_seconds) || 15 }));
+		c = { at: Date.now(), ids: items.map((m) => m.id), byKey, failed: 0, prices, media };
 		// everything it lists, as it names them (the server's log: what the gateway has, media models included)
 		console.log("gateway " + g.n + " lists " + items.length + ": " + items.map((m) => m.id).join(", "));
 	} catch (e) {
@@ -974,7 +976,8 @@ async function reachOf(env) {
 	const cf = !!(env.CF_ACCOUNT_ID && env.CF_API_TOKEN), gws = gateways(env);
 	const or = !!env.OPENROUTER_KEY && (!(gws.length || cf) || (await orFunded(env)));
 	// where the studio's models come from: this server (WaveSpeed) or OpenRouter's own list
-	const mediaFrom = wsOn(env) ? "server" : env.OPENROUTER_KEY ? "openrouter" : "";
+	const gwm = !wsOn(env) && gws.length ? (await gwMedia(env)).length > 0 : false;
+	const mediaFrom = wsOn(env) || gwm ? "server" : env.OPENROUTER_KEY ? "openrouter" : "";
 	if (or) return { all: true, only: "", skip: "", media: true, mediaFrom };
 	const out = { all: false, only: cf ? "^(openai|anthropic|google|x-ai)/" : "^$", skip: "^openai/(gpt-oss|.*-pro$|.*codex|.*deep-research)|:", media: !!mediaFrom, mediaFrom };
 	if (gws.length) {
@@ -1007,7 +1010,7 @@ async function reachOf(env) {
 // OpenRouter lists it: twice the dearest of that maker's models the gateway also has, so a new model never costs the
 // owner more than it brings in. Text models only. The day OpenRouter lists it, its own entry and price take over.
 const LAB_BY_NAME = [[/^(claude|opus|sonnet|haiku|fable)/, "anthropic"], [/^(gpt|chatgpt|o\d)/, "openai"], [/^(gemini|gemma)/, "google"], [/^grok/, "x-ai"], [/^deepseek/, "deepseek"], [/^(qwen|qwq)/, "qwen"], [/^kimi/, "moonshotai"], [/^glm/, "z-ai"], [/^minimax/, "minimax"], [/^mimo/, "xiaomi"], [/^(mistral|codestral|magistral|devstral)/, "mistralai"], [/^llama/, "meta-llama"]];
-const NOT_TEXT = /image|video|veo|imagen|flux|banana|sora|kling|tts|whisper|embed|audio|music|lyria|speech|realtime|moderation|seedance|seedream|hailuo|midjourney|dall-?e|transcri|rerank|search|deep-research/i;
+const NOT_TEXT = /image|imagine|video|veo|imagen|flux|banana|sora|kling|tts|whisper|embed|audio|music|lyria|speech|realtime|moderation|seedance|seedream|hailuo|midjourney|dall-?e|transcri|rerank|search|deep-research/i;
 let FRESH = { at: 0, list: [] };
 async function freshModels(env) {
 	if (Date.now() - FRESH.at < 600e3) return FRESH.list;
@@ -1026,7 +1029,8 @@ async function freshModels(env) {
 			// "gemini-2.0-flash-001" or "kimi-k2-5-260127" for "kimi-k2.5", is an old one, not a new release)
 			const keys = known.map(bareKey);
 			for (const gid of cats[i].ids) {
-				if (taken.has(gid) || NOT_TEXT.test(gid) || /-(openrouter(-backup)?|or|backup)$/i.test(gid)) continue;
+				// (a model its own list calls a picture or video model is never a chat model)
+				if (taken.has(gid) || NOT_TEXT.test(gid) || (cats[i].media || []).some((x) => x.id === gid) || /-(openrouter(-backup)?|or|backup)$/i.test(gid)) continue;
 				const bare = gid.toLowerCase().replace(/^.*\//, "");
 				const lab = gid.includes("/") ? gid.split("/")[0].toLowerCase().replace(/^xai$/, "x-ai") : (LAB_BY_NAME.find(([re]) => re.test(bare)) || [])[1];
 				if (!lab) continue;
@@ -1880,8 +1884,117 @@ async function charge(env, userId, model, held, usd, mt) {
 }
 const orHeaders = (env) => ({ Authorization: "Bearer " + env.OPENROUTER_KEY, "Content-Type": "application/json", "HTTP-Referer": env.SITE_URL || "https://andromeda.app", "X-Title": "Celestin" });
 // the studio's models are WaveSpeed's (WAVESPEED_KEY) or OpenRouter's
-function studioOpen(env) {
-	if (!env.OPENROUTER_KEY && !wsOn(env)) throw fail(503, "Pictures, videos and voice aren't on this server yet.");
+async function studioOpen(env) {
+	if (!env.OPENROUTER_KEY && !wsOn(env) && !(await gwMedia(env)).length) throw fail(503, "Pictures, videos and voice aren't on this server yet.");
+}
+// A gateway's own picture and video models (MarkasAI's), under the ids the site's model lists use and the names the
+// leaderboards give them (as WaveSpeed's are)
+const GW_MEDIA = {
+	"gpt-image-2": ["openai/gpt-image-2", "GPT Image 2"],
+	"nano-banana-2": ["google/nano-banana-2", "Gemini 3.1 Flash Image"],
+	"nano-banana-pro": ["google/nano-banana-pro", "Gemini 3 Pro Image"],
+	"nano-banana": ["google/nano-banana", "Gemini 2.5 Flash Image"],
+	"grok-imagine": ["x-ai/grok-imagine-image", "Grok Imagine Image"],
+	"seedance-2.0": ["bytedance/seedance-2.0", "Seedance 2.0"],
+};
+async function gwMedia(env) {
+	const gws = gateways(env), out = [];
+	if (!gws.length) return out;
+	const cats = await Promise.all(gws.map(gatewayCatalog));
+	for (let i = 0; i < gws.length; i++) {
+		const idr = await idrPerUsd(gws[i]);
+		for (const m of cats[i].media || []) {
+			const [site, name] = GW_MEDIA[m.id] || ["gw" + gws[i].n + "/" + m.id, m.id];
+			if (!out.some((x) => x.site === site)) out.push({ ...m, site, name, g: gws[i], idr });
+		}
+	}
+	return out;
+}
+async function gwMediaHas(env, model, kind) { return (await gwMedia(env)).find((m) => m.site === String(model || "") && m.type === kind) || null; }
+// what a picture costs there, in dollars: its unit price, or the image tokens a picture of that quality takes
+function gwImageUsd(m, quality) {
+	const p = m.pricing;
+	if (p.per_unit === "image" || p.unit === "image") return Number(p.unit_price || p.pricePerImage || 0) / m.idr;
+	const per = (v) => Number(v || 0) / m.idr / (Number(p.per_tokens) || 1e6);
+	const tokens = /gpt/i.test(m.id) ? { low: 272, medium: 1056, high: 4160 }[quality] || 1056 : 1290;
+	return per(p.image_output || p.output) * tokens + per(p.input) * 300;
+}
+const gwVideoUsdPerSec = (m, res) => { const r = m.pricing.resolutions || {}; return Number(r[res] || r["720P"] || Object.values(r)[0] || 0) / m.idr; };
+// in the shapes the site reads the studio's models in
+function gwMediaCatalog(list) {
+	const out = { image: [], video: [], speech: [], music: [] };
+	for (const m of list) {
+		if (m.type === "image") out.image.push({ id: m.site, name: m.name, supported_parameters: { aspect_ratio: { values: ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"] }, resolution: { values: ["1K"] }, input_references: { max: 0 } }, price: gwImageUsd(m, "medium") });
+		else if (m.type === "video") {
+			const res = Object.keys(m.pricing.resolutions || {}).map((r) => r.toLowerCase()).filter((r) => /^(480p|720p|1080p)$/.test(r));
+			const skus = {};
+			for (const r of res) skus["duration_seconds_" + r] = gwVideoUsdPerSec(m, r.toUpperCase());
+			out.video.push({ id: m.site, name: m.name, supported_durations: Array.from({ length: Math.max(1, m.maxSecs - 2) }, (_, k) => k + 3).filter((d) => d <= m.maxSecs), supported_resolutions: res, supported_aspect_ratios: ["16:9", "9:16", "1:1"], supported_frame_images: [], generate_audio: true, pricing_skus: skus, from_words: true });
+		}
+	}
+	return out;
+}
+// a picture from a gateway: asked at the size nearest the shape wanted, paid for by what it reports (or the estimate)
+async function gwImage(env, user, m, b, c, mt) {
+	const n = Math.max(1, Math.min(m.maxN, Number(b.n) || 1));
+	const r0 = ratioOf(b.aspect_ratio || "1:1") || 1;
+	const size = r0 > 1.15 ? "1536x1024" : r0 < 0.87 ? "1024x1536" : "1024x1024";
+	const quality = /4k|2k/i.test(String(b.resolution || "")) ? "high" : "medium";
+	const each = gwImageUsd(m, quality);
+	const held = await hold(env, user, mt.toMc(each * n * 1.3), c);
+	try {
+		const r = await fetch(m.g.base + "/images/generations", { method: "POST", headers: { Authorization: "Bearer " + m.g.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: m.id, prompt: String(b.prompt || "").slice(0, 4000), n, size, ...(m.pricing.per_tokens ? { quality } : {}) }), signal: AbortSignal.timeout(180e3) });
+		const j = await r.json().catch(() => ({}));
+		if (!r.ok || !Array.isArray(j.data) || !j.data.length) throw fail([401, 402, 403].includes(r.status) ? 503 : r.status === 400 ? 400 : 502, j.error?.message || "The image couldn't be made. Try again.");
+		const data = j.data.filter((x) => x && x.b64_json).map((x) => ({ b64_json: x.b64_json, media_type: x.b64_json.startsWith("/9j/") ? "image/jpeg" : x.b64_json.startsWith("UklGR") ? "image/webp" : "image/png" }));
+		// what it really cost: the tokens it reports, else the estimate
+		const u = j.usage || {}, p = m.pricing, per = (v) => Number(v || 0) / m.idr / (Number(p.per_tokens) || 1e6);
+		const outTok = Number(u.output_tokens || u.completion_tokens) || 0;
+		const told = p.per_tokens && outTok ? per(p.input) * (Number(u.input_tokens || u.prompt_tokens) || 0) + per(p.image_output || p.output) * outTok : 0;
+		const charged = await charge(env, user.id, b.model, held, told > 0 ? told : each * data.length, mt);
+		return json({ data, usage: { cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 } });
+	} catch (e) {
+		await charge(env, user.id, b.model, held, 0, mt);
+		throw e.status ? e : fail(502, "The image couldn't be made. Try again.");
+	}
+}
+// A video from a gateway that makes it while the request waits (minutes, as MarkasAI does): the site is answered at once
+// with a body that stays open (a space every 15 s keeps the connection alive) and ends with the finished job, which is
+// paid for by the seconds made. Its links ride in the job's own name, so it's checked on and fetched like any other
+const b64url = (x) => btoa(unescape(encodeURIComponent(x))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const unb64url = (x) => decodeURIComponent(escape(atob(String(x).replace(/-/g, "+").replace(/_/g, "/"))));
+const gwJob = (jobId) => { try { const g = JSON.parse(unb64url(jobId.slice(3))); return Array.isArray(g.u) ? g : null; } catch { return null; } };
+async function gwVideo(env, user, m, b, c, mt) {
+	const secs = Math.max(1, Math.min(m.maxSecs, Math.round(Number(b.duration) || 5)));
+	const want = String(b.resolution || "720p").toUpperCase();
+	const res = (m.pricing.resolutions || {})[want] ? want : "720P";
+	const perSec = gwVideoUsdPerSec(m, res);
+	const reserve = mt.toMc(perSec * secs * 1.05);
+	const held = await hold(env, user, reserve, c);
+	const { readable, writable } = new TransformStream();
+	const w = writable.getWriter();
+	const ping = setInterval(() => { w.write(enc.encode(" ")).catch(() => {}); }, 15000);
+	(async () => {
+		let out;
+		try {
+			const r = await fetch(m.g.base + "/videos/generations", { method: "POST", headers: { Authorization: "Bearer " + m.g.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: m.id, prompt: String(b.prompt || "").slice(0, 4000), duration_seconds: secs, resolution: res, ...(b.aspect_ratio ? { aspect_ratio: String(b.aspect_ratio) } : {}), audio: b.generate_audio !== false }), signal: AbortSignal.timeout(14 * 60e3) });
+			const j = await r.json().catch(() => ({}));
+			const urls = (Array.isArray(j.videos) ? j.videos : []).map((v) => v && v.url).filter((u) => typeof u === "string");
+			if (!r.ok || !urls.length) throw fail([401, 402, 403].includes(r.status) ? 503 : r.status === 400 ? 400 : 502, j.error?.message || "The video model couldn't make this shot.");
+			const made = Math.min(secs, Number(j.duration_seconds) || secs);
+			const charged = await charge(env, user.id, b.model, held, perSec * made, mt);
+			const id = "gw-" + b64url(JSON.stringify({ u: urls, k: charged }));
+			await env.DB.prepare("INSERT INTO jobs (id, user_id, model, reserve_mc, from_free, settled, created_at, owner) VALUES (?, ?, ?, ?, ?, 1, ?, ?)").bind(id, user.id, b.model, reserve, held.fromFree, now(), held.owner ? 1 : 0).run();
+			out = { id, status: "completed" };
+		} catch (e) {
+			await charge(env, user.id, b.model, held, 0, mt).catch(() => {});
+			out = { error: { message: String((e && e.message) || "The video couldn't be made."), code: (e && e.status) || 502 } };
+		}
+		clearInterval(ping);
+		await w.write(enc.encode(JSON.stringify(out))).catch(() => {});
+		await w.close().catch(() => {});
+	})();
+	return new Response(readable, { status: 200, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 }
 
 let VPRICES = { at: 0, map: new Map() };
@@ -1915,9 +2028,11 @@ function videoWorstUsd(model, b) {
 	return Math.max(min, (fit || all || 0.5) * secs) * 1.1;
 }
 async function videoSubmit(req, env, user) {
-	studioOpen(env);
+	await studioOpen(env);
 	const c = await config(env), mt = media(c);
 	const b = await body(req);
+	const gv = await gwMediaHas(env, b.model, "video");
+	if (gv) return gwVideo(env, user, gv, b, c, mt);
 	const wf = await wsHas(env, b.model, "video");
 	if (wf) return wsVideoSubmit(env, user, wf, b, c, mt);
 	orStudio(env, "video");
@@ -1949,6 +2064,12 @@ async function videoPoll(env, user, jobId) {
 	const c = await config(env), mt = media(c);
 	const job = await ownJob(env, user, jobId);
 	if (jobId.startsWith("ws-")) return wsVideoPoll(env, user, job, c, mt);
+	// (a gateway's video: finished before it was handed back; its links are in its name)
+	if (jobId.startsWith("gw-")) {
+		const g = gwJob(jobId);
+		if (!g) throw fail(404, "No such video.");
+		return json({ id: jobId, status: "completed", unsigned_urls: g.u.map((_, i) => "/api/videos/" + jobId + "/content?index=" + i), usage: { cost: ((Number(g.k) || 0) / 1000) * c.creditUsd, credits: (Number(g.k) || 0) / 1000 } });
+	}
 	const r = await fetch(orBase(env) + "/videos/" + jobId, { headers: orHeaders(env) });
 	const j = await r.json().catch(() => ({}));
 	const status = j.status || (r.status === 404 ? "expired" : "in_progress");
@@ -1970,6 +2091,13 @@ async function videoPoll(env, user, jobId) {
 async function videoContent(env, user, jobId, url) {
 	await ownJob(env, user, jobId);
 	const index = Math.max(0, Math.min(9, Number(url.searchParams.get("index")) || 0));
+	if (jobId.startsWith("gw-")) {
+		const u = (gwJob(jobId) || { u: [] }).u[index];
+		if (!u) throw fail(404, "That video isn't ready or has expired.");
+		const r = await fetch(u);
+		if (!r.ok) throw fail(r.status === 404 || r.status === 403 ? 404 : 502, "That video isn't ready or has expired.");
+		return new Response(r.body, { headers: { "Content-Type": mediaType(r, u, "video/mp4"), "Cache-Control": "private, max-age=3600" } });
+	}
 	if (jobId.startsWith("ws-")) {
 		const d = await wsResult(env, jobId.slice(3));
 		const u = (d.outputs || []).filter((o) => typeof o === "string")[index];
@@ -1983,10 +2111,12 @@ async function videoContent(env, user, jobId, url) {
 }
 
 async function imageGen(req, env, user) {
-	studioOpen(env);
+	await studioOpen(env);
 	const c = await config(env), mt = media(c);
 	const b = await body(req);
 	if (typeof b.model !== "string") throw fail(400, "Pick an image model.");
+	const gm = await gwMediaHas(env, b.model, "image");
+	if (gm) return gwImage(env, user, gm, b, c, mt);
 	const wf = await wsHas(env, b.model, "image");
 	if (wf) return wsImage(env, user, wf, b, c, mt);
 	orStudio(env, "image");
@@ -2014,7 +2144,7 @@ async function imageGen(req, env, user) {
 
 let SPRICES = { at: 0, map: new Map() };
 async function speech(req, env, user) {
-	studioOpen(env);
+	await studioOpen(env);
 	const c = await config(env), mt = media(c);
 	const b = await body(req);
 	const text = Array.isArray(b.input) ? b.input.map((x) => x.text || "").join(" ") : String(b.input || "");
@@ -2052,7 +2182,7 @@ async function speech(req, env, user) {
 
 // Music: a song from a prompt (WaveSpeed's music models; on OpenRouter, Lyria is reached through chat instead)
 async function music(req, env, user) {
-	studioOpen(env);
+	await studioOpen(env);
 	const c = await config(env), mt = media(c);
 	const b = await body(req);
 	const prompt = String(b.prompt || "").trim();

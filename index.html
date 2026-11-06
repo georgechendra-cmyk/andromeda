@@ -6272,8 +6272,20 @@ async function send(textOverride, fork, attsOverride) {
 			? "Your server has no AI provider yet. Add your WaveSpeed key: double-click server/SET UP SERVER.bat, or in the server folder run: npx wrangler secret put WAVESPEED_KEY. Then reload this page."
 			: "Celestin isn't connected to its AI models just now. Try again a little later."), { plain: true });
 		// a picture, film, song or voiceover this server can't make yet: said before anything is read or spent
+		// (or this server makes some media but not this kind: voice and music, today)
+		const askedKind = () => (tool === "image" || tool === "video" ? tool : tool === "music" ? (makesMedia(text, atts) === "voice" ? "voice" : "music") : makesMedia(text, atts));
+		if (mediaReady() && mediaFromServer()) {
+			const asked = askedKind();
+			if (asked) {
+				const M = await loadMedia();
+				if (!({ image: M.image, video: M.video, music: M.music, voice: M.speech }[asked] || []).length) {
+					if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
+					if (!appMaker(asked)) throw mediaSoon(asked, true);
+				}
+			}
+		}
 		if (!mediaReady()) {
-			const asked = tool === "image" || tool === "video" ? tool : tool === "music" ? (makesMedia(text, atts) === "voice" ? "voice" : "music") : makesMedia(text, atts);
+			const asked = askedKind();
 			// (unless an app the user connected makes it: Higgsfield, say)
 			if (asked) {
 				if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
@@ -10332,7 +10344,7 @@ async function runMusic(text, atts) {
 	updateLast();
 	const full = !/\b(jingle|short|intro|loop|30 ?s|clip|sting)\b/i.test(text);
 	const mus = musicModel(full);
-	if (!mus) throw new Error("Couldn't find a music model right now.");
+	if (!mus) throw mediaSoon("music", true);
 	msg.used.push({ name: mus.name, desc: "Music: composed and performed it" });
 	updateLast();
 	const blob = await firstThatWorks((await aiOrder("music", [mus, ...MEDIA.music], text)).slice(0, 4), (m) => makeMusic(m, text, msg, busy.signal));
@@ -10344,7 +10356,7 @@ async function runVoice(text, atts) {
 	current.msgs.push(msg);
 	updateLast();
 	const v = voiceModel();
-	if (!v) throw new Error("Couldn't find a voice model right now.");
+	if (!v) throw mediaSoon("voice", true);
 	const source = atts.find((a) => a.kind === "text")?.data || text.replace(/^.*?\b(voice ?-?over|narrate|read (this|it) (out|aloud)|text to speech|tts)\b[:\s-]*/i, "");
 	const who = (Object.keys(VOICES).find((k) => new RegExp("\\b" + k + "\\b", "i").test(text))) || (/\b(female|woman|girl|her)\b/i.test(text) ? "sarah" : "george");
 	msg.used.push({ name: v.name, desc: "Voice: read it aloud (" + who + ")" });
