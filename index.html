@@ -3000,6 +3000,8 @@ const drawnOnly = () => creditsMode() && !!pricing && pricing.drawn === true && 
 const mediaReady = () => !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false || drawnOnly();
 const MEDIA_WHAT = { image: "pictures", video: "videos", music: "music", voice: "voiceovers" };
 const mediaSoon = (kind, free) => Object.assign(new Error("Celestin can't make " + (MEDIA_WHAT[kind] || "pictures, videos, music or voiceovers") + " yet: the AI models for this aren't connected to its server. They're coming." + (free ? " Nothing was charged." : "")), { plain: true, quiet: true });
+// a change to a picture that code makes exactly (no AI picture model needed)
+const EXACT_EDIT = /\b(crop|resize|rotate|flip|mirror|compress|smaller|convert|collage|watermark|border|frame it|grayscale|greyscale|black and white|sepia|brightness|brighter|darker|contrast|saturat\w*|blur|sharpen|png|jpe?g|webp|gif|ico|favicon|square|circle|rounded corners|text on|add (a |the )?(text|logo|title|caption)|put (my |a |the )?(logo|text|name)|meme|side by side|combine|merge|stitch|grid)\b/i;
 // Their own video or audio being changed (attached with this message, or just edited): an edit done for real with
 // ffmpeg, never a new one to make
 function editingMedia(atts) {
@@ -3011,6 +3013,7 @@ function editingMedia(atts) {
 // is read or spent; not one that only mentions one ("write a script for my video", "explain how film cameras work")
 function makesMedia(text, atts) {
 	if (editingMedia(atts)) return null;
+	if ((atts || []).some((a) => a.kind === "image") && EXACT_EDIT.test(String(text || ""))) return null;
 	const t = String(text || "");
 	if (/\b(script|scripts|plan|essay|article|outline|storyboard|story|lyrics?|captions?|descriptions?|ideas?|prompts?|review|summary|summari[sz]e|explain|history|about|how (to|do|does)|tips|strategy|post|email|naskah|ide|rencana|lirik|deskripsi|cara|jelaskan|tentang|sejarah)\b/i.test(t)) return null;
 	if (!/\b(make|create|generate|produce|render|draw|paint|animate|film|shoot|design|compose|record|buat|buatkan|bikin|bikinin|ciptakan|hasilkan|gambarkan|lukiskan|rekam)\b/i.test(t)) return null;
@@ -3220,6 +3223,7 @@ async function conduct(text, atts, tried, only) {
 		+ (made ? "\nThe thing made just before this was: " + made + ". If the request changes that, choose its way again with \"edit\": true.\n" : "")
 		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
+		+ (atts.some((a) => a.media && a.kind === "image") ? "\nThe user attached their own picture(s). To change one the way code does exactly (crop, resize, rotate, text or a logo on it, a border, filters, a collage, a meme, another format, a smaller file), choose act: it edits the real file. image is for new pictures and AI edits (a new background, changing what's in it).\n" : "")
 		+ (atts.some((a) => a.media && a.kind !== "image") ? "\nThe user attached their own video or audio. To change it (cut, trim, captions, music, crop, speed, join, a GIF), choose act: it edits the real file. video makes a new one.\n" : "")
 		+ (tried && tried.length ? "\nAlready tried, and it failed:\n" + tried.map((t) => "- " + t.way + ": " + t.error).join("\n") + "\nChoose a different way, or the same way only if that error clearly won't happen again.\n" : "")
 		+ (known ? "\nWhat's already remembered about the user:\n" + known + "\n" : "")
@@ -3620,9 +3624,19 @@ function save() {
 	convos = convos.filter((c) => c.msgs.length || c === current);
 	saveChats(slimChats());
 }
+// What's attached (a document's text, a picture, a video's frames) is kept on this device under its own key, so the chat
+// list stays light and a later question can still read it after the page is reloaded (it's read back when it's needed)
+function keepAtts(atts) {
+	for (const a of atts || []) if (!a.dataKey && (a.data || a.frames)) { a.dataKey = "att" + uid(); vault.set(a.dataKey, { data: a.data, frames: a.frames || null }).catch(() => {}); }
+}
+async function hydrateAtts(c) {
+	let n = 0;
+	for (const m of (c && c.msgs) || []) for (const a of m.atts || []) if (!a.data && a.dataKey) { const v = await vault.get(a.dataKey); if (v) { a.data = v.data; if (v.frames) a.frames = v.frames; n++; } }
+	return n;
+}
 // the chats as they're kept: no image data (the earlier versions of an edited message neither), no temporary chats
 function slimChats() {
-	const slimMsg = (m) => ({ ...m, atts: (m.atts || []).map((a) => ({ name: a.name, kind: a.kind, ...(a.media ? { media: a.media, mediaKey: a.mediaKey, mediaInfo: a.mediaInfo } : {}) })), ...(m.alts ? { alts: m.alts.map((t) => t && t.map(slimMsg)) } : {}) });
+	const slimMsg = (m) => ({ ...m, atts: (m.atts || []).map((a) => ({ name: a.name, kind: a.kind, ...(a.dataKey ? { dataKey: a.dataKey } : {}), ...(a.media ? { media: a.media, mediaKey: a.mediaKey, mediaInfo: a.mediaInfo } : {}) })), ...(m.alts ? { alts: m.alts.map((t) => t && t.map(slimMsg)) } : {}) });
 	return convos.filter((c) => !c.temp).map((c) => ({ ...c, msgs: c.msgs.map(slimMsg) }));
 }
 // Chats live in the browser's database, which has room for years of them. localStorage holds about 5 MB for everything,
@@ -3714,15 +3728,29 @@ function chatHistory() {
 		if (cut) texts.set(m, lines.join("\n"));
 		for (const b of blocks) if (!newest.has(b.name)) newest.set(b.name, new Set(b.body.split("\n").map((l) => l.trim()).filter((l) => l.length > 3)));
 	}
-	return msgs.map((m) => {
+	const users = msgs.filter((m) => m.role === "user"), latest = users[users.length - 1];
+	const out = msgs.map((m) => {
 		if (m.role !== "user" || !m.atts?.length) return { role: m.role, content: texts.get(m) ?? (m.text || "") };
 		const parts = [{ type: "text", text: m.text || "" }];
 		for (const a of m.atts) {
 			if (a.kind === "image" && a.data) parts.push({ type: "image_url", image_url: { url: a.data } });
-			else if (a.kind === "text" && a.data) parts[0].text += "\n\n--- " + a.name + " ---\n" + a.data.slice(0, 60000);
+			else if (a.kind === "text" && a.data) parts[0].text += "\n\n--- " + a.name + " ---\n" + fitText(a.data, m.text, m === latest ? 120000 : 60000);
 		}
 		return { role: "user", content: parts };
 	});
+	if (latest) {
+		let more = "";
+		for (const m of users) if (m !== latest) for (const a of m.atts || []) if (a.kind === "text" && a.data && a.data.length > 60000) {
+			const bit = fitText(a.data, latest.text, 30000, true);
+			if (bit) more += "\n\n--- From " + a.name + " (sent earlier), the parts that bear on this ---" + bit;
+		}
+		const k = msgs.lastIndexOf(latest);
+		if (more && k >= 0) {
+			const o = out[k];
+			out[k] = typeof o.content === "string" ? { ...o, content: o.content + more } : { ...o, content: o.content.map((p, n) => (n === 0 ? { ...p, text: p.text + more } : p)) };
+		}
+	}
+	return out;
 }
 // (an older copy of the same file: at least 30% of its lines are still in the newer one)
 function sameFile(body, newer) {
@@ -4389,7 +4417,54 @@ async function useTools(text, atts) {
 	got.filter(Boolean).forEach((a) => atts.push(a));
 }
 // every text a message carries (files, pages, docs), as material for a prompt
-const sourceOf = (atts, n) => atts.filter((a) => a.kind === "text" && a.data).map((a) => "--- " + a.name + " ---\n" + a.data).join("\n\n").slice(0, n);
+// ---- a long file, read the way a person looks something up in a book: its start, the passages that bear on what was
+// asked wherever they are (with their page), and samples from across the rest, in order, within what's sent each turn.
+// Nothing is cut off after the first pages; every word is also in Python's folder for work that needs all of it
+const STOP_WORDS = new Set("the and for are but not you all any can had her was one our out get has him his how now see two way who did its let put say she too use that with this from they will would there their what about which when make like just know take into your some could them than then look only come over think also back after first well even want because these give most does have been were here more such each very yang dan di ke dari untuk dengan ini itu ada tidak akan pada juga dalam atau saya kamu bisa apa".split(" "));
+function fitText(text, ask, budget, only) {
+	text = String(text || "");
+	if (!only && text.length <= budget) return text;
+	const terms = [...new Set(String(ask || "").toLowerCase().match(/[\p{L}\p{N}]{3,}/gu) || [])].filter((w) => !STOP_WORDS.has(w)).slice(0, 40);
+	const size = 1500, chunks = [];
+	for (let i = 0; i < text.length; i += size) chunks.push({ at: i, body: text.slice(i, i + size), low: "" });
+	// (where each page starts, for "from page 212")
+	const pages = [];
+	for (const m of text.matchAll(/\[page (\d+)\]/g)) pages.push([m.index, m[1]]);
+	const where = (at) => { let p = null; for (const [i, n] of pages) { if (i <= at + 200) p = n; else break; } return p ? "page " + p : Math.round((at / text.length) * 100) + "% of the way in"; };
+	// how much each passage bears on the request: its rarer words count more (BM25-like, capped per word)
+	const score = new Map();
+	if (terms.length) {
+		for (const c of chunks) c.low = c.body.toLowerCase();
+		for (const t of terms) {
+			const hits = chunks.map((c) => { let n = 0, k = c.low.indexOf(t); while (k >= 0 && n < 3) { n++; k = c.low.indexOf(t, k + t.length); } return n; });
+			const df = hits.filter(Boolean).length;
+			if (!df || df > chunks.length * 0.6) continue;
+			const idf = Math.log(1 + chunks.length / df);
+			hits.forEach((n, k) => { if (n) score.set(k, (score.get(k) || 0) + idf * n); });
+		}
+	}
+	const pick = new Set();
+	let used = 0;
+	const take = (k) => { if (pick.has(k) || k < 0 || k >= chunks.length || used + chunks[k].body.length > budget) return false; pick.add(k); used += chunks[k].body.length; return true; };
+	if (!only) for (let k = 0; used < budget * 0.25 && k < chunks.length; k++) take(k);
+	const ranked = [...score.entries()].sort((a, b) => b[1] - a[1]).map(([k]) => k);
+	for (const k of ranked) { if (used > budget * (only ? 0.95 : 0.8)) break; take(k); }
+	if (only && !pick.size) return "";
+	if (!only) { const room = Math.floor((budget - used) / size); for (let j = 0; j < room; j++) take(Math.floor(((j + 0.5) * chunks.length) / Math.max(1, room))); }
+	const keep = [...pick].sort((a, b) => a - b);
+	let out = only ? "" : "[This file is " + text.length.toLocaleString("en") + " characters" + (pages.length ? " (" + pages.length + " pages)" : "") + ", too long to send whole each turn: here are its start, the passages that bear on the request, and samples from across it, in order; … marks a gap. Ask about any part and that part is shown.]\n";
+	let prev = -1;
+	for (const k of keep) { out += (k !== prev + 1 ? (prev >= 0 || only ? "\n…\n" : "") + "[from " + where(chunks[k].at) + "]\n" : "") + chunks[k].body; prev = k; }
+	return out;
+}
+// the request being answered (the newest message)
+const lastAsk = () => { const u = current && [...current.msgs].reverse().find((m) => m.role === "user"); return u ? u.text || "" : ""; };
+const sourceOf = (atts, n) => {
+	const docs = atts.filter((a) => a.kind === "text" && a.data);
+	if (!docs.length) return "";
+	const ask = lastAsk(), share = Math.floor(n / docs.length);
+	return docs.map((a) => "--- " + a.name + " ---\n" + fitText(a.data, ask, Math.max(1500, share - 40))).join("\n\n");
+};
 
 // ---------------------------------------------------------------- Celestin Code: an engineer on a real project
 // Open a folder on this computer or connect a GitHub repo, then just ask. The strongest coding model works through it
@@ -5182,7 +5257,11 @@ const PY_SRC = "importScripts('" + PYODIDE + "pyodide.js');\n(" + pyWorkerMain.t
 // what code can open: every file attached in this chat (the real file when it's still here, its text otherwise)
 function codeFiles() {
 	const out = new Map();
-	for (const m of current ? current.msgs : []) for (const a of m.atts || []) if (a.kind === "text") out.set(a.name, CODE_FILES.has(a.name) ? { name: a.name, b64: CODE_FILES.get(a.name) } : { name: a.name, text: a.data });
+	for (const m of current ? current.msgs : []) for (const a of m.atts || []) if (a.kind === "text") {
+		out.set(a.name, CODE_FILES.has(a.name) ? { name: a.name, b64: CODE_FILES.get(a.name) } : { name: a.name, text: a.data });
+		// (a PDF's or Word file's text, next to it)
+		if (CODE_FILES.has(a.name) && a.data && !/\.(txt|md|csv|json)$/i.test(a.name)) out.set(a.name + ".txt", { name: a.name + ".txt", text: a.data });
+	}
 	for (const a of attachments || []) if (a.kind === "text" && !out.has(a.name)) out.set(a.name, CODE_FILES.has(a.name) ? { name: a.name, b64: CODE_FILES.get(a.name) } : { name: a.name, text: a.data });
 	return [...out.values()];
 }
@@ -5725,7 +5804,7 @@ async function runAct(text, atts, resume) {
 		const idx = arenaIndex(), skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
 		const system = "You are Celestin, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
 			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Celestin has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Celestin's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), edit the user's own videos, audio and pictures with ffmpeg like a professional editor (edit_media), with original music composed for them (compose_music), and hand over files, even a whole project, as a download (save_file, then deliver_files)."
-			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + "." : "")
+			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + " (every word of each; what's in your messages may be excerpts of a long one, so for work on all of it, read it there and hand pieces to experts)." : "")
 			+ (mediaLine() ? " " + mediaLine() : "")
 			+ (skillLine() ? "\n\n" + skillLine() : "")
 			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
@@ -5737,7 +5816,7 @@ async function runAct(text, atts, resume) {
 			+ (PLAN_NOTE ? "\n\nA first read of what they want (only for your bearings: how to do it is yours to decide): " + PLAN_NOTE : "") + (memoryLine() ? "\n\n" + memoryLine() : "") + (langLine() ? "\n\n" + langLine() : "");
 		const hist = chatHistory(), last = hist[hist.length - 1];
 		const prior = hist.slice(0, -1).slice(-6).map((m) => ({ role: m.role, content: (typeof m.content === "string" ? m.content : m.content.filter((p) => p.type === "text").map((p) => p.text).join("\n")).slice(0, 4000) }));
-		const material = sourceOf(atts, 30000);
+		const material = sourceOf(atts, 80000);
 		messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
 	}
 	// working with tools is its own measured skill (LMArena's agent board), with what this request needs on top
@@ -6134,6 +6213,8 @@ async function send(textOverride, fork, attsOverride) {
 	// what was typed (or said, in talk mode) goes; a draft in the box stays when something else sent this
 	if (textOverride == null || text === $("#input").value.trim()) { $("#input").value = ""; store.set("draft", ""); }
 	autosize();
+	await hydrateAtts(current);
+	keepAtts(atts);
 	current.msgs.push({ role: "user", text, atts, ...(fork ? { alts: fork.alts, alt: fork.alt } : {}) });
 	if (current.title === "New chat") current.title = text.slice(0, 48) || atts[0]?.name || "New chat";
 	current.at = Date.now();
@@ -10518,7 +10599,7 @@ async function readDocument(f) {
 		const lib = await import(PDFJS + "pdf.min.mjs");
 		lib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.mjs";
 		const doc = await lib.getDocument({ data: new Uint8Array(buf) }).promise, pages = [];
-		for (let p = 1; p <= Math.min(doc.numPages, 600); p++) {
+		for (let p = 1; p <= Math.min(doc.numPages, 3000); p++) {
 			const c = await (await doc.getPage(p)).getTextContent();
 			pages.push("[page " + p + "]\n" + c.items.map((x) => x.str + (x.hasEOL ? "\n" : " ")).join(""));
 		}
@@ -10577,7 +10658,7 @@ const clockOf = (t) => Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).pad
 async function addFiles(files) {
 	for (const f of files) {
 		const audio = f.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|opus|flac)$/i.test(f.name);
-		if (f.size > 40 * 1024 * 1024 && !f.type.startsWith("video/") && !audio) { toast(f.name + " is over 40 MB"); continue; }
+		if (f.size > 300 * 1024 * 1024 && !f.type.startsWith("video/") && !audio) { toast(f.name + " is over 300 MB"); continue; }
 		if (f.type.startsWith("image/")) { const att = { name: f.name, kind: "image", data: await readAs(f, "url") }; holdMedia(f, "image", {}, att); attachments.push(att); continue; }
 		if (f.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(f.name)) {
 			toast("Taking frames from " + f.name + "…");
@@ -10600,8 +10681,8 @@ async function addFiles(files) {
 		try {
 			const text = await readDocument(f);
 			// the real file, for code to open (this session only: kept out of the saved chat)
-			if (f.size <= 25 * 1024 * 1024) CODE_FILES.set(f.name, (await readAs(f, "url")).split(",")[1]);
-			attachments.push({ name: f.name, kind: "text", data: text.slice(0, 2000000) });
+			if (f.size <= 100 * 1024 * 1024) CODE_FILES.set(f.name, (await readAs(f, "url")).split(",")[1]);
+			attachments.push({ name: f.name, kind: "text", data: text.slice(0, 20000000) });
 		} catch (e) {
 			toast("Couldn't read " + f.name + ": " + (e.message || e));
 		}
@@ -11400,7 +11481,7 @@ function askDelete(id) {
 	$("#dlOk").onclick = () => {
 		const sid = c.shared && c.shared.id;
 		// (the videos and sounds kept for it go too)
-		for (const m of c.msgs || []) { for (const a of m.atts || []) if (a.mediaKey) vault.del(a.mediaKey); if (m.kind === "agent" && m.data) for (const x of m.data.media || []) vault.del(x.key); }
+		for (const m of c.msgs || []) { for (const a of m.atts || []) { if (a.mediaKey) vault.del(a.mediaKey); if (a.dataKey) vault.del(a.dataKey); } if (m.kind === "agent" && m.data) for (const x of m.data.media || []) vault.del(x.key); }
 		convos = convos.filter((x) => x.id !== id);
 		if (current && current.id === id) { current = null; EDITING = -1; }
 		save(); render(); closeModal(); toast("Deleted");
@@ -11422,7 +11503,7 @@ document.addEventListener("click", (e) => {
 	if (t.hasAttribute("data-open-app")) { navTo(() => showApp(true)); return; }
 	if (t.hasAttribute("data-go-home")) { e.preventDefault(); navTo(() => showApp(false)); return; }
 	if (t.hasAttribute("data-theme-toggle")) { toggleTheme(); return; }
-	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { openSidebar(false); navTo(() => { current = convos.find((c) => c.id === t.dataset.id); SPACE_VIEW = (current && current.space) || null; EDITING = -1; pinned = true; render(); stick(); }); }
+	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { openSidebar(false); navTo(() => { current = convos.find((c) => c.id === t.dataset.id); SPACE_VIEW = (current && current.space) || null; EDITING = -1; pinned = true; render(); stick(); const c = current; hydrateAtts(c).then((n) => { if (n && current === c) render(); }); }); }
 	else if (t.dataset.del) askDelete(t.dataset.del);
 	else if (t.dataset.sug) { $("#input").value = t.dataset.sug; autosize(); updateRoute(); send(); }
 	else if (t.dataset.cat) {
