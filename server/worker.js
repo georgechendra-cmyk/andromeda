@@ -14,6 +14,9 @@
 
 const DEFAULT_CONFIG = {
 	creditUsd: 0.01,
+	// films animated in code (Claude writes every frame): "owner" = only on the owner's account (the owner, Nov 6: to test
+	// it), true = for everyone, false = off
+	drawn: "owner",
 	// the model's list price x this. 3x is about where profit peaks for a new AI app with free rivals: a 10% higher price
 	// loses some 15-20% of buyers, so profit is nearly flat from 2.5x to 4x and falls past it. Bands are by the model's
 	// output price in dollars per million tokens.
@@ -240,7 +243,7 @@ async function config() {
 }
 function publicConfig(c) {
 	const { every, share } = freeStep(c);
-	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share, week: Number(c.free.week) || 0 }, plans: c.plans.map(({ lemonVariant, ...p }) => p), packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: { provider: c.checkout.provider, links: c.checkout.links }, support: c.support, open: !!c.open, refund: c.refund };
+	return { creditUsd: c.creditUsd, media: Number(c.multipliers.media) || 2, chat: Number(c.multipliers.top) || 3, free: { credits: Number(c.free.credits) || 0, hours: Number(c.free.hours) || 24, every, share, week: Number(c.free.week) || 0 }, plans: c.plans.map(({ lemonVariant, ...p }) => p), packs: c.packs.map(({ lemonVariant, ...p }) => p), currencies: c.currencies, qris: c.qris, checkout: { provider: c.checkout.provider, links: c.checkout.links }, support: c.support, open: !!c.open, refund: c.refund, drawn: c.drawn === true ? true : c.drawn === "owner" ? "owner" : false };
 }
 
 // ------------------------------------------------------------------ accounts
