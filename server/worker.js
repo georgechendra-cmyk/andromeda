@@ -1730,6 +1730,8 @@ async function chat(req, env, ctx, user) {
 					break;
 				}
 				if (w.kind === "gw" && [401, 402, 403].includes(res.status) && /\bkey\b|auth|balance|saldo|budget|credit|quota|insufficient|payment|unauthori[sz]ed/i.test(last.message || "")) GW_DOWN.set(w.gw, Date.now());
+				// (full right now, "at capacity": the other gateway first for the next two minutes)
+				else if (w.kind === "gw" && res.status === 503 && /overload|capacity/i.test(last.message || "")) GW_DOWN.set(w.gw, Date.now() - 480e3);
 				const bad = res.status === 400 || res.status === 404;
 				if (bad && !plain && effort && /effort|reasoning|thinking/i.test(last.message)) continue;
 				// a spelling of the name it doesn't know: the next spelling; anything else: the next way
