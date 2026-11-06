@@ -17,9 +17,11 @@ const DEFAULT_CONFIG = {
 	// films animated in code (Claude writes every frame): "owner" = only on the owner's account (the owner, Nov 6: to test
 	// it), true = for everyone, false = off
 	drawn: "owner",
-	// the gateways the owner's demo goes through, by number (GATEWAY_URL is 1, GATEWAY2_URL is 2): the owner, Nov 7:
-	// MarkasAI only, for its price (Flaz, gateway 1, is left out of the demo). Empty: every gateway
-	ownerGateways: ["2"],
+	// the order the gateways are asked in, by number (GATEWAY_URL is 1, GATEWAY2_URL is 2). The owner, Nov 7: Flaz is the
+	// main one for everyone (MarkasAI behind it, for a model only it has or when Flaz can't answer); the owner's demo tries
+	// MarkasAI first, to test it, with Flaz behind it. A gateway that's busy or out of balance hands the request on
+	gatewayOrder: ["1", "2"],
+	ownerGatewayOrder: ["2", "1"],
 	// the model's list price x this. 3x is about where profit peaks for a new AI app with free rivals: a 10% higher price
 	// loses some 15-20% of buyers, so profit is nearly flat from 2.5x to 4x and falls past it. Bands are by the model's
 	// output price in dollars per million tokens.
@@ -123,10 +125,8 @@ async function route(req, env, ctx, url) {
 	const m = req.method;
 	await columns(env);
 	if (p === "/api/pricing" && m === "GET") {
-		const c0 = await config(env), only = ownerOnly(c0, ownerKeyOk(req, env));
-		// (the owner's demo: what its own gateways reach; and none of them cuts long answers off the way Flaz did, so nothing
-		// is held to writing in parts there)
-		return json({ ...publicConfig(c0), reach: await reachOf(env, only), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: only && !only.includes("1") ? [] : await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
+		const c0 = await config(env);
+		return json({ ...publicConfig(c0), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
 	}
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
@@ -823,7 +823,10 @@ function gateways(env, only) {
 	return out;
 }
 // the owner's demo: only the gateways it's set to use
-const ownerOnly = (c, owner) => (owner && c && Array.isArray(c.ownerGateways) && c.ownerGateways.length ? c.ownerGateways.map(String) : null);
+// the order the gateways are asked in: the demo's own (MarkasAI first) or everyone's (Flaz first); where a gateway sits in it
+const orderFor = (c, owner) => { const o = c && (owner ? c.ownerGatewayOrder : c.gatewayOrder); return Array.isArray(o) && o.length ? o.map(String) : null; };
+// (WaveSpeed, when it's set up, stays first, as it always was; a gateway the order doesn't name comes after the ones it does)
+const rankIn = (order, n) => { if (n === "ws") return -1; const k = order ? order.indexOf(String(n)) : -1; return k < 0 ? 99 : k; };
 // what a gateway's own short names are, when its list doesn't say (by its address)
 const KNOWN_ALIASES = {
 	routerku: {
@@ -900,7 +903,9 @@ async function gatewayCatalog(g) {
 		for (const m of items) put(bareKey(m.id.replace(/-(openrouter(-backup)?|or)$/i, "")), m.id);
 		for (const m of items) if (m.name && m.name !== m.id) put(bareKey(m.name), m.id);
 		// its picture and video models (a gateway that lists them with type: image or video, as MarkasAI does)
-		const media = raw.filter((m) => m && m.id && /^(image|video)$/.test(String(m.type || ""))).map((m) => ({ id: String(m.id), type: String(m.type), pricing: m.pricing && typeof m.pricing === "object" ? m.pricing : {}, maxN: Number(m.max_images_per_request || m.max_videos_per_request) || 1, maxSecs: Number(m.max_duration_seconds) || 15 }));
+		const objs = raw.map((m) => (typeof m === "string" ? { id: m } : m)).filter((m) => m && m.id);
+		const typed = objs.some((m) => m.type);
+		const media = objs.map((m) => ({ m, kind: mediaKindOf(m, typed) })).filter((x) => x.kind).map(({ m, kind }) => ({ id: String(m.id), type: kind, endpoint: String(m.endpoint || ""), pricing: m.pricing && typeof m.pricing === "object" ? m.pricing : {}, maxN: Number(m.max_images_per_request || m.max_videos_per_request) || 1, maxSecs: Number(m.max_duration_seconds) || (kind === "video" && !typed ? 12 : 15), voices: Array.isArray(m.voices) ? m.voices.map(String) : null }));
 		c = { at: Date.now(), ids: items.map((m) => m.id), byKey, failed: 0, prices, media };
 		// everything it lists, as it names them (the server's log: what the gateway has, media models included)
 		console.log("gateway " + g.n + " lists " + items.length + ": " + items.map((m) => m.id).join(", "));
@@ -936,20 +941,21 @@ function gatewayNames(g, model) {
 }
 const provider = (id) => String(id).split("/")[0];
 
-function routes(env, model, web, tools, price, only) {
+function routes(env, model, web, tools, price, order) {
 	const out = [];
 	const lab = model.split("/")[0], name = model.slice(lab.length + 1).replace(/:.*$/, "");
 	const gws = [];
 	// (a request reads about three times what it writes: the price that matters weighs both that way)
 	const weigh = (p) => 3 * p.pin + p.pout;
-	for (const g of gateways(env, only)) {
+	for (const g of gateways(env)) {
 		const names = gatewayNames(g, model);
 		if (!names.length) continue;
 		const c = GWS.get(g.base), own = c && c.prices ? names.map((x) => c.prices.get(x)).find(Boolean) : null;
 		const fee = own && price && weigh(price) > 0 ? weigh(own) / weigh(price) : g.fee;
 		gws.push({ kind: "gw", gw: g.n, lab, url: g.base + "/chat/completions", headers: { Authorization: "Bearer " + g.key }, names, fee, native: false, down: gwDown(g.n) });
 	}
-	gws.sort((a, b) => a.down - b.down || a.fee - b.fee);
+	// one that just failed goes last; then the order set (Flaz first, or MarkasAI first in the demo); then the cheaper
+	gws.sort((a, b) => a.down - b.down || rankIn(order, a.gw) - rankIn(order, b.gw) || a.fee - b.fee);
 	out.push(...gws);
 	if (env.CF_ACCOUNT_ID && env.CF_API_TOKEN && ["openai", "anthropic", "google", "x-ai"].includes(lab)) {
 		const base = "https://api.cloudflare.com/client/v4/accounts/" + env.CF_ACCOUNT_ID + "/ai/v1/";
@@ -1447,8 +1453,8 @@ async function searchWeb(env, q, n) {
 // charged like anything else.
 const SEARCHERS = ["x-ai/grok-4.7", "openai/gpt-5.4-nano", "google/gemini-3.5-flash-lite", "anthropic/claude-haiku-5.5", "openai/gpt-4o-mini"];
 const SEARCH_OFF = new Map(); // a gateway that answered without searching: not asked again for an hour
-async function modelSearch(env, q, n, only) {
-	const gws = gateways(env, only);
+async function modelSearch(env, q, n, order) {
+	const gws = gateways(env).sort((a, b) => rankIn(order, a.n) - rankIn(order, b.n));
 	await Promise.all(gws.map(gatewayCatalog));
 	const ways = [...gws.map((g) => ({ id: g.n === "ws" ? "ws" : "gw" + g.n, base: g.base, key: g.key, g })), ...(env.OPENROUTER_KEY ? [{ id: "or", base: orBase(env), key: env.OPENROUTER_KEY }] : [])];
 	const ask = "Search the web now for: " + q + "\n\nThen reply with ONLY JSON: {\"results\": [{\"title\": \"...\", \"url\": \"the page's address\", \"text\": \"what that page says that matters here, in 2 to 4 sentences, with its date if it has one\"}]}: up to " + n + " results from different sources, the most useful and recent first.";
@@ -1498,7 +1504,7 @@ async function searchFor(env, user, q, n) {
 	const held = await take(env, user.id, mt.toMc(0.06), c, !!user.owner);
 	if (!held) return [];
 	let got = { results: [], usd: 0 };
-	try { got = await modelSearch(env, q, n, ownerOnly(c, user.owner)); }
+	try { got = await modelSearch(env, q, n, orderFor(c, user.owner)); }
 	finally { await charge(env, user.id, "web-search" + (got.model ? ": " + got.model : ""), held, got.usd, mt); }
 	return got.results;
 }
@@ -1629,7 +1635,7 @@ async function chat(req, env, ctx, user) {
 	delete b.plugins;
 	const web = plug ? { n: Math.max(1, Math.min(8, Number(plug.max_results) || 5)), query: plug.query || lastUserText(b.messages) } : null;
 	await Promise.all(gateways(env).map(gatewayCatalog));
-	const ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, ownerOnly(c, user.owner));
+	const ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, orderFor(c, user.owner));
 	if (!ways.length) throw fail(503, "This server can't reach that model. Pick another, or try again later.");
 
 	const mult = multiplier(price, c);
@@ -1912,6 +1918,33 @@ const GW_MEDIA = {
 	"grok-imagine": ["x-ai/grok-imagine-image", "Grok Imagine Image"],
 	"seedance-2.0": ["bytedance/seedance-2.0", "Seedance 2.0"],
 };
+// what a gateway's model makes: its list's own type (MarkasAI's: image, video, tts), or, when the list gives no types
+// (LiteLLM's), what its name says; speech-to-text, embeddings and the like are none of these
+function mediaKindOf(m, typed) {
+	const t = String(m.type || "").toLowerCase();
+	if (typed) return t === "image" ? "image" : t === "video" ? "video" : /^(tts|speech|audio_speech|voice)$/.test(t) ? "tts" : null;
+	const id = String(m.id || "").toLowerCase();
+	if (/whisper|transcri|(^|[-_/])stt([-_/]|$)|embed|moderation|realtime/.test(id)) return null;
+	if (/(^|[-_/.])tts([-_/.]|$)|text-to-speech|eleven|(^|[-_/])speech-\d/.test(id)) return "tts";
+	if (/gpt-image|imagen|nano-banana|flux|seedream|dall-?e|grok-imagine|recraft|ideogram|(^|[-_/])image([-_/]|$)/.test(id)) return "image";
+	if (/veo|sora|kling|seedance|(^|[-_/])wan-?\d|hailuo|minimax-h\d|gemini-omni|runway|(^|[-_/])video([-_/]|$)/.test(id)) return "video";
+	return null;
+}
+// a model's name the way the site's lists name it ("eleven_v4" → "elevenlabs/eleven-v4", "sora-2" → "openai/sora-2")
+const GW_LAB = [[/eleven/, "elevenlabs"], [/^(gemini|imagen|veo|lyria|nano-banana)/, "google"], [/^(gpt|sora|dall|tts-1|o\d)/, "openai"], [/^grok/, "x-ai"], [/^(seedance|seedream)/, "bytedance"], [/^kling/, "kwaivgi"], [/^wan/, "alibaba"], [/^(minimax|hailuo|speech-)/, "minimax"], [/^flux/, "black-forest-labs"], [/^recraft/, "recraft"], [/^ideogram/, "ideogram"], [/^runway/, "runway"]];
+function siteIdOf(id) {
+	const x = String(id).toLowerCase().replace(/_/g, "-");
+	if (x.includes("/")) return x.replace(/^xai\//, "x-ai/");
+	const lab = (GW_LAB.find(([re]) => re.test(x)) || [])[1];
+	return lab ? lab + "/" + x : null;
+}
+const prettyOf = (id) => String(id).replace(/^.*\//, "").replace(/[-_]+/g, " ").replace(/\b([a-z])/g, (m) => m.toUpperCase());
+// prices a list doesn't give: each kind at about what its makers charge (held generously, then charged the same)
+const guessImageUsd = (id) => (/pro|ultra|hd/i.test(id) ? 0.13 : 0.05);
+const guessVideoUsdPerSec = (id) => (/sora.*pro/i.test(id) ? 0.3 : /veo.*fast|veo.*lite/i.test(id) ? 0.15 : /veo/i.test(id) ? 0.4 : /sora|kling|wan|seedance|hailuo|minimax/i.test(id) ? 0.12 : 0.3);
+const guessTtsUsdPerChar = (id) => (/eleven/i.test(id) ? 0.0001 : 0.00002);
+// the voices a voice model takes, by its maker (ElevenLabs by name, as the site casts them)
+const voicesOf = (id) => (/eleven/i.test(id) ? WS_ELEVEN : /gemini/i.test(id) ? ["Kore", "Puck", "Charon", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"] : /gpt|tts-1|openai/i.test(id) ? ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"] : []);
 async function gwMedia(env) {
 	const gws = gateways(env), out = [];
 	if (!gws.length) return out;
@@ -1919,7 +1952,7 @@ async function gwMedia(env) {
 	for (let i = 0; i < gws.length; i++) {
 		const idr = await idrPerUsd(gws[i]);
 		for (const m of cats[i].media || []) {
-			const [site, name] = GW_MEDIA[m.id] || ["gw" + gws[i].n + "/" + m.id, m.id];
+			const [site, name] = GW_MEDIA[m.id] || [siteIdOf(m.id) || "gw" + gws[i].n + "/" + m.id, prettyOf(m.id)];
 			if (!out.some((x) => x.site === site)) out.push({ ...m, site, name, g: gws[i], idr });
 		}
 	}
@@ -1929,19 +1962,22 @@ async function gwMediaHas(env, model, kind) { return (await gwMedia(env)).find((
 // what a picture costs there, in dollars: its unit price, or the image tokens a picture of that quality takes
 function gwImageUsd(m, quality) {
 	const p = m.pricing;
-	if (p.per_unit === "image" || p.unit === "image") return Number(p.unit_price || p.pricePerImage || 0) / m.idr;
+	if (p.per_unit === "image" || p.unit === "image") return Number(p.unit_price || p.pricePerImage || 0) / m.idr || guessImageUsd(m.id);
 	const per = (v) => Number(v || 0) / m.idr / (Number(p.per_tokens) || 1e6);
 	const tokens = /gpt/i.test(m.id) ? { low: 272, medium: 1056, high: 4160 }[quality] || 1056 : 1290;
-	return per(p.image_output || p.output) * tokens + per(p.input) * 300;
+	return per(p.image_output || p.output) * tokens + per(p.input) * 300 || guessImageUsd(m.id);
 }
-const gwVideoUsdPerSec = (m, res) => { const r = m.pricing.resolutions || {}; return Number(r[res] || r["720P"] || Object.values(r)[0] || 0) / m.idr; };
+const gwVideoUsdPerSec = (m, res) => { const r = m.pricing.resolutions || {}; return Number(r[res] || r["720P"] || Object.values(r)[0] || 0) / m.idr || guessVideoUsdPerSec(m.id); };
+const gwTtsUsdPerChar = (m) => { const p = m.pricing; return (p.per_unit === "character" ? Number(p.unit_price || 0) / m.idr : 0) || guessTtsUsdPerChar(m.id); };
 // in the shapes the site reads the studio's models in
 function gwMediaCatalog(list) {
 	const out = { image: [], video: [], speech: [], music: [] };
 	for (const m of list) {
 		if (m.type === "image") out.image.push({ id: m.site, name: m.name, supported_parameters: { aspect_ratio: { values: ["1:1", "2:3", "3:2", "3:4", "4:3", "9:16", "16:9"] }, resolution: { values: ["1K"] }, input_references: { max: 0 } }, price: gwImageUsd(m, "medium") });
+		else if (m.type === "tts") out.speech.push({ id: m.site, name: m.name, supported_voices: m.voices || voicesOf(m.id), pricing: { prompt: gwTtsUsdPerChar(m) } });
 		else if (m.type === "video") {
-			const res = Object.keys(m.pricing.resolutions || {}).map((r) => r.toLowerCase()).filter((r) => /^(480p|720p|1080p)$/.test(r));
+			const listed = Object.keys(m.pricing.resolutions || {}).map((r) => r.toLowerCase()).filter((r) => /^(480p|720p|1080p)$/.test(r));
+			const res = listed.length ? listed : ["720p"];
 			const skus = {};
 			for (const r of res) skus["duration_seconds_" + r] = gwVideoUsdPerSec(m, r.toUpperCase());
 			out.video.push({ id: m.site, name: m.name, supported_durations: Array.from({ length: Math.max(1, m.maxSecs - 2) }, (_, k) => k + 3).filter((d) => d <= m.maxSecs), supported_resolutions: res, supported_aspect_ratios: ["16:9", "9:16", "1:1"], supported_frame_images: [], generate_audio: true, pricing_skus: skus, from_words: true });
@@ -1961,7 +1997,9 @@ async function gwImage(env, user, m, b, c, mt) {
 		const r = await fetch(m.g.base + "/images/generations", { method: "POST", headers: { Authorization: "Bearer " + m.g.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: m.id, prompt: String(b.prompt || "").slice(0, 4000), n, size, ...(m.pricing.per_tokens ? { quality } : {}) }), signal: AbortSignal.timeout(180e3) });
 		const j = await r.json().catch(() => ({}));
 		if (!r.ok || !Array.isArray(j.data) || !j.data.length) throw fail([401, 402, 403].includes(r.status) ? 503 : r.status === 400 ? 400 : 502, j.error?.message || "The image couldn't be made. Try again.");
-		const data = j.data.filter((x) => x && x.b64_json).map((x) => ({ b64_json: x.b64_json, media_type: x.b64_json.startsWith("/9j/") ? "image/jpeg" : x.b64_json.startsWith("UklGR") ? "image/webp" : "image/png" }));
+		// (as data, or, from some gateways, as a link to fetch)
+		const data = (await Promise.all(j.data.map(async (x) => { if (x && !x.b64_json && typeof x.url === "string") { try { const f = await fetch(x.url); if (f.ok) return { b64_json: toB64(await f.arrayBuffer()) }; } catch {} } return x; }))).filter((x) => x && x.b64_json).map((x) => ({ b64_json: x.b64_json, media_type: x.b64_json.startsWith("/9j/") ? "image/jpeg" : x.b64_json.startsWith("UklGR") ? "image/webp" : "image/png" }));
+		if (!data.length) throw fail(502, "The image came back empty. Try again.");
 		// what it really cost: the tokens it reports, else the estimate
 		const u = j.usage || {}, p = m.pricing, per = (v) => Number(v || 0) / m.idr / (Number(p.per_tokens) || 1e6);
 		const outTok = Number(u.output_tokens || u.completion_tokens) || 0;
@@ -1972,6 +2010,77 @@ async function gwImage(env, user, m, b, c, mt) {
 		await charge(env, user.id, b.model, held, 0, mt);
 		throw e.status ? e : fail(502, "The image couldn't be made. Try again.");
 	}
+}
+async function gwSpeech(env, user, m, text, b, c, mt) {
+	const pieces = [];
+	let rest = text;
+	while (rest.length > 4000) {
+		const cut = Math.max(rest.lastIndexOf(". ", 4000), rest.lastIndexOf("\n", 4000), rest.lastIndexOf(" ", 4000));
+		const at = cut > 2000 ? cut + 1 : 4000;
+		pieces.push(rest.slice(0, at).trim());
+		rest = rest.slice(at);
+	}
+	if (rest.trim()) pieces.push(rest.trim());
+	const usd = Math.max(0.002, text.length * gwTtsUsdPerChar(m));
+	const held = await hold(env, user, mt.toMc(usd * 1.2), c);
+	try {
+		const parts = [];
+		let type = "audio/mpeg";
+		const voice = String(b.voice || (m.voices || voicesOf(m.id))[0] || "alloy");
+		for (const input of pieces) {
+			const r = await fetch(m.g.base + "/audio/speech", { method: "POST", headers: { Authorization: "Bearer " + m.g.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: m.id, input, voice, response_format: "mp3" }), signal: AbortSignal.timeout(120e3) });
+			if (!r.ok) { let msg = r.statusText; try { msg = (await r.json()).error?.message || msg; } catch {} throw fail([401, 402, 403].includes(r.status) ? 503 : r.status === 400 ? 400 : 502, msg || "The voice couldn't be made."); }
+			type = (r.headers.get("Content-Type") || type).split(";")[0];
+			parts.push(new Uint8Array(await r.arrayBuffer()));
+		}
+		const all = new Uint8Array(parts.reduce((a, p) => a + p.length, 0));
+		let o = 0;
+		for (const p of parts) { all.set(p, o); o += p.length; }
+		const charged = await charge(env, user.id, b.model, held, usd, mt);
+		return new Response(all, { headers: { "Content-Type": /^audio\//.test(type) ? type : "audio/mpeg", "X-Credits": String(charged / 1000), "Access-Control-Expose-Headers": "X-Credits" } });
+	} catch (e) {
+		await charge(env, user.id, b.model, held, 0, mt);
+		throw e.status ? e : fail(502, "The voice couldn't be made. Try again.");
+	}
+}
+// A video from a gateway that starts it as a job (OpenAI's /videos, which LiteLLM serves): started here, checked on by the
+// site, paid for once it's finished by its seconds (nothing if it fails); which gateway and job ride in the job's name
+const gvJob = (jobId) => { try { const g = JSON.parse(unb64url(jobId.slice(3))); return g && g.id ? g : null; } catch { return null; } };
+async function gwVideoJob(env, user, m, b, c, mt) {
+	const secs = Math.max(1, Math.min(m.maxSecs, Math.round(Number(b.duration) || 8)));
+	const perSec = gwVideoUsdPerSec(m, String(b.resolution || "720p").toUpperCase());
+	const reserve = mt.toMc(perSec * secs * 1.05);
+	const held = await hold(env, user, reserve, c);
+	let j, r;
+	try {
+		const size = /9:16/.test(String(b.aspect_ratio || "")) ? "720x1280" : "1280x720";
+		r = await fetch(m.g.base + "/videos", { method: "POST", headers: { Authorization: "Bearer " + m.g.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: m.id, prompt: String(b.prompt || "").slice(0, 4000), seconds: String(secs), size }), signal: AbortSignal.timeout(60e3) });
+		j = await r.json().catch(() => ({}));
+		if (!r.ok || !j.id) throw fail([401, 402, 403].includes(r.status) ? 503 : r.status === 400 ? 400 : 502, j.error?.message || "The video couldn't be started.");
+	} catch (e) {
+		await charge(env, user.id, b.model, held, 0, mt);
+		throw e.status ? e : fail(502, "The video couldn't be started. Try again.");
+	}
+	const id = "gv-" + b64url(JSON.stringify({ g: m.g.n, id: j.id, s: secs, p: perSec }));
+	await env.DB.prepare("INSERT INTO jobs (id, user_id, model, reserve_mc, from_free, settled, created_at, owner) VALUES (?, ?, ?, ?, ?, 0, ?, ?)").bind(id, user.id, b.model, reserve, held.fromFree, now(), held.owner ? 1 : 0).run();
+	return json({ id, status: "pending" }, 202);
+}
+async function gwVideoPoll(env, user, job, c, mt) {
+	const g = gvJob(job.id), gw = g && gateways(env).find((x) => x.n === String(g.g));
+	if (!gw) throw fail(404, "No such video.");
+	const r = await fetch(gw.base + "/videos/" + encodeURIComponent(g.id), { headers: { Authorization: "Bearer " + gw.key } });
+	const d = await r.json().catch(() => ({}));
+	const done = d.status === "completed", gone = /failed|cancelled|expired/.test(String(d.status || "")) || r.status === 404;
+	let usage = { cost: 0 };
+	if ((done || gone) && !job.settled) {
+		const mine = await env.DB.prepare("UPDATE jobs SET settled = 1 WHERE id = ? AND settled = 0").bind(job.id).run();
+		if (mine.meta && mine.meta.changes) {
+			const pl = planOf(user, c), held = { fromFree: job.from_free || 0, fromPaid: job.reserve_mc - (job.from_free || 0), free: !pl.paid, owner: !!job.owner, month: !!(pl.paid && pl.month && job.from_free) };
+			const charged = await charge(env, user.id, job.model, held, done ? Number(g.s) * Number(g.p) : 0, mt);
+			usage = { cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 };
+		}
+	}
+	return json({ id: job.id, status: done ? "completed" : gone ? "failed" : "in_progress", unsigned_urls: done ? ["/api/videos/" + job.id + "/content?index=0"] : [], usage, error: gone ? (d.error && d.error.message) || "The video model couldn't make this shot." : undefined });
 }
 // A video from a gateway that makes it while the request waits (minutes, as MarkasAI does): the site is answered at once
 // with a body that stays open (a space every 15 s keeps the connection alive) and ends with the finished job, which is
@@ -2053,7 +2162,8 @@ async function videoSubmit(req, env, user) {
 	const c = await config(env), mt = media(c);
 	const b = await body(req);
 	const gv = await gwMediaHas(env, b.model, "video");
-	if (gv) return gwVideo(env, user, gv, b, c, mt);
+	// (one made while the request waits, as MarkasAI does; or one started as a job, as LiteLLM's /videos does)
+	if (gv) return /\/videos\/generations/.test(gv.endpoint) || gv.pricing.resolutions ? gwVideo(env, user, gv, b, c, mt) : gwVideoJob(env, user, gv, b, c, mt);
 	const wf = await wsHas(env, b.model, "video");
 	if (wf) return wsVideoSubmit(env, user, wf, b, c, mt);
 	orStudio(env, "video");
@@ -2085,6 +2195,7 @@ async function videoPoll(env, user, jobId) {
 	const c = await config(env), mt = media(c);
 	const job = await ownJob(env, user, jobId);
 	if (jobId.startsWith("ws-")) return wsVideoPoll(env, user, job, c, mt);
+	if (jobId.startsWith("gv-")) return gwVideoPoll(env, user, job, c, mt);
 	// (a gateway's video: finished before it was handed back; its links are in its name)
 	if (jobId.startsWith("gw-")) {
 		const g = gwJob(jobId);
@@ -2112,6 +2223,13 @@ async function videoPoll(env, user, jobId) {
 async function videoContent(env, user, jobId, url) {
 	await ownJob(env, user, jobId);
 	const index = Math.max(0, Math.min(9, Number(url.searchParams.get("index")) || 0));
+	if (jobId.startsWith("gv-")) {
+		const g = gvJob(jobId), gw = g && gateways(env).find((x) => x.n === String(g.g));
+		if (!gw) throw fail(404, "That video isn't ready or has expired.");
+		const r = await fetch(gw.base + "/videos/" + encodeURIComponent(g.id) + "/content", { headers: { Authorization: "Bearer " + gw.key } });
+		if (!r.ok) throw fail(r.status === 404 ? 404 : 502, "That video isn't ready or has expired.");
+		return new Response(r.body, { headers: { "Content-Type": r.headers.get("Content-Type") || "video/mp4", "Cache-Control": "private, max-age=3600" } });
+	}
 	if (jobId.startsWith("gw-")) {
 		const u = (gwJob(jobId) || { u: [] }).u[index];
 		if (!u) throw fail(404, "That video isn't ready or has expired.");
@@ -2170,6 +2288,8 @@ async function speech(req, env, user) {
 	const b = await body(req);
 	const text = Array.isArray(b.input) ? b.input.map((x) => x.text || "").join(" ") : String(b.input || "");
 	if (!text.trim() || text.length > 10000) throw fail(400, "Give the voice between 1 and 10,000 characters.");
+	const gs = await gwMediaHas(env, b.model, "tts");
+	if (gs) return gwSpeech(env, user, gs, text, b, c, mt);
 	const wf = await wsHas(env, b.model, "speech");
 	if (wf) return wsAudio(env, user, wf, { prompt: text, voice: b.voice, format: "mp3" }, b.model, c, mt);
 	orStudio(env, "voice");

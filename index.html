@@ -3225,7 +3225,7 @@ async function conduct(text, atts, tried, only) {
 		+ (only ? "\nThe person picked this themselves from Celestin's tools: deliver it that way.\n" : "")
 		+ (spaceOf(current && current.space) ? "\nThis chat is in the user's project \"" + spaceOf(current.space).name + "\"" + (String(spaceOf(current.space).about || "").trim() ? ", whose instructions say: " + spaceOf(current.space).about.slice(0, 600) : "") + ((SPACE_FILES.get(current.space) || []).length ? ". Its files: " + SPACE_FILES.get(current.space).map((f) => f.name).join(", ").slice(0, 300) : "") + ".\n" : "")
 		+ (made ? "\nThe thing made just before this was: " + made + ". If the request changes that, choose its way again with \"edit\": true.\n" : "")
-		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
+		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it (a video, picture or song they want made, even one they ask to have coded, is not).\n" : "")
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
 		+ (atts.some((a) => a.media && a.kind === "image") ? "\nThe user attached their own picture(s). To change one the way code does exactly (crop, resize, rotate, text or a logo on it, a border, filters, a collage, a meme, another format, a smaller file), choose act: it edits the real file. image is for new pictures and AI edits (a new background, changing what's in it).\n" : "")
 		+ (atts.some((a) => a.media && a.kind !== "image") ? "\nThe user attached their own video or audio. To change it (cut, trim, captions, music, crop, speed, join, a GIF), choose act: it edits the real file. video makes a new one.\n" : "")
@@ -6364,7 +6364,8 @@ async function send(textOverride, fork, attsOverride) {
 			const edit = editingMedia(atts);
 			const intent = edit ? null : studyIntent(text, atts);
 			const file = intent || edit || (PROJECT && !PROJECT.asleep) ? null : fileIntent(text, atts);
-			const media = intent || file || edit ? null : mediaIntent(text, atts);
+			// (a video they ask to have coded is a video, not work on the open project)
+			const media = intent || file || edit ? null : codedAsk(text) && /\b(video|film|trailer|animation|short|clip|movie)\b/i.test(text) ? { kind: "video" } : mediaIntent(text, atts);
 			const proj = intent || media || file || edit ? false : await projectFor(text);
 			const code = intent || media || proj || edit ? null : appIntent(text, atts);
 			if (edit) await runAct(text, atts);
