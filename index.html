@@ -1634,6 +1634,7 @@ html { scroll-behavior: smooth; }
 .made figure { margin: 0; }
 .made img, .made video { display: block; width: 100%; border-radius: 12px; border: 1px solid var(--line); background: var(--bg3); }
 .made-audio audio { width: 100%; }
+.ag-media video, .ag-media img { max-height: 360px; object-fit: contain; background: #000; }
 .made figcaption { margin-top: 4px; font-size: 12.5px; }
 .made figcaption a { color: var(--muted); }
 .auth-card .legal { margin: 16px 0 0; color: var(--faint); font-size: 12.5px; line-height: 1.5; text-align: center; }
@@ -2999,9 +3000,17 @@ const drawnOnly = () => creditsMode() && !!pricing && pricing.drawn === true && 
 const mediaReady = () => !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false || drawnOnly();
 const MEDIA_WHAT = { image: "pictures", video: "videos", music: "music", voice: "voiceovers" };
 const mediaSoon = (kind, free) => Object.assign(new Error("Celestin can't make " + (MEDIA_WHAT[kind] || "pictures, videos, music or voiceovers") + " yet: the AI models for this aren't connected to its server. They're coming." + (free ? " Nothing was charged." : "")), { plain: true, quiet: true });
+// Their own video or audio being changed (attached with this message, or just edited): an edit done for real with
+// ffmpeg, never a new one to make
+function editingMedia(atts) {
+	if ((atts || []).some((a) => a.media && a.kind !== "image")) return true;
+	const prev = current ? [...current.msgs].reverse().find((m) => m.role === "assistant" && !m.error) : null;
+	return !!(prev && prev.kind === "agent" && prev.data && (prev.data.media || []).length);
+}
 // A request that plainly asks to make one ("make a 10 second trailer", "buatkan logo kedai kopi"), told before anything
 // is read or spent; not one that only mentions one ("write a script for my video", "explain how film cameras work")
 function makesMedia(text, atts) {
+	if (editingMedia(atts)) return null;
 	const t = String(text || "");
 	if (/\b(script|scripts|plan|essay|article|outline|storyboard|story|lyrics?|captions?|descriptions?|ideas?|prompts?|review|summary|summari[sz]e|explain|history|about|how (to|do|does)|tips|strategy|post|email|naskah|ide|rencana|lirik|deskripsi|cara|jelaskan|tentang|sejarah)\b/i.test(t)) return null;
 	if (!/\b(make|create|generate|produce|render|draw|paint|animate|film|shoot|design|compose|record|buat|buatkan|bikin|bikinin|ciptakan|hasilkan|gambarkan|lukiskan|rekam)\b/i.test(t)) return null;
@@ -3161,7 +3170,7 @@ function lastMade() {
 	if (!prev) return "";
 	if (prev.kind === "studio") return (prev.data && prev.data.kind) || "";
 	if (prev.kind === "file") return (prev.data && prev.data.fmt) || "";
-	if (prev.kind === "agent") return "project";
+	if (prev.kind === "agent") return prev.data && (prev.data.media || []).length ? "act (it edited the user's video or audio into " + prev.data.media.map((x) => x.name).join(", ") + ")" : "project";
 	return STUDY[prev.kind] || prev.kind === "app" ? prev.kind : "answer";
 }
 async function conduct(text, atts, tried, only) {
@@ -3180,6 +3189,7 @@ async function conduct(text, atts, tried, only) {
 	ways.push(["act", "do it for real, step by step with tools, like an engineer at a computer: run Python or JavaScript to calculate, analyse or test, search the web and read pages, check its own work"
 		+ (pc ? "; on the user's own computer: run commands and programs, build and test their projects, install things, read, write and organise their files, look at the screen" : "")
 		+ (others.length ? "; in the user's connected apps: " + others.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ") : "")
+		+ "; edit the user's own videos, audio and pictures like a professional editor, with ffmpeg (cut, trim, join, crop to vertical, speed, captions and titles, music and fades, GIFs)"
 		+ ". It is also the way for anything no single way above makes directly, or that combines several of them (a game mod, a business plan with a deck and a pitch video, a dataset with its analysis, a launch with a site and an ad): Celestin works out the steps itself, hands each piece to the AI model measured best at exactly it, can use every way above as one of its tools, and hands over files, a whole project, as a download. Choose it whenever the request needs something done, built, combined or checked rather than only said"]);
 	ways = ways.filter(([k]) => wayOn(k));
 	// a tool the person picked themselves: one of its ways (when this server can do it)
@@ -3210,6 +3220,7 @@ async function conduct(text, atts, tried, only) {
 		+ (made ? "\nThe thing made just before this was: " + made + ". If the request changes that, choose its way again with \"edit\": true.\n" : "")
 		+ (PROJECT && !PROJECT.asleep ? "\nA code project is open: " + PROJECT.name + " (" + PROJECT.files.size + " files). Choose \"project\" only when the request is work on it.\n" : "")
 		+ (imgs ? "\nThe request comes with " + imgs + " image(s).\n" : "") + (files.length ? "\nThe request comes with files: " + files.join(", ").slice(0, 300) + "\n" : "")
+		+ (atts.some((a) => a.media && a.kind !== "image") ? "\nThe user attached their own video or audio. To change it (cut, trim, captions, music, crop, speed, join, a GIF), choose act: it edits the real file. video makes a new one.\n" : "")
 		+ (tried && tried.length ? "\nAlready tried, and it failed:\n" + tried.map((t) => "- " + t.way + ": " + t.error).join("\n") + "\nChoose a different way, or the same way only if that error clearly won't happen again.\n" : "")
 		+ (known ? "\nWhat's already remembered about the user:\n" + known + "\n" : "")
 		+ (ctx ? "\nThe conversation so far (the newest last; the request below comes right after it):\n" + ctx + "\n" : "")
@@ -5221,6 +5232,10 @@ const BUILT_IN = [
 	["save_file", "Save a file to hand to the user (a whole project, a mod, a script, data, a config): put each file at its real path, e.g. src/main/java/com/example/ExampleMod.java. Saving the same path again replaces it.", { path: { type: "string" }, content: { type: "string" } }, ["path", "content"]],
 	["read_saved_file", "Read back a file you saved.", { path: { type: "string" } }, ["path"]],
 	["deliver_files", "Hand the saved files to the user as one download (a .zip keeping their folders). Do it when they're finished and checked.", { name: { type: "string", description: "The download's name, e.g. glowing-ores-mod" } }, ["name"]],
+	["edit_media", "Edit video, audio and pictures with ffmpeg: the real ffmpeg, running in the user's browser (nothing is uploaded). Cut, trim and join clips; crop or pad to 9:16 for Shorts, Reels and TikTok; resize; speed up or slow down; burn in captions and titles (drawtext with fontfile=/fonts/bold.ttf, or an .srt or .ass you write, with subtitles=subs.srt:fontsdir=/fonts); add or replace music, mix, duck and fade audio; overlay a logo or picture; transitions (xfade, acrossfade); colour (eq, curves); GIFs; pull out the audio; pictures into a slideshow. Use the files by the exact names in your instructions, and what you made before. Every file the command writes goes to the user to watch and download, and frames of a video come back to you so you can check it. Fonts: /fonts/bold.ttf (Anton: tall, condensed and punchy, for captions and titles), /fonts/black.ttf (Archivo Black: heavy and wide), /fonts/regular.ttf (Inter: clean, for subtitles). It runs in WebAssembly, several times slower than a computer: encode at the size the result needs (720p is plenty for most; 1080p when it matters), with -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p -c:a aac for MP4, and -c copy when only cutting at keyframes; end a scale or pad with setsar=1 so the shape comes out exact. To see a file's length, size and streams, run just -i name.", {
+		command: { type: "string", description: "The command as you'd write it after ffmpeg, e.g. -i clip.mp4 -ss 3 -to 18 -vf \"scale=-2:720\" -c:v libx264 -preset veryfast -crf 23 -c:a aac cut.mp4" },
+		files: { type: "object", description: "Text files the command reads, written first: name to content (subtitles as subs.srt or subs.ass, a list of clips for the concat demuxer...)", additionalProperties: { type: "string" } },
+	}, ["command"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
 // One piece of a job, done by the model measured best at exactly it: weighed on the skills the worker named, the cheapest
 // a quark from the best (quarkFirst), thinking as hard as the piece needs. On free credits, the low-cost strong models.
@@ -5257,6 +5272,195 @@ async function makeWith(args) {
 	finally { PLAN_NOTE = note; }
 	const made = current.msgs.slice(mark).filter((m) => m.role === "assistant");
 	return made.map((m) => (m.kind || "answer") + ": " + (m.error ? "failed: " + m.error : (m.text || "").replace(/\*\*/g, "").slice(0, 300) || "made")).join("\n") || "Nothing came of it.";
+}
+// ---- ffmpeg, the real one, running in this page (WebAssembly, one thread): it edits the videos, audio and pictures the
+// user attached, and what it made from them, without uploading anything. Fetched the first time it's needed (about 32 MB,
+// then kept by the app)
+const FFMPEG_JS = "https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/";
+const FFMPEG_CORE = "https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/esm/";
+// the fonts for words on a video: tall and punchy, heavy and wide, and clean for subtitles
+const FF_FONTS = {
+	"bold.ttf": "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/anton/Anton-Regular.ttf",
+	"black.ttf": "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/archivoblack/ArchivoBlack-Regular.ttf",
+	"regular.ttf": "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/inter/Inter%5Bopsz,wght%5D.ttf",
+};
+const MEDIA_EXT = { mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm", mkv: "video/x-matroska", avi: "video/x-msvideo", gif: "image/gif", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", mp3: "audio/mpeg", wav: "audio/wav", m4a: "audio/mp4", aac: "audio/aac", ogg: "audio/ogg", opus: "audio/ogg", flac: "audio/flac", srt: "text/plain", vtt: "text/vtt", ass: "text/plain", txt: "text/plain" };
+const extOf = (n) => (/\.([a-z0-9]+)$/i.exec(n) || ["", ""])[1].toLowerCase();
+const mediaKind = (type) => (/^video\//.test(type) ? "video" : /^audio\//.test(type) ? "audio" : /^image\//.test(type) ? "image" : "file");
+let FF = null;
+function ffmpegReady() {
+	if (!FF) FF = (async () => {
+		await loadScript(FFMPEG_JS + "ffmpeg.js");
+		const blobUrl = async (u, type) => { const r = await fetch(u); if (!r.ok) throw new Error("the video editor didn't download (" + r.status + ")"); return URL.createObjectURL(new Blob([await r.arrayBuffer()], { type })); };
+		const [classWorkerURL, coreURL, wasmURL] = await Promise.all([blobUrl(FFMPEG_JS + "814.ffmpeg.js", "text/javascript"), blobUrl(FFMPEG_CORE + "ffmpeg-core.js", "text/javascript"), blobUrl(FFMPEG_CORE + "ffmpeg-core.wasm", "application/wasm")]);
+		const ff = new FFmpegWASM.FFmpeg();
+		await ff.load({ classWorkerURL, coreURL, wasmURL });
+		// (what's in its files, by where it came from, so each goes in once)
+		ff.had = new Map();
+		return ff;
+	})().catch((e) => { FF = null; throw e; });
+	return FF;
+}
+// a command line as a shell reads it: quotes keep spaces, a backslash keeps the next character
+function shellWords(line) {
+	const out = [];
+	let cur = "", q = null, any = false;
+	for (let i = 0; i < line.length; i++) {
+		const ch = line[i];
+		if (q) { if (ch === q) q = null; else if (ch === "\\" && q === '"' && /["\\$`]/.test(line[i + 1] || "")) cur += line[++i]; else cur += ch; }
+		else if (ch === "'" || ch === '"') { q = ch; any = true; }
+		else if (ch === "\\" && i + 1 < line.length) { i++; if (line[i] !== "\n") { cur += line[i]; any = true; } }
+		else if (/\s/.test(ch)) { if (cur || any) out.push(cur); cur = ""; any = false; }
+		else cur += ch;
+	}
+	if (cur || any) out.push(cur);
+	return out;
+}
+// the videos, audio and pictures in this chat: what the user attached (while it's kept in this session) and what was
+// made from them (kept on this device), each by the name a command uses
+function chatMedia() {
+	const out = new Map();
+	for (const m of (current && current.msgs) || []) {
+		if (m.role === "user") for (const a of m.atts || []) { const f = a.media && MEDIA_FILES.get(a.media); if (f) out.set(a.media, f); }
+		if (m.kind === "agent" && m.data) for (const x of m.data.media || []) out.set(x.name, { ...x, made: true });
+	}
+	return out;
+}
+function mediaLine() {
+	const list = [...chatMedia().entries()].map(([n, f]) => n + " (" + [f.made ? "made earlier" : f.original && f.original !== n ? "the user's " + f.original : "the user's", f.kind, f.duration ? (f.duration < 60 ? f.duration.toFixed(1) + "s" : clockOf(f.duration)) : "", f.width ? f.width + "x" + f.height : ""].filter(Boolean).join(", ") + ")");
+	return list.length ? "Videos, audio and pictures here to edit with edit_media, by these exact names: " + list.join("; ") + "." : "";
+}
+function audioLength(b) {
+	return new Promise((res) => {
+		const a = document.createElement("audio"), u = URL.createObjectURL(b);
+		const done = (d) => { URL.revokeObjectURL(u); res(Number.isFinite(d) ? d : 0); };
+		a.preload = "metadata";
+		a.onloadedmetadata = () => done(a.duration);
+		a.onerror = () => done(0);
+		setTimeout(() => done(0), 8000);
+		a.src = u;
+	});
+}
+// a video's frames on one sheet (a model looks at one picture, not four)
+async function frameSheet(frames) {
+	const ims = await Promise.all(frames.slice(0, 4).map(async (f) => { const im = new Image(); im.src = f.data; await im.decode(); return im; }));
+	if (!ims.length) return null;
+	const cols = ims.length > 1 ? 2 : 1, rows = Math.ceil(ims.length / cols), w = 480, h = Math.round(w * ims[0].height / ims[0].width);
+	const c = document.createElement("canvas");
+	c.width = w * cols;
+	c.height = h * rows;
+	const g = c.getContext("2d");
+	g.font = "600 18px sans-serif";
+	ims.forEach((im, k) => {
+		const x = (k % cols) * w, y = Math.floor(k / cols) * h;
+		g.drawImage(im, x, y, w, h);
+		const t = clockOf(frames[k].t) + "." + Math.floor((frames[k].t % 1) * 10);
+		g.fillStyle = "rgba(0,0,0,.6)";
+		g.fillRect(x + 6, y + 6, g.measureText(t).width + 12, 26);
+		g.fillStyle = "#fff";
+		g.fillText(t, x + 12, y + 25);
+	});
+	return c.toDataURL("image/jpeg", 0.8);
+}
+// One ffmpeg command, run here on the files it names; what it writes is kept and shown to the user, and checked
+async function editMedia(args, msg, log, pics) {
+	let argv = Array.isArray(args.command) ? args.command.map(String) : shellWords(String(args.command || "").trim());
+	if (/^ffmpeg(\.exe)?$/i.test(argv[0] || "")) argv.shift();
+	argv = argv.filter((a) => !/^-(y|n|nostdin|hide_banner)$/.test(a));
+	if (!argv.length) return "Give the ffmpeg command, e.g. -i clip.mp4 -ss 5 -to 20 -c copy cut.mp4";
+	const line = argv.join(" ");
+	// the text files it reads (subtitles, a list of clips to join), written first
+	const texts = Object.entries(args.files && typeof args.files === "object" ? args.files : {}).map(([n, t]) => [String(n).replace(/[^\w.-]+/g, "-").replace(/^\.+/, ""), String(t)]).filter(([n]) => n).slice(0, 10);
+	const known = chatMedia();
+	const all = line + "\n" + texts.map(([, t]) => t).join("\n");
+	const inputs = [...known.keys()].filter((n) => all.includes(n));
+	const missing = argv.filter((a, k) => argv[k - 1] === "-i" && /^[\w .()-]+\.\w{2,5}$/.test(a) && !known.has(a) && !texts.some(([n]) => n === a));
+	if (missing.length) return "There's no file called " + missing.join(", ") + " here. The files: " + ([...known.keys()].join(", ") || "none (nothing has been attached in this chat that's still on this device)") + ".";
+	// (just -i name: a look at what's in it, nothing written)
+	const last = argv[argv.length - 1], look = argv[argv.length - 2] === "-i";
+	if (!look && argv.some((a, k) => a === last && argv[k - 1] === "-i")) return "The output can't have the same name as an input: give it a new name.";
+	log("Editing with ffmpeg", line);
+	if (!FF) { msg.status = "Opening the video editor (the first time: about 32 MB)"; updateLast(); }
+	const ff = await ffmpegReady();
+	if (busy && busy.signal.aborted) throw new DOMException("Stopped", "AbortError");
+	msg.status = "Editing";
+	updateLast();
+	// its files: what this command reads goes in (once), anything it may write over is cleared
+	const files = new Set((await ff.listDir("/")).filter((x) => !x.isDir).map((x) => x.name));
+	for (const n of inputs) {
+		const f = known.get(n), id = f.key || f.blob;
+		if (ff.had.get(n) === id && files.has(n)) continue;
+		const b = f.blob || (await vault.get(f.key));
+		if (!b) return n + " isn't on this device anymore: ask the user to attach it again.";
+		await ff.writeFile(n, new Uint8Array(await b.arrayBuffer()));
+		ff.had.set(n, id);
+		files.add(n);
+	}
+	for (const [n, t] of texts) { await ff.writeFile(n, t); files.add(n); ff.had.delete(n); }
+	for (const a of new Set(argv)) if (files.has(a) && !inputs.includes(a) && !texts.some(([n]) => n === a)) { await ff.deleteFile(a).catch(() => {}); files.delete(a); ff.had.delete(a); }
+	if (/drawtext|subtitles|\bass=|\/fonts\//.test(all) && !ff.fonts) {
+		await ff.createDir("/fonts").catch(() => {});
+		await Promise.all(Object.entries(FF_FONTS).map(async ([n, u]) => ff.writeFile("/fonts/" + n, new Uint8Array(await (await fetch(u)).arrayBuffer()))));
+		ff.fonts = true;
+	}
+	const logs = [];
+	let shown = 0;
+	const onLog = ({ message }) => { logs.push(message); if (logs.length > 600) logs.splice(0, 200); };
+	const onProg = ({ time }) => { if (time > 0 && Date.now() - shown > 1000) { shown = Date.now(); msg.status = "Editing · " + clockOf(time / 1e6) + " done"; updateLast(); } };
+	ff.on("log", onLog);
+	ff.on("progress", onProg);
+	// stopped: ffmpeg is stopped too (and opened fresh next time)
+	const stop = () => { try { ff.terminate(); } catch {} FF = null; };
+	if (busy) busy.signal.addEventListener("abort", stop, { once: true });
+	let code;
+	try { code = await ff.exec(["-hide_banner", "-y", ...argv]); }
+	catch (e) {
+		if (busy && busy.signal.aborted) throw new DOMException("Stopped", "AbortError");
+		stop();
+		return "ffmpeg crashed (" + (e.message || e) + "), most likely out of memory: work at a smaller size, or in shorter pieces joined after.\n" + logs.slice(-15).join("\n");
+	} finally {
+		if (busy) busy.signal.removeEventListener("abort", stop);
+		try { ff.off("log", onLog); ff.off("progress", onProg); } catch {}
+	}
+	const after = (await ff.listDir("/")).filter((x) => !x.isDir && !files.has(x.name)).map((x) => x.name);
+	if (code !== 0 || !after.length) {
+		for (const n of after) await ff.deleteFile(n).catch(() => {});
+		const said = logs.filter((l) => !/^\s*(built with|configuration:|lib\w+\s+\d|ffmpeg version)/.test(l));
+		if (!after.length && /At least one output file must be specified/.test(logs.join("\n"))) {
+			const info = logs.filter((l) => /^\s*(Input #|Duration:|Stream #)/.test(l));
+			return "What's in it:\n" + (info.length ? info : said.slice(-20)).join("\n");
+		}
+		msg.data.log[msg.data.log.length - 1].bad = true;
+		const errs = said.filter((l) => /error|invalid|no such|not found|unable|cannot|can't|failed|unrecogni[sz]ed|unknown|must|mismatch|does not|not supported/i.test(l));
+		return "ffmpeg stopped with an error (code " + code + ")." + (errs.length ? " What went wrong:\n" + [...new Set(errs)].slice(-12).join("\n") + "\n\n" : " ") + "Its last lines:\n" + said.slice(-12).join("\n");
+	}
+	// what it wrote: kept, shown to the user, and looked at
+	const made = [];
+	for (const n of after.slice(0, 24)) {
+		const data = await ff.readFile(n), type = MEDIA_EXT[extOf(n)] || "application/octet-stream";
+		const blob = new Blob([data.buffer], { type });
+		if (!blob.size) continue;
+		const key = await vault.put(blob);
+		ff.had.set(n, key);
+		const x = { name: n, key, kind: mediaKind(type), size: blob.size };
+		if (x.kind === "video") {
+			try {
+				const v = await videoFrames(blob, 4);
+				Object.assign(x, { duration: v.duration, width: v.width, height: v.height });
+				const sheet = pics && (await frameSheet(v.frames));
+				if (sheet) pics.push(sheet);
+			} catch {}
+		} else if (x.kind === "audio") x.duration = await audioLength(blob);
+		else if (x.kind === "image" && pics && blob.size < 4e6) pics.push(await blobToData(blob));
+		const list = (msg.data.media ||= []), at = list.findIndex((y) => y.name === n);
+		if (at >= 0) list[at] = x; else list.push(x);
+		made.push(x);
+	}
+	for (const n of after.slice(24)) await ff.deleteFile(n).catch(() => {});
+	msg.data.log[msg.data.log.length - 1].label = "Made " + made.map((x) => x.name).join(", ");
+	updateLast();
+	return "Done: " + made.map((x) => x.name + " (" + [x.kind, x.duration ? (x.duration < 60 ? x.duration.toFixed(1) + "s" : clockOf(x.duration)) : "", x.width ? x.width + "x" + x.height : "", fmtSize(x.size)].filter(Boolean).join(", ") + ")").join("; ") +
+		(after.length > 24 ? " (and " + (after.length - 24) + " more files, not kept)" : "") + ". The user can watch and download " + (made.length > 1 ? "them" : "it") + " in your message." + (pics && pics.length ? " What it looks like is shown to you next: check it's right." : "");
 }
 // ---- what every Celestin worker has, whatever the job: Claude Code's and Codex's tools, and the team on top of them
 const POWER_TOOLS = [
@@ -5422,8 +5626,9 @@ async function runAct(text, atts, resume) {
 		const files = codeFiles();
 		const idx = arenaIndex(), skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
 		const system = "You are Celestin, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
-			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Celestin has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Celestin's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), and hand over files, even a whole project, as a download (save_file, then deliver_files)."
+			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Celestin has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Celestin's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), edit the user's own videos, audio and pictures with ffmpeg like a professional editor (edit_media), and hand over files, even a whole project, as a download (save_file, then deliver_files)."
 			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + "." : "")
+			+ (mediaLine() ? " " + mediaLine() : "")
 			+ (skillLine() ? "\n\n" + skillLine() : "")
 			+ "\n\nWork like the best engineer: look before you act (read the files, check the state), make a plan for big jobs, act in a few precise steps, then check the result for real (run it, test it, read it back, take a screenshot) and fix what isn't right. Never claim something works without checking it. If something fails, read the error and fix the cause. When it's done, say plainly what you did, what you checked, and anything the user must do."
 			+ "\n\nBe the team, not one model: split big work into narrow pieces and give each to ask_expert with the exact skills it needs (its language, field and that field's facts, web page or app, maths, writing for whom...), so each goes to the model that measurably does exactly that best. Check what comes back, and send a piece back with the exact problem if it isn't right. Never have several models do the same piece to pick or merge the best: that pays several times for one result. One expert does each piece; a different specialist checks it where checking catches real mistakes."
@@ -5469,6 +5674,7 @@ async function runAct(text, atts, resume) {
 					if (basic != null) out = basic;
 					else if (fn === "remember") { out = remember(args.fact) ? "Saved." : "Already remembered."; log("Remembered", args.fact); }
 					else if (fn === "plan") out = planTool(args, msg, log);
+					else if (fn === "edit_media") out = await editMedia(args, msg, log, pics);
 					else if (fn === "review") {
 						log("Asked for a review", String(args.what || "").slice(0, 120));
 						let work = String(args.content || "");
@@ -5629,6 +5835,7 @@ function renderAgent(m, i, box) {
 	const plan = (d.plan || []).length ? '<ol class="ag-plan">' + d.plan.map((x) => '<li class="' + x.status + '"><span class="pk" aria-hidden="true"></span><span>' + esc(x.step) + "</span></li>").join("") + "</ol>" : "";
 	// what the job handed over: each as one download
 	const dls = (d.downloads || []).map((x, k) => '<div class="fs-card"><span class="fs-badge">ZIP</span><div class="fs-name"><b>' + esc(x.name) + "</b><span>" + x.count + " file" + (x.count === 1 ? "" : "s") + " · " + fmtSize(x.size) + '</span></div><button class="btn dark" data-agzip="' + k + '">Download</button></div>').join("");
+	const hadMedia = box.querySelector(".ag-media");
 	box.innerHTML = '<div class="ag"><details class="ag-log"' + (m.streaming ? " open" : "") + "><summary>" + (m.streaming ? "Working in " : "Worked in ") + esc(d.project) + " · " + d.log.length + " step" + (d.log.length === 1 ? "" : "s") + (m.model ? " · " + esc(m.model) : "") + "</summary><ol>" + log + "</ol></details>" +
 		plan + (files ? '<div class="ag-files">' + files + "</div>" : "") + dls + ask + (act ? '<div class="row ag-act">' + act + "</div>" : "") +
 		(d.preview && !m.streaming && P ? '<div class="ag-prev">' + (m.hidePreview ? "" : '<div class="sim"><iframe class="sim-frame" sandbox="allow-scripts allow-forms allow-modals" title="Preview"></iframe></div>') +
@@ -5647,6 +5854,19 @@ function renderAgent(m, i, box) {
 		g.className = "made";
 		g.innerHTML = d.made.slice(-8).map((x) => '<figure class="made-' + x.kind + '">' + (x.kind === "video" ? '<video src="' + esc(x.url) + '" controls playsinline preload="metadata"></video>' : x.kind === "audio" ? '<audio src="' + esc(x.url) + '" controls preload="none"></audio>' : '<a href="' + esc(x.url) + '" target="_blank" rel="noopener"><img src="' + esc(x.url) + '" alt="" loading="lazy"></a>') + '<figcaption><a href="' + esc(x.url) + '" target="_blank" rel="noopener" download>Open or download</a></figcaption></figure>').join("");
 		box.querySelector(".ag").appendChild(g);
+	}
+	if (d.media && d.media.length) {
+		const sig = d.media.map((x) => x.key).join(",");
+		const g = hadMedia && hadMedia.dataset.sig === sig ? hadMedia : document.createElement("div");
+		box.querySelector(".ag").appendChild(g);
+		if (g !== hadMedia) {
+			g.className = "made ag-media";
+			g.dataset.sig = sig;
+			Promise.all(d.media.slice(-8).map(async (x) => [x, await vault.url(x.key)])).then((list) => {
+				g.innerHTML = list.map(([x, u]) => '<figure class="made-' + x.kind + '">' + (!u ? '<div class="help">' + esc(x.name) + " isn't on this device anymore</div>" : x.kind === "video" ? '<video src="' + u + '" controls playsinline preload="metadata"></video>' : x.kind === "audio" ? '<audio src="' + u + '" controls preload="metadata"></audio>' : x.kind === "image" ? '<img src="' + u + '" alt="">' : "") +
+					"<figcaption><b>" + esc(x.name) + "</b> · " + fmtSize(x.size) + (u ? ' · <a href="' + u + '" download="' + esc(x.name) + '">Download</a>' : "") + "</figcaption></figure>").join("");
+			});
+		}
 	}
 	if (d.shots && d.shots.length) {
 		const g = document.createElement("div");
@@ -5904,12 +6124,15 @@ async function send(textOverride, fork, attsOverride) {
 			}
 		} else {
 			// it couldn't be asked (no connection to a reader): the keyword reading, so the message still goes somewhere
-			const intent = studyIntent(text, atts);
-			const file = intent || (PROJECT && !PROJECT.asleep) ? null : fileIntent(text, atts);
-			const media = intent || file ? null : mediaIntent(text, atts);
-			const proj = intent || media || file ? false : await projectFor(text);
-			const code = intent || media || proj ? null : appIntent(text, atts);
-			if (intent) await runStudy(text, atts, intent);
+			// (their own video or audio to change: edited for real)
+			const edit = editingMedia(atts);
+			const intent = edit ? null : studyIntent(text, atts);
+			const file = intent || edit || (PROJECT && !PROJECT.asleep) ? null : fileIntent(text, atts);
+			const media = intent || file || edit ? null : mediaIntent(text, atts);
+			const proj = intent || media || file || edit ? false : await projectFor(text);
+			const code = intent || media || proj || edit ? null : appIntent(text, atts);
+			if (edit) await runAct(text, atts);
+			else if (intent) await runStudy(text, atts, intent);
 			else if (file) await runFile(text, atts, file);
 			else if (media) await runStudio(text, atts, media);
 			else if (proj) await runAgent(text, atts);
@@ -7140,7 +7363,8 @@ async function watchVideos(atts, request) {
 			}
 		}
 		out.push(...frames);
-		if (seen) out.push({ name: a.name + ": what it shows", kind: "text", data: "What the video shows, watched frame by frame (" + clockOf(a.duration || 0) + " long; the sound isn't included):\n\n" + seen });
+		const own = a.media ? "\n\n(The video file itself is here to edit, as " + a.media + ": cut, captioned, set to music, cropped, sped up, joined with others.)" : "";
+		if (seen || own) out.push({ name: a.name + ": what it shows", kind: "text", media: a.media, data: (seen ? "What the video shows, watched frame by frame (" + clockOf(a.duration || 0) + " long; the sound isn't included):\n\n" + seen : "A video, " + clockOf(a.duration || 0) + " long.") + own });
 	}
 	return out;
 }
@@ -10147,6 +10371,17 @@ async function voiceUI(on) {
 // code Celestin runs (pandas, matplotlib...) can open the real thing.
 const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/";
 const CODE_FILES = new Map();
+// (videos, audio and pictures: the files themselves, for edit_media; kept out of the saved chat like the rest)
+const MEDIA_FILES = new Map();
+function holdMedia(file, kind, info) {
+	if (file.size > 500 * 1024 * 1024) return null;
+	const dot = file.name.lastIndexOf("."), ext = dot > 0 ? file.name.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+	const base = (dot > 0 ? file.name.slice(0, dot) : file.name).normalize("NFKD").replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || kind;
+	let name = base + (ext ? "." + ext : ""), k = 2;
+	while (MEDIA_FILES.has(name) && MEDIA_FILES.get(name).original !== file.name) name = base + "-" + k++ + (ext ? "." + ext : "");
+	MEDIA_FILES.set(name, { blob: file, kind, original: file.name, ...info });
+	return name;
+}
 async function readDocument(f) {
 	const ext = (f.name.split(".").pop() || "").toLowerCase(), buf = await f.arrayBuffer();
 	if (ext === "pdf" || /pdf$/i.test(f.type)) {
@@ -10203,7 +10438,7 @@ async function videoFrames(file, most = 12) {
 			g.drawImage(v, 0, 0, w, h);
 			out.push({ t, data: c.toDataURL("image/jpeg", 0.72) });
 		}
-		return { duration: dur, frames: out };
+		return { duration: dur, frames: out, width: v.videoWidth, height: v.videoHeight };
 	} finally {
 		URL.revokeObjectURL(url);
 	}
@@ -10211,12 +10446,25 @@ async function videoFrames(file, most = 12) {
 const clockOf = (t) => Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
 async function addFiles(files) {
 	for (const f of files) {
-		if (f.size > 40 * 1024 * 1024 && !f.type.startsWith("video/")) { toast(f.name + " is over 40 MB"); continue; }
-		if (f.type.startsWith("image/")) { attachments.push({ name: f.name, kind: "image", data: await readAs(f, "url") }); continue; }
-		if (f.type.startsWith("video/")) {
+		const audio = f.type.startsWith("audio/") || /\.(mp3|wav|m4a|aac|ogg|opus|flac)$/i.test(f.name);
+		if (f.size > 40 * 1024 * 1024 && !f.type.startsWith("video/") && !audio) { toast(f.name + " is over 40 MB"); continue; }
+		if (f.type.startsWith("image/")) { attachments.push({ name: f.name, kind: "image", data: await readAs(f, "url"), media: holdMedia(f, "image", {}) || undefined }); continue; }
+		if (f.type.startsWith("video/") || /\.(mp4|mov|m4v|webm|mkv|avi)$/i.test(f.name)) {
 			toast("Taking frames from " + f.name + "…");
-			try { const v = await videoFrames(f); attachments.push({ name: f.name, kind: "video", data: v.frames[0].data, frames: v.frames, duration: v.duration }); }
-			catch (e) { toast("Couldn't open " + f.name + ": " + (e.message || e)); }
+			try { const v = await videoFrames(f); attachments.push({ name: f.name, kind: "video", data: v.frames[0].data, frames: v.frames, duration: v.duration, media: holdMedia(f, "video", { duration: v.duration, width: v.width, height: v.height }) || undefined }); }
+			catch (e) {
+				// one this browser can't show (an iPhone's HEVC, say) can still be edited: ffmpeg reads it
+				const media = holdMedia(f, "video", {});
+				if (media) attachments.push({ name: f.name, kind: "text", media, data: "(A video file, " + f.name + ", that this browser can't show, so it isn't watched; it can still be edited: cut, captioned, set to music, or turned into an MP4.)" });
+				else toast("Couldn't open " + f.name + ": " + (e.message || e));
+			}
+			continue;
+		}
+		// a sound file: kept to edit (the sound itself isn't heard by the models)
+		if (audio) {
+			const duration = await audioLength(f), media = holdMedia(f, "audio", { duration });
+			if (!media) { toast(f.name + " is over 500 MB"); continue; }
+			attachments.push({ name: f.name, kind: "text", media, data: "(An audio file, " + f.name + (duration ? ", " + clockOf(duration) + " long" : "") + ". The sound itself can't be heard here, but it can be edited: cut, faded, mixed under a video, sped up, turned into another format.)" });
 			continue;
 		}
 		try {
@@ -12107,7 +12355,9 @@ async function importData(d) {
 }
 
 // ---------------------------------------------------------------- what's new: shown once after an update, so nothing new goes unnoticed
-const WHATS_NEW = { v: "2026-10-26", items: [
+const WHATS_NEW = { v: "2026-11-06", items: [
+	['<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8.2 8.4 20 17M8.2 15.6 20 7"/>', "Edit your own videos", "Attach a clip and say what you want: cut, captions, music, vertical for Shorts, a GIF. It's edited right in your browser."],
+	['<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/>', "It watches videos", "Attach a video and ask about it, or ask for a site or game like the one it shows."],
 	['<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/>', "Made things open beside the chat", "Apps, games and pages open in a panel next to the conversation, with their code a click away."],
 	['<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m9 16.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>', "Canvas for writing", "Edit a long answer like a document, or ask for changes to all of it or just what you select."],
 	['<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', "Projects", "Chats that share instructions and files, so Celestin always has the background."],
