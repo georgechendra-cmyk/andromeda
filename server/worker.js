@@ -1977,10 +1977,16 @@ async function gwVideo(env, user, m, b, c, mt) {
 	(async () => {
 		let out;
 		try {
-			const r = await fetch(m.g.base + "/videos/generations", { method: "POST", headers: { Authorization: "Bearer " + m.g.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: m.id, prompt: String(b.prompt || "").slice(0, 4000), duration_seconds: secs, resolution: res, ...(b.aspect_ratio ? { aspect_ratio: String(b.aspect_ratio) } : {}), audio: b.generate_audio !== false }), signal: AbortSignal.timeout(14 * 60e3) });
-			const j = await r.json().catch(() => ({}));
+			// (full right now: asked again when it says to, a few times, while the answer stays open)
+			let r, j;
+			for (let again = 0; ; again++) {
+				r = await fetch(m.g.base + "/videos/generations", { method: "POST", headers: { Authorization: "Bearer " + m.g.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: m.id, prompt: String(b.prompt || "").slice(0, 4000), duration_seconds: secs, resolution: res, ...(b.aspect_ratio ? { aspect_ratio: String(b.aspect_ratio) } : {}), audio: b.generate_audio !== false }), signal: AbortSignal.timeout(14 * 60e3) });
+				j = await r.json().catch(() => ({}));
+				if (r.status !== 503 || again >= 3 || !/overload|capacity/i.test(JSON.stringify(j.error || ""))) break;
+				await new Promise((res) => setTimeout(res, Math.min(20, Math.max(5, Number(r.headers.get("Retry-After")) || 15)) * 1000));
+			}
 			const urls = (Array.isArray(j.videos) ? j.videos : []).map((v) => v && v.url).filter((u) => typeof u === "string");
-			if (!r.ok || !urls.length) throw fail([401, 402, 403].includes(r.status) ? 503 : r.status === 400 ? 400 : 502, j.error?.message || "The video model couldn't make this shot.");
+			if (!r.ok || !urls.length) throw fail([401, 402, 403].includes(r.status) ? 503 : r.status === 400 ? 400 : 502, (r.status === 503 ? "The video model is busy right now (it said: " + (j.error?.message || "at capacity") + "). Try again in a few minutes." : j.error?.message || "The video model couldn't make this shot."));
 			const made = Math.min(secs, Number(j.duration_seconds) || secs);
 			const charged = await charge(env, user.id, b.model, held, perSec * made, mt);
 			const id = "gw-" + b64url(JSON.stringify({ u: urls, k: charged }));
