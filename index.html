@@ -3188,6 +3188,8 @@ async function conduct(text, atts, tried, only) {
 	// it yet; one it can't is told so before anything is spent, not turned into something else)
 	let ways = Object.entries(WAYS).filter(([k]) => !(drawnOnly() && STUDIO_WAYS.includes(k)));
 	if (drawnOnly()) ways.push(["video", DRAWN_VIDEO]);
+	// (where films drawn in code are on, a video they want coded is still a video: drawn shot by shot, cut into an MP4)
+	else if (drawnAllowed()) ways = ways.map(([k, d]) => (k === "video" ? [k, d + "; or, when they ask for it to be coded or animated in code, every shot drawn in code by the best animator and cut into a real MP4 with music composed in code"] : [k, d]));
 	// the user's own connected apps (Blender, Figma, their files...), with what each can do
 	if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
 	const apps = capOn("computer") ? liveApps() : [], pc = apps.some((s) => s.name === "computer"), others = apps.filter((s) => s.name !== "computer");
@@ -9214,6 +9216,7 @@ Write the plan so the result looks expensive and real:
 - Ads: hook in the first 2 seconds, show the product/benefit, end on the brand and a call to action. Social/vertical: fast, 9:16. Films: build and pay off.
 - Voiceover: short, natural, said aloud in the time of its shot (about 2.5 words per second). Empty when the shot speaks for itself. ElevenLabs tags like [excited], [whispers], [laughs] are allowed sparingly.
 - Captions: short and punchy (max 6 words), or empty.
+- The end card: when the last shot already ends on the film's title (a title card drawn in it), leave "end" title and sub empty: a second card would only repeat it.
 - Typography: choose the film's two Google Fonts the way a title designer would, for this world: a pixel font ("Press Start 2P", "Silkscreen", "VT323") for pixel art and games, a warm serif ("Fraunces", "Cormorant Garamond", "Playfair Display") for a tender or literary story, a hand-drawn one ("Caveat", "Patrick Hand") for a sketchbook look, a heavy condensed grotesk ("Anton", "Bebas Neue", "Archivo Black") for an ad or trailer, a geometric display ("Unbounded", "Syne", "Space Grotesk") for tech: anything on Google Fonts that fits. Never Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins or a system font: they look like every other AI video.
 - A video for YouTube, a channel, Shorts or TikTok is made the way the best animation channels make theirs: a hook that grabs in the first 5 seconds, a clear arc (setup, rising stakes, a reveal or punchline, a payoff), recurring characters with names, roles and an identical look in every shot, and a reason to subscribe at the end. For one, also return "youtube": {"titles": ["3 title options, under 60 characters, curious and true"], "hook": "what the first 5 seconds show and say", "characters": [{"name": "...", "role": "...", "look": "described identically to the shots"}], "description": "2 to 4 sentences, then its chapters as 0:00 lines", "tags": ["8 to 15 search tags"], "thumbnail": {"text": "2 to 4 words, huge", "shot": the number of the shot whose picture it uses (1 is the first), "color": "#hex for the words"}}. Leave "youtube" out for anything else.
 
@@ -9518,8 +9521,12 @@ async function runStudio(text, atts, pick) {
 	if (pick.kind === "music") return runMusic(text, atts);
 	return runVoice(text, atts);
 }
+// (films drawn in code are on: for everyone, or only in the owner's demo)
+const drawnAllowed = () => creditsMode() && !!pricing && (pricing.drawn === true || (pricing.drawn === "owner" && !!me && !!me.owner));
+// a film they ask to have made in code: "code a video", "animate it in code", "made with code"
+const codedAsk = (t) => /\b(?:code|coded)\s+(?:me\s+)?(?:a|an|the|this|my)?\s*(?:video|film|animation|short|clip|movie)\b|\b(?:in|with|using)\s+code\b|\b(?:drawn|animated?|made|written|rendered)\s+(?:it\s+|this\s+)?(?:in|with)\s+code\b/i.test(String(t || ""));
 async function runVideo(text, atts, planned) {
-	const drawn = drawnOnly();
+	const drawn = drawnOnly() || (drawnAllowed() && codedAsk(text));
 	if (!drawn && !MEDIA.video.length) throw new Error("Couldn't load the video models. Check your connection and try again.");
 	const msg = { role: "assistant", kind: "studio", text: "", streaming: true, status: "Writing the shot list", used: [], data: null };
 	current.msgs.push(msg);
@@ -10159,8 +10166,8 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 		+ (sc.vo ? "\nThe voiceover during it (time the visuals to it, about 2.5 words a second): \"" + sc.vo + "\"" : "")
 		+ (sc.caption ? "\nThe editor adds this caption at the bottom, so keep the bottom fifth clear: \"" + sc.caption + "\"" : "")
 		+ "\nSame style, palette and characters as the rest of the film, so the shots cut together."
-		+ (!style && many ? "\n\nThis is the film's first shot: every other shot is made to match it. Put everything the others will reuse in its own <script id=\"kit\">, before the shot's own script: it only defines window.KIT (the palette, fonts, easing functions, a seeded random generator, and drawing helpers for the film's recurring shapes, characters, backgrounds and type, each taking the canvas context and what it needs as arguments), and draws nothing by itself. The shot's own script then uses window.KIT." : "")
-		+ (kit ? "\n\nThe film's kit is already in your document, loaded before your script" + (fonts ? " with its fonts" : "") + ": use window.KIT for everything it covers, so the cut feels like one film, and don't write any of it again. Send the document without the kit; it's put in for you. The kit:\n" + kit.slice(0, 12000) + "\n\nThe first shot's own part, for how it uses the kit:\n" + own.slice(0, 5000)
+		+ (!style && many ? "\n\nThis is the film's first shot: every other shot is made to match it. Put everything the others will reuse in its own <script id=\"kit\">, before the shot's own script: it only defines window.KIT (the palette, fonts, easing functions, a seeded random generator, and drawing helpers for the film's recurring shapes, characters, backgrounds and type, each taking the canvas context and what it needs as arguments: a character's helper takes its position, scale, facing and pose, and has the detail a close-up needs, so every later shot draws it with exactly that helper), and draws nothing by itself. The shot's own script then uses window.KIT." : "")
+		+ (kit ? "\n\nThe film's kit is already in your document, loaded before your script" + (fonts ? " with its fonts" : "") + ": use window.KIT for everything it covers, so the cut feels like one film, and don't write any of it again. Every character, prop and place the kit has a helper for is drawn only with that helper, posed, moved and scaled through its arguments (a close-up is the same helper drawn larger, with its finer detail switched on), never redrawn your own way: the audience must see the same character in every shot. Send the document without the kit; it's put in for you. The kit:\n" + kit.slice(0, 12000) + "\n\nThe first shot's own part, for how it uses the kit:\n" + own.slice(0, 5000)
 			: style ? "\n\nThe film's first shot, already made. Match its palette, fonts, textures, line weights, easing and drawing helpers exactly (reuse its code where it fits), so the cut feels like one film:\n" + style.slice(0, 14000) : "");
 	// the kit (and its fonts) put into a later shot that left it out
 	const withKit = (html) => {
