@@ -1307,6 +1307,19 @@ function responsesStream(model) {
 	return s;
 }
 
+// A request's input, in tokens, before it's sent (held against credits; the real count settles it): text at about 3
+// characters a token, a picture sent as data at what models bill for one (about 1,600 at most), and sound sent as data by
+// its length (base64 of 32 kbps speech: about 1 token per 100 characters), never by the size of its encoding
+function inTokensOf(b) {
+	let media = 0;
+	const text = JSON.stringify(b.messages || [], (k, v) => {
+		if (typeof v !== "string" || v.length < 4000) return v;
+		if (/^data:image\//.test(v)) { media += 1600; return ""; }
+		if (/^data:/.test(v) || (k === "data" && /^[A-Za-z0-9+/=\r\n]+$/.test(v.slice(0, 4000)))) { media += Math.ceil(v.length / 100); return ""; }
+		return v;
+	});
+	return Math.ceil((text.length + (b.tools ? JSON.stringify(b.tools).length : 0)) / 3) + media;
+}
 // What this much use costs. list: at the labs' list prices, what a person's credits are worked out from, the same
 // whichever way it went. real: what the owner pays for it that way (the list price plus Cloudflare's 5% there,
 // OpenRouter's own figure there). A prompt read back from a cache is billed at the cached price; a lab's own web search
@@ -1552,7 +1565,7 @@ async function chat(req, env, ctx, user) {
 	const toUsd = (mc) => (mc / 1000) * c.creditUsd / mult;
 	// a hair under, so floating-point dust (1.0000000000000002) never rounds a whole extra unit up
 	const toMc = (usd) => Math.ceil((usd * mult / c.creditUsd) * 1000 - 1e-6);
-	const inTokens = Math.ceil((JSON.stringify(b.messages || []).length + (b.tools ? JSON.stringify(b.tools).length : 0)) / 3);
+	const inTokens = inTokensOf(b);
 	// a search is held at its worst case too: a few searches, and what they read
 	const inUsd = inTokens * price.pin + (web ? web.n * 0.01 + 20000 * price.pin : 0);
 	const room = toUsd(spendable(user, c)) - inUsd;
