@@ -2995,8 +2995,8 @@ const skillLine = () => (SKILLS_ON.length ? "Expert playbooks for this request (
 // in code by the best animator and cut into a real file here
 // (only when the server offers it: the owner's rule is pictures and films by the models best at them, and until those are
 // connected, a plain "not yet" that costs nobody anything)
-// ("owner": only on the owner's own account, to try it before anyone else gets it)
-const drawnOnly = () => creditsMode() && !!pricing && (pricing.drawn === true || (pricing.drawn === "owner" && !!me && !!(me.owner || me.ownerAway))) && !!pricing.reach && pricing.reach.media === false;
+// ("owner": only in the owner's demo, where the account is unlimited: to try it before anyone else gets it)
+const drawnOnly = () => creditsMode() && !!pricing && (pricing.drawn === true || (pricing.drawn === "owner" && !!me && !!me.owner)) && !!pricing.reach && pricing.reach.media === false;
 // whether this server can make pictures, videos, music and voice at all
 const mediaReady = () => !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false || drawnOnly();
 const MEDIA_WHAT = { image: "pictures", video: "videos", music: "music", voice: "voiceovers" };
