@@ -5807,7 +5807,7 @@ async function send(textOverride, fork, attsOverride) {
 	ONCE_NOTE = (ONCE && ONCE.note) || "";
 	ONCE = null;
 	MATH_NOTE = mathFacts(text);
-	const atts = attsOverride || attachments;
+	let atts = attsOverride || attachments;
 	if (!attsOverride) {
 		attachments = [];
 		renderAttached();
@@ -5837,6 +5837,14 @@ async function send(textOverride, fork, attsOverride) {
 				if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
 				if (!appMaker(asked)) throw mediaSoon(asked, true);
 			}
+		}
+		// a video attached: watched first, by the model best at reading pictures; its frames and what it shows, in words, then
+		// go to every model that works on it (the sound isn't heard)
+		if (atts.some((a) => a.kind === "video")) {
+			const hold = { role: "assistant", text: "", streaming: true, status: "Watching the video" };
+			current.msgs.push(hold);
+			updateLast();
+			try { atts = await watchVideos(atts, text); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 		}
 		await useTools(text, atts);
 		// Celestin reads it and decides how to serve it (the strongest fast reader, by measurement)
@@ -7109,6 +7117,33 @@ function snapApp(files, W = 1280, H = 800) {
 // (each with when it turned them down: asked again after three days, the gateway may change)
 const NO_EYES_AT = (() => { const v = store.get("noEyes", {}); return v && !Array.isArray(v) && typeof v === "object" ? v : {}; })();
 const NO_EYES = new Set(Object.keys(NO_EYES_AT).filter((id) => Date.now() - NO_EYES_AT[id] < 3 * 864e5));
+// A video's frames, watched in order by the model best at reading pictures (the next if one turns pictures down), put
+// into words: everything a model that can't see it needs to understand it or make what it shows. The frames go on too,
+// for the models that can see
+async function watchVideos(atts, request) {
+	const ranked = arenaRank("vision", { "vision:overall": 0.5, "vision:ocr": 0.25, "vision:diagram": 0.25 }).filter((x) => (x.m.input || []).includes("image"));
+	const eyes = bestFirst(quarkFirst(ranked, "low")).filter((x) => !NO_EYES.has(x.m.id)).slice(0, 3);
+	const out = [];
+	for (const a of atts) {
+		if (a.kind !== "video") { out.push(a); continue; }
+		const frames = (a.frames || []).map((f) => ({ name: a.name + " at " + clockOf(f.t), kind: "image", data: f.data }));
+		let seen = "";
+		for (const e of eyes) {
+			try {
+				seen = await stream(e.m.id, [{ role: "user", content: [{ type: "text", text: "These are " + frames.length + " frames from a video (" + a.name + ", " + clockOf(a.duration || 0) + " long), in order, taken at " + (a.frames || []).map((f) => clockOf(f.t)).join(", ") + ". The sound isn't included.\nWhat the person asked about it: " + String(request || "").slice(0, 1500) +
+					"\n\nDescribe exactly what the video shows, in order, for someone who can't see it and has to understand it or make what it shows: each scene and what changes between frames; people, objects and what they do; every piece of text on screen, word for word; if it shows a website, app or game: its layout section by section, colours (as hex where you can tell), fonts (their style), spacing, buttons, icons, animations you can infer, and how it's used. Plain facts, no guessing past what the frames show." },
+					...frames.map((f) => ({ type: "image_url", image_url: { url: f.data } }))] }], () => {}, busy.signal, { max_tokens: 3000, ...effortFor(e.m.id, capEffort(e.effort || "", "low", e.m.id)) });
+				break;
+			} catch (err) {
+				if (err.name === "AbortError" || err.status === 401 || err.status === 402) throw err;
+				if (err.status >= 400 && err.status < 500 && err.status !== 429) { NO_EYES.add(e.m.id); NO_EYES_AT[e.m.id] = Date.now(); store.set("noEyes", NO_EYES_AT); }
+			}
+		}
+		out.push(...frames);
+		if (seen) out.push({ name: a.name + ": what it shows", kind: "text", data: "What the video shows, watched frame by frame (" + clockOf(a.duration || 0) + " long; the sound isn't included):\n\n" + seen });
+	}
+	return out;
+}
 async function lookAtApp(files, request, msg) {
 	const ranked = arenaRank("vision", { "vision:overall": 0.4, "vision:diagram": 0.2, "vision:captioning": 0.2, "vision:ocr": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
 	const eyes = bestFirst(quarkFirst(ranked, "low")).filter((x) => !NO_EYES.has(x.m.id)).slice(0, 3);
@@ -10052,10 +10087,50 @@ async function readDocument(f) {
 	}
 	return new TextDecoder().decode(buf);
 }
+// A video attached: frames taken from across it, here in the browser (nothing is uploaded for this), at most 12, about
+// one every 2 seconds for a short one; what they show is put into words when it's sent (watchVideos)
+async function videoFrames(file, most = 12) {
+	const url = URL.createObjectURL(file);
+	try {
+		const v = document.createElement("video");
+		v.muted = true;
+		v.preload = "auto";
+		v.playsInline = true;
+		v.src = url;
+		await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error("this browser can't play it (an MP4 or WebM works)")); setTimeout(() => rej(new Error("it took too long to open")), 20000); });
+		let dur = v.duration;
+		// (a recording whose length isn't written in it: found by going to its end)
+		if (!Number.isFinite(dur)) { await new Promise((res) => { v.ondurationchange = () => Number.isFinite(v.duration) && res(); v.currentTime = 1e9; setTimeout(res, 4000); }); dur = v.duration; }
+		if (!Number.isFinite(dur) || dur <= 0) throw new Error("it has no length");
+		const count = Math.max(1, Math.min(most, Math.ceil(dur / 2)));
+		const w = Math.min(768, v.videoWidth || 768), h = Math.max(1, Math.round(w * (v.videoHeight || 432) / (v.videoWidth || 768)));
+		const c = document.createElement("canvas");
+		c.width = w;
+		c.height = h;
+		const g = c.getContext("2d");
+		const out = [];
+		for (let k = 0; k < count; k++) {
+			const t = count === 1 ? dur / 2 : (dur * (k + 0.5)) / count;
+			await new Promise((res) => { v.onseeked = res; v.currentTime = t; setTimeout(res, 5000); });
+			g.drawImage(v, 0, 0, w, h);
+			out.push({ t, data: c.toDataURL("image/jpeg", 0.72) });
+		}
+		return { duration: dur, frames: out };
+	} finally {
+		URL.revokeObjectURL(url);
+	}
+}
+const clockOf = (t) => Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0");
 async function addFiles(files) {
 	for (const f of files) {
-		if (f.size > 40 * 1024 * 1024) { toast(f.name + " is over 40 MB"); continue; }
+		if (f.size > 40 * 1024 * 1024 && !f.type.startsWith("video/")) { toast(f.name + " is over 40 MB"); continue; }
 		if (f.type.startsWith("image/")) { attachments.push({ name: f.name, kind: "image", data: await readAs(f, "url") }); continue; }
+		if (f.type.startsWith("video/")) {
+			toast("Taking frames from " + f.name + "…");
+			try { const v = await videoFrames(f); attachments.push({ name: f.name, kind: "video", data: v.frames[0].data, frames: v.frames, duration: v.duration }); }
+			catch (e) { toast("Couldn't open " + f.name + ": " + (e.message || e)); }
+			continue;
+		}
 		try {
 			const text = await readDocument(f);
 			// the real file, for code to open (this session only: kept out of the saved chat)
@@ -10070,7 +10145,7 @@ async function addFiles(files) {
 }
 function readAs(f, how) { return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; how === "url" ? r.readAsDataURL(f) : r.readAsText(f); }); }
 function renderAttached() {
-	$("#attached").innerHTML = attachments.map((a, k) => '<span class="att-pill">' + (a.kind === "image" ? '<img src="' + a.data + '" alt="">' : "") + "<span>" + esc(a.name) + '</span><button data-unattach="' + k + '">✕</button></span>').join("");
+	$("#attached").innerHTML = attachments.map((a, k) => '<span class="att-pill">' + (a.kind === "image" || a.kind === "video" ? '<img src="' + a.data + '" alt="">' : "") + "<span>" + esc(a.name) + (a.kind === "video" ? " · " + clockOf(a.duration || 0) : "") + '</span><button data-unattach="' + k + '">✕</button></span>').join("");
 	setBusy(!!busy);
 }
 
