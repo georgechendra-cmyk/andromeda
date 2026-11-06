@@ -1171,6 +1171,9 @@ textarea#input { padding: 16px 20px 6px; }
 .art-t { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
 .art-t b { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .art-t small { font-size: 12px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* a newer version of the app, waiting while the person plays the one showing */
+.art-next { flex: none; margin-right: 6px; padding: 6px 12px; border: 0; border-radius: 999px; background: var(--text); color: var(--bg); font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; animation: lbIn .45s var(--ease) both; }
+.art-next[hidden] { display: none; }
 .seg2 { display: inline-flex; flex: none; padding: 3px; margin-right: 6px; border-radius: 10px; background: color-mix(in srgb, var(--text) 6%, transparent); }
 .seg2[hidden] { display: none; }
 .seg2 button { height: 28px; padding: 0 11px; border-radius: 8px; font-size: 13px; color: var(--muted); }
@@ -1867,6 +1870,7 @@ html { scroll-behavior: smooth; }
 		<div class="art-drag" id="artDrag" title="Drag to make it wider or narrower"></div>
 		<div class="art-h">
 			<div class="art-t"><b id="artTitle"></b><small id="artSub"></small></div>
+			<button class="art-next" id="artNext" hidden>New version ready · Load it</button>
 			<div class="seg2" id="artViews" role="tablist"><button data-artview="preview" role="tab" class="on">Preview</button><button data-artview="code" role="tab">Code</button></div>
 			<button class="icon" id="artReload" title="Start it again" aria-label="Start it again"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
 			<button class="icon" id="artCopy" title="Copy the code" aria-label="Copy the code"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/><rect x="3" y="8" width="13" height="13" rx="2"/></svg></button>
@@ -7182,7 +7186,7 @@ async function reviewLogic(files, request, msg, rules, by) {
 		msg.status = "A second AI is playing it through, looking for bugs";
 		updateLast();
 		const look = await askFirst(testers.slice(0, 3), [{ role: "user", content: "You test apps and games for a living. Someone asked for:\n" + String(request).slice(0, 3000) + "\n\nThis was built for them:\n\n" + code +
-			"\n\nRead the code and play it through in your head, start to finish: the first screen, every control, every state it can be in, a few minutes of real use. Find only REAL bugs: things that don't work, get stuck, or break the rules of the real thing it imitates. For example: an AI player or goalkeeper that holds the ball and never acts again; a timer or cooldown that can never run out because it's reset or counted back every frame; starting positions or rules that are wrong for the real thing (players in the wrong half at kick-off); a pass or move that comes straight back to whoever made it; a control or button that does nothing; a state with no way out; a score, clock or win condition that's wrong. Not style, not wording, not ideas for new features.\n\nReply with ONLY this JSON:\n{\"bugs\": [\"where it is (file and function), what's wrong, and what should happen instead\"]}\nAn empty list if there are none. At most 8, the worst first." }], msg, undefined, "medium");
+			"\n\nRead the code and play it through in your head, start to finish: the first screen, every control, every state it can be in, a few minutes of real use. Find only REAL bugs: things that don't work, get stuck, or break the rules of the real thing it imitates. For example: an AI player or goalkeeper that holds the ball and never acts again; a timer or cooldown that can never run out because it's reset or counted back every frame; starting positions or rules that are wrong for the real thing (players in the wrong half at kick-off); a pass or move that comes straight back to whoever made it; a control or button that does nothing; a state with no way out; a score, clock or win condition that's wrong; movement with no speeding up or slowing down; computer players that copy or mirror the person's moves, or never make a mistake; a game that restarts, resets or pauses by itself. Not style, not wording, not ideas for new features.\n\nReply with ONLY this JSON:\n{\"bugs\": [\"where it is (file and function), what's wrong, and what should happen instead\"]}\nAn empty list if there are none. At most 8, the worst first." }], msg, undefined, "medium");
 		const bugs = ((parseJSON(look.out) || {}).bugs || []).map((x) => String(x).slice(0, 400)).filter((x) => x.trim()).slice(0, 8);
 		if (!msg.used.some((u) => /^Tester/.test(u.desc))) msg.used.push({ name: shortName(look.model), desc: "Tester: played it through, looking for what doesn't work" });
 		if (!bugs.length) return { files, found: 0, fixed: 0 };
@@ -7602,6 +7606,7 @@ async function buildApp(text, atts, pick) {
 		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no external fonts, images or network requests. The one library allowed: for real 3D, three.js r128, loaded with <script src=\"" + THREE_SRC + "\"><\/script> before your own script (only that file: no add-ons such as OrbitControls or loaders, so write camera controls yourself; r128's API: BufferGeometry, no Geometry). Otherwise use emoji, CSS and canvas/SVG for visuals.\n" +
 		"- Complete and working on the first run: no placeholders, no TODOs. Polished, responsive, good-looking UI with clear states and keyboard support where it makes sense.\n" +
 		"- A game or simulation: play it through in your head before you finish. Every computer-controlled player or character acts in every state (one holding the ball passes, shoots or runs on; none just stands there), every timer and cooldown really runs out (never reset or counted back every frame), starting positions and rules follow the real thing (at a football kick-off each team is in its own half), and every control does what it says.\n" +
+		"- A game feels right: movement works with both WASD and the arrow keys unless asked otherwise; players and vehicles speed up and slow down (never full speed or a dead stop at once) and a ball rolls on with momentum and slows with friction; computer players think for themselves, each keeping its own position and job, reacting to the ball after a short delay and sometimes getting it wrong (difficulty changes how often), and never copying or mirroring the person's moves; it never restarts, resets or pauses by itself (only a goal, the clock or a key the person presses does that).\n" +
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
 		"- Don't store anything the app can't lose (no localStorage needed).\n" +
 		"OUTPUT FORMAT, exactly, nothing before or after:\n=== FILE: index.html ===\n(full file)\n=== FILE: style.css ===\n(full file)\n=== NOTES ===\n(2-4 short plain sentences: what you built or changed and how to use it)\n" +
@@ -7626,7 +7631,7 @@ async function buildApp(text, atts, pick) {
 		const i = current ? current.msgs.indexOf(msg) : -1;
 		if (i < 0) return;
 		a = { ...a, i };
-		if (ART && ART.cid === current.id && ART.i === i) { ART = { ...ART, ...a }; drawArt(); }
+		if (ART && ART.cid === current.id && ART.i === i) refreshArt(a);
 		else if (msg.artShown == null && innerWidth > 860 && capOn("panel")) { msg.artShown = true; openArt(a); }
 	};
 	const live = (t) => {
@@ -7643,7 +7648,8 @@ async function buildApp(text, atts, pick) {
 		}
 		msg.data = { files: now, title, live: true };
 		const i = current ? current.msgs.indexOf(msg) : -1;
-		if (i >= 0) show(artFor(i));
+		// (it runs, and it's still being checked: a fixed version may follow)
+		if (i >= 0) show({ ...artFor(i), sub: prev ? "Being changed" : "Still being checked: a fixed version may follow" });
 	};
 	const asked = [sys(rules), { role: "user", content: withPics(ask, pics) }];
 	// (the models that have written this in parts: one cut off writing it whole gets one go in parts first)
@@ -7687,7 +7693,7 @@ async function buildApp(text, atts, pick) {
 	msg.tab = "preview";
 	{
 		const i = current ? current.msgs.indexOf(msg) : -1;
-		if (i >= 0 && ART && ART.cid === current.id && ART.i === i) { ART = { ...ART, ...artFor(i) }; drawArt(); }
+		if (i >= 0 && ART && ART.cid === current.id && ART.i === i) refreshArt(artFor(i));
 	}
 	msg.text = (parsed.notes || (prev ? "Done. The preview is updated." : "Here's what I built. It's running below: try it, then tell me what to change.")) + testedLine(msg.tested)
 		+ (msg.lighter ? "\n\n*Built thinking a little less than the builder's most, so it finishes within your credits.*" : "");
@@ -11280,12 +11286,12 @@ function openArt(a) {
 	if (!a || !current) return;
 	// (switching what the panel shows just swaps it; opening it glides it in)
 	const fresh = !ART;
-	const go = () => { ART = { view: "preview", file: 0, cid: current.id, ...a }; drawArt(); markArtCards(); };
+	const go = () => { ART = { view: "preview", file: 0, cid: current.id, ...a }; ART_NEXT = null; drawArt(); markArtCards(); };
 	fresh ? navTo(go) : go();
 }
 function closeArt() {
 	if (!ART) return;
-	navTo(() => { ART = null; drawArt(); markArtCards(); });
+	navTo(() => { ART = null; ART_NEXT = null; drawArt(); markArtCards(); });
 }
 function markArtCards() {
 	$$(".art-card").forEach((c) => {
@@ -11300,8 +11306,27 @@ const langOf = (name) => {
 	return { html: "xml", htm: "xml", svg: "xml", xml: "xml", js: "javascript", mjs: "javascript", jsx: "javascript", javascript: "javascript", react: "javascript", ts: "typescript", tsx: "typescript", typescript: "typescript", css: "css", json: "json", py: "python", python: "python", md: "markdown" }[e] || "";
 };
 function artFile() { return ART && ART.files && ART.files.length ? ART.files[Math.min(ART.file || 0, ART.files.length - 1)] : null; }
+// The app in the panel changed while it was being made (a fix, a change): put in at once, unless the person is playing
+// it (the frame has the keyboard): then it waits behind a button, so a game never restarts under them, and goes in when
+// they press it or click back into the chat
+let ART_NEXT = null;
+function refreshArt(a) {
+	if (!ART) return;
+	const el = document.activeElement;
+	if (el && el.classList && el.classList.contains("art-frame") && ART.view === "preview") { ART_NEXT = { ...(ART_NEXT || {}), ...a }; $("#artNext").hidden = false; return; }
+	ART = { ...ART, ...(ART_NEXT || {}), ...a };
+	ART_NEXT = null;
+	drawArt();
+}
+function loadArtNext() {
+	if (!ART || !ART_NEXT) return;
+	ART = { ...ART, ...ART_NEXT };
+	ART_NEXT = null;
+	drawArt();
+}
 function drawArt() {
 	const a = ART;
+	$("#artNext").hidden = !(a && ART_NEXT);
 	document.body.classList.toggle("art-open", !!a);
 	$("#art").hidden = !a;
 	if (!a) { $("#artBody").innerHTML = ""; return; }
@@ -11347,6 +11372,11 @@ document.addEventListener("click", (e) => {
 });
 $("#artClose").onclick = closeArt;
 $("#artReload").onclick = () => ART && drawArt();
+$("#artNext").onclick = loadArtNext;
+// (clicking back into the chat, or anywhere outside the app: the waiting version goes in)
+document.addEventListener("focusin", (e) => { if (ART_NEXT && !(e.target && e.target.classList && e.target.classList.contains("art-frame"))) loadArtNext(); });
+// (a click anywhere on the page outside the app counts too: clicks inside the app never reach here)
+document.addEventListener("pointerdown", () => { if (ART_NEXT) setTimeout(loadArtNext, 0); });
 $("#artFull").onclick = () => { const f = $("#artBody iframe"); if (f && f.requestFullscreen) f.requestFullscreen().catch(() => toast("Full screen isn't allowed here: open it in a new tab")); };
 $("#artTab").onclick = () => ART && openPreviewTab(ART.doc);
 $("#artCopy").onclick = () => { if (!ART) return; const f = ART.view === "code" ? artFile() : null; navigator.clipboard.writeText(f ? f.text : ART.page || ART.doc).then(() => toast("Copied"), () => toast("Couldn't copy here")); };
