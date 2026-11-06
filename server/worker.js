@@ -805,7 +805,7 @@ function gateways(env) {
 		let aliases = {};
 		try { aliases = JSON.parse(env["GATEWAY" + n + "_ALIASES"] || "{}") || {}; } catch {}
 		// (a key never holds control characters: Ctrl+V in a Windows prompt types one instead of pasting)
-		out.push({ n: n || "1", base: String(url).trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, ""), key: String(key).replace(/[\x00-\x1f\x7f]/g, "").trim(), fee: Number(env["GATEWAY" + n + "_FEE"]) || 1, aliases });
+		out.push({ n: n || "1", base: String(url).trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, ""), key: String(key).replace(/[\x00-\x1f\x7f]/g, "").trim(), fee: Number(env["GATEWAY" + n + "_FEE"]) || 1, aliases, prices: String(env["GATEWAY" + n + "_PRICES"] || "").trim(), idr: Number(env.IDR_PER_USD) || 0 });
 	}
 	return out;
 }
@@ -818,6 +818,34 @@ const KNOWN_ALIASES = {
 	},
 };
 const GWS = new Map();
+// rupiah to the dollar, for a gateway that prices in rupiah: today's rate (asked twice a day), or 18,000 if no one answers
+let IDR = { at: 0, v: 18000 };
+async function idrPerUsd(g) {
+	if (g && g.idr > 0) return g.idr;
+	if (Date.now() - IDR.at < 12 * 3600e3) return IDR.v;
+	try {
+		const r = await fetch("https://open.er-api.com/v6/latest/USD", { signal: AbortSignal.timeout(5000) });
+		const v = Number((await r.json()).rates.IDR);
+		if (v > 5000 && v < 50000) IDR = { at: Date.now(), v };
+		else IDR.at = Date.now();
+	} catch { IDR.at = Date.now(); }
+	return IDR.v;
+}
+// one model's price as a list gives it: rupiah per million tokens (MarkasAI's, and others'), or dollars a token
+// (OpenRouter's way); null when it doesn't say
+function itemPrice(m, idr) {
+	if (!m || typeof m !== "object") return null;
+	const p = m.pricing && typeof m.pricing === "object" ? m.pricing : m;
+	const n = (v) => (v == null || v === "" ? NaN : Number(v));
+	let pin = NaN, pout = NaN;
+	if (Number.isFinite(n(p.inputIdrPerMTok))) { pin = n(p.inputIdrPerMTok) / idr / 1e6; pout = n(p.outputIdrPerMTok) / idr / 1e6; }
+	else if (Number.isFinite(n(p.input_idr_per_m))) { pin = n(p.input_idr_per_m) / idr / 1e6; pout = n(p.output_idr_per_m) / idr / 1e6; }
+	else if (Number.isFinite(n(p.prompt)) && Number.isFinite(n(p.completion))) { pin = n(p.prompt); pout = n(p.completion); }
+	return Number.isFinite(pin) && Number.isFinite(pout) && pin >= 0 && pout > 0 ? { pin, pout } : null;
+}
+// a gateway that just turned Celestin's key down (no balance, a budget reached): tried last for ten minutes
+const GW_DOWN = new Map();
+const gwDown = (n) => (Date.now() - (GW_DOWN.get(n) || 0) < 600e3 ? 1 : 0);
 // a model's name with its maker and every mark taken off: "anthropic/claude-opus-5.5" → "claudeopus55"
 const bareKey = (id) => String(id).toLowerCase().replace(/:.*$/, "").replace(/^.*\//, "").replace(/[^a-z0-9]/g, "");
 async function gatewayCatalog(g) {
@@ -830,8 +858,22 @@ async function gatewayCatalog(g) {
 		const t = await r.text();
 		if (!r.ok) throw new Error(r.status + " " + errorText(t, t.replace(/\s+/g, " ").slice(0, 160) || r.statusText));
 		const j = JSON.parse(t);
-		const items = (Array.isArray(j) ? j : j.data || j.models || []).map((m) => (typeof m === "string" ? { id: m } : { id: m.id || m.name, name: m.display_name || m.name || m.title || "" })).filter((m) => m.id).map((m) => ({ id: String(m.id), name: String(m.name || "") }));
+		const raw = Array.isArray(j) ? j : j.data || j.models || j.rows || [];
+		const items = raw.map((m) => (typeof m === "string" ? { id: m } : { id: m.id || m.name, name: m.display_name || m.name || m.title || "" })).filter((m) => m.id).map((m) => ({ id: String(m.id), name: String(m.name || "") }));
 		if (!items.length) throw new Error("no models");
+		// what each model costs there: from its own list, or from the price list it points to
+		const prices = new Map();
+		const idr = await idrPerUsd(g);
+		for (const m of raw) { const p = itemPrice(m, idr); if (p && m.id) prices.set(String(m.id), p); }
+		if (g.prices) {
+			try {
+				const pr = await fetch(g.prices, { signal: AbortSignal.timeout(8000) });
+				const pj = await pr.json();
+				const list = Array.isArray(pj) ? pj : pj.data || pj.models || pj.rows || [];
+				const byBare = new Map(items.map((m) => [bareKey(m.id), m.id]));
+				for (const m of list) { const id = m && (m.id || m.name), p = itemPrice(m, idr), mine = id && (items.some((x) => x.id === id) ? id : byBare.get(bareKey(id))); if (p && mine && !prices.has(mine)) prices.set(mine, p); }
+			} catch (e) { console.log("gateway " + g.n + " price list unreadable: " + String((e && e.message) || e).slice(0, 120)); }
+		}
 		const byKey = new Map();
 		const put = (k, id) => { if (k && !byKey.has(k)) byKey.set(k, id); };
 		// its own names, the plain one before a relayed one ("claude-fable-5" before "claude-fable-5-openrouter"); one it
@@ -840,7 +882,7 @@ async function gatewayCatalog(g) {
 		for (const m of items.slice().sort((a, b) => a.id.length - b.id.length)) put(bareKey(m.id), m.id);
 		for (const m of items) put(bareKey(m.id.replace(/-(openrouter(-backup)?|or)$/i, "")), m.id);
 		for (const m of items) if (m.name && m.name !== m.id) put(bareKey(m.name), m.id);
-		c = { at: Date.now(), ids: items.map((m) => m.id), byKey, failed: 0 };
+		c = { at: Date.now(), ids: items.map((m) => m.id), byKey, failed: 0, prices };
 		// everything it lists, as it names them (the server's log: what the gateway has, media models included)
 		console.log("gateway " + g.n + " lists " + items.length + ": " + items.map((m) => m.id).join(", "));
 	} catch (e) {
@@ -875,13 +917,21 @@ function gatewayNames(g, model) {
 }
 const provider = (id) => String(id).split("/")[0];
 
-function routes(env, model, web, tools) {
+function routes(env, model, web, tools, price) {
 	const out = [];
 	const lab = model.split("/")[0], name = model.slice(lab.length + 1).replace(/:.*$/, "");
+	const gws = [];
+	// (a request reads about three times what it writes: the price that matters weighs both that way)
+	const weigh = (p) => 3 * p.pin + p.pout;
 	for (const g of gateways(env)) {
 		const names = gatewayNames(g, model);
-		if (names.length) out.push({ kind: "gw", gw: g.n, lab, url: g.base + "/chat/completions", headers: { Authorization: "Bearer " + g.key }, names, fee: g.fee, native: false });
+		if (!names.length) continue;
+		const c = GWS.get(g.base), own = c && c.prices ? names.map((x) => c.prices.get(x)).find(Boolean) : null;
+		const fee = own && price && weigh(price) > 0 ? weigh(own) / weigh(price) : g.fee;
+		gws.push({ kind: "gw", gw: g.n, lab, url: g.base + "/chat/completions", headers: { Authorization: "Bearer " + g.key }, names, fee, native: false, down: gwDown(g.n) });
 	}
+	gws.sort((a, b) => a.down - b.down || a.fee - b.fee);
+	out.push(...gws);
 	if (env.CF_ACCOUNT_ID && env.CF_API_TOKEN && ["openai", "anthropic", "google", "x-ai"].includes(lab)) {
 		const base = "https://api.cloudflare.com/client/v4/accounts/" + env.CF_ACCOUNT_ID + "/ai/v1/";
 		const headers = { Authorization: "Bearer " + env.CF_API_TOKEN, ...(env.CF_GATEWAY ? { "cf-aig-gateway-id": env.CF_GATEWAY } : {}) };
@@ -1557,7 +1607,7 @@ async function chat(req, env, ctx, user) {
 	delete b.plugins;
 	const web = plug ? { n: Math.max(1, Math.min(8, Number(plug.max_results) || 5)), query: plug.query || lastUserText(b.messages) } : null;
 	await Promise.all(gateways(env).map(gatewayCatalog));
-	const ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0);
+	const ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price);
 	if (!ways.length) throw fail(503, "This server can't reach that model. Pick another, or try again later.");
 
 	const mult = multiplier(price, c);
@@ -1646,6 +1696,7 @@ async function chat(req, env, ctx, user) {
 						continue ask;
 					}
 					if (res.ok) {
+						if (w.kind === "gw") GW_DOWN.delete(w.gw);
 						r = res;
 						way = w;
 						NAMES.set(w.kind + (w.gw || "") + " " + b.model, names[k]);
@@ -1669,6 +1720,7 @@ async function chat(req, env, ctx, user) {
 					}
 					break;
 				}
+				if (w.kind === "gw" && [401, 402, 403].includes(res.status) && /\bkey\b|auth|balance|saldo|budget|credit|quota|insufficient|payment|unauthori[sz]ed/i.test(last.message || "")) GW_DOWN.set(w.gw, Date.now());
 				const bad = res.status === 400 || res.status === 404;
 				if (bad && !plain && effort && /effort|reasoning|thinking/i.test(last.message)) continue;
 				// a spelling of the name it doesn't know: the next spelling; anything else: the next way
