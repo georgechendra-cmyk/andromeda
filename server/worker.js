@@ -17,6 +17,9 @@ const DEFAULT_CONFIG = {
 	// films animated in code (Claude writes every frame): "owner" = only on the owner's account (the owner, Nov 6: to test
 	// it), true = for everyone, false = off
 	drawn: "owner",
+	// the gateways the owner's demo goes through, by number (GATEWAY_URL is 1, GATEWAY2_URL is 2): the owner, Nov 7:
+	// MarkasAI only, for its price (Flaz, gateway 1, is left out of the demo). Empty: every gateway
+	ownerGateways: ["2"],
 	// the model's list price x this. 3x is about where profit peaks for a new AI app with free rivals: a 10% higher price
 	// loses some 15-20% of buyers, so profit is nearly flat from 2.5x to 4x and falls past it. Bands are by the model's
 	// output price in dollars per million tokens.
@@ -119,7 +122,12 @@ async function route(req, env, ctx, url) {
 	const p = url.pathname.replace(/\/+$/, "");
 	const m = req.method;
 	await columns(env);
-	if (p === "/api/pricing" && m === "GET") return json({ ...publicConfig(await config(env)), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
+	if (p === "/api/pricing" && m === "GET") {
+		const c0 = await config(env), only = ownerOnly(c0, ownerKeyOk(req, env));
+		// (the owner's demo: what its own gateways reach; and none of them cuts long answers off the way Flaz did, so nothing
+		// is held to writing in parts there)
+		return json({ ...publicConfig(c0), reach: await reachOf(env, only), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: only && !only.includes("1") ? [] : await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
+	}
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
 	if (p === "/api/login/resend" && m === "POST") return loginResend(req, env);
@@ -799,7 +807,8 @@ const NAMES = new Map();
 // WaveSpeed (WAVESPEED_KEY) is one of those with its address known, and goes before them all: every lab's big models
 // (Claude Opus 5.5 and Fable 5.1, GPT-6, Gemini 3.1 Pro, Grok) under the same names as here, at the labs' own prices,
 // paid by card, PayPal or Alipay.
-function gateways(env) {
+// (only: the gateway numbers to use, for the owner's demo; none of them set up: every gateway)
+function gateways(env, only) {
 	const out = [];
 	if (env.WAVESPEED_KEY) out.push({ n: "ws", base: "https://llm.wavespeed.ai/v1", key: String(env.WAVESPEED_KEY).trim(), fee: Number(env.WAVESPEED_FEE) || 1, aliases: {} });
 	for (const n of ["", "2", "3"]) {
@@ -810,8 +819,11 @@ function gateways(env) {
 		// (a key never holds control characters: Ctrl+V in a Windows prompt types one instead of pasting)
 		out.push({ n: n || "1", base: String(url).trim().replace(/\/+$/, "").replace(/\/chat\/completions$/, ""), key: String(key).replace(/[\x00-\x1f\x7f]/g, "").trim(), fee: Number(env["GATEWAY" + n + "_FEE"]) || 1, aliases, prices: String(env["GATEWAY" + n + "_PRICES"] || "").trim(), idr: Number(env.IDR_PER_USD) || 0 });
 	}
+	if (only && only.length) { const some = out.filter((g) => only.includes(g.n)); if (some.length) return some; }
 	return out;
 }
+// the owner's demo: only the gateways it's set to use
+const ownerOnly = (c, owner) => (owner && c && Array.isArray(c.ownerGateways) && c.ownerGateways.length ? c.ownerGateways.map(String) : null);
 // what a gateway's own short names are, when its list doesn't say (by its address)
 const KNOWN_ALIASES = {
 	routerku: {
@@ -924,13 +936,13 @@ function gatewayNames(g, model) {
 }
 const provider = (id) => String(id).split("/")[0];
 
-function routes(env, model, web, tools, price) {
+function routes(env, model, web, tools, price, only) {
 	const out = [];
 	const lab = model.split("/")[0], name = model.slice(lab.length + 1).replace(/:.*$/, "");
 	const gws = [];
 	// (a request reads about three times what it writes: the price that matters weighs both that way)
 	const weigh = (p) => 3 * p.pin + p.pout;
-	for (const g of gateways(env)) {
+	for (const g of gateways(env, only)) {
 		const names = gatewayNames(g, model);
 		if (!names.length) continue;
 		const c = GWS.get(g.base), own = c && c.prices ? names.map((x) => c.prices.get(x)).find(Boolean) : null;
@@ -972,8 +984,8 @@ async function orFunded(env) {
 // What this server can answer with, so the site only routes to models that will answer: everything through a funded
 // OpenRouter; the four labs Cloudflare bills (only what the labs serve themselves: OpenAI's open-weight, -pro and
 // Codex models aren't on its chat endpoint); and every model the gateway lists, by exact name
-async function reachOf(env) {
-	const cf = !!(env.CF_ACCOUNT_ID && env.CF_API_TOKEN), gws = gateways(env);
+async function reachOf(env, only) {
+	const cf = !!(env.CF_ACCOUNT_ID && env.CF_API_TOKEN), gws = gateways(env, only);
 	const or = !!env.OPENROUTER_KEY && (!(gws.length || cf) || (await orFunded(env)));
 	// where the studio's models come from: this server (WaveSpeed) or OpenRouter's own list
 	const gwm = !wsOn(env) && gws.length ? (await gwMedia(env)).length > 0 : false;
@@ -992,7 +1004,8 @@ async function reachOf(env) {
 				out.models.push(...fresh.map((f) => f.id));
 				out.fresh = fresh.map((f) => ({ id: f.id, name: f.gw, pin: f.pin * 1e6, pout: f.pout * 1e6 }));
 			}
-			await keepReach(env, out.models);
+			// (the demo's own narrower list isn't kept as everyone's)
+			if (!only) await keepReach(env, out.models);
 		} else {
 			// no list could be read: the last one that was (a model the gateway doesn't have is never asked for); none
 			// kept yet, every model is tried, the names a gateway doesn't know falling through
@@ -1434,8 +1447,8 @@ async function searchWeb(env, q, n) {
 // charged like anything else.
 const SEARCHERS = ["x-ai/grok-4.7", "openai/gpt-5.4-nano", "google/gemini-3.5-flash-lite", "anthropic/claude-haiku-5.5", "openai/gpt-4o-mini"];
 const SEARCH_OFF = new Map(); // a gateway that answered without searching: not asked again for an hour
-async function modelSearch(env, q, n) {
-	const gws = gateways(env);
+async function modelSearch(env, q, n, only) {
+	const gws = gateways(env, only);
 	await Promise.all(gws.map(gatewayCatalog));
 	const ways = [...gws.map((g) => ({ id: g.n === "ws" ? "ws" : "gw" + g.n, base: g.base, key: g.key, g })), ...(env.OPENROUTER_KEY ? [{ id: "or", base: orBase(env), key: env.OPENROUTER_KEY }] : [])];
 	const ask = "Search the web now for: " + q + "\n\nThen reply with ONLY JSON: {\"results\": [{\"title\": \"...\", \"url\": \"the page's address\", \"text\": \"what that page says that matters here, in 2 to 4 sentences, with its date if it has one\"}]}: up to " + n + " results from different sources, the most useful and recent first.";
@@ -1485,7 +1498,7 @@ async function searchFor(env, user, q, n) {
 	const held = await take(env, user.id, mt.toMc(0.06), c, !!user.owner);
 	if (!held) return [];
 	let got = { results: [], usd: 0 };
-	try { got = await modelSearch(env, q, n); }
+	try { got = await modelSearch(env, q, n, ownerOnly(c, user.owner)); }
 	finally { await charge(env, user.id, "web-search" + (got.model ? ": " + got.model : ""), held, got.usd, mt); }
 	return got.results;
 }
@@ -1616,7 +1629,7 @@ async function chat(req, env, ctx, user) {
 	delete b.plugins;
 	const web = plug ? { n: Math.max(1, Math.min(8, Number(plug.max_results) || 5)), query: plug.query || lastUserText(b.messages) } : null;
 	await Promise.all(gateways(env).map(gatewayCatalog));
-	const ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price);
+	const ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, ownerOnly(c, user.owner));
 	if (!ways.length) throw fail(503, "This server can't reach that model. Pick another, or try again later.");
 
 	const mult = multiplier(price, c);

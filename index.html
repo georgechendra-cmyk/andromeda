@@ -9214,10 +9214,11 @@ Write the plan so the result looks expensive and real:
 - Ads: hook in the first 2 seconds, show the product/benefit, end on the brand and a call to action. Social/vertical: fast, 9:16. Films: build and pay off.
 - Voiceover: short, natural, said aloud in the time of its shot (about 2.5 words per second). Empty when the shot speaks for itself. ElevenLabs tags like [excited], [whispers], [laughs] are allowed sparingly.
 - Captions: short and punchy (max 6 words), or empty.
+- Typography: choose the film's two Google Fonts the way a title designer would, for this world: a pixel font ("Press Start 2P", "Silkscreen", "VT323") for pixel art and games, a warm serif ("Fraunces", "Cormorant Garamond", "Playfair Display") for a tender or literary story, a hand-drawn one ("Caveat", "Patrick Hand") for a sketchbook look, a heavy condensed grotesk ("Anton", "Bebas Neue", "Archivo Black") for an ad or trailer, a geometric display ("Unbounded", "Syne", "Space Grotesk") for tech: anything on Google Fonts that fits. Never Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins or a system font: they look like every other AI video.
 - A video for YouTube, a channel, Shorts or TikTok is made the way the best animation channels make theirs: a hook that grabs in the first 5 seconds, a clear arc (setup, rising stakes, a reveal or punchline, a payoff), recurring characters with names, roles and an identical look in every shot, and a reason to subscribe at the end. For one, also return "youtube": {"titles": ["3 title options, under 60 characters, curious and true"], "hook": "what the first 5 seconds show and say", "characters": [{"name": "...", "role": "...", "look": "described identically to the shots"}], "description": "2 to 4 sentences, then its chapters as 0:00 lines", "tags": ["8 to 15 search tags"], "thumbnail": {"text": "2 to 4 words, huge", "shot": the number of the shot whose picture it uses (1 is the first), "color": "#hex for the words"}}. Leave "youtube" out for anything else.
 
 Return ONLY JSON:
-{"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none"}`;
+{"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none","type":{"title":"the Google Fonts family for titles and the end card","text":"the Google Fonts family for captions"}}`;
 // how long they asked for, any length ("30s", "20 minutes", "1.5 hours"); 3 hours at most, which is past anything
 // a browser can cut in one go anyway
 function lengthOf(t) {
@@ -9306,9 +9307,28 @@ function cleanPlan(p, want, drawn) {
 		music: { prompt: String(p.music?.prompt || "cinematic, warm, building, instrumental, no vocals").slice(0, 600), level: Math.max(0.15, Math.min(1, Number(p.music?.level) || 0.5)) },
 		end: { title: String(p.end?.title || "").slice(0, 40), sub: String(p.end?.sub || "").slice(0, 70), color: /^#[0-9a-f]{3,8}$/i.test(p.end?.color || "") ? p.end.color : "#111111" },
 		captions: ["bold", "minimal", "none"].includes(p.captions) ? p.captions : "bold", want,
+		type: filmType(p.type, p.kind),
 		youtube: youtubeKit(p.youtube, scenes.length),
 	};
 }
+// The film's typefaces, as the director chose them: Google Fonts families by name; one of the overused ones (or none) is
+// replaced by a pairing that suits the kind of film
+const GENERIC_FONTS = /^(inter|roboto|arial|helvetica( neue)?|open sans|lato|montserrat|poppins|system-ui|sans-serif|serif|segoe ui|noto sans|source sans( pro| 3)?)$/i;
+function filmType(t, kind) {
+	const ok = (f) => typeof f === "string" && /^[A-Za-z0-9 ]{2,40}$/.test(f.trim()) && !GENERIC_FONTS.test(f.trim()) ? f.trim() : null;
+	const by = /ad|social/.test(String(kind)) ? ["Archivo Black", "Instrument Sans"] : /explainer/.test(String(kind)) ? ["Space Grotesk", "Instrument Sans"] : ["Fraunces", "Instrument Sans"];
+	return { title: ok(t && t.title) || by[0], text: ok(t && t.text) || ok(t && t.title) || by[1] };
+}
+// the film's typefaces, loaded into this page so its titles, captions and thumbnail are drawn in them (a few seconds at
+// most; one that doesn't come is drawn in the next of the stack)
+async function loadFilmType(type) {
+	const fams = [...new Set([type && type.title, type && type.text].filter(Boolean))];
+	if (!fams.length) return;
+	const href = "https://fonts.googleapis.com/css2?" + fams.map((f) => "family=" + f.trim().replace(/\s+/g, "+")).join("&") + "&display=swap";
+	if (![...document.querySelectorAll("link[data-film-type]")].some((l) => l.href === href)) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.dataset.filmType = "1"; document.head.appendChild(l); }
+	await Promise.race([Promise.all(fams.map((f) => document.fonts.load("800 48px '" + f + "'").catch(() => null))), new Promise((r) => setTimeout(r, 6000))]);
+}
+const faceOf = (f, fallback) => "'" + String(f || fallback).replace(/'/g, "") + "', " + fallback;
 // A channel video's kit, as the director planned it: title options, the hook, its characters, the description and tags,
 // and the thumbnail (its words, the shot it's taken from, their colour); null for any other video
 function youtubeKit(y, shots) {
@@ -9341,6 +9361,7 @@ function kitHtml(kit, plan) {
 // 1280×720 (720×1280 for a vertical one), with its words huge and outlined over a shade that keeps them readable
 async function makeThumb(blob, plan) {
 	const kit = plan.youtube, k = kit.thumbnail.shot - 1;
+	await loadFilmType(plan.type);
 	const at = plan.scenes.slice(0, k).reduce((n, sc) => n + sc.seconds, 0) + (plan.scenes[k] ? plan.scenes[k].seconds / 2 : 1);
 	const url = URL.createObjectURL(blob);
 	try {
@@ -9367,7 +9388,7 @@ async function makeThumb(blob, plan) {
 			const words = kit.thumbnail.text.toUpperCase().split(/\s+/);
 			let size = Math.round(H * 0.2), lines;
 			for (; size > 24; size -= 4) {
-				g.font = "900 " + size + "px 'Arial Black', Impact, 'Segoe UI', sans-serif";
+				g.font = "900 " + size + "px " + faceOf((plan.type || {}).title, "Impact, sans-serif");
 				lines = [];
 				let line = "";
 				for (const w of words) { const t = line ? line + " " + w : w; if (g.measureText(t).width > W * 0.88 && line) { lines.push(line); line = w; } else line = t; }
@@ -9791,7 +9812,9 @@ async function cut(d, onProgress) {
 	canvas.width = cw;
 	canvas.height = ch;
 	const g = canvas.getContext("2d");
-	const font = "800 " + Math.round(ch * (plan.aspect === "9:16" ? 0.045 : 0.06)) + "px Inter, system-ui, sans-serif";
+	const type = plan.type || filmType(null, plan.kind);
+	await loadFilmType(type);
+	const font = "800 " + Math.round(ch * (plan.aspect === "9:16" ? 0.045 : 0.06)) + "px " + faceOf(type.text, "sans-serif");
 	// a clip or a picture, filling the frame; dx and dy (-1 to 1) slide it across what overflows the frame
 	const cover = (v, alpha, zoom, dx = 0, dy = 0) => {
 		const vw = v.videoWidth || v.naturalWidth || cw, vh = v.videoHeight || v.naturalHeight || ch, k = Math.max(cw / vw, ch / vh) * (zoom || 1);
@@ -9850,13 +9873,13 @@ async function cut(d, onProgress) {
 		g.textAlign = "center";
 		g.textBaseline = "middle";
 		g.fillStyle = "#fff";
-		g.font = "800 " + Math.round(ch * 0.085) + "px Inter, system-ui, sans-serif";
+		g.font = "800 " + Math.round(ch * 0.085) + "px " + faceOf(type.title, "serif");
 		g.fillText(plan.end.title, cw / 2, ch * 0.46 - (1 - a) * ch * 0.03);
-		g.font = "500 " + Math.round(ch * 0.034) + "px Inter, system-ui, sans-serif";
+		g.font = "500 " + Math.round(ch * 0.034) + "px " + faceOf(type.text, "sans-serif");
 		g.globalAlpha = Math.max(0, Math.min(1, (local - 0.3) / 0.5));
 		g.fillText(plan.end.sub, cw / 2, ch * 0.58);
 		g.globalAlpha = 0.55 * a;
-		g.font = "500 " + Math.round(ch * 0.018) + "px Inter, system-ui, sans-serif";
+		g.font = "500 " + Math.round(ch * 0.018) + "px " + faceOf(type.text, "sans-serif");
 		g.fillText("Made with Celestin", cw / 2, ch * 0.93);
 		g.globalAlpha = 1;
 	};
@@ -10129,7 +10152,7 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 	const kit = style ? (style.match(/<script[^>]*\bid=["']?kit["']?[^>]*>([\s\S]*?)<\/script>/i) || [])[1] || "" : "";
 	const fonts = style ? (style.match(/<link[^>]+fonts\.googleapis[^>]*>/gi) || []).join("") : "";
 	const own = kit ? style.replace(/<script[^>]*\bid=["']?kit["']?[^>]*>[\s\S]*?<\/script>/i, "<!-- the film's kit -->") : "";
-	const ask = "The film: " + plan.title + ". Its look: " + plan.look
+	const ask = "The film: " + plan.title + ". Its typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words; use them for any words in the shot, never Inter, Roboto, Arial or a system font. Its look: " + plan.look
 		+ "\nThe film's shots, for context: " + plan.scenes.map((x, k) => (k + 1) + ". " + (x.motion === "drawn" ? x.draw || x.shot : x.shot).slice(0, 110)).join(" | ").slice(0, 3500)
 		+ "\n\nAnimate shot " + (i + 1) + ": " + (sc.draw || sc.shot)
 		+ "\nIts length: " + sc.seconds + " seconds. Aspect " + plan.aspect + "."
@@ -10148,7 +10171,8 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 	};
 	const whole = (out) => withKit((String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i))));
 	// medium thought for a shot unless the film was asked for at its finest (or in Max); a fix to one, a step less
-	const finest = plan.finest || speed() === "max";
+	// (the owner's demo: always at the animator's finest)
+	const finest = plan.finest || speed() === "max" || !!(me && me.owner);
 	// (the animator's own effort read again right before each shot: other parts of the film pick models meanwhile, and
 	// each picking notes its own effort for a model)
 	const effort = (m, fix) => { bestFor("animation"); return finest && !fix ? effortExtra(m.id) : effortFor(m.id, capEffort(EFFORT.get(m.id) || "", finest ? "high" : "medium", m.id)); };
