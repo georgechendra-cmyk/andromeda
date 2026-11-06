@@ -8739,6 +8739,7 @@ Write the plan so the result looks expensive and real:
 - Ads: hook in the first 2 seconds, show the product/benefit, end on the brand and a call to action. Social/vertical: fast, 9:16. Films: build and pay off.
 - Voiceover: short, natural, said aloud in the time of its shot (about 2.5 words per second). Empty when the shot speaks for itself. ElevenLabs tags like [excited], [whispers], [laughs] are allowed sparingly.
 - Captions: short and punchy (max 6 words), or empty.
+- A video for YouTube, a channel, Shorts or TikTok is made the way the best animation channels make theirs: a hook that grabs in the first 5 seconds, a clear arc (setup, rising stakes, a reveal or punchline, a payoff), recurring characters with names, roles and an identical look in every shot, and a reason to subscribe at the end. For one, also return "youtube": {"titles": ["3 title options, under 60 characters, curious and true"], "hook": "what the first 5 seconds show and say", "characters": [{"name": "...", "role": "...", "look": "described identically to the shots"}], "description": "2 to 4 sentences, then its chapters as 0:00 lines", "tags": ["8 to 15 search tags"], "thumbnail": {"text": "2 to 4 words, huge", "shot": the number of the shot whose picture it uses (1 is the first), "color": "#hex for the words"}}. Leave "youtube" out for anything else.
 
 Return ONLY JSON:
 {"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none"}`;
@@ -8830,7 +8831,85 @@ function cleanPlan(p, want, drawn) {
 		music: { prompt: String(p.music?.prompt || "cinematic, warm, building, instrumental, no vocals").slice(0, 600), level: Math.max(0.15, Math.min(1, Number(p.music?.level) || 0.5)) },
 		end: { title: String(p.end?.title || "").slice(0, 40), sub: String(p.end?.sub || "").slice(0, 70), color: /^#[0-9a-f]{3,8}$/i.test(p.end?.color || "") ? p.end.color : "#111111" },
 		captions: ["bold", "minimal", "none"].includes(p.captions) ? p.captions : "bold", want,
+		youtube: youtubeKit(p.youtube, scenes.length),
 	};
+}
+// A channel video's kit, as the director planned it: title options, the hook, its characters, the description and tags,
+// and the thumbnail (its words, the shot it's taken from, their colour); null for any other video
+function youtubeKit(y, shots) {
+	if (!y || typeof y !== "object") return null;
+	const str = (v, n) => String(v == null ? "" : v).trim().slice(0, n);
+	const t = y.thumbnail && typeof y.thumbnail === "object" ? y.thumbnail : {};
+	const kit = {
+		titles: (Array.isArray(y.titles) ? y.titles : []).map((x) => str(x, 100)).filter(Boolean).slice(0, 3),
+		hook: str(y.hook, 400),
+		characters: (Array.isArray(y.characters) ? y.characters : []).map((c) => ({ name: str(c && c.name, 40), role: str(c && c.role, 100), look: str(c && c.look, 240) })).filter((c) => c.name).slice(0, 8),
+		description: str(y.description, 3000),
+		tags: (Array.isArray(y.tags) ? y.tags : []).map((x) => str(x, 40)).filter(Boolean).slice(0, 20),
+		thumbnail: { text: str(t.text, 40), shot: Math.max(1, Math.min(Math.max(1, shots), Math.round(Number(t.shot) || 1))), color: /^#[0-9a-f]{3,8}$/i.test(t.color || "") ? t.color : "#ffffff" },
+	};
+	return kit.titles.length || kit.thumbnail.text ? kit : null;
+}
+// the kit as it's shown: before it's made (with the plan) and with the finished video
+function kitHtml(kit, plan) {
+	if (!kit) return "";
+	const li = (xs) => "<ul style=\"margin:4px 0 0;padding-left:18px\">" + xs.map((x) => "<li>" + x + "</li>").join("") + "</ul>";
+	return '<div class="field"><label>For YouTube</label><div class="help" style="font-size:13px;line-height:1.55">' +
+		(kit.titles.length ? "<b>Title options</b>" + li(kit.titles.map(esc)) : "") +
+		(kit.hook ? '<div style="margin-top:8px"><b>Hook</b> · ' + esc(kit.hook) + "</div>" : "") +
+		(kit.characters.length ? '<div style="margin-top:8px"><b>Characters</b></div>' + li(kit.characters.map((c) => "<b>" + esc(c.name) + "</b>" + (c.role ? ", " + esc(c.role) : ""))) : "") +
+		(kit.thumbnail.text ? '<div style="margin-top:8px"><b>Thumbnail</b> · “' + esc(kit.thumbnail.text) + "” on shot " + kit.thumbnail.shot + "</div>" : "") +
+		(plan ? '<details style="margin-top:8px"><summary><b>The script, shot by shot</b></summary>' + li(plan.scenes.map((sc, n) => (n + 1) + ". " + esc((sc.caption ? "“" + sc.caption + "” · " : "") + (sc.draw || sc.shot).slice(0, 220)))) + "</details>" : "") +
+		"</div></div>";
+}
+// The thumbnail: the picture at the middle of the shot the director chose, taken from the finished video, filled to
+// 1280×720 (720×1280 for a vertical one), with its words huge and outlined over a shade that keeps them readable
+async function makeThumb(blob, plan) {
+	const kit = plan.youtube, k = kit.thumbnail.shot - 1;
+	const at = plan.scenes.slice(0, k).reduce((n, sc) => n + sc.seconds, 0) + (plan.scenes[k] ? plan.scenes[k].seconds / 2 : 1);
+	const url = URL.createObjectURL(blob);
+	try {
+		const v = document.createElement("video");
+		v.muted = true;
+		v.src = url;
+		await new Promise((res, rej) => { v.onloadedmetadata = res; v.onerror = () => rej(new Error("the video wouldn't open")); setTimeout(res, 15000); });
+		const dur = Number.isFinite(v.duration) ? v.duration : at + 1;
+		await new Promise((res) => { v.onseeked = res; v.currentTime = Math.max(0, Math.min(dur - 0.1, at)); setTimeout(res, 5000); });
+		const tall = plan.aspect === "9:16", W = tall ? 720 : 1280, H = tall ? 1280 : 720;
+		const c = document.createElement("canvas");
+		c.width = W;
+		c.height = H;
+		const g = c.getContext("2d");
+		const vw = v.videoWidth || W, vh = v.videoHeight || H, sc = Math.max(W / vw, H / vh);
+		g.drawImage(v, (W - vw * sc) / 2, (H - vh * sc) / 2, vw * sc, vh * sc);
+		if (kit.thumbnail.text) {
+			const shade = g.createLinearGradient(0, H * 0.35, 0, H);
+			shade.addColorStop(0, "rgba(0,0,0,0)");
+			shade.addColorStop(1, "rgba(0,0,0,0.65)");
+			g.fillStyle = shade;
+			g.fillRect(0, 0, W, H);
+			// the words, as big as fit on two lines
+			const words = kit.thumbnail.text.toUpperCase().split(/\s+/);
+			let size = Math.round(H * 0.2), lines;
+			for (; size > 24; size -= 4) {
+				g.font = "900 " + size + "px 'Arial Black', Impact, 'Segoe UI', sans-serif";
+				lines = [];
+				let line = "";
+				for (const w of words) { const t = line ? line + " " + w : w; if (g.measureText(t).width > W * 0.88 && line) { lines.push(line); line = w; } else line = t; }
+				lines.push(line);
+				if (lines.length <= 2 && lines.every((l) => g.measureText(l).width <= W * 0.9)) break;
+			}
+			g.textBaseline = "bottom";
+			g.lineJoin = "round";
+			g.lineWidth = Math.max(6, size * 0.12);
+			g.strokeStyle = "#000";
+			g.fillStyle = kit.thumbnail.color;
+			lines.forEach((l, n) => { const y = H - H * 0.07 - (lines.length - 1 - n) * size * 1.02; g.strokeText(l, W * 0.05, y); g.fillText(l, W * 0.05, y); });
+		}
+		return await new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error("no picture"))), "image/png"));
+	} finally {
+		URL.revokeObjectURL(url);
+	}
 }
 const shotPrompt = (plan, sc) => sc.shot + "\n\nStyle: " + plan.look + (sc.sound ? "\nSound: " + sc.sound : "");
 const framePrompt = (plan, sc) => sc.frame + "\n\nStyle: " + plan.look + "\nA single frame from a film, " + plan.aspect + ", no text, no captions, no watermark, no borders.";
@@ -8913,6 +8992,7 @@ function confirmDrawn(plan) {
 		const credits = cost(speed() === "max"), gain = speed() === "max" ? null : finestGain(), fine = gain ? cost(true) : 0;
 		const short = !!me && me.credits < credits, fineShort = !!me && me.credits < fine;
 		openModal("<h2>" + esc(plan.title) + "</h2><p class=\"sub\">" + plan.scenes.length + " shots, every one animated in code, with music and sound effects composed to the cut · about " + (secs >= 120 ? Math.round(secs / 60) + " minutes" : secs + " seconds") + " · " + esc(plan.aspect) + ". You only pay for what's made.</p>" +
+			kitHtml(plan.youtube, plan) +
 			(gain ? '<div class="field"><div class="help"><b>Finest</b>: the animator thinks as hard as it can, at about ' + (fine / credits).toFixed(1) + "× the price. People pick the finer version about " + gain + " times in 10 when they compare web designs made both ways; films haven't been measured yet.</div></div>" : "") +
 			'<div class="field"><div class="help">' + (short ? "There aren't enough credits left for all of it: get more credits first. " : "") + "No voiceover on this server yet, so the words are on screen. Cut here in your browser.</div></div>" +
 			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="tierNo">Cancel</button>' + (gain ? '<button class="btn" id="tierFine"' + (fineShort ? " disabled" : "") + ">Finest</button>" : "") + '<button class="btn dark" id="tierGo"' + (short ? " disabled" : "") + ">Make it</button></div>");
@@ -9120,6 +9200,8 @@ async function produce(msg, only, signal) {
 		d.stage = "cutting";
 		paint();
 		d.final = await vault.put(await cut(d, (p) => { d.progress = p; paint(); }));
+		// for YouTube: its thumbnail, from the shot the director chose, with its words on it (no model needed)
+		if (plan.youtube && plan.youtube.thumbnail.text) { try { d.thumb = await vault.put(await makeThumb(await vault.get(d.final), plan)); } catch {} }
 		d.stage = "done";
 		const failed = d.scenes.filter((s) => !made(s)).length;
 		msg.text = "**" + plan.title + "**" + (failed ? "\n\n" + failed + " shot" + (failed > 1 ? "s" : "") + " couldn't be made and " + (failed > 1 ? "were" : "was") + " left out. Tap Redo on " + (failed > 1 ? "them" : "it") + " to try again." : "");
@@ -9878,7 +9960,9 @@ async function renderStudio(m, i, box) {
 	const fin = d.final ? await vault.url(d.final) : null;
 	const frames = await Promise.all(d.scenes.map((s) => (s.frame ? vault.url(s.frame) : s.poster ? vault.url(s.poster) : null)));
 	const vertical = plan.aspect === "9:16";
-	box.innerHTML = (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"' + (frames[0] ? ' poster="' + frames[0] + '"' : "") + '></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button><button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' :
+	const thumb = d.thumb ? await vault.url(d.thumb) : null;
+	box.innerHTML = (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"' + (thumb || frames[0] ? ' poster="' + (thumb || frames[0]) + '"' : "") + '></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button>' + (thumb ? '<button class="btn" data-tdl>Download thumbnail</button>' : "") + (plan.youtube ? '<button class="btn" data-ytcopy>Copy title, description and tags</button>' : "") + '<button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' +
+		(thumb ? '<img class="yt-thumb" src="' + thumb + '" alt="Thumbnail" style="display:block;width:min(100%,360px);border-radius:12px;margin:0 0 12px">' : "") + (plan.youtube ? kitHtml(plan.youtube, null) : "") :
 		d.stage === "planned" ? '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-make>Make it</button></div>' : "") +
 		'<div class="shots' + (vertical ? " tall" : "") + '">' + d.scenes.map((s, n) => '<figure class="shot ' + (s.state || "") + '">' + (frames[n] ? '<img src="' + frames[n] + '" alt="">' : '<div class="ph"></div>') +
 			'<figcaption><b>' + (n + 1) + "</b> " + esc(plan.scenes[n].caption || plan.scenes[n].vo || plan.scenes[n].shot).slice(0, 70) + '<span class="st">' + ({ waiting: "waiting", drawing: "drawing", animating: "animating", queued: "queued", rendering: "filming", fetching: "fetching", done: "✓", failed: "failed" }[s.state] || "") + "</span>" +
@@ -9886,6 +9970,10 @@ async function renderStudio(m, i, box) {
 		(d.music && d.music.state ? '<div class="help" style="margin-top:8px">Sound: ' + ({ composing: "composing the music and sound effects…", done: "music and sound effects ✓", failed: "couldn't be made this time" }[d.music.state] || esc(d.music.state)) + "</div>" : "");
 	const dl = $("[data-vdl]", box);
 	if (dl) dl.onclick = async () => { const b = await vault.get(d.final); saveBlob(b, plan.title.replace(/[^\w -]+/g, "").slice(0, 40) + "." + (b.type.includes("mp4") ? "mp4" : "webm")); };
+	const tdl = $("[data-tdl]", box);
+	if (tdl) tdl.onclick = async () => { const b = await vault.get(d.thumb); if (b) saveBlob(b, plan.title.replace(/[^\w -]+/g, "").slice(0, 40) + " thumbnail.png"); };
+	const yc = $("[data-ytcopy]", box);
+	if (yc) yc.onclick = () => { const y = plan.youtube; navigator.clipboard.writeText([y.titles[0] || plan.title, "", y.description, "", y.tags.map((t) => "#" + t.replace(/\s+/g, "")).join(" ")].join("\n")); toast("Copied"); };
 	const recut = $("[data-recut]", box);
 	if (recut) recut.onclick = () => { try { (STUDIO_AUDIO.ctx ||= new AudioContext()).resume(); } catch {} studioJob(m, i, null); };
 	const make = $("[data-make]", box);
