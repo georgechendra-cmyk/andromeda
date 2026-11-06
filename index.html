@@ -1634,6 +1634,7 @@ html { scroll-behavior: smooth; }
 .made figure { margin: 0; }
 .made img, .made video { display: block; width: 100%; border-radius: 12px; border: 1px solid var(--line); background: var(--bg3); }
 .made-audio audio { width: 100%; }
+.secret-note { display: flex; align-items: center; justify-content: flex-end; gap: 6px; margin-top: 6px; font-size: 12px; color: var(--faint); }
 .ag-media video, .ag-media img { max-height: 360px; object-fit: contain; background: #000; }
 .made figcaption { margin-top: 4px; font-size: 12.5px; }
 .made figcaption a { color: var(--muted); }
@@ -3515,6 +3516,42 @@ async function stream(model, messages, onText, signal, extra = {}, acc = null) {
 // A connection silent for longer than any model ever is (the gateway gives up on a silent one after about two minutes,
 // and the server keeps a quiet one open with keep-alives) has died without saying so: it's let go, to be sent again
 const STALL_MS = 150e3;
+// ---- secrets: an API key, a token or a password written or pasted into a chat never leaves this device. Before anything
+// goes to a model (or to the server's search, a shared chat, a scheduled task) it's swapped for a stand-in, [SECRET_1];
+// what comes back has the real value put back here, so code run here, files saved and what's shown use the real thing,
+// and no model, gateway or server ever sees it
+const SECRET_RES = [
+	/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]+?-----END [A-Z ]*PRIVATE KEY-----/g,
+	/\b(?:sk-(?:ant-|proj-|or-v1-)?[A-Za-z0-9_-]{20,}|mt-[A-Za-z0-9_-]{24,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|xox[abprs]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{35}|hf_[A-Za-z0-9]{30,}|glpat-[A-Za-z0-9_-]{20,}|(?:sk|rk)_live_[A-Za-z0-9]{20,}|whsec_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,})/g,
+];
+// "password: hunter22", "api_key = ...": the value after it, when it looks like a credential (not code: no brackets or dots)
+const SECRET_KV = /\b((?:pass(?:word|wd)?|pwd|kata ?sandi|sandi|secret|token|api[_ -]?key|access[_ -]?key|private[_ -]?key|client[_ -]?secret)\s*[:=]\s*["']?)([A-Za-z0-9_\-+\/=!@#$%^&*~]{8,200})/gi;
+const SECRET_TO = new Map(), SECRET_FROM = new Map();
+const looksSecret = (v) => /\d|[^A-Za-z0-9]/.test(v) && !/^\d+$/.test(v);
+function secretFor(v) {
+	if (!SECRET_TO.has(v)) { const p = "[SECRET_" + (SECRET_TO.size + 1) + "]"; SECRET_TO.set(v, p); SECRET_FROM.set(p, v); }
+	return SECRET_TO.get(v);
+}
+function maskText(t) {
+	if (typeof t !== "string" || t.length < 8 || /^data:/.test(t)) return t;
+	for (const re of SECRET_RES) t = t.replace(re, (m) => secretFor(m));
+	return t.replace(SECRET_KV, (m, pre, v) => (looksSecret(v) && !/^\[SECRET_\d+\]$/.test(v) ? pre + secretFor(v) : m));
+}
+// (every string in a request: its messages, attachments and tool results)
+function maskDeep(v) {
+	if (typeof v === "string") return maskText(v);
+	if (Array.isArray(v)) return v.map(maskDeep);
+	if (v && typeof v === "object") { const o = {}; for (const [k, x] of Object.entries(v)) o[k] = maskDeep(x); return o; }
+	return v;
+}
+const unmaskText = (t) => (typeof t === "string" && SECRET_FROM.size && t.includes("[SECRET_") ? t.replace(/\[SECRET_\d+\]/g, (p) => SECRET_FROM.get(p) || p) : t);
+// how many secrets a message holds (shown under it: they never left this device)
+function secretsIn(t) {
+	const seen = new Set();
+	for (const re of SECRET_RES) for (const m of String(t || "").matchAll(re)) seen.add(m[0]);
+	for (const m of String(t || "").matchAll(SECRET_KV)) if (looksSecret(m[2])) seen.add(m[2]);
+	return seen.size;
+}
 async function streamOnce(model, messages, onText, signal, extra = {}, acc = null) {
 	// (what ends a wait on the network at once, whatever the browser does: the watchdog, or stop pressed)
 	let kill = null;
@@ -3528,7 +3565,7 @@ async function streamOnce(model, messages, onText, signal, extra = {}, acc = nul
 	watch();
 	try {
 	let r;
-	try { r = await Promise.race([fetch(chatURL(), { method: "POST", headers: headers(), signal: ctl.signal, body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra }) }), dead]); }
+	try { r = await Promise.race([fetch(chatURL(), { method: "POST", headers: headers(), signal: ctl.signal, body: JSON.stringify(maskDeep({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra })) }), dead]); }
 	catch (e) { throw lost(e); }
 	if (!r.ok) {
 		let msg = r.statusText;
@@ -3542,7 +3579,7 @@ async function streamOnce(model, messages, onText, signal, extra = {}, acc = nul
 	for (;;) {
 		let got;
 		// (cut off after it had started answering: not asked again, the caller decides)
-		try { got = await Promise.race([reader.read(), dead]); } catch (e) { e = lost(e); if (text) { try { e.said = true; e.partial = text; } catch {} } reader.cancel().catch(() => {}); throw e; }
+		try { got = await Promise.race([reader.read(), dead]); } catch (e) { e = lost(e); if (text) { try { e.said = true; e.partial = unmaskText(text); } catch {} } reader.cancel().catch(() => {}); throw e; }
 		watch();
 		const { done, value } = got;
 		if (done) break;
@@ -3553,7 +3590,7 @@ async function streamOnce(model, messages, onText, signal, extra = {}, acc = nul
 			buf = buf.slice(i + 1);
 			if (!line || line.startsWith(":") || !line.startsWith("data:")) continue;
 			const data = line.slice(5).trim();
-			if (data === "[DONE]") return text;
+			if (data === "[DONE]") return unmaskText(text);
 			let j;
 			try { j = JSON.parse(data); } catch { continue; }
 			if (j.error) throw new Error(j.error.message || "The model stopped with an error");
@@ -3563,12 +3600,12 @@ async function streamOnce(model, messages, onText, signal, extra = {}, acc = nul
 			const th = dl.reasoning || dl.reasoning_content;
 			if (th && acc && typeof th === "string" && (acc.think || "").length < 40000) { if (!acc.think) acc.thinkAt = Date.now(); acc.think = (acc.think || "") + th; updateLast(); }
 			const d = dl.content;
-			if (d) { if (acc && acc.think && !acc.thoughtMs) acc.thoughtMs = Date.now() - acc.thinkAt; text += d; onText(text); }
+			if (d) { if (acc && acc.think && !acc.thoughtMs) acc.thoughtMs = Date.now() - acc.thinkAt; text += d; onText(unmaskText(text)); }
 			// it ran into the length limit mid-answer: the message offers to go on
 			if (acc && j.choices?.[0]?.finish_reason === "length") acc.cut = true;
 		}
 	}
-	return text;
+	return unmaskText(text);
 	} catch (e) {
 		if (e && typeof e === "object" && answered) { try { e.got = true; } catch {} }
 		throw e;
@@ -3593,7 +3630,7 @@ async function once(model, messages, extra = {}, acc = null) {
 	let r, j;
 	for (let net = 0, since = Date.now(); ; net++) {
 		try {
-			r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify({ model, messages: cached(model, placeNote(messages)), ...extra }) });
+			r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify(maskDeep({ model, messages: cached(model, placeNote(messages)), ...extra })) });
 			j = await r.json();
 			if (net) netBar("ok");
 			break;
@@ -3608,7 +3645,7 @@ async function once(model, messages, extra = {}, acc = null) {
 	}
 	if (!r.ok || j.error) throw fail(j.error?.message || r.statusText, r.ok ? j.error?.code : r.status);
 	if (j.usage) { const c = Number(j.usage.cost) || 0; if (acc) { acc.cost = (acc.cost || 0) + c; acc.unit = creditsMode() ? "credits" : "usd"; } addSpend(c); }
-	return j.choices?.[0]?.message?.content || "";
+	return unmaskText(j.choices?.[0]?.message?.content || "");
 }
 function parseJSON(t) {
 	const m = t.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -4239,7 +4276,9 @@ function renderMsg(m, i) {
 		const atts = (m.atts || []).length ? '<div class="att">' + m.atts.map((a) => '<span class="att-pill">' + (a.kind === "image" && a.data ? '<img src="' + a.data + '" alt="">' : "") + "<span>" + esc(a.name) + "</span></span>").join("") + "</div>" : "";
 		if (EDITING === i) return '<div class="msg user editing" data-i="' + i + '"><div class="edit">' + atts + '<textarea id="editBox" rows="2" aria-label="Edit your message">' + esc(m.text) +
 			'</textarea><div class="row"><button class="btn" data-edit-cancel>Cancel</button><button class="btn dark" data-edit-send="' + i + '">Send</button></div></div></div>';
+		const kept = secretsIn((m.text || "") + " " + (m.atts || []).map((a) => (a.kind === "text" ? a.data || "" : "")).join(" "));
 		return '<div class="msg user" data-i="' + i + '"><div>' + atts + '<div class="bubble">' + esc(m.text) + "</div>" +
+				(kept ? '<div class="secret-note"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>' + (kept === 1 ? "A key or password here stays on this device" : kept + " keys or passwords here stay on this device") + ": AI models only ever see a stand-in</div>" : "") +
 			'<div class="uact">' + verNav(m, i) + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("edit", i, "Edit and send again (the answer you have is kept as a version)", ACT_IC.edit) + "</div></div></div>";
 	}
 	if (m.error) return '<div class="msg" data-i="' + i + '"><div class="err">' + esc(m.error) + "</div>" + (i === current.msgs.length - 1 && !busy ? '<div class="actions" style="opacity:1"><button class="act" data-regen>Try again</button></div>' : "") + "</div>";
@@ -4378,7 +4417,7 @@ function webExtra(id, force) {
 }
 async function toolCall(path, body, ms = 15000) {
 	const signal = AbortSignal.any ? AbortSignal.any([busy.signal, AbortSignal.timeout(ms)]) : busy.signal;
-	const r = await fetch(SERVER + path, { method: "POST", headers: headers(), body: JSON.stringify(body), signal });
+	const r = await fetch(SERVER + path, { method: "POST", headers: headers(), body: JSON.stringify(maskDeep(body)), signal });
 	const j = await r.json().catch(() => ({}));
 	if (!r.ok) throw fail(j.error?.message || j.error || r.statusText, r.status);
 	return j;
@@ -4704,11 +4743,13 @@ async function agentCall(model, messages, signal, acc, tools = AGENT_TOOLS) {
 		const k = messages.length - 1;
 		body.messages = messages.map((x, i) => (i === 0 || (i === k && x.role !== "assistant" && typeof x.content === "string")) ? mark(x) : x);
 	}
-	const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify(body) });
+	const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify(maskDeep(body)) });
 	const j = await r.json().catch(() => ({}));
 	if (!r.ok || j.error) throw fail(j.error?.message || r.statusText, r.ok ? j.error?.code : r.status);
 	if (j.usage) { const c = Number(j.usage.cost) || 0; acc.cost = (acc.cost || 0) + c; acc.unit = "credits"; addSpend(c); }
-	return j.choices?.[0]?.message || {};
+	const said = j.choices?.[0]?.message || {};
+	// (the real values back in what it wrote and in what its tools are asked to do: they run here)
+	return { ...said, content: unmaskText(said.content), ...(said.tool_calls ? { tool_calls: said.tool_calls.map((c) => ({ ...c, function: { ...c.function, arguments: unmaskText(c.function?.arguments) } })) } : {}) };
 }
 const globRe = (g) => new RegExp("^" + normPath(g).replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*\*\//g, "(?:.*/)?").replace(/\*\*/g, ".*").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]") + "$", "i");
 async function eachLimit(items, n, fn) { let k = 0; await Promise.all(Array.from({ length: n }, async () => { while (k < items.length) await fn(items[k++]); })); }
@@ -9084,7 +9125,7 @@ async function makeMusic(model, prompt, msg, signal) {
 		return blob;
 	}
 	const go = async (extra) => {
-		const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify({ model: model.id, messages: [{ role: "user", content: prompt }], modalities: ["text", "audio"], stream: true, ...extra }) });
+		const r = await fetch(chatURL(), { method: "POST", headers: headers(), signal, body: JSON.stringify(maskDeep({ model: model.id, messages: [{ role: "user", content: prompt }], modalities: ["text", "audio"], stream: true, ...extra })) });
 		if (!r.ok) { let m = r.statusText; try { m = (await r.json()).error?.message || m; } catch {} throw fail(m, r.status); }
 		const reader = r.body.getReader(), dec = new TextDecoder();
 		let buf = "", b64 = "", cost = 0;
@@ -10820,6 +10861,8 @@ function creditsText(n) {
 }
 async function api(path, opts = {}) {
 	const look = !opts.method || /^(GET|HEAD)$/i.test(opts.method);
+	// (what's shared, scheduled or sent to support never carries a secret; sign-in and payments are sent as they are)
+	if (opts.body && /^\/api\/(shares|tasks|support|issues|feedback|report|notes)/.test(path)) { try { opts = { ...opts, body: JSON.stringify(maskDeep(JSON.parse(opts.body))) }; } catch {} }
 	let r;
 	for (let net = 0; ; net++) {
 		try { r = await fetch(SERVER + path, { ...opts, headers: { "Content-Type": "application/json", ...(account && account.token ? { Authorization: "Bearer " + account.token } : {}), ...ownerHeader(true), ...(opts.headers || {}) } }); break; }

@@ -844,6 +844,8 @@ function itemPrice(m, idr) {
 	if (Number.isFinite(n(p.inputIdrPerMTok))) { pin = n(p.inputIdrPerMTok) / idr / 1e6; pout = n(p.outputIdrPerMTok) / idr / 1e6; }
 	else if (Number.isFinite(n(p.input_idr_per_m))) { pin = n(p.input_idr_per_m) / idr / 1e6; pout = n(p.output_idr_per_m) / idr / 1e6; }
 	else if (Number.isFinite(n(p.prompt)) && Number.isFinite(n(p.completion))) { pin = n(p.prompt); pout = n(p.completion); }
+	// (MarkasAI's own list, read with its key: {currency: "IDR", per_tokens: 1000000, input, output})
+	else if (Number.isFinite(n(p.input)) && Number.isFinite(n(p.output)) && Number(p.per_tokens) > 0) { const per = Number(p.per_tokens) * (String(p.currency || "USD").toUpperCase() === "IDR" ? idr : 1); pin = n(p.input) / per; pout = n(p.output) / per; }
 	return Number.isFinite(pin) && Number.isFinite(pout) && pin >= 0 && pout > 0 ? { pin, pout } : null;
 }
 // a gateway that just turned Celestin's key down (no balance, a budget reached): tried last for ten minutes
