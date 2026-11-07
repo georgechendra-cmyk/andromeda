@@ -2521,8 +2521,12 @@ function bestFor(feature, cap) {
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
 	// (a cap on how hard it may think: it's judged by what it scored at that much thought or less, which is what will run)
 	if (cap) { const under = data.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) data = under; }
+	if (!f.fast) data = underFree(data, f.out, f.in);
 	// (the quick reader sorts every message, so the best of the fast ones, not the cheapest that's nearly as good)
-	data = bestFirst(f.fast ? data : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
+	// (on Free the cap has already done the saving: the best under it does the work, not one a step behind it that's
+	// cheaper still; measured Nov 7, the step past a hair would have built with gpt-oss-120b, about 25 Elo under
+	// DeepSeek V4.1 Flash, to save Rp260)
+	data = bestFirst(f.fast ? data : freePlan() ? data.slice().sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity)) : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -6718,8 +6722,9 @@ const CHECK = {
 	vision: ["google", "openai", "anthropic"],
 };
 function checkersFor(task, writerLab) {
-	// measured: the best at this exact work from each of the other labs, best first
-	const data = bestFirst(arenaRank(task));
+	// measured: the best at this exact work from each of the other labs, best first (on Free, the best under its price
+	// cap: a tester reads the whole project, about 12k tokens, and writes a short report)
+	const data = bestFirst(underFree(arenaRank(task), 1500, 12000));
 	if (data.length >= 2) {
 		const out = [], labs = new Set([writerLab]);
 		for (const x of data) {
@@ -7049,6 +7054,20 @@ function teammateTie(cands, used) {
 // what's written (the cheap fast models only ever read, plan and route, never write what the user reads). A paid plan
 // or a credit pack thinks fully.
 function liteMode() { return speed() !== "max" && creditsMode() && !!me && !(me.paid > 0) && !(me.plan && me.plan.paid); }
+// Free use is paid by the owner, out of a small daily budget: for someone on Free with nothing bought, every model
+// picked for a piece of work (a build, a fix, a test, a shot) is the best whose call stays under FREE_CALL_USD. On web
+// work thinking less isn't "the same quality" (LMArena: about 35 Elo a level), so a cheaper model at its full thought
+// beats a dear one held back: measured Nov 7, DeepSeek V4.1 Flash at max builds about 69 Elo under the very best, ahead
+// of GPT-6.1 Sol at medium (what Auto used before, about 100 under), for about Rp274 a build against Rp4,927 for Sol at
+// max, so the free budget covers about ten builds a day instead of less than one. (Chat keeps liteMode: there thinking
+// a step less costs about 1 Elo)
+const FREE_CALL_USD = 0.05;
+function freePlan() { return creditsMode() && !!me && !me.owner && !(me.paid > 0) && !(me.plan && me.plan.paid); }
+function underFree(data, out, inTok) {
+	if (!freePlan()) return data;
+	const ok = data.filter((x) => callCost(x, undefined, out || 800, inTok) / 1e6 <= FREE_CALL_USD);
+	return ok.length ? ok : data;
+}
 // no deeper thinking than the piece needs (never more than the model was rated at); a model that thinks but wasn't rated
 // at any level would think as long as its provider likes, so it's held to the cap too
 const capEffort = (e, cap, id) => {
