@@ -7677,6 +7677,71 @@ async function polishLook(files, request, msg, rules) {
 // up to three rounds: run it, and if anything breaks, the errors go back to a coder; the second round goes to a
 // different lab, so a blind spot in one model is not repeated. Then, once it runs clean, it's looked at (look: false
 // for a change the person asked for, which shouldn't come back restyled)
+// ---- deep mode: what an agent given hours does (the YouTube experiments: play it, see what would make it much better, do
+// it, again and again), when the person picks Max or asks for all the time it needs. Each round a critic from another lab
+// plays it (its pictures and its code) and names what would make it dramatically better, not only bugs: what the request
+// asked for that's missing, how it feels to play, depth (levels, story, opponents, menus), how it looks and sounds, polish.
+// The builder does all of it at its best; it's run again (anything broken is fixed); every other round the tester and the
+// designer go over it too. It ends when the critic has nothing big left, after DEEP_ROUNDS, or when the credits run low
+const DEEP_RE = /\b(take (all )?(the |your )?time|all the time (you|u) need|as long as (it takes|you need)|no matter how long|masterpiece|the best (you|u) can|as good as (it gets|possible)|deep mode)\b/i;
+const deepWanted = (text) => speed() === "max" || DEEP_RE.test(String(text || ""));
+const DEEP_ROUNDS = 8;
+async function critiqueApp(files, request, msg, by) {
+	const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
+	const shots = await snapApp(files).catch(() => []);
+	const critics = checkersFor("code", by ? provider(by.id) : "").filter((m) => !shots.length || (m.input || []).includes("image"));
+	if (!critics.length) return null;
+	msg.status = "Deep work: a critic is playing it, looking for what would make it much better";
+	updateLast();
+	const content = [{ type: "text", text: "You lead a top game and product studio. Someone asked for:\n" + String(request).slice(0, 3000) + "\n\nThis is what has been built so far" + (shots.length ? " (pictures of it running are below: as it opens, and after its main button and keys were pressed)" : "") + ":\n\n" + code.slice(0, 150000) +
+		"\n\nPlay it in your head for real, start to finish, as the person who asked would. What would make it DRAMATICALLY better for what they asked? Not small fixes: what the request asked for that's missing or only faked, how it feels (controls, speed, weight, responsiveness), depth (levels, a story, opponents that think, menus, progression, goals), how it looks (a real art direction, animation, effects) and sounds, and polish (a title screen, feedback on every action, an ending). Each change concrete enough to build, the most important first.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's already excellent and nothing big is missing, \"upgrades\": [\"what to change or add, where, and how it should work\"]}\nAt most 6 upgrades." },
+		...shots.slice(0, 4).map((url) => ({ type: "image_url", image_url: { url } }))];
+	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content }], msg, undefined, "high");
+	const j = parseJSON(r.out) || {};
+	if (!msg.used.some((u) => /^Critic/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Critic: played it each round and named what would make it much better" });
+	return { ship: !!j.ship, upgrades: (Array.isArray(j.upgrades) ? j.upgrades : []).map((x) => String(x).slice(0, 600)).filter((x) => x.trim()).slice(0, 6) };
+}
+async function deepenApp(files, request, msg, rules, by) {
+	const deep = { rounds: 0, upgrades: 0 };
+	for (let round = 1; round <= DEEP_ROUNDS; round++) {
+		if (busy && busy.signal.aborted) break;
+		let c = null;
+		try { c = await critiqueApp(files, request, msg, by); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; }
+		if (!c || (c.ship && !c.upgrades.length) || !c.upgrades.length) break;
+		const fixers = bestFor("app"), builder = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
+		const room = await roundCap(builder, files, "max");
+		if (room.need) { deep.short = true; break; }
+		msg.status = "Deep work, round " + round + " of " + DEEP_ROUNDS + ": building " + c.upgrades.length + " improvement" + (c.upgrades.length === 1 ? "" : "s");
+		updateLast();
+		const have = Object.entries(files).map(([p, x]) => "=== FILE: " + p + " ===\n" + x).join("\n\n").slice(0, 160000);
+		msg.cut = false;
+		const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + have +
+			"\n\nThe lead of a top studio played it and says these would make it much better:\n- " + c.upgrades.join("\n- ") +
+			"\n\nDo all of them, properly and completely, the way the best studio would, keeping every feature and everything that already works. " + CHANGE_FORMAT + " (In NOTES, one line per change.)" }];
+		let r;
+		try { r = await askFirst([builder, ...fixers.filter((m) => m !== builder)].slice(0, 3), ask, msg, undefined, room.cap); }
+		catch (e) { delete msg.cut; if (e.name === "AbortError" || e.status === 401) throw e; if (e.status === 402) { deep.short = true; } break; }
+		const p = parseFiles(r.out);
+		if (cutShort(p, msg.cut) || !changed(p)) { delete msg.cut; break; }
+		delete msg.cut;
+		let next = await applyChange(files, p, r.model, ask, r.out, msg);
+		// it still has to run: anything the round broke is fixed (crash fixes only); a round that can't be made to run is dropped
+		next = await heal(next, request, msg, rules, false, by);
+		if (msg.tested && msg.tested.ok === false) { msg.tested = { ...msg.tested, ok: true, problems: [] }; break; }
+		files = next;
+		deep.rounds = round;
+		deep.upgrades += c.upgrades.length;
+		// every other round, the tester and the designer go over it again
+		if (round % 2 === 0) {
+			const lg = await reviewLogic(files, request, msg, rules, by);
+			if (lg && lg.fixed) { const t = await probeApp(lg.files); if (!t.errors.length && !t.blank) files = lg.files; }
+			const seen = await polishLook(files, request, msg, rules);
+			files = seen.files;
+		}
+	}
+	msg.tested = { ...(msg.tested || { ok: true, fixed: 0, rounds: 0 }), deep };
+	return files;
+}
 // A tester from another lab reads a new build and plays it through in their head, for what doesn't work as asked: an AI
 // that holds the ball and never acts, a timer that can't run out because it's counted back every frame, starting
 // positions against the real rules, a control that does nothing, a state there's no way out of. Only real bugs, the worst
@@ -7777,7 +7842,7 @@ async function heal(files, request, msg, rules, look = true, by = null) {
 }
 function testedLine(t) {
 	if (!t) return "";
-	const looked = (t.logic ? " A second AI played it through and fixed " + t.logic + (t.logic === 1 ? " bug" : " bugs") + " in how it works." : "") + (t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "");
+	const looked = (t.deep && t.deep.rounds ? " Then deep work: " + t.deep.rounds + " round" + (t.deep.rounds === 1 ? "" : "s") + " of a critic from another lab playing it and naming what would make it much better, and " + t.deep.upgrades + " improvement" + (t.deep.upgrades === 1 ? "" : "s") + " built and tested" + (t.deep.short ? " (it stopped there: the credits ran low)" : "") + "." : "") + (t.logic ? " A second AI played it through and fixed " + t.logic + (t.logic === 1 ? " bug" : " bugs") + " in how it works." : "") + (t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "");
 	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean." + looked + "*" : "\n\n*Tested in the browser: it runs clean." + looked + "*";
 	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them. Get more credits, then say \"fix it\".*";
 	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
@@ -8196,6 +8261,7 @@ async function buildApp(text, atts, pick) {
 	let files = prev ? await applyChange(prev.data.files, parsed, by, asked, said, msg) : Object.assign({}, parsed.files);
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
 	else files = await heal(files, text, msg, rules, !prev, by);
+	if (!unfinished && deepWanted(text) && !(msg.tested && msg.tested.short)) files = await deepenApp(files, text, msg, rules, by);
 	msg.data = { files, title };
 	msg.tab = "preview";
 	{
@@ -9217,6 +9283,8 @@ Write the plan so the result looks expensive and real:
 - Ads: hook in the first 2 seconds, show the product/benefit, end on the brand and a call to action. Social/vertical: fast, 9:16. Films: build and pay off.
 - Voiceover: short, natural, said aloud in the time of its shot (about 2.5 words per second). Empty when the shot speaks for itself. ElevenLabs tags like [excited], [whispers], [laughs] are allowed sparingly.
 - Captions: short and punchy (max 6 words), or empty.
+- Clear with no context: a stranger scrolling past must understand who this is, what they want, what happens and why it matters, in the first watch and with no explanation: establish the character and their goal in the first shots, show cause and effect on screen, one clear turn, a payoff. Where the story needs words and there's no voice, put short lines on screen (a title, a caption, a sign, a message on a screen), never symbols only you would understand.
+- For a product or brand film (a trailer, an ad, a launch): show what it is and what it does for the viewer, concretely, in the first 3 seconds (the product in use, the result it gives), then why it's better, then its name and where to get it. A story about a feeling never stands in for showing the product.
 - The end card: when the last shot already ends on the film's title (a title card drawn in it), leave "end" title and sub empty: a second card would only repeat it.
 - Typography: choose the film's two Google Fonts the way a title designer would, for this world: a pixel font ("Press Start 2P", "Silkscreen", "VT323") for pixel art and games, a warm serif ("Fraunces", "Cormorant Garamond", "Playfair Display") for a tender or literary story, a hand-drawn one ("Caveat", "Patrick Hand") for a sketchbook look, a heavy condensed grotesk ("Anton", "Bebas Neue", "Archivo Black") for an ad or trailer, a geometric display ("Unbounded", "Syne", "Space Grotesk") for tech: anything on Google Fonts that fits. Never Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins or a system font: they look like every other AI video.
 - A video for YouTube, a channel, Shorts or TikTok is made the way the best animation channels make theirs: a hook that grabs in the first 5 seconds, a clear arc (setup, rising stakes, a reveal or punchline, a payoff), recurring characters with names, roles and an identical look in every shot, and a reason to subscribe at the end. For one, also return "youtube": {"titles": ["3 title options, under 60 characters, curious and true"], "hook": "what the first 5 seconds show and say", "characters": [{"name": "...", "role": "...", "look": "described identically to the shots"}], "description": "2 to 4 sentences, then its chapters as 0:00 lines", "tags": ["8 to 15 search tags"], "thumbnail": {"text": "2 to 4 words, huge", "shot": the number of the shot whose picture it uses (1 is the first), "color": "#hex for the words"}}. Leave "youtube" out for anything else.

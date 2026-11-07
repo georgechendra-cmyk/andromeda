@@ -39,7 +39,9 @@ const DEFAULT_CONFIG = {
 	// A free account costs the owner at most "week" x Rp69 a week (about Rp10,000), and all of them together never more
 	// than budgetIdr a day. 150 credits a week is about 50 everyday answers, 20 changes to code, or an app by the best
 	// builder (the window holds one at its medium effort, about 100).
-	free: { credits: 100, hours: 5, every: 5, week: 150, budgetIdr: 15000, usdIdr: 18000, dailyCap: 0 },
+	// (budgetIdr 3,000 since Nov 7: the owner's gateway money is a weekly allowance until sales come in, so free use is held to
+	// about Rp21,000 a week for everyone together; raise it once plans sell)
+	free: { credits: 100, hours: 5, every: 5, week: 150, budgetIdr: 3000, usdIdr: 18000, dailyCap: 0 },
 	// A plan, bought for a month (30 days; QRIS confirmed by hand, cards automatic). Each month of it gives that plan's month
 	// of credits ("month"), used at most "credits" in any "hours" (Claude's 5-hour limit). Nothing piles up: the window and
 	// the month each start again full, never more, and what wasn't used is gone. Paying early adds 30 days to the end, with
