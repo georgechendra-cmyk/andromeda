@@ -598,6 +598,9 @@ function columns(env) {
 		}
 		const jcols = new Set(((await env.DB.prepare("PRAGMA table_info(jobs)").all()).results || []).map((r) => r.name));
 		if (jcols.size && !jcols.has("owner")) { try { await env.DB.prepare("ALTER TABLE jobs ADD COLUMN owner INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		// (a scheduled task kept by a Celestin Together teammate says which)
+		const tcols = new Set(((await env.DB.prepare("PRAGMA table_info(tasks)").all()).results || []).map((r) => r.name));
+		if (tcols.size && !tcols.has("member")) { try { await env.DB.prepare("ALTER TABLE tasks ADD COLUMN member TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		const ucols = new Set(((await env.DB.prepare("PRAGMA table_info(usage)").all()).results || []).map((r) => r.name));
 		for (const k of ["in_tok", "cached_tok", "out_tok", "ms", "first_ms", "write_tok"]) if (!ucols.has(k)) { try { await env.DB.prepare("ALTER TABLE usage ADD COLUMN " + k + " INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS support (id TEXT PRIMARY KEY, user_id TEXT, email TEXT NOT NULL, category TEXT, subject TEXT, message TEXT NOT NULL, details TEXT, status TEXT NOT NULL DEFAULT 'open', ip TEXT, created_at INTEGER NOT NULL)").run();
@@ -2847,7 +2850,7 @@ function nextRun(t, after) {
 	}
 	return after + day;
 }
-const taskOut = (t) => ({ id: t.id, title: t.title, prompt: t.prompt, every: t.every, minute: t.minute, dow: t.dow, tz: t.tz, web: !!t.web, next_at: t.next_at, last_at: t.last_at, active: !!t.active });
+const taskOut = (t) => ({ id: t.id, title: t.title, prompt: t.prompt, every: t.every, minute: t.minute, dow: t.dow, tz: t.tz, web: !!t.web, next_at: t.next_at, last_at: t.last_at, active: !!t.active, member: t.member || null });
 async function taskList(env, user) {
 	const tasks = (await env.DB.prepare("SELECT * FROM tasks WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()).results || [];
 	const runs = (await env.DB.prepare("SELECT id, task_id, text, error, model, created_at, seen FROM task_runs WHERE user_id = ? ORDER BY created_at DESC LIMIT 40").bind(user.id).all()).results || [];
@@ -2865,18 +2868,19 @@ async function taskSave(req, env, user) {
 		tz: Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 0))), web: b.web === false ? 0 : 1,
 		models: JSON.stringify((Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 4)),
 		active: b.active === false ? 0 : 1,
+		member: /^(researcher|builder|designer|writer|analyst|reviewer)$/.test(String(b.member || "")) ? String(b.member) : null,
 	};
 	t.next_at = nextRun(t, now());
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
 		const r = await env.DB.prepare("UPDATE tasks SET title = ?, prompt = ?, every = ?, minute = ?, dow = ?, tz = ?, web = ?, models = ?, active = ?, next_at = ? WHERE id = ? AND user_id = ?")
 			.bind(t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.web, t.models, t.active, t.next_at, b.id, user.id).run();
-		if (r.meta && r.meta.changes) return json({ task: taskOut({ ...t, id: b.id }) });
+		if (r.meta && r.meta.changes) { const k = await env.DB.prepare("SELECT member FROM tasks WHERE id = ?").bind(b.id).first(); return json({ task: taskOut({ ...t, id: b.id, member: k && k.member }) }); }
 	}
 	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM tasks WHERE user_id = ?").bind(user.id).first();
 	if (n && n.n >= 20) throw fail(429, "You have 20 tasks already: delete one to add another.");
 	const tid = id();
-	await env.DB.prepare("INSERT INTO tasks (id, user_id, title, prompt, every, minute, dow, tz, web, models, active, next_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		.bind(tid, user.id, t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.web, t.models, t.active, t.next_at, now()).run();
+	await env.DB.prepare("INSERT INTO tasks (id, user_id, title, prompt, every, minute, dow, tz, web, models, active, next_at, created_at, member) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		.bind(tid, user.id, t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.web, t.models, t.active, t.next_at, now(), t.member).run();
 	return json({ task: taskOut({ ...t, id: tid }) });
 }
 async function taskDel(env, user, tid) {

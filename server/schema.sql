@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS tasks (
 	tz INTEGER NOT NULL DEFAULT 0, -- the person's offset from UTC in minutes (UTC+7 = 420)
 	web INTEGER NOT NULL DEFAULT 1,
 	models TEXT, -- the models Andromeda picked for it, best first (JSON)
+	member TEXT, -- the Celestin Together teammate keeping it going (null: Celestin's own)
 	active INTEGER NOT NULL DEFAULT 1,
 	next_at INTEGER NOT NULL,
 	last_at INTEGER,

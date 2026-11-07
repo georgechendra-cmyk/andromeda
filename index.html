@@ -250,6 +250,13 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 
 .scroller { flex: 1; min-height: 0; overflow-y: auto; }
 .thread { max-width: 760px; margin: 0 auto; padding: 22px 22px 190px; }
+/* Celestin Together: what the teammates keep doing by themselves */
+.welcome.together .always { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: center; margin: 14px auto 0; max-width: 760px; }
+.welcome.together .always .al { font-size: 12px; font-weight: 600; letter-spacing: .02em; color: var(--muted); margin-right: 2px; }
+.welcome.together .aon { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+.welcome.together .aon i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.welcome.together .aon .when { color: var(--muted); white-space: nowrap; }
+.welcome.together .aon:hover { border-color: var(--line2); background: var(--bg2); }
 /* a Together teammate's lane: working, never seen */
 iframe.lane { position: fixed; left: -12000px; top: 0; width: 1024px; height: 768px; border: 0; opacity: 0; pointer-events: none; }
 .msg { margin: 0 0 28px; }
@@ -6834,13 +6841,16 @@ function mateModel(t) {
 function renderTogetherWelcome() {
 	// (the six teammates; the Lead is the one who hands out the work, said in the line above them)
 	const cards = TEAM.filter((t) => t.id !== "lead").map((t) => '<button class="mate" data-mate="' + t.id + '" title="Ask the ' + esc(t.name) + ' directly"><div class="mh"><i style="--c:' + t.c + '"></i>' + esc(t.name) + '</div><div class="mr">' + esc(t.role) + "</div>" + (mateModel(t) ? '<div class="mmod">now: ' + esc(mateModel(t)) + "</div>" : "") + "</button>").join("");
-	const sugs = [["Team", "Plan and build a landing page for my coffee shop"], ["@Researcher", "What changed in AI this week? With sources"], ["@Analyst", "Make a monthly budget for a student with Rp2jt"], ["Team", "Research the best study methods, then make me flashcards"]];
+	const sugs = [["Team", "Plan and build a landing page for my coffee shop"], ["@Researcher", "Every weekday at 7, the AI news that matters, with sources"], ["@Analyst", "Make a monthly budget for a student with Rp2jt"], ["Team", "Research the best study methods, then make me flashcards"]];
+	// (always on: what the teammates keep doing by themselves, from the last look at the tasks)
+	const on = TEAM_TASKS.slice(0, 4).map((t) => '<button class="aon" data-tasks="1"><i style="--c:' + MATE[t.member].c + '"></i><b>' + esc(MATE[t.member].name) + "</b> " + esc(t.title.length > 48 ? t.title.slice(0, 46).trimEnd() + "…" : t.title) + ' <span class="when">' + esc(whenText(t)) + "</span></button>").join("");
 	$("#view").innerHTML = '<section class="welcome together"><div class="eyebrow-t">Celestin Together</div><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Every part, by whoever does it best.</span></h1>' +
-		'<p class="lead-t">Ask for anything. The Lead gives each part to the teammate for it, each one the model measured best at that right now. Tap one, or type @ and a name, to ask them directly.</p><div class="team">' + cards + '</div><div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + "</div></section>";
+		'<p class="lead-t">Ask for anything. The Lead gives each part to the teammate for it, each one the model measured best at that right now. Tap one, or type @ and a name, to ask them directly.</p><div class="team">' + cards + '</div>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + "</div></section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 	$$("[data-mate]").forEach((b) => (b.onclick = () => { const inp = $("#input"), tag = "@" + MATE[b.dataset.mate].name + " "; if (!inp.value.startsWith(tag)) inp.value = tag + inp.value.replace(MATE_RE, "").trimStart(); inp.focus(); autosize(); }));
 	$$("[data-tsug]").forEach((b) => (b.onclick = () => { $("#input").value = b.dataset.tsug; autosize(); send(); }));
+	$$("[data-tasks]").forEach((b) => (b.onclick = () => openTasks()));
 	startSky($("#appSky"), { live: () => document.body.classList.contains("at-welcome") && document.body.classList.contains("in-app"), clear: () => [$(".welcome .greet"), $("#composer")] });
 }
 // one teammate's piece, served the Celestin way with the teammate's field weighed in. o.brief: a piece the Lead gave out
@@ -13317,7 +13327,15 @@ function whenText(t) {
 }
 // the models for a task: Celestin's own measured pick for what it asks, best first
 function taskModels(prompt) {
-	try { return rank(classify(prompt, [])).slice(0, 3).map((m) => m.id); } catch { return []; }
+	try {
+		// (read by the conductor: the models best at exactly this, a teammate's field weighed in, by the 54/46 and 1.8x rules)
+		if (PROFILE && PROFILE.weights && Object.keys(PROFILE.weights).length) {
+			const kind = PROFILE.kind || classify(prompt, []);
+			const data = bestFirst(quarkFirst(arenaRank(kind, PROFILE.weights), undefined, null, (x, c) => callCost(x, c, OUT_BY[kind] || 800)));
+			if (data.length) return pinFirst(diversify(data), kind).slice(0, 3).map((m) => m.id);
+		}
+		return rank(classify(prompt, [])).slice(0, 3).map((m) => m.id);
+	} catch { return []; }
 }
 async function makeTask(t) {
 	const j = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...t, tz: -new Date().getTimezoneOffset(), models: t.models || taskModels(t.prompt) }) });
@@ -13328,31 +13346,40 @@ async function makeTask(t) {
 async function runTaskWay(plan, text) {
 	if (!creditsMode() || !account) throw Object.assign(new Error("Sign in to set up tasks: they run on Celestin's server, even with this page closed."), { plain: true });
 	const s = plan.schedule || {};
-	const task = await makeTask({ prompt: String(s.todo || text).slice(0, 4000), title: String(s.todo || text).slice(0, 80), every: s.every, time: s.time, dow: s.dow, web: true });
-	current.msgs.push({ role: "assistant", text: "Done. **" + whenText(task) + "** I'll: " + task.prompt + "\n\nEach answer goes to your **Tasks** chat, even if this page is closed. You can change or stop it in **Tasks** in the sidebar." });
+	const mate = TOGETHER && MATE_NOW && MATE_NOW.id !== "lead" ? MATE_NOW : null;
+	const task = await makeTask({ prompt: String(s.todo || text).slice(0, 4000), title: String(s.todo || text).slice(0, 80), every: s.every, time: s.time, dow: s.dow, web: true, ...(mate ? { member: mate.id } : {}) });
+	current.msgs.push({ role: "assistant", text: "Done. **" + whenText(task) + "** I'll: " + task.prompt + "\n\n" + (mate ? "Each answer goes to **Team updates** in Celestin Together, from me, even with this page closed." : "Each answer goes to your **Tasks** chat, even if this page is closed.") + " You can change or stop it in **Tasks** in the sidebar." });
 	syncTasks();
 }
-// what ran while you were away: into the Tasks chat
+// what ran while you were away: into the Tasks chat (a Together teammate's: into Team updates)
 let TASK_SYNC = 0;
+var TEAM_TASKS = [];
 async function syncTasks(quiet) {
 	if (!creditsMode() || !account || Date.now() - TASK_SYNC < 4000) return null;
 	TASK_SYNC = Date.now();
 	let j;
 	try { j = await api("/api/tasks"); } catch { return null; }
+	TEAM_TASKS = (j.tasks || []).filter((t) => t.member && MATE[t.member] && t.active);
 	const fresh = (j.runs || []).filter((r) => !r.seen).reverse();
 	if (fresh.length) {
-		let c = convos.find((x) => x.id === "tasks");
-		if (!c) { c = { id: "tasks", title: "Tasks", at: Date.now(), msgs: [] }; convos.unshift(c); }
+		// (a teammate's task: its answers to the Together app's Team updates, marked with them; Celestin's own: to Tasks)
+		const chatFor = (team) => {
+			const id = team ? "team-tasks" : "tasks";
+			let c = convos.find((x) => x.id === id);
+			if (!c) { c = { id, title: team ? "Team updates" : "Tasks", at: Date.now(), msgs: [], ...(team ? { together: true } : {}) }; convos.unshift(c); }
+			c.at = Date.now();
+			return c;
+		};
 		for (const r of fresh) {
-			const t = (j.tasks || []).find((x) => x.id === r.task_id);
+			const t = (j.tasks || []).find((x) => x.id === r.task_id), who = t && t.member && MATE[t.member] ? t.member : null, c = chatFor(who);
 			c.msgs.push({ role: "user", text: "Task: " + (t ? t.title : "a task") + " (" + new Date(r.created_at).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" }) + ")" });
-			c.msgs.push(r.text ? { role: "assistant", text: r.text, model: r.model || undefined } : { role: "assistant", error: "This run didn't work: " + (r.error || "no answer came back") });
+			c.msgs.push(r.text ? { role: "assistant", text: r.text, model: r.model || undefined, ...(who ? { member: who } : {}) } : { role: "assistant", error: "This run didn't work: " + (r.error || "no answer came back"), ...(who ? { member: who } : {}) });
 		}
-		c.at = Date.now();
 		save();
 		render();
 		api("/api/tasks/seen", { method: "POST", body: JSON.stringify({ ids: fresh.map((r) => r.id) }) }).catch(() => {});
-		if (!quiet) toast(fresh.length === 1 ? "A task ran: it's in your Tasks chat" : fresh.length + " tasks ran: they're in your Tasks chat");
+		const teamOnes = fresh.filter((r) => TEAM_TASKS.some((t) => t.id === r.task_id) || ((j.tasks || []).find((x) => x.id === r.task_id) || {}).member).length;
+		if (!quiet) toast(teamOnes === fresh.length ? (fresh.length === 1 ? "Your team has an update: it's in Team updates" : fresh.length + " team updates: they're in Team updates") : teamOnes ? fresh.length + " tasks ran: they're in your Tasks chat and Team updates" : fresh.length === 1 ? "A task ran: it's in your Tasks chat" : fresh.length + " tasks ran: they're in your Tasks chat");
 		try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Celestin", { body: (fresh[fresh.length - 1].text || "A task ran").replace(/[#*_`>]/g, "").slice(0, 140), icon: "icons/icon-192.png" }); } catch {}
 	}
 	return j;
