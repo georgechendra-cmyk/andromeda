@@ -508,10 +508,7 @@ async function authUser(req, env) {
 // Bought credits still work; the most free use can cost is the budget and a call already running
 async function readyUser(env, row, c) {
 	const u = await refill(env, row, c);
-	if (!u.owner && !planOf(u, c).paid && budgetUsd(c) > 0) {
-		const r = await env.DB.prepare("SELECT mc FROM free_days WHERE day = ?").bind(spentKey()).first();
-		if (((r && r.mc) || 0) >= budgetUsd(c) * 1e6) u.free_frozen = true;
-	}
+	if (!u.owner && !planOf(u, c).paid && (await freeSpentOut(env, c))) u.free_frozen = true;
 	return u;
 }
 
@@ -614,6 +611,12 @@ function columns(env) {
 const nextDay = () => { const d = new Date(); d.setUTCHours(24, 0, 0, 0); return d.getTime(); };
 const spentKey = () => "spent:" + new Date().toISOString().slice(0, 10);
 const budgetUsd = (c) => (Number(c.free.budgetIdr) || 0) / (Number(c.free.usdIdr) || 18000);
+// today's free use has cost the owner all of its budget (free credits are frozen until tomorrow)
+async function freeSpentOut(env, c) {
+	if (!(budgetUsd(c) > 0)) return false;
+	const r = await env.DB.prepare("SELECT mc FROM free_days WHERE day = ?").bind(spentKey()).first();
+	return ((r && r.mc) || 0) >= budgetUsd(c) * 1e6;
+}
 // the share of a charge that a free window paid for, at its real cost, added to today's total (a statement for the
 // batch; a paid plan's window isn't free use)
 function freeSpend(env, held, charged, usd) {
@@ -733,7 +736,10 @@ async function take(env, userId, mc, c, owner = false) {
 		const u = await env.DB.prepare("SELECT balance_mc, free_mc, free_reset_at, week_mc, week_at, plan_mc, plan, plan_until FROM users WHERE id = ?").bind(userId).first();
 		if (!u) return null;
 		const plan = planOf(u, c), t = now();
-		const fromFree = Math.min(windowLeft(u, c), mc), fromPaid = mc - fromFree;
+		// (free credits frozen for today are never held, whatever path asks: web search, pictures, video and voice hold
+		// here without the request's check, and someone with bought credits too would be spending the frozen window first)
+		const win = windowLeft(u, c), frozen = win > 0 && !plan.paid && (await freeSpentOut(env, c));
+		const fromFree = Math.min(frozen ? 0 : win, mc), fromPaid = mc - fromFree;
 		if (fromPaid > Math.max(0, u.balance_mc)) return null;
 		// (a bought plan: what comes out of the window comes out of its month of credits too)
 		const fromMonth = plan.paid && plan.month ? fromFree : 0;
