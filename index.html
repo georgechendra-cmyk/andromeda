@@ -3822,12 +3822,47 @@ function chatMarkdown(c) {
 	}
 	return out.join("\n").trim() + "\n";
 }
+// what goes to the model from this chat: no failed answers, nothing empty
+const histMsgs = () => current.msgs.filter((m) => !m.error && (m.role === "user" || m.text));
+// ---- A long chat's start, summed up once (see compactChat)
+const COMPACT_AT = 60000, COMPACT_KEEP = 8;
+const digestKey = (m) => m.role + ":" + String(m.text || "").length + ":" + String(m.text || "").slice(0, 80);
+// (good while what it summed up is still the chat's start, unchanged: an edit or a retry further up ends it)
+function digestOf(msgs) {
+	const d = current && current.digest;
+	return d && d.n > 0 && msgs.length > d.n && msgs[d.n].role === "user" && digestKey(msgs[d.n - 1]) === d.key ? d : null;
+}
+async function compactChat() {
+	if (LANE || !current || !creditsMode()) return;
+	let hist;
+	try { hist = chatHistory(); } catch { return; }
+	if (tokensOf(hist) < COMPACT_AT) return;
+	const msgs = histMsgs(), users = msgs.map((m, i) => (m.role === "user" ? i : -1)).filter((i) => i >= 0);
+	if (users.length <= COMPACT_KEEP) return;
+	const n = users[users.length - COMPACT_KEEP], d = digestOf(msgs);
+	if (d && d.n >= n) return;
+	const reader = bestFor("reader")[0];
+	if (!reader) return;
+	const part = msgs.slice(d ? d.n : 0, n).map((m) => (m.role === "user" ? "User" : "Celestin") + ": " + String(m.text || "").slice(0, 20000) + ((m.atts || []).length ? " [attached: " + m.atts.map((a) => a.name || a.kind).join(", ") + "]" : "")).join("\n\n").slice(0, 600000);
+	const hold = { role: "assistant", text: "", streaming: true, status: "This chat is long: summing up its start so every answer from here costs less" };
+	current.msgs.push(hold);
+	updateLast();
+	let sum = "";
+	try {
+		sum = await stream(reader.id, [{ role: "user", content: "Sum up the start of this conversation so it can go on without it: who the user is and what they want, what was asked and answered, every decision and preference, exact names, numbers, links, file names and code details that may matter later, what was made, and what's still open. Be specific and complete; no fluff. Write it as notes, not as a reply.\n\n" + (d ? "What was summed up before this:\n" + d.text + "\n\nWhat came after it:\n" : "The conversation:\n") + part }], () => {}, busy.signal, { max_tokens: 4000, temperature: 0, ...effortFor(reader.id, "low") }, hold);
+	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+	if (String(sum).trim().length > 200) current.digest = { n, key: digestKey(msgs[n - 1]), text: String(sum).trim().slice(0, 24000), at: Date.now() };
+}
 function chatHistory() {
 	// what the model sees: the whole chat, with attachments folded into the user turns. Code that's shown again further
 	// down is read only in its newest version: an older copy of the same file becomes one line (it was read, and paid for,
 	// at every turn after, and two versions of one file mislead). Once left out it stays out, so the chat's start is the
 	// same from turn to turn and is still read at its cached price
-	const msgs = current.msgs.filter((m) => !m.error && (m.role === "user" || m.text));
+	let msgs = histMsgs();
+	// (a long chat's start, summed up once: the summary stands in for it, the same at every turn)
+	const d = digestOf(msgs), gone = d ? msgs.slice(0, d.n) : [];
+	if (d) msgs = msgs.slice(d.n);
 	const newest = new Map(), texts = new Map();
 	for (let i = msgs.length - 1; i >= 0; i--) {
 		const m = msgs[i];
@@ -3851,10 +3886,20 @@ function chatHistory() {
 		}
 		return { role: "user", content: parts };
 	});
+	if (d && out.length) {
+		const lead = "(The start of this chat, summed up to keep it light; the chat goes on after it)\n" + d.text + "\n\n(The chat from here:)\n";
+		const o = out[0];
+		out[0] = typeof o.content === "string" ? { ...o, content: lead + o.content } : { ...o, content: o.content.map((p, n) => (n === 0 ? { ...p, text: lead + p.text } : p)) };
+	}
 	if (latest) {
 		let more = "";
 		for (const m of users) if (m !== latest) for (const a of m.atts || []) if (a.kind === "text" && a.data && a.data.length > 60000) {
 			const bit = fitText(a.data, latest.text, 30000, true);
+			if (bit) more += "\n\n--- From " + a.name + " (sent earlier), the parts that bear on this ---" + bit;
+		}
+		// (documents from the summed-up start: the parts that bear on this)
+		for (const m of gone) if (m.role === "user") for (const a of m.atts || []) if (a.kind === "text" && a.data) {
+			const bit = fitText(a.data, latest.text, 20000, true);
 			if (bit) more += "\n\n--- From " + a.name + " (sent earlier), the parts that bear on this ---" + bit;
 		}
 		const k = msgs.lastIndexOf(latest);
@@ -6481,6 +6526,7 @@ async function send(textOverride, fork, attsOverride) {
 			try { atts = await watchVideos(atts, text); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 		}
 		await useTools(text, atts);
+		await compactChat();
 		// Celestin Together: the team, each piece served the same way as here; Celestin: served
 		if (current.together) await runTogether(text, atts, tool);
 		else await serve(text, atts, tool);
@@ -6894,7 +6940,7 @@ async function laneDo(t, task, atts, o = {}) {
 		if (window.LANE_HOOK) window.LANE_HOOK(w);
 		busy.signal.addEventListener("abort", stop);
 		tick = setInterval(() => { const n = w.laneNow(); if (n && (n.status !== slot.status || n.text.length !== slot.text.length)) { slot.status = n.status || slot.status; slot.text = n.text; paint(); } }, 500);
-		r = await w.laneRun(laneSafe({ msgs: chat.msgs.filter((m) => m !== slot && !m.streaming), mate: t.id, task, atts, speed: settings.speed, noCheck: !!o.noCheck }));
+		r = await w.laneRun(laneSafe({ msgs: chat.msgs.filter((m) => m !== slot && !m.streaming), mate: t.id, task, atts, speed: settings.speed, noCheck: !!o.noCheck, digest: chat.digest || null }));
 		r = laneSafe(r);
 	} catch {
 		// (it didn't open: done here instead, after this round)
@@ -6927,7 +6973,7 @@ if (LANE) {
 	window.laneNow = () => { const m = current && current.msgs[current.msgs.length - 1]; return m && m.role === "assistant" ? { status: m.status || "", text: String(m.text || "") } : null; };
 	window.laneStop = () => { if (busy) busy.abort(); };
 	window.laneRun = async (job) => {
-		current = { id: uid(), title: "", msgs: job.msgs, together: true, temp: true, at: Date.now() };
+		current = { id: uid(), title: "", msgs: job.msgs, together: true, temp: true, at: Date.now(), ...(job.digest ? { digest: job.digest } : {}) };
 		if (job.speed) settings.speed = job.speed;
 		busy = new AbortController();
 		window.laneMem = [];
@@ -7088,6 +7134,11 @@ async function serve(text, atts, tool, o = {}) {
 			catch (e) {
 				// (something this server can't make yet isn't made into something else)
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.quiet || round >= 2) throw e;
+				// (a way that failed after real work isn't all done again: what it spent is gone, and the same work would
+				// likely fail the same way. Choosing again is for a quick failure, a way that can't do this. Found Nov 8: a
+				// failed build was redone up to three times, its cost wiped from the chat)
+				const spent = current.msgs.slice(mark).reduce((s, m) => s + (Number(m.cost) || 0), 0);
+				if (spent > (creditsMode() ? RETRY_SPENT_MAX : RETRY_SPENT_MAX * 0.0033)) throw e;
 				// that way didn't work: told why, it chooses again (another way, or the same one if the error won't repeat)
 				current.msgs.splice(mark);
 				tried.push({ way: plan.way, error: String(e.message || e).slice(0, 240) });
@@ -7126,6 +7177,8 @@ async function serve(text, atts, tool, o = {}) {
 		else await runSmart(text, atts);
 	}
 }
+// a failed way that spent more than this (credits; about Rp1k) isn't redone another way by itself
+const RETRY_SPENT_MAX = 15;
 async function runSmart(text, atts) {
 	const short = text.trim().split(/\s+/).length < 14;
 	let kind = classify(text, atts);
