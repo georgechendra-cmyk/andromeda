@@ -598,6 +598,26 @@ textarea.inp { height: auto; min-height: 72px; padding: 10px 12px; line-height: 
 .sug:hover { border-color: var(--line2); background: var(--bg2); }
 .sug .k { font-family: var(--mono); font-size: 11px; color: var(--faint); flex: none; min-width: 74px; }
 .sug .v { font-size: 13.5px; color: var(--muted); }
+/* Celestin Together: the team, and who wrote each answer */
+.welcome.together .eyebrow-t { text-align: center; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); margin-bottom: 10px; animation: rise .5s var(--ease) both; }
+.team { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 0 22px; animation: rise .5s .05s var(--ease) both; }
+.mate { text-align: left; border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: var(--bg); transition: border-color .2s var(--ease), background .2s var(--ease), transform .2s var(--ease); cursor: pointer; font: inherit; color: inherit; }
+.mate:hover { border-color: var(--line2); background: var(--bg2); }
+.mate:active { transform: scale(.98); }
+.mate:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.mate .mh { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; letter-spacing: -.01em; }
+.mate .mh i, .mtag i { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--c); }
+.mate .mr { font-size: 12.5px; color: var(--muted); line-height: 1.45; margin-top: 4px; }
+.mate .mmod { font-size: 11.5px; color: var(--faint); margin-top: 8px; font-family: var(--mono); }
+.welcome.together { padding-top: 7vh; }
+.welcome.together .greet { flex-direction: column; gap: 4px; font-size: clamp(26px, 2.6vw, 32px); margin-bottom: 8px; }
+.welcome.together .greet .g2 { font-size: .6em; font-weight: 500; letter-spacing: -.01em; color: var(--muted); }
+.welcome.together .lead-t { text-align: center; font-size: 13.5px; color: var(--muted); max-width: 520px; margin: 0 auto 20px; line-height: 1.5; animation: rise .5s .04s var(--ease) both; }
+.mtag { display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: var(--text); margin: 1px 0 6px; letter-spacing: -.005em; }
+.mtag span { font-weight: 500; color: var(--faint); }
+.convo .tg { display: inline-flex; color: var(--faint); margin-right: 6px; vertical-align: -2px; }
+@media (max-width: 760px) { .team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .team { gap: 6px; } .mate { padding: 10px 12px; } .mate .mr { font-size: 12px; } }
 .sug:hover .v { color: var(--text); }
 .welcome .wmark { display: block; width: 44px; height: 44px; margin: 0 auto 14px; color: var(--brand); filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--brand) 35%, transparent)); animation: rise .5s var(--ease) both; }
 .cats { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 18px; animation: rise .5s .15s var(--ease) both; }
@@ -1777,6 +1797,7 @@ html { scroll-behavior: smooth; }
 		</div>
 		<nav class="sb-nav" aria-label="Celestin">
 			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
+			<button class="nav-i" id="togetherNav" data-tip="Celestin Together: a team in your chat" aria-label="Celestin Together"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/></svg><span class="lbl">Together</span></button>
 			<button class="nav-i nav-search" id="searchNav" data-tip="Search chats" aria-label="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="lbl">Search chats</span></button>
 			<button class="nav-i" id="chatsNav" data-tip="Your chats" aria-label="Your chats" aria-expanded="false" aria-controls="sbPanel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span class="lbl">Chats</span></button>
 			<button class="nav-i" id="libNav" data-tip="Library: everything made for you" aria-label="Library"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span class="lbl">Library</span></button>
@@ -3683,7 +3704,7 @@ function parseJSON(t) {
 }
 
 // ---------------------------------------------------------------- conversations
-function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), msgs: [], ...(spaceOf(SPACE_VIEW) ? { space: SPACE_VIEW } : {}), ...(TEMP ? { temp: true } : {}) }; convos.unshift(current); render(); }
+function newConvo() { current = { id: uid(), title: "New chat", at: Date.now(), msgs: [], ...(spaceOf(SPACE_VIEW) ? { space: SPACE_VIEW } : {}), ...(TEMP ? { temp: true } : {}), ...(TOGETHER && !TEMP ? { together: true } : {}) }; convos.unshift(current); render(); }
 function save() {
 	if (current && !convos.includes(current)) convos.unshift(current);
 	convos = convos.filter((c) => c.msgs.length || c === current);
@@ -4140,7 +4161,7 @@ function renderConvoList() {
 		const g = list.filter((c) => !used.has(c) && test(c));
 		if (!g.length) continue;
 		g.forEach((c) => used.add(c));
-		html += '<div class="convo-group">' + label + "</div>" + g.map((c) => '<div class="convo' + (c === current ? " active" : "") + '" data-id="' + c.id + '"><span class="t">' + esc(c.title) + '</span><button class="x" data-del="' + c.id + '" title="Delete" aria-label="Delete this chat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></div>').join("");
+		html += '<div class="convo-group">' + label + "</div>" + g.map((c) => '<div class="convo' + (c === current ? " active" : "") + '" data-id="' + c.id + '"><span class="t">' + (c.together ? '<span class="tg" title="Celestin Together"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/></svg></span>' : "") + esc(c.title) + '</span><button class="x" data-del="' + c.id + '" title="Delete" aria-label="Delete this chat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button></div>').join("");
 	}
 	const sp = spaces().filter((s) => !q || s.name.toLowerCase().includes(q)), here = SPACE_VIEW || (current && current.msgs.length && current.space);
 	const projects = q && !sp.length ? "" : '<div class="convo-group">Projects</div>' + (q ? "" : '<button class="sp-i sp-new" data-spacenew>' + svgOf(FOLDER_D + '<path d="M12 10.5v5M9.5 13h5"/>', 17) + '<span class="t">New project</span></button>') +
@@ -4168,6 +4189,7 @@ function renderWelcome() {
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
 	document.body.classList.add("at-welcome");
 	if (TEMP) { $("#view").innerHTML = '<section class="welcome temp"><h1 class="greet"><span class="g1">Temporary chat</span></h1><p class="temp-note">It won\'t be saved to your chats, and Celestin won\'t remember it or use what it remembers.</p><div class="slot" id="slot"></div></section>'; $("#slot").appendChild($("#composer")); $("#dock").classList.add("hide"); return; }
+	if (TOGETHER) { renderTogetherWelcome(); return; }
 	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="g1">' + esc(first) + '</span><span class="g2">' + esc(second) + '</span></h1><div class="slot" id="slot"></div></section>';
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
@@ -4299,6 +4321,8 @@ function safeMsg(m, i) {
 	}
 }
 function renderMsg(m, i) {
+	// (a Celestin Together brief: what the Lead gave a teammate, read by the models, not shown)
+	if (m.brief) return "";
 	if (m.role === "user") {
 		const atts = (m.atts || []).length ? '<div class="att">' + m.atts.map((a) => '<span class="att-pill">' + (a.kind === "image" && a.data ? '<img src="' + a.data + '" alt="">' : "") + "<span>" + esc(a.name) + "</span></span>").join("") + "</div>" : "";
 		if (EDITING === i) return '<div class="msg user editing" data-i="' + i + '"><div class="edit">' + atts + '<textarea id="editBox" rows="2" aria-label="Edit your message">' + esc(m.text) +
@@ -4318,7 +4342,7 @@ function renderMsg(m, i) {
 	}
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
-		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? councilHtml(m, body) : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
+		return '<div class="msg' + (m.streaming ? " live" : "") + '" data-i="' + i + '"><svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + (m.member ? memberTag(m.member) : "") + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>" : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? councilHtml(m, body) : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
 			(m.dropped && !m.streaming ? '<div class="limit-bar net dropnote" role="note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.3-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.7 5M12 20h.01"/></svg><span>Your connection dropped here, and didn\'t come back. Ask again when it\'s back.</span></div>' : "") +
 		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + rateBtns(m, i) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut && !m.dropped ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
@@ -4370,6 +4394,8 @@ function paintLast() {
 	stick();
 }
 function render() {
+	// (an open chat says whether it's the team's)
+	if (current) TOGETHER = !!current.together;
 	drawQueue();
 	if (QUEUE.length) setTimeout(drainQueue, 0);
 	// a temporary chat is gone once you leave it
@@ -4413,7 +4439,7 @@ function updateRoute() {
 	el.innerHTML = proj + (noticed >= 3 ? '<span class="chip click" data-selffix><span class="dot" style="background:var(--warn)"></span>' + noticed + " problems noticed · let Celestin fix itself</span>" : "");
 	// (a phone gets the short version: the long one was cut off mid-sentence)
 	const narrow = innerWidth < 560;
-	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : !(current && current.msgs.length) && spaceOf(SPACE_VIEW) ? "Start a chat in " + spaceOf(SPACE_VIEW).name : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
+	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : !(current && current.msgs.length) && spaceOf(SPACE_VIEW) ? "Start a chat in " + spaceOf(SPACE_VIEW).name : TOGETHER ? (narrow ? "Message the team" : "Message the team · @Builder, @Researcher… to ask one directly") : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
 	$("#topChipText").textContent = creditsMode() ? (me ? creditsText(me.credits) + " credits" : "Credits") : "Sign in";
 }
 
@@ -6427,6 +6453,9 @@ async function send(textOverride, fork, attsOverride) {
 			try { atts = await watchVideos(atts, text); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 		}
 		await useTools(text, atts);
+		// Celestin Together: the Lead gives each piece to the teammate for it (or the one @mentioned)
+		if (current.together) await runTogether(text, atts);
+		else {
 		// Celestin reads it and decides how to serve it (the strongest fast reader, by measurement)
 		// small talk ("hi", "thanks", "ok") needs no reading: straight to an answer (a credit and several seconds saved)
 		const smallTalk = !atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim());
@@ -6500,6 +6529,7 @@ async function send(textOverride, fork, attsOverride) {
 			else if (code) await runApp(text, atts, code);
 			else await runSmart(text, atts);
 		}
+		}
 	} catch (e) {
 		const last = current.msgs[current.msgs.length - 1];
 		if (e.name === "AbortError" && netDropped(e)) {
@@ -6515,8 +6545,10 @@ async function send(textOverride, fork, attsOverride) {
 			// out of credits: no error in the chat and no window over it. What wasn't answered at all goes back into the box
 			// to send later, and the line on the box says when the credits are back
 			if (last.role === "assistant" && !last.text && !last.kind) current.msgs.pop();
+			// (a Celestin Together brief left unanswered isn't the person's words: it goes, and isn't put back in the box)
+			if (current.msgs[current.msgs.length - 1] && current.msgs[current.msgs.length - 1].brief) current.msgs.pop();
 			const mine = current.msgs[current.msgs.length - 1];
-			if (mine && mine.role === "user" && !(mine.atts || []).length && !mine.alts && !$("#input").value.trim()) {
+			if (mine && mine.role === "user" && !mine.brief && !(mine.atts || []).length && !mine.alts && !$("#input").value.trim()) {
 				current.msgs.pop();
 				$("#input").value = mine.text;
 				store.set("draft", mine.text);
@@ -6802,6 +6834,112 @@ function readPlan(raw) {
 	return null;
 }
 // short, simple messages go straight to one model; anything bigger goes to the team
+// ---- Celestin Together: a team in the chat (like Grok Bot's teammates and Claude Duet, on Celestin's routing). Each
+// teammate has a field, weighed into the routing for whatever it's given; the Lead plans who does what
+var TOGETHER = false;
+const TEAM = [
+	{ id: "lead", name: "Lead", c: "#8e8e93", role: "Plans the work and gives each piece to the teammate for it; asks you only for real decisions", task: "reasoning", w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
+	{ id: "researcher", name: "Researcher", c: "#0a84ff", role: "Finds and checks facts on the live web, with sources", task: "research", w: { "search:overall": 0.6, "factuality:overall": 0.4 } },
+	{ id: "builder", name: "Builder", c: "#30d158", role: "Builds apps, games, websites and code that runs", task: "code", w: { "webdev:overall": 0.5, "text:coding": 0.5 } },
+	{ id: "designer", name: "Designer", c: "#ff9f0a", role: "Makes it look and feel right, by Apple's design rules", task: "code", w: { "webdev:webdev-html": 0.6, "vision:overall": 0.4 } },
+	{ id: "writer", name: "Writer", c: "#bf5af2", role: "Writes and edits: answers, documents, slides, posts", task: "write", w: { "text:creative_writing": 0.5, "text:instruction_following": 0.5 } },
+	{ id: "analyst", name: "Analyst", c: "#64d2ff", role: "Numbers, data, spreadsheets and maths", task: "reasoning", w: { "text:math": 0.5, "text:expert": 0.5 } },
+	{ id: "reviewer", name: "Reviewer", c: "#ff375f", role: "Checks the team's work, from another lab, before it reaches you", task: "code", w: { "text:expert": 0.4, "factuality:overall": 0.3, "text:coding": 0.3 } },
+];
+const MATE = Object.fromEntries(TEAM.map((t) => [t.id, t]));
+const MATE_RE = new RegExp("@(" + TEAM.map((t) => t.id).join("|") + ")\\b", "gi");
+function memberTag(id) {
+	const t = MATE[id];
+	return t ? '<div class="mtag"><i style="--c:' + t.c + '"></i>' + esc(t.name) + "<span>· Celestin Together</span></div>" : "";
+}
+// the model the routing would pick for a teammate's field right now (shown on the team's cards)
+function mateModel(t) {
+	try {
+		if (t.id === "reviewer") return (checkersFor("code", "")[0] || {}).name ? shortName(checkersFor("code", "")[0]) : "";
+		const r = bestFirst(quarkFirst(arenaRank(t.task, t.w)));
+		return r[0] ? shortName(r[0].m) : "";
+	} catch { return ""; }
+}
+function renderTogetherWelcome() {
+	// (the six teammates; the Lead is the one who hands out the work, said in the line above them)
+	const cards = TEAM.filter((t) => t.id !== "lead").map((t) => '<button class="mate" data-mate="' + t.id + '" title="Ask the ' + esc(t.name) + ' directly"><div class="mh"><i style="--c:' + t.c + '"></i>' + esc(t.name) + '</div><div class="mr">' + esc(t.role) + "</div>" + (mateModel(t) ? '<div class="mmod">now: ' + esc(mateModel(t)) + "</div>" : "") + "</button>").join("");
+	const sugs = [["Team", "Plan and build a landing page for my coffee shop"], ["@Researcher", "What changed in AI this week? With sources"], ["@Analyst", "Make a monthly budget for a student with Rp2jt"], ["Team", "Research the best study methods, then make me flashcards"]];
+	$("#view").innerHTML = '<section class="welcome together"><div class="eyebrow-t">Celestin Together</div><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Every part, by whoever does it best.</span></h1>' +
+		'<p class="lead-t">Ask for anything. The Lead gives each part to the teammate for it, each one the model measured best at that right now. Tap one, or type @ and a name, to ask them directly.</p><div class="team">' + cards + '</div><div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + "</div></section>";
+	$("#slot").appendChild($("#composer"));
+	$("#dock").classList.add("hide");
+	$$("[data-mate]").forEach((b) => (b.onclick = () => { const inp = $("#input"), tag = "@" + MATE[b.dataset.mate].name + " "; if (!inp.value.startsWith(tag)) inp.value = tag + inp.value.replace(MATE_RE, "").trimStart(); inp.focus(); autosize(); }));
+	$$("[data-tsug]").forEach((b) => (b.onclick = () => { $("#input").value = b.dataset.tsug; autosize(); send(); }));
+	startSky($("#appSky"), { live: () => document.body.classList.contains("at-welcome") && document.body.classList.contains("in-app"), clear: () => [$(".welcome .greet"), $("#composer")] });
+}
+// The Lead: the fewest pieces that do it really well, each to the one teammate best at it, in order
+async function leadPlan(text, msg) {
+	const lead = bestFor("planner")[0];
+	if (!lead) return null;
+	const recent = current.msgs.slice(-9, -1).map((m) => (m.role === "user" ? "User" : MATE[m.member] ? MATE[m.member].name : "Celestin") + ": " + String(m.text || (m.data && m.data.title) || "").replace(/\s+/g, " ").slice(0, 400)).join("\n");
+	const ask = "You lead Celestin Together: a team of AI teammates working with the user in a group chat. Your teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role).join("\n") +
+		(recent ? "\n\nThe chat so far (latest last):\n" + recent : "") + "\n\nThe user just wrote:\n" + text.slice(0, 6000) +
+		"\n\nSplit the work into the fewest pieces that do it really well, each given to the one teammate best at it, in the order they should happen (a later piece builds on what earlier ones made: say so in its task). Most requests need one teammate; use more only when the work really has separate parts (research, then a document; a build, then a review). A greeting or a quick question goes to the writer. Never give one piece to two teammates. Each task must be complete on its own: what to make and everything that matters from the user's words. Ask the user something only when it can't be done well without the answer.\n\nReply with ONLY this JSON:\n{\"say\": \"one short line to the user on who's doing what (empty when one teammate does it all)\", \"tasks\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\"}], \"ask\": \"a question for the user, or empty\"}";
+	const out = await stream(lead.id, [{ role: "user", content: ask }], () => {}, busy.signal, { max_tokens: 1500, temperature: 0, ...effortFor(lead.id, "low") }, msg);
+	const j = parseJSON(out) || {};
+	const tasks = (Array.isArray(j.tasks) ? j.tasks : []).filter((t) => t && MATE[String(t.to || "").toLowerCase()] && t.to !== "lead" && String(t.task || "").trim()).map((t) => ({ to: String(t.to).toLowerCase(), task: String(t.task).slice(0, 4000) })).slice(0, 6);
+	return { say: String(j.say || "").slice(0, 300), ask: String(j.ask || "").slice(0, 500), tasks, by: lead };
+}
+// one teammate's piece: Celestin's own routing (the conductor, then the right way), with the teammate's field weighed in
+async function mateDo(t, task, atts, brief) {
+	// (a piece the Lead gave out: its brief is the newest turn the teammate reads, since every way answers the chat's
+	// latest message; kept, not shown. Found Nov 7: without it each teammate answered the person's whole message)
+	if (brief) current.msgs.push({ role: "user", brief: true, text: "(The Lead, to the " + t.name + ") " + task });
+	const hold = { role: "assistant", member: t.id, text: "", streaming: true, status: t.name + " is on it" };
+	current.msgs.push(hold);
+	updateLast();
+	let plan = null;
+	try { plan = await conduct(task, atts, []); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+	if (plan && plan.profile) plan.profile.weights = blendW(plan.profile.weights, t.w, 0.35);
+	PROFILE = plan ? plan.profile : null;
+	PROFILE_TEXT = plan ? task : null;
+	PLAN_NOTE = plan ? plan.how : "";
+	SKILLS_ON = plan ? plan.skills.slice() : [];
+	// the Reviewer always has a second expert check (from another lab than whoever made it)
+	if (PROFILE && t.id === "reviewer") PROFILE.check = true;
+	const mark = current.msgs.length;
+	try { if (plan) await runWay(plan, task, atts); else await runSmart(task, atts); }
+	finally { current.msgs.slice(mark).forEach((m) => { if (m.role === "assistant") m.member = t.id; }); }
+	return current.msgs.slice(mark).filter((m) => m.role === "assistant").map((m) => m.text || (m.data && (m.data.title || m.data.name)) || "").join("\n").slice(0, 8000);
+}
+async function runTogether(text, atts) {
+	const named = [...new Set((text.match(MATE_RE) || []).map((x) => x.slice(1).toLowerCase()))].filter((id) => id !== "lead");
+	let tasks, direct = false;
+	// one teammate @mentioned: straight to them; small talk: the Writer; anything else: the Lead plans
+	if (named.length === 1) { tasks = [{ to: named[0], task: text.replace(MATE_RE, "").trim() || text }]; direct = true; }
+	else if (!atts.length && SMALL_TALK.test(text.trim())) { tasks = [{ to: "writer", task: text }]; direct = true; }
+	else {
+		const msg = { role: "assistant", member: "lead", text: "", streaming: true, status: "Working out who does what", used: [] };
+		current.msgs.push(msg);
+		updateLast();
+		let p = null;
+		try { p = await leadPlan(text, msg); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		// (no plan came back: the teammate whose field fits best does it all)
+		const fallback = { code: "builder", research: "researcher", reasoning: "analyst" }[classify(text, atts)] || "writer";
+		tasks = p && p.tasks.length ? p.tasks : p && p.ask ? [] : [{ to: fallback, task: text }];
+		msg.streaming = false;
+		msg.text = [p && p.say, p && p.ask].filter(Boolean).join("\n\n");
+		if (p && p.by && msg.text) msg.used = [{ name: shortName(p.by), desc: "Lead: planned who does what" }];
+		if (!msg.text) current.msgs.splice(current.msgs.indexOf(msg), 1);
+		if (!tasks.length) return;
+	}
+	const done = [];
+	for (const [k, x] of tasks.entries()) {
+		if (busy && busy.signal.aborted) break;
+		const t = MATE[x.to] || MATE.writer;
+		// (a later piece hears what the earlier ones made)
+		const before = done.length ? "\n\nWhat your teammates already did for this (build on it):\n" + done.map((d) => "From the " + d.name + ":\n" + d.text).join("\n\n").slice(0, 12000) : "";
+		const made = await mateDo(t, x.task + (k ? before : ""), k ? [] : atts, !direct);
+		done.push({ name: t.name, text: made });
+	}
+	// several pieces: the Lead says it's done (no call: who did what is known)
+	if (tasks.length > 1) current.msgs.push({ role: "assistant", member: "lead", text: "Done: " + tasks.map((x) => (MATE[x.to] || MATE.writer).name).filter((n, k, a) => a.indexOf(n) === k).join(", ").replace(/, ([^,]*)$/, " and $1") + " each did their part above." });
+}
 async function runSmart(text, atts) {
 	const short = text.trim().split(/\s+/).length < 14;
 	let kind = classify(text, atts);
@@ -12128,7 +12266,8 @@ document.addEventListener("click", (e) => {
 	else if (t.hasAttribute("data-open-pricing")) openPricing();
 	else if (t.dataset.pick) openSettings();
 });
-$("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; render(); }); setTimeout(() => $("#input").focus(), 60); };
+$("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = false; render(); }); setTimeout(() => $("#input").focus(), 60); };
+$("#togetherNav").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = true; render(); }); setTimeout(() => $("#input").focus(), 60); };
 // ---------------------------------------------------------------- the open chat: export, print, rename, delete
 function closeChatMenu() { $("#chatPop").hidden = true; $("#chatMenuBtn").setAttribute("aria-expanded", "false"); }
 $("#chatMenuBtn").onclick = (e) => {
