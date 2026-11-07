@@ -2484,11 +2484,11 @@ function effortFor(id, f) {
 // web app is judged best by people building and using web apps, which the WebDev board measures directly. in: what it
 // reads, when that's known)
 const FEATURE_W = {
-	app: { task: "code", out: 12000, build: true, bench: 0.25, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
+	app: { task: "code", out: 12000, bench: 0.25, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
 	// a video's drawn shots: frame-by-frame canvas animation, a web page's craft with a storyteller's eye
 	animation: { task: "code", out: 9000, bench: 0.15, w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
-	appFromImage: { task: "vision", out: 12000, build: true, bench: 0.15, w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
-	sim: { task: "code", out: 9000, build: true, bench: 0.3, w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
+	appFromImage: { task: "vision", out: 12000, bench: 0.15, w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
+	sim: { task: "code", out: 9000, bench: 0.3, w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
 	spec: { task: "reasoning", out: 1500, w: { "text:instruction_following": 0.35, "text:hard_prompts": 0.3, "text:expert": 0.2, "text:creative_writing": 0.15 } },
 	flashcards: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
 	quiz: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
@@ -2521,10 +2521,9 @@ function bestFor(feature, cap) {
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
 	// (a cap on how hard it may think: it's judged by what it scored at that much thought or less, which is what will run)
 	if (cap) { const under = data.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) data = under; }
-	// (a game, app or website in Auto is built under the same cap as Free: the owner, Nov 7, chose DeepSeek V4.1 Flash at max,
-	// about 60 to 40 against the very best, for about Rp274 a build against Rp4,927 for GPT-6.1 Sol at max; Max builds with
-	// the very best)
-	const capped = !f.fast && (freePlan() || (f.build && speed() === "auto"));
+	// (paid work follows the 54/46 and 1.8x rules for exactly this task, nothing else: the owner, Nov 7, "DeepSeek only if it
+	// fits the rules and is the best option for that task". Free is held under its cap)
+	const capped = !f.fast && freePlan();
 	if (!f.fast) data = underFree(data, f.out, f.in, capped);
 	// (the quick reader sorts every message, so the best of the fast ones, not the cheapest that's nearly as good)
 	// (on Free the cap has already done the saving: the best under it does the work, not one a step behind it that's
@@ -7799,8 +7798,7 @@ async function reviewLogic(files, request, msg, rules, by) {
 		if (creditsMode()) { await refreshMe(); if (me && me.credits < APP_MIN_CREDITS) return null; }
 		const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
 		if (code.length > 120000) return null;
-		// (an Auto build's tester is under the build cap too: a build of about Rp300 isn't tested for Rp3,000)
-		const testers = checkersFor("code", by ? provider(by.id) : "", speed() === "auto");
+		const testers = checkersFor("code", by ? provider(by.id) : "");
 		if (!testers.length) return null;
 		msg.status = "A second AI is playing it through, looking for bugs";
 		updateLast();
