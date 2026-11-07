@@ -3018,7 +3018,7 @@ async function lemonWebhook(req, env) {
 // A request gets a number at once. The owner gets an email with everything needed to answer (and a link that opens a
 // reply to the customer); the customer gets a copy with the number, and can answer that email to add more. Signed in or
 // not (not being able to sign in is a common reason to write), kept from flooding by a few an hour from one place.
-const SUPPORT_KINDS = ["Payments and refunds", "Credits and packs", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
+const SUPPORT_KINDS = ["Payments and refunds", "Credits and packs", "Celestin Together", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
 async function optionalUser(req, env) {
 	try { return bearer(req) ? await authUser(req, env) : null; } catch { return null; }
 }
