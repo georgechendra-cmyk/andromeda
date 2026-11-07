@@ -2484,11 +2484,11 @@ function effortFor(id, f) {
 // web app is judged best by people building and using web apps, which the WebDev board measures directly. in: what it
 // reads, when that's known)
 const FEATURE_W = {
-	app: { task: "code", out: 12000, bench: 0.25, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
+	app: { task: "code", out: 12000, build: true, bench: 0.25, w: { "webdev:webdev-html": 0.45, "webdev:overall": 0.35, "text:coding": 0.2 } },
 	// a video's drawn shots: frame-by-frame canvas animation, a web page's craft with a storyteller's eye
 	animation: { task: "code", out: 9000, bench: 0.15, w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
-	appFromImage: { task: "vision", out: 12000, bench: 0.15, w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
-	sim: { task: "code", out: 9000, bench: 0.3, w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
+	appFromImage: { task: "vision", out: 12000, build: true, bench: 0.15, w: { "webdev:image_to_webdev": 0.6, "webdev:webdev-html": 0.25, "webdev:overall": 0.15 } },
+	sim: { task: "code", out: 9000, build: true, bench: 0.3, w: { "webdev:webdev-html": 0.45, "text:coding": 0.15, "text:math": 0.2, "text:industry_life_and_physical_and_social_science": 0.2 } },
 	spec: { task: "reasoning", out: 1500, w: { "text:instruction_following": 0.35, "text:hard_prompts": 0.3, "text:expert": 0.2, "text:creative_writing": 0.15 } },
 	flashcards: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
 	quiz: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
@@ -2521,12 +2521,16 @@ function bestFor(feature, cap) {
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
 	// (a cap on how hard it may think: it's judged by what it scored at that much thought or less, which is what will run)
 	if (cap) { const under = data.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) data = under; }
-	if (!f.fast) data = underFree(data, f.out, f.in);
+	// (a game, app or website in Auto is built under the same cap as Free: the owner, Nov 7, chose DeepSeek V4.1 Flash at max,
+	// about 60 to 40 against the very best, for about Rp274 a build against Rp4,927 for GPT-6.1 Sol at max; Max builds with
+	// the very best)
+	const capped = !f.fast && (freePlan() || (f.build && speed() === "auto"));
+	if (!f.fast) data = underFree(data, f.out, f.in, capped);
 	// (the quick reader sorts every message, so the best of the fast ones, not the cheapest that's nearly as good)
 	// (on Free the cap has already done the saving: the best under it does the work, not one a step behind it that's
 	// cheaper still; measured Nov 7, the step past a hair would have built with gpt-oss-120b, about 25 Elo under
 	// DeepSeek V4.1 Flash, to save Rp260)
-	data = bestFirst(f.fast ? data : freePlan() ? data.slice().sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity)) : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
+	data = bestFirst(f.fast ? data : capped ? data.slice().sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity)) : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -2851,7 +2855,7 @@ function tokensOf(messages) {
 // (Celestin's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
 // record here is clearly worse than the best's isn't level with it, whatever the ratings say)
 const quarkTied = (top, x, most = HAIR) => x.mid != null && top.mid != null && top.mid - x.mid <= most && (x.learned || 0) >= (top.learned || 0) - 0.25;
-function quarkFirst(list, cap, used, cost = callCost) {
+function quarkFirst(list, cap, used, cost = callCost, priceMax = PRICE_MAX) {
 	if (speed() === "max" || list.length < 2) return list;
 	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
 	const most = HAIR;
@@ -2876,16 +2880,22 @@ function quarkFirst(list, cap, used, cost = callCost) {
 	const wait = (x) => { const sp = SPEED[x.m.id]; return sp && sp.tps > 0 ? sp.first + (1000 * 800) / sp.tps : Infinity; };
 	const quick = fair.filter((x) => x !== pick && cost(x, cap) <= cost(pick, cap) * 1.1 && wait(x) < wait(pick) * 0.8);
 	if (quick.length) pick = quick.reduce((a, b) => (wait(b) < wait(a) ? b : a));
-	// then past a hair: one no more than 54 in 100 behind that's at least FAIR_X times cheaper than the best is fair too, and
-	// the cheapest of all that are fair does it
+	// then past a hair: one no more than 54 in 100 behind (priceMax; a build in Auto 61, the owner's choice of Nov 7) that's
+	// at least FAIR_X times cheaper than the best is fair too, and the cheapest of all that are fair does it
+	const fairOnes = [];
 	if (top.mid != null) {
 		const fairAt = cost(top, cap) / FAIR_X;
 		for (const x of list) {
-			if (tied.includes(x) || x.mid == null || top.mid - x.mid > PRICE_MAX || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
+			if (tied.includes(x) || x.mid == null || top.mid - x.mid > priceMax || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
+			if (cost(x, cap) <= fairAt) fairOnes.push(x);
 			if (cost(x, cap) <= fairAt && cost(x, cap) < cost(pick, cap)) pick = x;
 		}
 	}
-	return pick === list[0] ? list : [pick, ...list.filter((x) => x !== pick)];
+	// If it fails, the next in line is the next best value (the others level with the best or fair, cheapest first), then
+	// the rest by rank: a cheap pick that fails must never hand the work to the dearest model there is (found Nov 7: a
+	// design check whose pick refused the screenshots fell back to Claude Fable 5, the dearest of all)
+	const next = [...tied, ...fairOnes].filter((x, k, a) => x !== pick && a.indexOf(x) === k && Number.isFinite(cost(x, cap))).sort((a, b) => cost(a, cap) - cost(b, cap));
+	return [pick, ...next, ...list.filter((x) => x !== pick && !next.includes(x))];
 }
 // Who checks or reviews work: from another lab than the one that wrote it, when one is level with the best and costs no
 // more than half again as much. Models of one family share blind spots, so a check from another family catches more.
@@ -6728,10 +6738,14 @@ const CHECK = {
 	write: ["openai", "google", "anthropic"],
 	vision: ["google", "openai", "anthropic"],
 };
-function checkersFor(task, writerLab) {
+function checkersFor(task, writerLab, capped) {
 	// measured: the best at this exact work from each of the other labs, best first (on Free, the best under its price
 	// cap: a tester reads the whole project, about 12k tokens, and writes a short report)
-	const data = bestFirst(underFree(arenaRank(task), 1500, 12000));
+	// The 54/46 and 1.8x rules here too: of the other labs, the cheapest level with the best checker, or fair (found Nov 7:
+	// a game's tester was always the very best of another lab, Claude Opus 5.5 at about Rp2,200 a test, half again the
+	// build). On Free, the best under its cap
+	const ranked = underFree(arenaRank(task), 1500, 12000, capped).filter((x) => provider(x.m.id) !== writerLab);
+	const data = bestFirst(freePlan() || capped ? ranked.slice().sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity)) : quarkFirst(ranked, undefined, undefined, (x, c) => callCost(x, c, 1500, 12000)));
 	if (data.length >= 2) {
 		const out = [], labs = new Set([writerLab]);
 		for (const x of data) {
@@ -7070,8 +7084,8 @@ function liteMode() { return speed() !== "max" && creditsMode() && !!me && !(me.
 // a step less costs about 1 Elo)
 const FREE_CALL_USD = 0.05;
 function freePlan() { return creditsMode() && !!me && !me.owner && !(me.paid > 0) && !(me.plan && me.plan.paid); }
-function underFree(data, out, inTok) {
-	if (!freePlan()) return data;
+function underFree(data, out, inTok, force) {
+	if (!force && !freePlan()) return data;
 	const ok = data.filter((x) => callCost(x, undefined, out || 800, inTok) / 1e6 <= FREE_CALL_USD);
 	return ok.length ? ok : data;
 }
@@ -7785,7 +7799,8 @@ async function reviewLogic(files, request, msg, rules, by) {
 		if (creditsMode()) { await refreshMe(); if (me && me.credits < APP_MIN_CREDITS) return null; }
 		const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
 		if (code.length > 120000) return null;
-		const testers = checkersFor("code", by ? provider(by.id) : "");
+		// (an Auto build's tester is under the build cap too: a build of about Rp300 isn't tested for Rp3,000)
+		const testers = checkersFor("code", by ? provider(by.id) : "", speed() === "auto");
 		if (!testers.length) return null;
 		msg.status = "A second AI is playing it through, looking for bugs";
 		updateLast();
