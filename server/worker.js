@@ -3077,12 +3077,18 @@ async function supportSolved(env, user, tid) {
 // A refund the customer asks for themselves: a payment of theirs (QRIS or card), within the policy's days, with less than
 // its share used since (a plan: what's been charged since it started, against its month of credits; a pack: what's left of
 // its credits). What it bought ends at once; the owner gets a request with exactly what to send back and to whom.
+const REFUND_EVERY = 90 * 864e5;
 async function refundAsk(req, env, user) {
 	const c = await config(env), b = await body(req);
 	const pay = await env.DB.prepare("SELECT * FROM payments WHERE id = ? AND user_id = ?").bind(String(b.payment || ""), user.id).first();
 	if (!pay) throw fail(404, "That payment isn't on your account.");
 	if (pay.status !== "approved" || !["qris", "card"].includes(pay.method)) throw fail(400, pay.status === "refund_requested" ? "That refund is already on its way." : "That payment can't be refunded here: write to us and we'll sort it out.");
 	const since = Number(pay.decided_at || pay.created_at) || 0, days = Number(c.refund.days) || 7, share = Number(c.refund.usedShare) || 0.2;
+	// one refund a customer takes themselves in 90 days: refunds take the risk out of buying, they aren't a way to use a
+	// fifth of every pack for nothing (buy, use, refund, again: the owner paid for each fifth). Another one is written to
+	// us, and the owner decides. Found Nov 8
+	const lately = await env.DB.prepare("SELECT COUNT(*) AS n FROM payments WHERE user_id = ? AND status IN ('refund_requested', 'refunded') AND created_at > ?").bind(user.id, now() - REFUND_EVERY).first();
+	if (lately && lately.n > 0) throw fail(400, "You've had a refund in the last 90 days, so this one is checked by a person: write to us in Help and support and we'll sort it out.");
 	if (now() - since > days * 86400e3) throw fail(400, "Refunds are for the first " + days + " days after paying. Write to us if something went wrong, and we'll see what we can do.");
 	const plan = /^plan:/.test(pay.pack || "") ? c.plans.find((x) => "plan:" + x.id === pay.pack) : null;
 	const u = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first();
