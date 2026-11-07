@@ -8798,7 +8798,9 @@ async function runFile(text, atts, pick) {
 	// Word and PDF hold the same content: one becomes the other as it is, nothing rewritten
 	let spec = src && (src.data.fmt === fmt || (/^(docx|pdf)$/.test(src.data.fmt) && /^(docx|pdf)$/.test(fmt))) ? src.data.spec : null, lastErr = null;
 	if (spec) msg.used = [{ name: "Celestin", desc: info.label + ": made from the " + FILE_INFO[src.data.fmt].label + " file, unchanged" }];
-	for (const c of spec ? [] : bestFor(fmt === "xlsx" ? "xlsx" : fmt === "pptx" ? "pptx" : "docx").slice(0, 5)) {
+	// (the pick and two backups, as everywhere else: found Nov 7, five each time, and the "find another way" retry runs
+	// this up to three times, so an output that keeps failing could be paid for fifteen times)
+	for (const c of spec ? [] : bestFor(fmt === "xlsx" ? "xlsx" : fmt === "pptx" ? "pptx" : "docx").slice(0, 3)) {
 		try {
 			msg.used = [{ name: shortName(c), desc: info.label + ": wrote the content" }];
 			const out = await stream(c.id, [{ role: "user", content: prompt }], (t) => { msg.status = (prev ? "Changing" : "Writing") + " your " + info.label + " file (" + Math.max(1, Math.round(t.length / 1000)) + " KB)"; updateLast(); }, busy.signal, { response_format: { type: "json_object" }, ...effortExtra(c.id) }, msg);
