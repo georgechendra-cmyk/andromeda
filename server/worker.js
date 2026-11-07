@@ -59,7 +59,10 @@ const DEFAULT_CONFIG = {
 	// more. Packs sell a credit dearer still (about 2.6x), and never expire.
 	// Nonstop coding is about 60 credits an hour (CODE_HOUR in the site, measured Nov 4 with the owner's price rule; it was
 	// 140 before): every plan codes nonstop in any 5 hours; Nova about 35 hours a month, Pulsar about 183, Quasar about 386.
-	plans: [
+	// (no subscriptions: the owner, Nov 7, "remove subscriptions, just do the packs". The plans as they were are kept in
+	// retiredPlans; moving them back into plans puts them on sale again)
+	plans: [],
+	retiredPlans: [
 		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 2100, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 11000, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
 		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
@@ -687,7 +690,7 @@ const waitText = (t) => {
 // why there's nothing to spend, and when there will be (never what anything costs)
 function outOfCredits(u, c) {
 	const plan = planOf(u, c);
-	const more = plan.paid ? " A credit pack keeps you going right now." : " A plan gives you far more, or a credit pack keeps you going right now.";
+	const more = " A credit pack keeps you going right now.";
 	if (plan.paid && plan.month && monthLeft(u, plan) < 1000) {
 		const next = Number(u.period_at) > now() && Number(u.period_at) < plan.until;
 		return fail(402, "You've used this month's credits on " + plan.name + ". " + (next ? "Next month's arrive in " + waitText(u.period_at) + "." : "Your plan ends in " + waitText(plan.until) + "; another month of it brings new credits from then.") + " A credit pack keeps you going right now.");
@@ -695,7 +698,7 @@ function outOfCredits(u, c) {
 	if (plan.week && u.week_at > now() && weekUsed(u) >= plan.week * 1000 - 999) return fail(402, "You've used this week's credits" + (plan.paid ? " on " + plan.name : "") + ". They're back in " + waitText(u.week_at) + "." + more);
 	if (u.free_capped && u.free_reset_at > now()) return fail(402, "Celestin's free credits for today are all used up. Yours come back in " + waitText(u.free_reset_at) + "." + more);
 	if (u.free_reset_at > now() && plan.credits > 0) return fail(402, (plan.share < plan.credits ? "You've used your free credits for now. " + plan.share + " more come back in " : "You've used " + (plan.paid ? "your " + plan.name + " credits" : "your free credits") + " for these " + plan.hours + " hours. They're back in ") + waitText(u.free_reset_at) + "." + more);
-	return fail(402, "You're out of credits. A plan or a credit pack keeps you going.");
+	return fail(402, "You're out of credits. A credit pack keeps you going.");
 }
 // Hold mc: the window first (as far as the week allows), then bought credits. Null if there isn't enough. The window's
 // clock and the week's start with their first credit.
@@ -2976,7 +2979,7 @@ async function lemonWebhook(req, env) {
 // A request gets a number at once. The owner gets an email with everything needed to answer (and a link that opens a
 // reply to the customer); the customer gets a copy with the number, and can answer that email to add more. Signed in or
 // not (not being able to sign in is a common reason to write), kept from flooding by a few an hour from one place.
-const SUPPORT_KINDS = ["Payments and refunds", "Plans and credits", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
+const SUPPORT_KINDS = ["Payments and refunds", "Credits and packs", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
 async function optionalUser(req, env) {
 	try { return bearer(req) ? await authUser(req, env) : null; } catch { return null; }
 }
