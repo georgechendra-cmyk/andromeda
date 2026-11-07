@@ -499,10 +499,15 @@ async function authUser(req, env) {
 	const row = await env.DB.prepare("SELECT u.* , s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?").bind(await sha256hex(token)).first();
 	if (!row || row.expires_at < now()) throw fail(401, "Your session ended. Sign in again.");
 	row.owner = ownerHere(req, env, row.id);
-	const c = await config(env), u = await refill(env, row, c);
-	// Free credits stop once today's free use has cost the owner its budget: the budget was only checked when a window was
-	// handed out, so credits already in windows (and every new account's first window) could be spent past it. Found Nov 8.
-	// Bought credits still work; the most free use can cost is the budget and a call already running
+	return readyUser(env, row, await config(env));
+}
+// A user as everything that spends credits must see them: the window refilled, and free credits frozen once today's free
+// use has cost the owner its budget (the budget was only checked when a window was handed out, so credits already in
+// windows, and every new account's first window, could be spent past it. Found Nov 8). Scheduled tasks go through this
+// too: they ran on the database's row as it was, so a free account's tasks could keep spending past the budget.
+// Bought credits still work; the most free use can cost is the budget and a call already running
+async function readyUser(env, row, c) {
+	const u = await refill(env, row, c);
 	if (!u.owner && !planOf(u, c).paid && budgetUsd(c) > 0) {
 		const r = await env.DB.prepare("SELECT mc FROM free_days WHERE day = ?").bind(spentKey()).first();
 		if (((r && r.mc) || 0) >= budgetUsd(c) * 1e6) u.free_frozen = true;
@@ -2889,8 +2894,9 @@ async function taskRunNow(env, ctx, user, tid) {
 }
 // one run: the request as the person would send it, the models tried in the order Celestin picked them
 async function runTask(env, ctx, t) {
-	const user = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(t.user_id).first();
-	if (!user) return null;
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(t.user_id).first();
+	if (!row) return null;
+	const user = await readyUser(env, row, await config(env));
 	let models = [];
 	try { models = JSON.parse(t.models || "[]"); } catch {}
 	if (!models.length) models = ["anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol", "google/gemini-3.8-flash"];
