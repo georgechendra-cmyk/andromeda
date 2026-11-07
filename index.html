@@ -8240,7 +8240,7 @@ async function deepRounds(files, request, msg, rules, by) {
 		const fixers = bestFor("app"), builder = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
 		const room = await roundCap(builder, files, "max");
 		if (room.need) { deep.short = true; break; }
-		msg.status = "Deep work, round " + round + (until ? " (" + longMins(Math.max(0, until - Date.now())) + " left)" : " of " + DEEP_ROUNDS) + ": building " + c.upgrades.length + " improvement" + (c.upgrades.length === 1 ? "" : "s");
+		msg.status = "Deep work, round " + round + (until ? " (" + longMins(Math.max(0, until - Date.now())) + " left)" : " of " + DEEP_ROUNDS) + ": building " + c.upgrades.length + " improvement" + (c.upgrades.length === 1 ? "" : "s") + (msg.cost >= 1 ? " · " + spentSoFar(msg.cost) : "");
 		updateLast();
 		const have = Object.entries(files).map(([p, x]) => "=== FILE: " + p + " ===\n" + x).join("\n\n").slice(0, 160000);
 		msg.cut = false;
