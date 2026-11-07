@@ -5837,6 +5837,20 @@ function approve(msg, what, detail) {
 		if (talk && talk.on) toast("Celestin is asking to " + what);
 	});
 }
+// A long job re-sends everything on every step, and through a gateway with no caching that's paid in full each time. So
+// only the newest tool results stay whole: an older one keeps its start and a note, and the model runs the tool again if
+// it needs the rest (the way Anthropic clears old tool results). Found Nov 7: nothing was trimmed until the job passed
+// 300,000 characters, so a 30-step job re-read about a million tokens, most of them old outputs
+const KEEP_TOOLS = 6, OLD_TOOL_CHARS = 700, LIGHT_NOTE = "was cleared to keep the job light";
+function lightenOld(messages, keep = KEEP_TOOLS) {
+	let seen = 0;
+	for (let k = messages.length - 1; k >= 0; k--) {
+		const m = messages[k];
+		if (m.role !== "tool" || typeof m.content !== "string") continue;
+		if (++seen <= keep || m.content.length <= OLD_TOOL_CHARS * 2 || m.content.includes(LIGHT_NOTE)) continue;
+		m.content = m.content.slice(0, OLD_TOOL_CHARS) + "\n…(the rest of this older result, " + (m.content.length - OLD_TOOL_CHARS) + " more characters, " + LIGHT_NOTE + ": run the tool again if you need it)";
+	}
+}
 // a long job: the oldest steps summed up so there's always room to keep going
 async function compact(messages, keep = 14) {
 	if (messages.length <= keep + 4) return;
@@ -5987,7 +6001,9 @@ async function runAct(text, atts, resume) {
 			}
 			// what the tools showed, for a model that can see, so it checks its own work by looking
 			if (pics.length && (model.input || []).includes("image")) messages.push({ role: "user", content: [{ type: "text", text: "What the tools showed:" }, ...pics.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] });
-			// room to keep going: pictures go first, then the oldest steps are summed up
+			// light to keep going: older tool results cleared to their start; then, for room, pictures go first, then the
+			// oldest steps are summed up
+			lightenOld(messages);
 			let size = messages.reduce((t, m) => t + JSON.stringify(m.content || "").length, 0);
 			for (let k = 1; k < messages.length - 6 && size > 300000; k++) {
 				const m = messages[k];
