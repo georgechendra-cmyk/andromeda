@@ -3567,7 +3567,7 @@ async function streamOnce(model, messages, onText, signal, extra = {}, acc = nul
 	watch();
 	try {
 	let r;
-	try { r = await Promise.race([fetch(chatURL(), { method: "POST", headers: headers(), signal: ctl.signal, body: JSON.stringify(maskDeep({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra })) }), dead]); }
+	try { r = await Promise.race([fetch(chatURL(), { method: "POST", headers: headers(), signal: ctl.signal, body: JSON.stringify(maskDeep({ model, messages: cached(model, placeNote(messages)), stream: true, ...extra, ...(DEEP_NOW ? { deep: 1 } : {}) })) }), dead]); }
 	catch (e) { throw lost(e); }
 	if (!r.ok) {
 		let msg = r.statusText;
@@ -3632,7 +3632,7 @@ async function once(model, messages, extra = {}, acc = null) {
 	let r, j;
 	for (let net = 0, since = Date.now(); ; net++) {
 		try {
-			r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify(maskDeep({ model, messages: cached(model, placeNote(messages)), ...extra })) });
+			r = await fetch(chatURL(), { method: "POST", headers: headers(), body: JSON.stringify(maskDeep({ model, messages: cached(model, placeNote(messages)), ...extra, ...(DEEP_NOW ? { deep: 1 } : {}) })) });
 			j = await r.json();
 			if (net) netBar("ok");
 			break;
@@ -7686,6 +7686,9 @@ async function polishLook(files, request, msg, rules) {
 const DEEP_RE = /\b(take (all )?(the |your )?time|all the time (you|u) need|as long as (it takes|you need)|no matter how long|masterpiece|the best (you|u) can|as good as (it gets|possible)|deep mode)\b/i;
 const deepWanted = (text) => speed() === "max" || DEEP_RE.test(String(text || ""));
 const DEEP_ROUNDS = 8;
+// (while deep work runs, every call is marked deep: the server sends it only to the gateway set for deep work, where the
+// owner's money goes furthest, and never hands it on to another; busy there, the deep work stops and what's made stays)
+var DEEP_NOW = 0;
 async function critiqueApp(files, request, msg, by) {
 	const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
 	const shots = await snapApp(files).catch(() => []);
@@ -7702,11 +7705,15 @@ async function critiqueApp(files, request, msg, by) {
 	return { ship: !!j.ship, upgrades: (Array.isArray(j.upgrades) ? j.upgrades : []).map((x) => String(x).slice(0, 600)).filter((x) => x.trim()).slice(0, 6) };
 }
 async function deepenApp(files, request, msg, rules, by) {
+	DEEP_NOW++;
+	try { return await deepRounds(files, request, msg, rules, by); } finally { DEEP_NOW--; }
+}
+async function deepRounds(files, request, msg, rules, by) {
 	const deep = { rounds: 0, upgrades: 0 };
 	for (let round = 1; round <= DEEP_ROUNDS; round++) {
 		if (busy && busy.signal.aborted) break;
 		let c = null;
-		try { c = await critiqueApp(files, request, msg, by); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; }
+		try { c = await critiqueApp(files, request, msg, by); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; if (e.status === 503 || e.status === 429) deep.busy = true; }
 		if (!c || (c.ship && !c.upgrades.length) || !c.upgrades.length) break;
 		const fixers = bestFor("app"), builder = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
 		const room = await roundCap(builder, files, "max");
@@ -7720,7 +7727,7 @@ async function deepenApp(files, request, msg, rules, by) {
 			"\n\nDo all of them, properly and completely, the way the best studio would, keeping every feature and everything that already works. " + CHANGE_FORMAT + " (In NOTES, one line per change.)" }];
 		let r;
 		try { r = await askFirst([builder, ...fixers.filter((m) => m !== builder)].slice(0, 3), ask, msg, undefined, room.cap); }
-		catch (e) { delete msg.cut; if (e.name === "AbortError" || e.status === 401) throw e; if (e.status === 402) { deep.short = true; } break; }
+		catch (e) { delete msg.cut; if (e.name === "AbortError" || e.status === 401) throw e; if (e.status === 402) { deep.short = true; } if (e.status === 503 || e.status === 429) deep.busy = true; break; }
 		const p = parseFiles(r.out);
 		if (cutShort(p, msg.cut) || !changed(p)) { delete msg.cut; break; }
 		delete msg.cut;
@@ -7842,7 +7849,7 @@ async function heal(files, request, msg, rules, look = true, by = null) {
 }
 function testedLine(t) {
 	if (!t) return "";
-	const looked = (t.deep && t.deep.rounds ? " Then deep work: " + t.deep.rounds + " round" + (t.deep.rounds === 1 ? "" : "s") + " of a critic from another lab playing it and naming what would make it much better, and " + t.deep.upgrades + " improvement" + (t.deep.upgrades === 1 ? "" : "s") + " built and tested" + (t.deep.short ? " (it stopped there: the credits ran low)" : "") + "." : "") + (t.logic ? " A second AI played it through and fixed " + t.logic + (t.logic === 1 ? " bug" : " bugs") + " in how it works." : "") + (t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "");
+	const looked = (t.deep && !t.deep.rounds && t.deep.busy ? " Deep work couldn't start: the models it runs on were busy. Say \"keep improving it\" in a few minutes." : "") + (t.deep && t.deep.rounds ? " Then deep work: " + t.deep.rounds + " round" + (t.deep.rounds === 1 ? "" : "s") + " of a critic from another lab playing it and naming what would make it much better, and " + t.deep.upgrades + " improvement" + (t.deep.upgrades === 1 ? "" : "s") + " built and tested" + (t.deep.short ? " (it stopped there: the credits ran low)" : t.deep.busy ? " (it stopped there: the models it runs on got busy)" : "") + "." : "") + (t.logic ? " A second AI played it through and fixed " + t.logic + (t.logic === 1 ? " bug" : " bugs") + " in how it works." : "") + (t.polished ? " Then looked at like a designer would, and " + t.polished + " thing" + (t.polished === 1 ? "" : "s") + " about how it looks fixed." : "");
 	if (t.ok) return t.fixed ? "\n\n*Tested in the browser: found and fixed " + t.fixed + " problem" + (t.fixed === 1 ? "" : "s") + ", and it now runs clean." + looked + "*" : "\n\n*Tested in the browser: it runs clean." + looked + "*";
 	if (t.short) return "\n\n*Tested in the browser: it still has problems (" + t.problems.slice(0, 3).join("; ") + "), and there weren't enough credits left to fix them. Get more credits, then say \"fix it\".*";
 	return "\n\n*Tested in the browser: still has problems after " + t.rounds + " fix round" + (t.rounds === 1 ? "" : "s") + ": " + t.problems.slice(0, 3).join("; ") + ". Tell me what you see and I'll fix it.*";
@@ -8117,11 +8124,11 @@ async function walletLeft() {
 	return me ? me.credits * creditUsd() : 0;
 }
 // (cap: no more thought than this, for work whose problems are already named; Max thinks fully)
-async function askFirst(cands, messages, msg, onText, cap) {
+async function askFirst(cands, messages, msg, onText, cap, more) {
 	let lastErr;
 	for (const m of cands) {
 		try {
-			const out = await stream(m.id, messages, onText || (() => {}), busy.signal, cap && speed() !== "max" ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", cap, m.id)) : effortExtra(m.id), msg);
+			const out = await stream(m.id, messages, onText || (() => {}), busy.signal, { ...(cap && speed() !== "max" ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", cap, m.id)) : effortExtra(m.id)), ...(more || {}) }, msg);
 			return { out, model: m };
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401) throw e;
@@ -8136,6 +8143,18 @@ const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text },
 // (one builder, the one measured best at it or the cheapest a quark from it, then the build is run and fixed: several
 // models each building the same thing to pick or merge one costs several times as much and isn't how a team works)
 // (long work: a model cut off waiting isn't asked again, the next one builds it)
+// Apple's design rules (from its Human Interface Guidelines and how apple.com is built): on for every website and app
+// unless the person says not to follow them; anything they ask for about the look wins over the rule it contradicts
+const NO_APPLE = /\b(no|not|don'?t|do not|without|skip|ignore|stop|never)\b[^.!?\n]{0,40}(\bapple[- ]?(like|style|ish|esque)\b|\bapple'?s?\b[^.!?\n]{0,12}\b(design|style|rules?|guidelines|look|hig|aesthetic)\b|\blike apple\b)|\bapple\b[^.!?\n]{0,20}\b(rules|design|guidelines|style)\b[^.!?\n]{0,15}\b(off|no)\b/i;
+const APPLE_RULES = "- Apple's design rules are the default here (the person's own words win: anything they ask for about the look replaces the rule it contradicts). For a website or an app, and a game's menus, HUD and settings (a game keeps its own art direction): " +
+	"clarity, deference and depth: the content is the hero and the interface recedes (thin bars, quiet controls), depth only to show what sits over what (a layer, a soft shadow, a sheet sliding up). " +
+	"Typography does the work: one precise sans family with SF Pro's character (on the web a refined grotesk from Google Fonts such as Inter Tight, Manrope, Plus Jakarta Sans or Geist; a characterful display face only where the subject wants it) on a strict scale: big, bold, tightly tracked headlines (about -0.02em; 48 to 96px on a desktop hero), 17px body text at about 1.5 line height, few weights. Headlines short, plain and confident. " +
+	"Colour: mostly white, #f5f5f7 and #1d1d1f (or their dark equivalents), ONE accent kept for what can be pressed; the colour comes from the content (the product, illustrations), not decoration. " +
+	"Layout: generous whitespace, one idea per section, a readable centred column (about 980px) with full-bleed moments for the hero, everything on an 8px grid with consistent margins. " +
+	"Controls: rounded or pill buttons with one corner radius across the app, at least 44px tall to tap, clear hover, pressed, disabled and keyboard-focus states; patterns people already know (tab bars, segmented controls, sheets, toggles). " +
+	"Motion: quick and physical (spring-like ease-out, 200 to 500 ms) and it shows where things come from and go; scroll reveals subtle (a fade and a 20px rise), never bouncing for show; prefers-reduced-motion respected. Translucency (backdrop blur) only for bars and sheets floating over content. " +
+	"Accessible: text contrast at least 4.5:1, labels on icon buttons, readable at 200% zoom. Where the general design rule below says otherwise about type or colour, these win.\n";
+const designRules = (text) => (NO_APPLE.test(String(text || "")) ? "" : APPLE_RULES);
 async function runApp(text, atts, pick) {
 	LONG_RUN = true;
 	try { return await buildApp(text, atts, pick); } finally { LONG_RUN = false; }
@@ -8147,14 +8166,16 @@ async function buildApp(text, atts, pick) {
 	// design pass. The best builder at its full effort when the balance covers it; when it doesn't, the same builder
 	// thinking a step less (never another model), the most it can and still finish; and when not even its lightest would
 	// finish, nothing starts and the person sees what it costs. A build never stops half-made
-	// in Auto a build thinks at most "high" (the deeper levels mostly add minutes, and thinking is paid as writing); Max
-	// builds at the builder's full effort, Fast lightly. Less only when the balance wouldn't cover it
-	const autoCap = speed() === "max" ? undefined : speed() === "fast" ? "low" : "high";
+	// Auto builds at the thought the builder earned its rank at (on LMArena's web boards each level of thought is worth
+	// about 35 Elo, and every top score there is at Max: capped at "high", Auto had picked GPT-6.1 Sol at medium, some 100
+	// Elo under Sol at Max, to save a third of a build), choosing the cheapest of the builders that are level at the top;
+	// Max takes the very top whatever it costs, Fast thinks lightly. Less only when the balance wouldn't cover it
+	const autoCap = speed() === "fast" ? "low" : undefined;
 	let buildCap = autoCap;
 	if (creditsMode()) {
 		await refreshMe();
 		const builder = bestFor(atts.some((a) => a.kind === "image" && a.data) ? "appFromImage" : "app", autoCap)[0];
-		const steps = speed() === "max" ? [undefined] : speed() === "fast" ? ["low"] : ["high", "medium"];
+		const steps = speed() === "max" ? [undefined] : speed() === "fast" ? ["low"] : [undefined, "high", "medium"];
 		const need = steps.map((cap) => (builder ? Math.max(APP_MIN_CREDITS, appCredits(builder, cap, FEATURE_W.app.out)) : APP_MIN_CREDITS));
 		const have = me ? me.credits : Infinity;
 		let k = steps.findIndex((cap, n) => need[n] * 1.5 <= have);
@@ -8176,7 +8197,8 @@ async function buildApp(text, atts, pick) {
 	const rules = "You are an expert engineer working in a browser sandbox with a live preview.\n" +
 		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no images or network requests from outside. Two things may load from outside: fonts from Google Fonts (a <link> to fonts.googleapis.com, two families at most, with a fallback stack), and, for real 3D, three.js r128 with <script src=\"" + THREE_SRC + "\"><\/script> before your own script (only that file: no add-ons such as OrbitControls or loaders, so write camera controls yourself; r128's API: BufferGeometry, no Geometry). Pictures and icons are drawn: inline SVG (icons in one consistent stroke style), CSS and canvas; emoji only where emoji is the content, never as icons.\n" +
 		"- Complete and working on the first run: no placeholders, no TODOs, no lorem ipsum: real, specific words for this subject.\n" +
-		"- Design it like a top product studio (Apple's restraint, Emil Kowalski's craft), never the generic AI look. Never: Inter, Roboto, Arial or the system font as the whole look; purple or blue gradients; glowing or neon buttons; glass blur everywhere; gradient text; emoji as icons; a centred hero over three equal feature cards; stock phrases (unlock, seamless, elevate, supercharge). Instead: a type pairing chosen for this subject (a characterful display face and a quiet text face) on a real type scale; a restrained palette taken from the subject (neutrals and one accent), light or dark as fits it; a layout built for the content (asymmetry where it helps, varied section rhythm, clear hierarchy, generous whitespace, edges that line up on an 8px grid); the details done properly (hover and pressed states without glows, visible keyboard focus, empty, loading and error states); motion with a purpose: 150 to 300 ms, ease-out, transform and opacity only, nothing looping for no reason, and prefers-reduced-motion respected. Responsive down to a phone; keyboard support where it makes sense. A game: one consistent art style and a clean, readable HUD.\n" +
+		designRules(text) +
+		"- Design it like a top product studio (Apple's restraint, Emil Kowalski's craft), never the generic AI look. Never: Roboto, Arial, or plain Inter or an unstyled system font as the whole look; purple or blue gradients; glowing or neon buttons; glass blur everywhere; gradient text; emoji as icons; a centred hero over three equal feature cards; stock phrases (unlock, seamless, elevate, supercharge). Instead: a type pairing chosen for this subject (a characterful display face and a quiet text face) on a real type scale; a restrained palette taken from the subject (neutrals and one accent), light or dark as fits it; a layout built for the content (asymmetry where it helps, varied section rhythm, clear hierarchy, generous whitespace, edges that line up on an 8px grid); the details done properly (hover and pressed states without glows, visible keyboard focus, empty, loading and error states); motion with a purpose: 150 to 300 ms, ease-out, transform and opacity only, nothing looping for no reason, and prefers-reduced-motion respected. Responsive down to a phone; keyboard support where it makes sense. A game: one consistent art style and a clean, readable HUD.\n" +
 		"- A game or simulation: play it through in your head before you finish. Every computer-controlled player or character acts in every state (one holding the ball passes, shoots or runs on; none just stands there), every timer and cooldown really runs out (never reset or counted back every frame), starting positions and rules follow the real thing (at a football kick-off each team is in its own half), and every control does what it says.\n" +
 		"- A game feels right: movement works with both WASD and the arrow keys unless asked otherwise; players and vehicles speed up and slow down (never full speed or a dead stop at once) and a ball rolls on with momentum and slows with friction; computer players think for themselves, each keeping its own position and job, reacting to the ball after a short delay and sometimes getting it wrong (difficulty changes how often), and never copying or mirroring the person's moves; it never restarts, resets or pauses by itself (only a goal, the clock or a key the person presses does that).\n" +
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
@@ -9601,12 +9623,14 @@ async function runVideo(text, atts, planned) {
 	current.msgs.push(msg);
 	updateLast();
 	const plan = planned ? (drawn ? cleanPlan(planned, planned.want, true) : planned) : await direct(text, atts, msg, busy.signal, drawn);
+	// (the person's own words, for the animator of a film made in one take)
+	plan.ask = String((planned && planned.ask) || text || "").slice(0, 2000);
 	const left = await walletLeft();
 	msg.status = drawn ? "Waiting for your go" : "Waiting for you to pick the quality";
 	updateLast();
 	const tier = drawn ? await confirmDrawn(plan) : await chooseTier(plan, left);
 	if (!tier) { msg.text = "**" + esc(plan.title) + "**: planned " + plan.scenes.length + " shots, nothing made. Ask again whenever you want it made."; msg.data = { kind: "video", plan, tier: null, scenes: plan.scenes.map(() => ({})), stage: "planned" }; return; }
-	msg.data = { kind: "video", plan, tier, drawnOnly: drawn, refs: [], scenes: plan.scenes.map(() => ({ state: "waiting" })), voice: {}, music: {}, stage: "making" };
+	msg.data = { kind: "video", plan, tier, drawnOnly: drawn, deep: deepWanted(text), refs: [], scenes: plan.scenes.map(() => ({ state: "waiting" })), voice: {}, music: {}, stage: "making" };
 	for (const a of atts.filter((x) => x.kind === "image" && x.data)) msg.data.refs.push(await vault.put(b64Blob(a.data.split(",")[1], a.data.slice(5, a.data.indexOf(";")))));
 	msg.text = "**" + plan.title + "**";
 	await produce(msg, null, busy.signal);
@@ -9755,23 +9779,64 @@ async function produce(msg, only, signal) {
 			catch (e) { if (e.name === "AbortError") throw e; d.music.state = "failed"; d.music.error = String(e.message || e); }
 			paint();
 		};
+		// a drawn film short enough: made in one take (animateFilm), every shot a window onto it; if no model can make
+		// it whole, shot by shot as before
+		const total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
+		if (d.drawnOnly && plan.scenes.length && plan.scenes.every((x) => x.motion === "drawn") && total <= TAKE_MAX) plan.oneTake = true;
+		else delete plan.oneTake;
+		const takeFilm = async () => {
+			if (!d.take || (only && (d.change || (only.scenes || []).length))) {
+				d.scenes.forEach((x) => (x.state = "animating"));
+				d.takeStatus = d.take ? "Changing the film" : "Animating the whole film in one take";
+				paint();
+				try {
+					const prev = d.take ? await (await vault.get(d.take)).text() : "";
+					const asked = (only && only.scenes) || [];
+					const change = !prev ? "" : d.change || "Remake shot " + asked.map((i) => i + 1).join(" and ") + " so it matches the plan: " + asked.map((i) => plan.scenes[i].draw || plan.scenes[i].shot).join(" | ");
+					const r = await animateFilm(plan, animators, msg, signal, FW, FH, prev, change, !!d.deep, (st) => { d.takeStatus = st; paint(); });
+					d.take = await vault.put(new Blob([r.html], { type: "text/html" }));
+					note(shortName(r.by), "Animation: made the whole film as one program, one design and one motion language from the first frame to the last");
+					if (r.critic) note(shortName(r.critic), "Critic: watched it frame by frame and named what to fix" + (r.rounds > 1 ? " (" + r.rounds + " rounds)" : ""));
+				} catch (e) {
+					if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+					delete d.takeStatus;
+					d.scenes.forEach((x) => (x.state = "waiting"));
+					if (!d.take) { delete plan.oneTake; retime = true; return false; }
+				}
+				delete d.change;
+			}
+			delete d.takeStatus;
+			const prog = await (await vault.get(d.take)).text();
+			let at = 0;
+			for (let i = 0; i < plan.scenes.length; i++) {
+				const x = d.scenes[i], secs = plan.scenes[i].seconds;
+				Object.assign(x, { code: d.take, drawn: true, at, state: "done", error: "" });
+				try { x.poster = await vault.put(await posterOf(segmentOf(prog, at, secs), secs, Math.round(FW / 2), Math.round(FH / 2))); } catch {}
+				at += secs;
+			}
+			paint();
+			return true;
+		};
 		// shot 1 is drawn first: every other shot is drawn with it as a reference, so they all match
 		if (plan.scenes[0].motion !== "drawn" && (!d.scenes[0].frame || redo(0))) await frameOf(0);
 		// eight shots at a time (a long film has hundreds), the voice and the score alongside
-		let nextShot = 0;
+		let nextShot = 0, retime = false;
 		const sound = Promise.all([voices(), score()]);
 		sound.catch(() => {});
+		if (plan.oneTake && (await takeFilm())) nextShot = plan.scenes.length;
 		// a drawn film's first shot is animated first: it's the style frame every other shot is made to match
-		if (plan.scenes[0].motion === "drawn" && plan.scenes.length > 1 && (!d.scenes[0].code || redo(0))) { await shot(0); nextShot = 1; }
+		if (!nextShot && plan.scenes[0].motion === "drawn" && plan.scenes.length > 1 && (!d.scenes[0].code || redo(0))) { await shot(0); nextShot = 1; }
 		const shots = Array.from({ length: Math.min(8, plan.scenes.length) }, async () => { while (nextShot < plan.scenes.length) await shot(nextShot++); });
 		await Promise.all([Promise.all(shots), sound]);
+		// (made shot by shot after all: a soundtrack composed to the one take is composed again to this cut)
+		if (retime && d.music.composed) { d.music = {}; await score(); }
 		const made = (s) => s.clip || (s.still && s.frame) || (s.drawn && s.code);
 		if (!d.scenes.some(made)) throw new Error("None of the shots could be made: " + (d.scenes.find((s) => s.error)?.error || "the video model failed"));
 		// 5. the cut
 		note("Celestin editor", "Edit: cut it together with captions, transitions, ducked music and an end card, in your browser");
 		d.stage = "cutting";
 		paint();
-		d.final = await vault.put(await cut(d, (p) => { d.progress = p; paint(); }));
+		d.final = await vault.put(await cut(plan.oneTake && d.take ? takeView(d) : d, (p) => { d.progress = p; paint(); }));
 		// for YouTube: its thumbnail, from the shot the director chose, with its words on it (no model needed)
 		if (plan.youtube && plan.youtube.thumbnail.text) { try { d.thumb = await vault.put(await makeThumb(await vault.get(d.final), plan)); } catch {} }
 		d.stage = "done";
@@ -9788,6 +9853,7 @@ async function produce(msg, only, signal) {
 }
 function statusOf(d) {
 	if (d.stage === "cutting") return "Editing: " + Math.round((d.progress || 0) * 100) + "%";
+	if (d.takeStatus) return d.takeStatus;
 	const n = d.scenes.length, done = d.scenes.filter((s) => s.clip || (s.still && s.frame) || (s.drawn && s.code)).length, rendering = d.scenes.filter((s) => s.state === "rendering").length;
 	if (d.scenes.some((s) => s.state === "animating")) return "Animating the shots in code (" + done + "/" + n + " done)";
 	if (d.scenes.some((s) => s.state === "drawing")) return "Drawing the shots (" + d.scenes.filter((s) => s.frame).length + "/" + n + ")";
@@ -10298,6 +10364,139 @@ async function animateShot(plan, sc, i, cands, msg, signal, W, H, style) {
 	throw lastErr || new Error("No model could animate this shot");
 }
 
+// ---- one take: a drawn film up to TAKE_MAX seconds is ONE program, written whole by the best animator: one timeline,
+// one design system and motion language from the first frame to the last, transitions designed into it. That's how the
+// films people share from a single model are made (Opus 5.5's ads and showreels: a seek(t) program, scenes as parts of
+// it, then its own frames looked at and the worst weaknesses fixed). Made shot by shot by separate calls, a film is
+// several animators' work cut together, and looks it. Then a critic from another lab looks at a contact sheet of its
+// frames and names its worst weaknesses, and the animator fixes them: once, and in deep work up to TAKE_DEEP rounds
+const TAKE_MAX = 75, TAKE_DEEP = 4;
+const FILM_ANIMATOR = `You make a whole short film in code, start to finish, as ONE program: the motion designer, animator and editor of the best studio in the world, making the kind of film people share (an ad, a product film, an explainer, a story).
+
+Write ONE complete HTML document, exactly to this contract:
+- One <canvas id="c">, sized in your script to window.W by window.H pixels (canvas.width = W; canvas.height = H), filling the page with no margin. Lay everything out relative to W and H.
+- window.DURATION = the film's length in seconds.
+- window.seek = async function (t) { ... }, defined when the script first runs: draws the complete frame for time t (0 to DURATION). Every pixel depends only on t: no requestAnimationFrame, no timers, no Date.now or performance.now, no CSS animation or transition, and randomness only from a seeded generator you write. seek(20) and then seek(2) must give exactly the frame at 2.
+- Everything in this file. Nothing may be loaded except Google Fonts (a <link> to fonts.googleapis.com; await document.fonts.ready inside seek before drawing text) and, only for real 3D, three.js r128 from https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js (WebGLRenderer with preserveDrawingBuffer: true, drawn into the canvas #c). No images, video or files: draw everything yourself.
+
+How the best ones are built:
+- One timeline: a list of scenes with start and end times, each scene a function of its own local progress. One design system for the whole film, defined once at the top: palette, type scale, grid and margins, line weights, corner radii, shadows, and a motion language (the same easings and timings everywhere). Each recurring character, product or screen is drawn by one helper, so it's identical in every scene.
+- Transitions designed, never an accidental jump: a match cut, a shape that grows into the next scene, a push through, a wipe in the film's own style, an element carried across.
+- Motion: every move eased (expo or cubic out, a little anticipation, overshoot that settles); springs as pure functions of time (a damped oscillator); elements arrive in stages, staggered 40 to 80 ms, never all at once; secondary motion and gentle parallax so no frame is ever static; holds long enough to read (words stay on screen at least as long as it takes to read them twice).
+- Interfaces (a phone, an app, a website, a checkout) drawn crisply and believably, like the real product: a device with rounded corners, real screens with real words, a status bar, lists and buttons on a grid; a finger or cursor that taps, the button that presses in, the screen that responds. Apple's product films are the bar.
+- Words: kinetic typography with real hierarchy, in the film's typefaces, inside the middle 90% of the frame, never overlapping or cut off.
+- Clear with no context: who or what it's about and what happens is plain from the pictures alone; a product film shows the product and what it does within the first 3 seconds and ends on its name.
+- It settles on a clean final frame: the title, the product, or the line it ends on.
+
+Reply with the HTML only.`;
+const htmlOf = (out) => (String(out).match(/```(?:html)?\s*([\s\S]*?)```/i) || [])[1] || String(out).slice(Math.max(0, String(out).search(/<!doctype|<html/i)));
+// one shot's stretch of a film made in one take, as a program of its own (for its picture in the shot list)
+function segmentOf(html, at, secs) {
+	const tail = "<script>(function(){var f=window.seek;window.DURATION=" + secs + ";if(typeof f==='function')window.seek=function(t){return f(" + at + "+t)}})()<\/script>";
+	const k = html.toLowerCase().lastIndexOf("</body>");
+	return k >= 0 ? html.slice(0, k) + tail + html.slice(k) : html + tail;
+}
+// what the editor cuts: a film made in one take is one shot, its own titles and ending in it
+function takeView(d) {
+	const p = d.plan, secs = p.scenes.reduce((n, x) => n + x.seconds, 0);
+	return { ...d, plan: { ...p, end: { ...p.end, title: "", sub: "" }, scenes: [{ ...p.scenes[0], motion: "drawn", seconds: secs, caption: "", vo: "" }] }, scenes: [{ drawn: true, code: d.take }] };
+}
+// twelve frames evenly through the film, each with its time under it, as one picture
+async function filmSheet(html, total, W, H) {
+	const tall = H > W, cols = tall ? 6 : 4, n = 12, rows = Math.ceil(n / cols);
+	const cw = Math.round(W / (tall ? 5 : 4)), ch = Math.round((cw * H) / W), lab = 22;
+	const sheet = document.createElement("canvas");
+	sheet.width = cols * cw;
+	sheet.height = rows * (ch + lab);
+	const g = sheet.getContext("2d");
+	g.fillStyle = "#000";
+	g.fillRect(0, 0, sheet.width, sheet.height);
+	const sc = openScene(html, cw, ch);
+	try {
+		for (let k = 0; k < n; k++) {
+			const t = (total * (k + 0.5)) / n, b = await sc.frame(t), x = (k % cols) * cw, y = Math.floor(k / cols) * (ch + lab);
+			g.drawImage(b, x, y, cw, ch);
+			if (b.close) b.close();
+			g.fillStyle = "#fff";
+			g.font = "14px sans-serif";
+			g.fillText(t.toFixed(1) + "s", x + 6, y + ch + 16);
+		}
+	} finally {
+		sc.close();
+	}
+	return sheet.toDataURL("image/jpeg", 0.8);
+}
+async function critiqueFilm(html, brief, total, by, W, H, msg) {
+	const critics = checkersFor("code", provider(by.id)).filter((m) => (m.input || []).includes("image"));
+	if (!critics.length) return null;
+	const sheet = await filmSheet(html, total, W, H);
+	const text = "You're the creative director of a top motion-design studio. This is a contact sheet: 12 frames taken evenly through a " + total + "-second film (each one's time under it), made from this brief:\n\n" + brief +
+		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending). Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
+	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: [{ type: "text", text }, { type: "image_url", image_url: { url: sheet } }] }], msg, undefined, "high");
+	const j = parseJSON(r.out) || {};
+	return { by: r.model, ship: !!j.ship, fixes: (Array.isArray(j.fixes) ? j.fixes : []).map((x) => String(x).slice(0, 500)).filter((x) => x.trim()).slice(0, 4) };
+}
+// The film (or, with prev, the change to it), checked to run, then the critic's rounds. { html, by, critic, rounds }
+async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, onStatus) {
+	const total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
+	let at = 0;
+	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
+	const brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
+		"\nIts typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words; never Inter, Roboto, Arial or a system font." +
+		"\nAspect " + plan.aspect + ", " + total + " seconds in all.\n\nThe shot list (one continuous film: design the transitions between them):\n" + timeline +
+		(plan.end.title || plan.end.sub ? "\n\nIt ends on: " + [plan.end.title, plan.end.sub].filter(Boolean).join(" / ") : "");
+	// (the animator at the thought it earned its rank at, read again right before each call)
+	const best = (m) => { bestFor("animation"); return effortExtra(m.id); };
+	const write = async (m, content) => htmlOf(await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content }], () => {}, signal, best(m), msg));
+	const edit = async (m, why, html) => {
+		const said = await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: brief + "\n\n" + why + "\n\nThe film's code, as film.html:\n" + html.slice(0, 90000) + "\n\nDon't send the whole file. " + CHANGE_FORMAT.replace(/\bpath\b/g, "film.html") }], () => {}, signal, best(m), msg);
+		const p = parseFiles(said);
+		if (p.files["film.html"]) return p.files["film.html"];
+		if (Object.keys(p.edits).length) { const { files, failed } = applyEdits({ "film.html": html }, p.edits); if (!failed.length) return files["film.html"]; }
+		else if (/<canvas|<script/i.test(htmlOf(said))) return htmlOf(said);
+		return write(m, brief + "\n\n" + why + "\n\nThe code:\n" + html.slice(0, 90000) + "\n\nSend the whole file again.");
+	};
+	const runs = (html) => checkScene(html, total, Math.round(W / 4), Math.round(H / 4));
+	let html = "", by = null, lastErr;
+	// (two animators at most: past that it's made shot by shot instead)
+	for (const m of cands.slice(0, 2)) {
+		try {
+			onStatus(prev ? "Changing the film" : "Animating the whole film in one take (" + total + " seconds of it)");
+			html = prev ? await edit(m, "The person wants this change: " + change + "\nMake it, keeping everything else.", prev) : await write(m, brief + "\n\nMake the film.");
+			try { await runs(html); }
+			catch (e) { html = await edit(m, "Your version failed when it was run:\n" + String(e.message || e).slice(0, 600) + "\nFind the cause and fix it.", html); await runs(html); }
+			by = m;
+			break;
+		} catch (e) {
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+			lastErr = e;
+		}
+	}
+	if (!by) throw lastErr || new Error("No model could animate the film");
+	let critic = null, rounds = 0;
+	const most = deep ? TAKE_DEEP : 1;
+	if (deep) DEEP_NOW++;
+	try {
+		for (let round = 1; round <= most; round++) {
+			if (signal && signal.aborted) break;
+			onStatus((deep ? "Deep work, round " + round + " of " + most + ": " : "") + "a critic from another studio is watching it");
+			let c = null;
+			try { c = await critiqueFilm(html, brief, total, by, W, H, msg); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; }
+			if (!c || !c.fixes.length) break;
+			critic = c.by;
+			onStatus((deep ? "Deep work, round " + round + " of " + most + ": " : "") + "fixing what the critic saw (" + c.fixes.length + ")");
+			try {
+				const next = await edit(by, "A creative director from another studio watched it and says:\n- " + c.fixes.join("\n- ") + "\nFix all of these properly, keeping everything that works.", html);
+				await runs(next);
+				html = next;
+				rounds = round;
+			} catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; break; }
+			if (c.ship) break;
+		}
+	} finally { if (deep) DEEP_NOW--; }
+	return { html, by, critic, rounds };
+}
+
 // ---- the sound, made in code: with no music model on the server, the best creative coder composes the score and the
 // sound design as a Web Audio program timed to the cut, rendered here (sealed off like a drawn shot) into the soundtrack
 const COMPOSER = `You are the composer and sound designer of a short film, writing its whole soundtrack as a program for the Web Audio API.
@@ -10313,9 +10512,10 @@ Reply with the HTML only.`;
 // where each shot sits once cut (the same arithmetic as the editor: each shot overlaps the next by the crossfade)
 function cutTimes(plan) {
 	let t = 0;
-	const shots = plan.scenes.map((sc) => { const s = { start: t, end: t + sc.seconds, what: sc.draw || sc.shot, caption: sc.caption, sound: sc.sound }; t += sc.seconds - XF; return s; });
-	const endCard = !!(plan.end.title || plan.end.sub);
-	const total = t + XF + (endCard ? END : 0.2);
+	const xf = plan.oneTake ? 0 : XF;
+	const shots = plan.scenes.map((sc) => { const s = { start: t, end: t + sc.seconds, what: sc.draw || sc.shot, caption: sc.caption, sound: sc.sound }; t += sc.seconds - xf; return s; });
+	const endCard = !plan.oneTake && !!(plan.end.title || plan.end.sub);
+	const total = t + xf + (endCard ? END : 0.2);
 	return { shots, total, end: endCard ? total - END : null };
 }
 function soundDoc(html, secs, id) {
@@ -10481,6 +10681,7 @@ async function studioEdit(text, atts, pick) {
 	const out = await once(m.id, [{ role: "system", content: DIRECTOR }, { role: "user", content: "Here is the current plan:\n" + JSON.stringify(d.plan) + "\n\nThe user wants: " + text + "\n\nReturn the full updated plan as the same JSON, plus a key \"redo\": {\"scenes\":[indexes of shots whose picture must be remade, 0-based],\"voice\":true if any voiceover changed,\"music\":true if the music must be remade}. Keep everything they didn't ask to change exactly as it is. Captions, end card and order changes need no remaking." }], { response_format: { type: "json_object" } }, msg);
 	const j = parseJSON(out);
 	const plan = cleanPlan(j, d.plan.want, d.drawnOnly);
+	plan.ask = d.plan.ask || "";
 	const redo = { scenes: (j.redo?.scenes || []).map(Number).filter((n) => n >= 0 && n < plan.scenes.length), voice: !!j.redo?.voice, music: !!j.redo?.music };
 	msg.used.push({ name: shortName(m), desc: "Director: changed the plan" });
 	// a new copy of it, so the old one stays as it was; shots that didn't change are reused as they are
@@ -10488,7 +10689,7 @@ async function studioEdit(text, atts, pick) {
 	// a soundtrack composed to the cut is composed again when the shots' timing changes
 	const retimed = d.music.composed && JSON.stringify(d.plan.scenes.map((s) => s.seconds)) !== JSON.stringify(plan.scenes.map((s) => s.seconds));
 	if (retimed) redo.music = true;
-	msg.data = { kind: "video", plan, tier: d.tier, drawnOnly: d.drawnOnly, refs: d.refs, scenes: plan.scenes.map((_, i) => keep(i)), music: redo.music ? {} : { ...d.music }, stage: "making" };
+	msg.data = { kind: "video", plan, tier: d.tier, drawnOnly: d.drawnOnly, deep: deepWanted(text), ...(d.take ? { take: d.take, change: text } : {}), refs: d.refs, scenes: plan.scenes.map((_, i) => keep(i)), music: redo.music ? {} : { ...d.music }, stage: "making" };
 	redo.scenes.forEach((i) => (msg.data.scenes[i] = { state: "waiting" }));
 	if (plan.aspect !== d.plan.aspect) msg.data.scenes = plan.scenes.map(() => ({ state: "waiting" }));
 	// what the shots to remake will cost: animation for a drawn film, footage for a filmed one

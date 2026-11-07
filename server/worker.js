@@ -22,6 +22,10 @@ const DEFAULT_CONFIG = {
 	// MarkasAI first, to test it, with Flaz behind it. A gateway that's busy or out of balance hands the request on
 	gatewayOrder: ["1", "2"],
 	ownerGatewayOrder: ["2", "1"],
+	// deep work (Max, or "take all the time you need": round after round of a critic and the builder) runs only on this
+	// gateway, never handed on to another (the owner, Nov 7: deep rounds on MarkasAI, where the money goes about ten times
+	// as far; busy there, the deep work stops and what's made stays). "" lets it use any
+	deepGateway: "2",
 	// the model's list price x this. 3x is about where profit peaks for a new AI app with free rivals: a 10% higher price
 	// loses some 15-20% of buyers, so profit is nearly flat from 2.5x to 4x and falls past it. Bands are by the model's
 	// output price in dollars per million tokens.
@@ -1627,6 +1631,9 @@ async function chat(req, env, ctx, user) {
 	// included, so it finishes in time (the site asks for the next part); never sent on to anyone
 	const part = Math.floor(Number(b.chunk) || 0);
 	delete b.chunk;
+	// (a call made during deep work: only the gateway set for it; never sent on to anyone)
+	const deep = !!b.deep;
+	delete b.deep;
 	// (a model the gateway has that OpenRouter doesn't list yet: the price to be safe with, until it does)
 	const price = (await prices(env)).get(b.model) || (await freshModels(env)).find((x) => x.id === b.model);
 	if (!price) throw fail(400, "That model isn't available.");
@@ -1637,8 +1644,9 @@ async function chat(req, env, ctx, user) {
 	delete b.plugins;
 	const web = plug ? { n: Math.max(1, Math.min(8, Number(plug.max_results) || 5)), query: plug.query || lastUserText(b.messages) } : null;
 	await Promise.all(gateways(env).map(gatewayCatalog));
-	const ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, orderFor(c, user.owner));
-	if (!ways.length) throw fail(503, "This server can't reach that model. Pick another, or try again later.");
+	let ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, orderFor(c, user.owner));
+	if (deep && c.deepGateway) ways = ways.filter((w) => w.kind === "gw" && w.gw === String(c.deepGateway));
+	if (!ways.length) throw fail(503, deep ? "Deep work's models are busy right now." : "This server can't reach that model. Pick another, or try again later.");
 
 	const mult = multiplier(price, c);
 	// credits -> what the request may spend at list prices
