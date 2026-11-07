@@ -5071,7 +5071,7 @@ async function runAgent(text, atts) {
 		let shots = [];
 		for (let step = 0; step < (long ? 4000 : 200) && summary == null; step++) {
 			if (longTick(long, messages, step, log)) { summary = "Time's up: here's where it stands. " + (messages[messages.length - 1].content || ""); break; }
-			msg.status = (long ? longStatus(long) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
+			msg.status = (long ? longStatus(long, msg) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
@@ -5113,7 +5113,7 @@ async function runAgent(text, atts) {
 			}
 		}
 		if (summary == null) summary = "That's " + (long ? 4000 : 200) + " steps, so I've paused here. Say \"keep going\" and I'll carry on.";
-		summary += longNote(long);
+		summary += longNote(long, msg);
 	} finally {
 		// whatever happened, what changed is shown (and in a folder, can be undone)
 		msg.used = [{ name: shortName(model), desc: "Engineer: explored the code, made the changes and checked them" }, ...(msg.used || []).filter((u) => /^(Expert|Reviewer|Lead reviewer)/.test(u.desc))];
@@ -5987,7 +5987,11 @@ function longStart(text) {
 	return r ? { start: Date.now(), until: r.ms ? Date.now() + r.ms : 0, rounds: 0, wrap: 0, ask: String(text || "").slice(0, 3000) } : null;
 }
 const longLine = (long) => "\n\nThis is a long run: " + (long.until ? "you have about " + longMins(long.until - Date.now()) + " (until " + new Date(long.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ")" : "take all the time the work needs") + ". Don't stop at good enough: once it works, keep making it much better for what was asked (what's missing or only faked, real depth and features, robustness and tests, how it looks and feels, polish), checking every change for real. Keep the plan up to date. Each time you say you're done, a lead from another lab reviews it, and you carry on with what they found; when the time is up you'll be told to wrap up. (This replaces any rule about stopping as soon as it's done: use the time well, never pad it.)";
-const longStatus = (long) => "Long run" + (long.wrap ? " · wrapping up" : long.until ? " · " + longMins(long.until - Date.now()) + " left" : "") + (long.rounds ? " · review round " + long.rounds : "");
+// (what it has spent so far is on the line, so a run is never a surprise: on the owner's own account, which has no credits to
+// run out of, in rupiah too, at about what a credit costs the owner)
+const OWNER_RP_PER_CREDIT = 69;
+const spentSoFar = (c) => (creditsMode() ? creditsText(Math.round(c)) + " credits" + (me && me.owner ? " ≈ Rp" + Math.round(c * OWNER_RP_PER_CREDIT).toLocaleString("id-ID") : "") : "$" + c.toFixed(2)) + " so far";
+const longStatus = (long, msg) => "Long run" + (long.wrap ? " · wrapping up" : long.until ? " · " + longMins(long.until - Date.now()) + " left" : "") + (long.rounds ? " · review round " + long.rounds : "") + (msg && msg.cost >= 1 ? " · " + spentSoFar(msg.cost) : "");
 const LONG_WRAP = "Time's up for this run. Wrap up now: make sure everything you changed works (run it), update the plan, then finish with a short summary of what you did, what you checked, and what's left.";
 // the reviewer: from another lab than the one doing the work, looking at what was made (and pictures of it, when there are)
 async function longReview(long, report, work, shots, by, msg) {
@@ -6020,7 +6024,7 @@ function longTick(long, messages, step, log) {
 	if (long.until && !long.wrap && Date.now() > long.until) { long.wrap = step || 1; messages.push({ role: "user", content: LONG_WRAP }); log("Time's up: wrapping up"); }
 	return !!long.wrap && step - long.wrap > LONG_WRAP_STEPS;
 }
-const longNote = (long) => (long ? "\n\n*Long run: worked " + longMins(Date.now() - long.start) + (long.rounds ? ", with " + long.rounds + " review round" + (long.rounds === 1 ? "" : "s") + " by a lead from another lab" : "") + (long.short ? " (it stopped there: the credits ran low)" : "") + ".*" : "");
+const longNote = (long, msg) => (long ? "\n\n*Long run: worked " + longMins(Date.now() - long.start) + (msg && msg.cost >= 1 ? " (" + spentSoFar(msg.cost).replace(/ so far$/, "") + ")" : "") + (long.rounds ? ", with " + long.rounds + " review round" + (long.rounds === 1 ? "" : "s") + " by a lead from another lab" : "") + (long.short ? " (it stopped there: the credits ran low)" : "") + ".*" : "");
 // a long job: the oldest steps summed up so there's always room to keep going
 async function compact(messages, keep = 14) {
 	if (messages.length <= keep + 4) return;
@@ -6086,7 +6090,7 @@ async function runAct(text, atts, resume) {
 	try {
 		for (; step < (long ? 4000 : 400) && summary == null; step++) {
 			if (longTick(long, messages, step, log)) { summary = "Time's up: here's where it stands. " + (messages[messages.length - 1].content || ""); break; }
-			msg.status = (long ? longStatus(long) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Working");
+			msg.status = (long ? longStatus(long, msg) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Working");
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
@@ -6195,7 +6199,7 @@ async function runAct(text, atts, resume) {
 			save();
 		}
 		if (summary == null) summary = "That's " + (long ? 4000 : 400) + " steps, so I've paused here. Say \"keep going\" and I'll carry on from where I am.";
-		summary += longNote(long);
+		summary += longNote(long, msg);
 	} finally {
 		msg.used = [{ name: shortName(model), desc: "Did the work with tools" + (names ? " (" + names + ")" : "") }, ...(msg.used || []).filter((u) => /^(Expert|Lead reviewer)/.test(u.desc))];
 		msg.text = summary != null ? summary || "Done." : "";
