@@ -3231,7 +3231,7 @@ function lastMade() {
 	if (prev.kind === "agent") return prev.data && (prev.data.media || []).length ? "act (it edited the user's video or audio into " + prev.data.media.map((x) => x.name).join(", ") + ")" : "project";
 	return STUDY[prev.kind] || prev.kind === "app" ? prev.kind : "answer";
 }
-async function conduct(text, atts, tried, only) {
+async function conduct(text, atts, tried, only, team) {
 	const reader = bestFor("reader")[0];
 	if (!reader) return null;
 	const idx = arenaIndex();
@@ -3268,7 +3268,8 @@ async function conduct(text, atts, tried, only) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + "}\n"
+		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\"}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
@@ -3318,7 +3319,10 @@ async function conduct(text, atts, tried, only) {
 		if (spelled && idx["text:instruction_following"]) weights["text:instruction_following"] = Math.max(weights["text:instruction_following"] || 0, 0.5);
 		if (Object.keys(weights).length) profile = { task: String(j.task || "").slice(0, 160), kind: imgs ? "vision" : kinds.includes(j.kind) ? j.kind : classify(text, atts), level: ["easy", "medium", "hard"].includes(j.level) ? j.level : "medium", spelled, weights, check: j.check === true, language: lang, tags };
 	}
-	return { way, request: String(j.request || "").slice(0, 3000), skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [] };
+	return { way, request: String(j.request || "").slice(0, 3000), skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [],
+		// (Together: who on the team does what, from this same read)
+		team: team ? (Array.isArray(j.team) ? j.team : []).filter((x) => x && MATE[String(x.to || "").toLowerCase()] && String(x.to).toLowerCase() !== "lead" && String(x.task || "").trim()).map((x) => ({ to: String(x.to).toLowerCase(), task: String(x.task).slice(0, 4000) })).slice(0, 6) : null,
+		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader };
 }
 // the way it chose, done by the part of Celestin that does it
 async function runWay(plan, text, atts) {
@@ -6463,83 +6467,9 @@ async function send(textOverride, fork, attsOverride) {
 			try { atts = await watchVideos(atts, text); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 		}
 		await useTools(text, atts);
-		// Celestin Together: the Lead gives each piece to the teammate for it (or the one @mentioned)
-		if (current.together) await runTogether(text, atts);
-		else {
-		// Celestin reads it and decides how to serve it (the strongest fast reader, by measurement)
-		// small talk ("hi", "thanks", "ok") needs no reading: straight to an answer (a credit and several seconds saved)
-		const smallTalk = !atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim());
-		let plan;
-		if (!smallTalk) {
-			const hold = { role: "assistant", text: "", streaming: true, status: "Working out the best way to do this" };
-			current.msgs.push(hold);
-			updateLast();
-			try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
-		}
-		// it couldn't be asked, but the person said what they want: that way
-		if (!plan && tool) plan = { way: TOOLS[tool].ways[0], skills: [], edit: false, how: "", qty: 0, length: "", topic: "", name: "", profile: null };
-		if (plan) (plan.remember || []).forEach((t) => remember(t));
-		PROFILE = plan ? plan.profile : null;
-		PROFILE_TEXT = plan ? text : null;
-		PLAN_NOTE = plan ? plan.how : "";
-		SKILLS_ON = plan ? plan.skills.slice() : [];
-		for (const k of SKILLS_ON) noteTool("Skill: " + k, "Followed the " + k + " playbook (" + SKILLBOOK[k][0] + ")");
-		// what this request reads (the whole chat, what's attached, the project's files): what each model would cost to read
-		// it decides as much as what it writes
-		try { IN_TOK = Math.max(1000, tokensOf([sys(), ...chatHistory()])); } catch { IN_TOK = 3000; }
-		// the model that answered just before, a few minutes ago: the chat so far is in its cache (all but this message)
-		{
-			const prev = [...current.msgs].reverse().find((m) => m.role === "assistant" && m.by && m.at);
-			HOT = prev && Date.now() - prev.at < 4.5 * 60e3 ? { id: prev.by, tok: Math.max(0, IN_TOK - tokensOf([{ content: text }])) } : null;
-		}
-		// Celestin's own record on exactly this kind of work, fetched while the work starts (it only moves a model where
-		// there's real evidence)
-		if (PROFILE && PROFILE.tags && PROFILE.tags.length) PROFILE.record = skillRecord(PROFILE.tags).catch(() => null);
-		// Max: a second expert checks the work; Fast: straight to the answer
-		if (PROFILE && speed() === "max") PROFILE.check = true;
-		if (PROFILE && speed() === "fast") PROFILE.check = false;
-		if (plan) {
-			const tried = [];
-			for (let round = 0; ; round++) {
-				const mark = current.msgs.length;
-				try { await runWay(plan, text, atts); break; }
-				catch (e) {
-					// (something this server can't make yet isn't made into something else)
-					if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.quiet || round >= 2) throw e;
-					// that way didn't work: told why, it chooses again (another way, or the same one if the error won't repeat)
-					current.msgs.splice(mark);
-					tried.push({ way: plan.way, error: String(e.message || e).slice(0, 240) });
-					const again = { role: "assistant", text: "", streaming: true, status: "That didn't work out. Finding another way" };
-					current.msgs.push(again);
-					updateLast();
-					let next;
-					try { next = await conduct(text, atts, tried); } finally { current.msgs.splice(current.msgs.indexOf(again), 1); }
-					if (!next) throw e;
-					plan = next;
-					PROFILE = plan.profile;
-					PLAN_NOTE = plan.how;
-					SKILLS_ON = plan.skills.slice();
-				}
-			}
-		} else {
-			// it couldn't be asked (no connection to a reader): the keyword reading, so the message still goes somewhere
-			// (their own video or audio to change: edited for real)
-			const edit = editingMedia(atts);
-			const intent = edit ? null : studyIntent(text, atts);
-			const file = intent || edit || (PROJECT && !PROJECT.asleep) ? null : fileIntent(text, atts);
-			// (a video they ask to have coded is a video, not work on the open project)
-			const media = intent || file || edit ? null : codedAsk(text) && /\b(video|film|trailer|animation|short|clip|movie)\b/i.test(text) ? { kind: "video" } : mediaIntent(text, atts);
-			const proj = intent || media || file || edit ? false : await projectFor(text);
-			const code = intent || media || proj || edit ? null : appIntent(text, atts);
-			if (edit) await runAct(text, atts);
-			else if (intent) await runStudy(text, atts, intent);
-			else if (file) await runFile(text, atts, file);
-			else if (media) await runStudio(text, atts, media);
-			else if (proj) await runAgent(text, atts);
-			else if (code) await runApp(text, atts, code);
-			else await runSmart(text, atts);
-		}
-		}
+		// Celestin Together: the team, each piece served the same way as here; Celestin: served
+		if (current.together) await runTogether(text, atts, tool);
+		else await serve(text, atts, tool);
 	} catch (e) {
 		const last = current.msgs[current.msgs.length - 1];
 		if (e.name === "AbortError" && netDropped(e)) {
@@ -6884,73 +6814,132 @@ function renderTogetherWelcome() {
 	$$("[data-tsug]").forEach((b) => (b.onclick = () => { $("#input").value = b.dataset.tsug; autosize(); send(); }));
 	startSky($("#appSky"), { live: () => document.body.classList.contains("at-welcome") && document.body.classList.contains("in-app"), clear: () => [$(".welcome .greet"), $("#composer")] });
 }
-// The Lead: the fewest pieces that do it really well, each to the one teammate best at it, in order
-async function leadPlan(text, msg) {
-	const lead = bestFor("planner")[0];
-	if (!lead) return null;
-	const recent = current.msgs.slice(-9, -1).map((m) => (m.role === "user" ? "User" : MATE[m.member] ? MATE[m.member].name : "Celestin") + ": " + String(m.text || (m.data && m.data.title) || "").replace(/\s+/g, " ").slice(0, 400)).join("\n");
-	const ask = "You lead Celestin Together: a team of AI teammates working with the user in a group chat. Your teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role).join("\n") +
-		(recent ? "\n\nThe chat so far (latest last):\n" + recent : "") + "\n\nThe user just wrote:\n" + text.slice(0, 6000) +
-		"\n\nSplit the work into the fewest pieces that do it really well, each given to the one teammate best at it, in the order they should happen (a later piece builds on what earlier ones made: say so in its task). Most requests need one teammate; use more only when the work really has separate parts (research, then a document; a build, then a review). A greeting or a quick question goes to the writer. Never give one piece to two teammates. Each task must be complete on its own: what to make and everything that matters from the user's words. Ask the user something only when it can't be done well without the answer.\n\nReply with ONLY this JSON:\n{\"say\": \"one short line to the user on who's doing what (empty when one teammate does it all)\", \"tasks\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\"}], \"ask\": \"a question for the user, or empty\"}";
-	const out = await stream(lead.id, [{ role: "user", content: ask }], () => {}, busy.signal, { max_tokens: 1500, temperature: 0, ...effortFor(lead.id, "low") }, msg);
-	const j = parseJSON(out) || {};
-	const tasks = (Array.isArray(j.tasks) ? j.tasks : []).filter((t) => t && MATE[String(t.to || "").toLowerCase()] && t.to !== "lead" && String(t.task || "").trim()).map((t) => ({ to: String(t.to).toLowerCase(), task: String(t.task).slice(0, 4000) })).slice(0, 6);
-	return { say: String(j.say || "").slice(0, 300), ask: String(j.ask || "").slice(0, 500), tasks, by: lead };
-}
-// one teammate's piece: Celestin's own routing (the conductor, then the right way), with the teammate's field weighed in
-async function mateDo(t, task, atts, brief) {
-	// (a piece the Lead gave out: its brief is the newest turn the teammate reads, since every way answers the chat's
-	// latest message; kept, not shown. Found Nov 7: without it each teammate answered the person's whole message)
-	if (brief) current.msgs.push({ role: "user", brief: true, text: "(The Lead, to the " + t.name + ") " + task });
-	const hold = { role: "assistant", member: t.id, text: "", streaming: true, status: t.name + " is on it" };
-	current.msgs.push(hold);
-	updateLast();
-	let plan = null;
-	try { plan = await conduct(task, atts, []); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
-	if (plan && plan.profile) plan.profile.weights = blendW(plan.profile.weights, t.w, 0.35);
-	PROFILE = plan ? plan.profile : null;
-	PROFILE_TEXT = plan ? task : null;
-	PLAN_NOTE = plan ? plan.how : "";
-	SKILLS_ON = plan ? plan.skills.slice() : [];
-	// the Reviewer always has a second expert check (from another lab than whoever made it)
-	if (PROFILE && t.id === "reviewer") PROFILE.check = true;
+// one teammate's piece, served the Celestin way with the teammate's field weighed in. o.brief: a piece the Lead gave out
+// (its brief is the newest turn the teammate reads, since every way answers the chat's latest message; kept, not shown.
+// Found Nov 7: without it each teammate answered the person's whole message). o.plan: read already (undefined: read it)
+async function mateDo(t, task, atts, o = {}) {
+	if (o.brief) current.msgs.push({ role: "user", brief: true, text: "(The Lead, to the " + t.name + ") " + task });
 	const mark = current.msgs.length;
-	try { if (plan) await runWay(plan, task, atts); else await runSmart(task, atts); }
+	try { await serve(task, atts, o.tool || null, { plan: o.plan, weights: t.w, check: t.id === "reviewer", member: t.id, status: t.name + " is on it" }); }
 	finally { current.msgs.slice(mark).forEach((m) => { if (m.role === "assistant") m.member = t.id; }); }
 	return current.msgs.slice(mark).filter((m) => m.role === "assistant").map((m) => m.text || (m.data && (m.data.title || m.data.name)) || "").join("\n").slice(0, 8000);
 }
-async function runTogether(text, atts) {
+// A message to the team: one @mentioned teammate does it; small talk, the Writer (no reading, as in Celestin); anything
+// else is read once, by the conductor as the Lead, which decides both how to serve it and who does what. One teammate
+// (most requests) is served from that same read, so it costs what the same message costs in Celestin; separate parts
+// go to their teammates in order, each hearing what the earlier ones made
+async function runTogether(text, atts, tool) {
 	const named = [...new Set((text.match(MATE_RE) || []).map((x) => x.slice(1).toLowerCase()))].filter((id) => id !== "lead");
-	let tasks, direct = false;
-	// one teammate @mentioned: straight to them; small talk: the Writer; anything else: the Lead plans
-	if (named.length === 1) { tasks = [{ to: named[0], task: text.replace(MATE_RE, "").trim() || text }]; direct = true; }
-	else if (!atts.length && SMALL_TALK.test(text.trim())) { tasks = [{ to: "writer", task: text }]; direct = true; }
-	else {
-		const msg = { role: "assistant", member: "lead", text: "", streaming: true, status: "Working out who does what", used: [] };
-		current.msgs.push(msg);
-		updateLast();
-		let p = null;
-		try { p = await leadPlan(text, msg); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
-		// (no plan came back: the teammate whose field fits best does it all)
-		const fallback = { code: "builder", research: "researcher", reasoning: "analyst" }[classify(text, atts)] || "writer";
-		tasks = p && p.tasks.length ? p.tasks : p && p.ask ? [] : [{ to: fallback, task: text }];
-		msg.streaming = false;
-		msg.text = [p && p.say, p && p.ask].filter(Boolean).join("\n\n");
-		if (p && p.by && msg.text) msg.used = [{ name: shortName(p.by), desc: "Lead: planned who does what" }];
-		if (!msg.text) current.msgs.splice(current.msgs.indexOf(msg), 1);
-		if (!tasks.length) return;
-	}
+	if (named.length === 1) return void (await mateDo(MATE[named[0]], text.replace(MATE_RE, "").trim() || text, atts, { tool }));
+	if (!atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim())) return void (await mateDo(MATE.writer, text, atts, { plan: null }));
+	const hold = { role: "assistant", member: "lead", text: "", streaming: true, status: "Working out who does what" };
+	current.msgs.push(hold);
+	updateLast();
+	let plan = null;
+	try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways, true); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+	const tasks = (plan && plan.team) || [];
+	const lead = (t) => current.msgs.push({ role: "assistant", member: "lead", text: t, used: plan && plan.by ? [{ name: shortName(plan.by), desc: "Lead: planned who does what" }] : [] });
+	if (plan && plan.ask && !tasks.length) return void lead(plan.ask);
+	// (one teammate, or no plan: the teammate whose field fits best, from this read; no read at all: the keyword reading)
+	const fits = MATE[{ code: "builder", research: "researcher", reasoning: "analyst" }[(plan && plan.profile && plan.profile.kind) || classify(text, atts)]] || MATE.writer;
+	if (tasks.length <= 1) return void (await mateDo(MATE[tasks[0] && tasks[0].to] || fits, text, atts, { plan, tool }));
+	(plan.remember || []).forEach((t) => remember(t));
+	if (plan.say || plan.ask) lead([plan.say, plan.ask].filter(Boolean).join("\n\n"));
 	const done = [];
 	for (const [k, x] of tasks.entries()) {
 		if (busy && busy.signal.aborted) break;
 		const t = MATE[x.to] || MATE.writer;
 		// (a later piece hears what the earlier ones made)
 		const before = done.length ? "\n\nWhat your teammates already did for this (build on it):\n" + done.map((d) => "From the " + d.name + ":\n" + d.text).join("\n\n").slice(0, 12000) : "";
-		const made = await mateDo(t, x.task + (k ? before : ""), k ? [] : atts, !direct);
-		done.push({ name: t.name, text: made });
+		done.push({ name: t.name, text: await mateDo(t, x.task + (k ? before : ""), k ? [] : atts, { brief: true }) });
 	}
 	// several pieces: the Lead says it's done (no call: who did what is known)
-	if (tasks.length > 1) current.msgs.push({ role: "assistant", member: "lead", text: "Done: " + tasks.map((x) => (MATE[x.to] || MATE.writer).name).filter((n, k, a) => a.indexOf(n) === k).join(", ").replace(/, ([^,]*)$/, " and $1") + " each did their part above." });
+	current.msgs.push({ role: "assistant", member: "lead", text: "Done: " + tasks.map((x) => (MATE[x.to] || MATE.writer).name).filter((n, k, a) => a.indexOf(n) === k).join(", ").replace(/, ([^,]*)$/, " and $1") + " each did their part above." });
+}
+// How Celestin serves one request: the conductor reads it and decides how (small talk needs no reading), then the part of
+// Celestin for that does it with the model measured best; a way that fails is told why and it chooses again. Celestin
+// Together's teammates are served exactly this way too, with their own field weighed in (o.weights)
+async function serve(text, atts, tool, o = {}) {
+	// Celestin reads it and decides how to serve it (the strongest fast reader, by measurement)
+	// small talk ("hi", "thanks", "ok") needs no reading: straight to an answer (a credit and several seconds saved)
+	const smallTalk = !atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim());
+	// (read already: a Together request the conductor read for the whole team; null: not to be read, as small talk isn't)
+	let plan = o.plan;
+	if (plan === undefined && !smallTalk) {
+		const hold = { role: "assistant", member: o.member, text: "", streaming: true, status: o.status || "Working out the best way to do this" };
+		current.msgs.push(hold);
+		updateLast();
+		try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+	}
+	// it couldn't be asked, but the person said what they want: that way
+	if (!plan && tool) plan = { way: TOOLS[tool].ways[0], skills: [], edit: false, how: "", qty: 0, length: "", topic: "", name: "", profile: null };
+	if (plan) (plan.remember || []).forEach((t) => remember(t));
+	// (a Together teammate's own field, weighed into what the work needs)
+	if (plan && plan.profile && o.weights) plan.profile.weights = blendW(plan.profile.weights, o.weights, 0.35);
+	PROFILE = plan ? plan.profile : null;
+	PROFILE_TEXT = plan ? text : null;
+	PLAN_NOTE = plan ? plan.how : "";
+	SKILLS_ON = plan ? plan.skills.slice() : [];
+	for (const k of SKILLS_ON) noteTool("Skill: " + k, "Followed the " + k + " playbook (" + SKILLBOOK[k][0] + ")");
+	// what this request reads (the whole chat, what's attached, the project's files): what each model would cost to read
+	// it decides as much as what it writes
+	try { IN_TOK = Math.max(1000, tokensOf([sys(), ...chatHistory()])); } catch { IN_TOK = 3000; }
+	// the model that answered just before, a few minutes ago: the chat so far is in its cache (all but this message)
+	{
+		const prev = [...current.msgs].reverse().find((m) => m.role === "assistant" && m.by && m.at);
+		HOT = prev && Date.now() - prev.at < 4.5 * 60e3 ? { id: prev.by, tok: Math.max(0, IN_TOK - tokensOf([{ content: text }])) } : null;
+	}
+	// Celestin's own record on exactly this kind of work, fetched while the work starts (it only moves a model where
+	// there's real evidence)
+	if (PROFILE && PROFILE.tags && PROFILE.tags.length) PROFILE.record = skillRecord(PROFILE.tags).catch(() => null);
+	// Max: a second expert checks the work; Fast: straight to the answer
+	if (PROFILE && speed() === "max") PROFILE.check = true;
+	if (PROFILE && speed() === "fast") PROFILE.check = false;
+	// (the Reviewer always has a second expert check, from another lab than whoever made it)
+	if (PROFILE && o.check) PROFILE.check = true;
+	if (plan) {
+		const tried = [];
+		for (let round = 0; ; round++) {
+			const mark = current.msgs.length;
+			try { await runWay(plan, text, atts); break; }
+			catch (e) {
+				// (something this server can't make yet isn't made into something else)
+				if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.quiet || round >= 2) throw e;
+				// that way didn't work: told why, it chooses again (another way, or the same one if the error won't repeat)
+				current.msgs.splice(mark);
+				tried.push({ way: plan.way, error: String(e.message || e).slice(0, 240) });
+				const again = { role: "assistant", text: "", streaming: true, status: "That didn't work out. Finding another way" };
+				current.msgs.push(again);
+				updateLast();
+				let next;
+				try { next = await conduct(text, atts, tried); } finally { current.msgs.splice(current.msgs.indexOf(again), 1); }
+				if (!next) throw e;
+				plan = next;
+				if (plan.profile && o.weights) plan.profile.weights = blendW(plan.profile.weights, o.weights, 0.35);
+				PROFILE = plan.profile;
+				if (PROFILE && o.check) PROFILE.check = true;
+				PLAN_NOTE = plan.how;
+				SKILLS_ON = plan.skills.slice();
+			}
+		}
+	} else {
+		// it couldn't be asked (no connection to a reader): the keyword reading, so the message still goes somewhere
+		// (their own video or audio to change: edited for real)
+		const edit = editingMedia(atts);
+		const intent = edit ? null : studyIntent(text, atts);
+		const file = intent || edit || (PROJECT && !PROJECT.asleep) ? null : fileIntent(text, atts);
+		// (a video they ask to have coded is a video, not work on the open project)
+		const media = intent || file || edit ? null : codedAsk(text) && /\b(video|film|trailer|animation|short|clip|movie)\b/i.test(text) ? { kind: "video" } : mediaIntent(text, atts);
+		const proj = intent || media || file || edit ? false : await projectFor(text);
+		const code = intent || media || proj || edit ? null : appIntent(text, atts);
+		if (edit) await runAct(text, atts);
+		else if (intent) await runStudy(text, atts, intent);
+		else if (file) await runFile(text, atts, file);
+		else if (media) await runStudio(text, atts, media);
+		else if (proj) await runAgent(text, atts);
+		else if (code) await runApp(text, atts, code);
+		else await runSmart(text, atts);
+	}
 }
 async function runSmart(text, atts) {
 	const short = text.trim().split(/\s+/).length < 14;
