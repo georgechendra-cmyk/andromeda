@@ -349,6 +349,9 @@ body.chats-open .learn-note, body:has(.sidebar.open) .learn-note { visibility: h
 /* the shop: plans (Free, Plus, Max) in a row, credit packs as small top-ups under them */
 .plans.three { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .plans.packs { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.plans.trio { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+@media (max-width: 900px) { .plans.trio { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .plans.trio { grid-template-columns: 1fr; } }
 .plans.packs .plan { padding: 14px 14px 12px; }
 .plans.packs .price { font-size: 22px; }
 .plans.packs .once { margin-bottom: 12px; }
@@ -11698,10 +11701,11 @@ const DEFAULT_PRICING = {
 		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
 	packs: [
-		{ id: "mini", name: "Spark", credits: 110, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 } },
-		{ id: "starter", name: "Flare", credits: 430, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 } },
-		{ id: "plus", name: "Comet", credits: 800, bonus: 80, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
-		{ id: "pro", name: "Meteor", credits: 1600, bonus: 160, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "plus", name: "Comet", credits: 1040, bonus: 0, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
+		{ id: "pro", name: "Meteor", credits: 2150, bonus: 0, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
+		{ id: "nebula", name: "Nebula", credits: 5500, bonus: 0, prices: { USD: 50, IDR: 799000, EUR: 47, GBP: 40, SGD: 68, AUD: 76 } },
+		{ id: "supernova", name: "Supernova", credits: 11300, bonus: 0, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
+		{ id: "galaxy", name: "Galaxy", credits: 23150, bonus: 0, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
 };
 // a plan's month: its own, or (a plan without one) its week for 30 days
@@ -11741,6 +11745,9 @@ async function openPricing() {
 	const free = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">just an account, no card</div>' + tiles(fp, true) +
 		'<ul class="feat"><li>Every model, the right one for each part of what you ask</li><li>Build an app or game, then wait for your credits to come back</li><li>All back ' + fp.hours + " hours after you start</li></ul>" +
 		(SERVER && !account ? '<button class="btn" data-open-account>Create a free account</button>' : '<button class="btn" disabled>' + (account ? (mine ? "Included" : "Yours") : "Coming soon") + "</button>") + "</div>";
+	// (packs only: Free as a card the size of a pack's, its limits on one line)
+	const freeSmall = '<div class="plan"><div class="pname">Free</div><div class="price">' + money(0, payCur) + '</div><div class="once">' + creditsText(fp.week || fp.credits) + " credits a week, at most " + creditsText(Math.min(fp.credits, fp.week || fp.credits)) + " in any " + fp.hours + " hours" + "</div>" +
+		(SERVER && !account ? '<button class="btn" data-open-account>Create a free account</button>' : '<button class="btn" disabled>' + (account ? (mine ? "Included" : "Yours") : "Coming soon") + "</button>") + "</div>";
 	const planCard = (p, i) => {
 		const price = p.prices[payCur], key = "plan:" + p.id, prev = i ? plans[i - 1] : null;
 		const cur = !!mine && mine.id === p.id, lower = !!mine && rank(mine.id) > i;
@@ -11763,7 +11770,7 @@ async function openPricing() {
 		(live ? "" : '<div class="notice">' + (SERVER ? (subs ? "Plans and packs" : "Credit packs") + " aren't on sale yet." : (subs ? "Plans and packs" : "Credit packs") + " are coming soon.") + " Your free credits work in the meantime.</div>") +
 		(subs ? '<div class="plans three">' + free + plans.map(planCard).join("") + "</div>" : "") +
 		'<div class="shop-h"><h3>' + (subs ? "Credit packs" : "Free, or a credit pack") + '</h3><span>Instant, never expire: used ' + (subs ? "when your plan\'s credits run out" : "once your free credits for now are gone") + ", so there\'s no waiting</span></div>" +
-		'<div class="plans' + (subs ? " packs" : "") + '"' + (subs ? "" : ' style="align-items:start"') + '>' + (subs ? "" : free) + P.packs.map(packCard).join("") + "</div>" +
+		'<div class="plans ' + (subs ? "packs" : "trio") + '">' + (subs ? "" : freeSmall) + P.packs.map(packCard).join("") + "</div>" +
 		'<div class="paybox"><b>' + (idr ? "Pay in rupiah" : "Pay in " + payCur) + '</b><span>' + (idr ? "Scan the QRIS with any e-wallet or bank app. Your " + (subs ? "plan or credits start" : "credits are added") + " as soon as the payment is confirmed." : "Secure checkout by " + esc((P.checkout && P.checkout.provider) || "our payment partner") + ". It arrives automatically.") + '</span><div class="chips">' + methods.map((m) => "<span>" + m + "</span>").join("") + "</div></div>" +
 		'<div class="qa"><h3>Questions</h3>' +
 		(subs ? "<details><summary>How do plans work?</summary><p>Each plan gives you a month of credits, and how many of them you can use in any " + fp.hours + " hours, the way Claude's limits work. Each new month starts with a full month of credits; what wasn't used doesn't carry over, so they never pile up. Paying for the next month early adds its 30 days to the end, and its credits come when that month begins. Used them all before the month is over? A credit pack keeps you going. Switching plans starts the new one today, and what was left of the old one becomes extra days of it. The bigger plans give more for every rupiah. Free has its own small window and week.</p></details>" : "") +

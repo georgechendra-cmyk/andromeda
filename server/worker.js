@@ -56,7 +56,7 @@ const DEFAULT_CONFIG = {
 	// at most Rp69 (the labs' list price, the gateway's 15%, at Rp18,000 a dollar), so a payment's worst case is "month" x
 	// Rp69, and the price is 2.2x, 2.1x and 2x that. Each paid month brings at most one month of credits (a switch to another
 	// plan turns what was left into days of the new one at its price), so no timing of renewals, upgrades or bursts can cost
-	// more. Packs sell a credit dearer still (about 2.6x), and never expire.
+	// more. Packs (the only thing sold since Nov 7) sell a credit at 2.2x down to 2.0x, and never expire.
 	// Nonstop coding is about 60 credits an hour (CODE_HOUR in the site, measured Nov 4 with the owner's price rule; it was
 	// 140 before): every plan codes nonstop in any 5 hours; Nova about 35 hours a month, Pulsar about 183, Quasar about 386.
 	// (no subscriptions: the owner, Nov 7, "remove subscriptions, just do the packs". The plans as they were are kept in
@@ -70,10 +70,13 @@ const DEFAULT_CONFIG = {
 	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
 	// Round local prices, not exchange-rate conversions; a credit costs more this way than in a plan
 	packs: [
-		{ id: "mini", name: "Spark", credits: 110, bonus: 0, prices: { USD: 1.5, IDR: 20000, EUR: 1.5, GBP: 1.2, SGD: 2, AUD: 2.3 }, lemonVariant: "" },
-		{ id: "starter", name: "Flare", credits: 430, bonus: 0, prices: { USD: 5, IDR: 79000, EUR: 5, GBP: 4, SGD: 7, AUD: 8 }, lemonVariant: "" },
-		{ id: "plus", name: "Comet", credits: 800, bonus: 80, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
-		{ id: "pro", name: "Meteor", credits: 1600, bonus: 160, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		// (the owner, Nov 7: Comet the cheapest, up into the millions; about 2.2x the owner's cost down to 2.0x, a credit
+		// costing the owner about Rp69, so a bigger pack is a better deal and none is under 2x)
+		{ id: "plus", name: "Comet", credits: 1040, bonus: 0, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 }, lemonVariant: "" },
+		{ id: "pro", name: "Meteor", credits: 2150, bonus: 0, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
+		{ id: "nebula", name: "Nebula", credits: 5500, bonus: 0, prices: { USD: 50, IDR: 799000, EUR: 47, GBP: 40, SGD: 68, AUD: 76 }, lemonVariant: "" },
+		{ id: "supernova", name: "Supernova", credits: 11300, bonus: 0, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
+		{ id: "galaxy", name: "Galaxy", credits: 23150, bonus: 0, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
 	],
 	currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"],
 	// How the shop runs (no admin page: changed here). QRIS for rupiah: the owner's QR image (a URL, e.g. qris.png in the
