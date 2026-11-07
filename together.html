@@ -250,6 +250,8 @@ body.has-bg .sidebar { background: color-mix(in srgb, var(--bg2) 72%, transparen
 
 .scroller { flex: 1; min-height: 0; overflow-y: auto; }
 .thread { max-width: 760px; margin: 0 auto; padding: 22px 22px 190px; }
+/* a Together teammate's lane: working, never seen */
+iframe.lane { position: fixed; left: -12000px; top: 0; width: 1024px; height: 768px; border: 0; opacity: 0; pointer-events: none; }
 .msg { margin: 0 0 28px; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .msg.user { display: flex; justify-content: flex-end; }
@@ -1958,9 +1960,13 @@ const API = "https://openrouter.ai/api/v1";
 const DEFAULT_SERVER = "https://andromeda-credits.georgechendra.workers.dev";
 
 // ---------------------------------------------------------------- storage
+// A lane: this app, hidden inside the Together app, doing one teammate's piece while others do theirs (see laneDo). It
+// reads what this browser keeps (the sign-in, settings, memories) but never writes any of it: the page it works for does
+var LANE = /[?&]lane=1(&|$)/.test(location.search);
 const store = {
 	get(k, d) { try { const v = localStorage.getItem("andromeda." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
 	set(k, v) {
+		if (LANE) return;
 		const s = JSON.stringify(v);
 		try { localStorage.setItem("andromeda." + k, s); return; } catch {}
 		// full: what can be fetched again (the model lists) makes room, so a sign-in or a setting is never what's lost
@@ -3268,8 +3274,8 @@ async function conduct(text, atts, tried, only, team) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\"}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
+		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
@@ -3321,7 +3327,7 @@ async function conduct(text, atts, tried, only, team) {
 	}
 	return { way, request: String(j.request || "").slice(0, 3000), skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [],
 		// (Together: who on the team does what, from this same read)
-		team: team ? (Array.isArray(j.team) ? j.team : []).filter((x) => x && MATE[String(x.to || "").toLowerCase()] && String(x.to).toLowerCase() !== "lead" && String(x.task || "").trim()).map((x) => ({ to: String(x.to).toLowerCase(), task: String(x.task).slice(0, 4000) })).slice(0, 6) : null,
+		team: team ? (Array.isArray(j.team) ? j.team : []).filter((x) => x && MATE[String(x.to || "").toLowerCase()] && String(x.to).toLowerCase() !== "lead" && String(x.task || "").trim()).map((x, k) => ({ to: String(x.to).toLowerCase(), task: String(x.task).slice(0, 4000), after: Array.isArray(x.after) ? [...new Set(x.after.map((n) => Math.floor(Number(n)) - 1).filter((n) => n >= 0 && n < k))] : k ? [k - 1] : [] })).slice(0, 6) : null,
 		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader };
 }
 // the way it chose, done by the part of Celestin that does it
@@ -3744,7 +3750,7 @@ function slimChats() {
 // (nothing is written before they've been read: an empty list then would write over them)
 let CHATS_READY = false;
 function saveChats(list) {
-	if (!CHATS_READY) return;
+	if (!CHATS_READY || LANE) return;
 	vault.open().then((db) => (db ? vault.set("chats", list) : store.set("convos", list)));
 }
 // ---------------------------------------------------------------- versions: editing a message, regenerating an answer
@@ -5305,6 +5311,7 @@ const memories = () => store.get("memories", []);
 function remember(text) {
 	const t = String(text || "").trim().slice(0, 500), m = memories();
 	if (!t || m.some((x) => x.text.toLowerCase() === t.toLowerCase())) return false;
+	if (LANE) { (window.laneMem = window.laneMem || []).push(t); return true; }
 	m.push({ id: uid(), text: t, at: Date.now() });
 	store.set("memories", m.slice(-200));
 	return true;
@@ -6483,8 +6490,9 @@ async function send(textOverride, fork, attsOverride) {
 		else if (e.name === "AbortError") { if (last.role !== "user") { last.streaming = false; last.text = (last.text || "") + "\n\n*Stopped.*"; } }
 		else if (e.status === 402 && creditsMode()) {
 			// out of credits: no error in the chat and no window over it. What wasn't answered at all goes back into the box
-			// to send later, and the line on the box says when the credits are back
-			if (last.role === "assistant" && !last.text && !last.kind) current.msgs.pop();
+			// to send later, and the line on the box says when the credits are back (a team's answer with nothing written
+			// past its plan is nothing yet either: found Nov 8, it stayed as an empty answer)
+			if (last.role === "assistant" && !last.text && (!last.kind || (last.kind === "build" && !(last.steps || []).some((s) => s.done && s.text && s.label !== "Analyze")))) current.msgs.pop();
 			// (a Celestin Together brief left unanswered isn't the person's words: it goes, and isn't put back in the box)
 			if (current.msgs[current.msgs.length - 1] && current.msgs[current.msgs.length - 1].brief) current.msgs.pop();
 			const mine = current.msgs[current.msgs.length - 1];
@@ -6727,7 +6735,8 @@ async function runAuto(text, atts) {
 			} else if (tested) { msg.tested = "ran"; share([{ model: m.id, ok: true }]); }
 			return;
 		} catch (e) {
-			if (e.name === "AbortError" || e.status === 401) throw e;
+			// (out of credits: said so at once, not tried on every other model; found Nov 8, 18 refused tries ended in an empty answer)
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 			// broke off part way: the next model answers it whole
 			if (msg.text) { msg.text = ""; updateLast(); }
 			lastErr = e; if (e.status === 429) await sleep(1200); } } throw lastErr || new Error("No model answered");
@@ -6824,6 +6833,79 @@ async function mateDo(t, task, atts, o = {}) {
 	finally { current.msgs.slice(mark).forEach((m) => { if (m.role === "assistant") m.member = t.id; }); }
 	return current.msgs.slice(mark).filter((m) => m.role === "assistant").map((m) => m.text || (m.data && (m.data.title || m.data.name)) || "").join("\n").slice(0, 8000);
 }
+// ---- Lanes. Celestin's routing reads the work in hand from the page's own state (what the request needs, its notes,
+// the chat's length), so two teammates in one page would overwrite each other's. A teammate working alongside others
+// runs in a lane: this same app, hidden, handed the chat and its piece, saving nothing of its own (see LANE). The page
+// shows what it's doing, then takes its finished messages and what it learned about the person. The cost is the same
+// as one after another: the same calls, at the same time
+const LANES_MAX = 3;
+const laneSleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const lanesOk = () => !LANE && TOGETHER_APP && typeof structuredClone === "function" && !(navigator.deviceMemory && navigator.deviceMemory < 4);
+const laneSafe = (x) => { try { return structuredClone(x); } catch { return JSON.parse(JSON.stringify(x)); } };
+async function laneDo(t, task, atts) {
+	const chat = current, slot = { role: "assistant", member: t.id, text: "", streaming: true, status: t.name + " is on it" };
+	chat.msgs.push(slot);
+	renderThread();
+	const paint = () => { if (current !== chat) return; const i = chat.msgs.indexOf(slot), el = $('.msg[data-i="' + i + '"]'); if (el) el.outerHTML = safeMsg(slot, i); };
+	const f = document.createElement("iframe");
+	f.className = "lane";
+	f.setAttribute("aria-hidden", "true");
+	f.tabIndex = -1;
+	f.src = location.pathname + "?lane=1#app";
+	let tick = 0, w = null, r = null;
+	const stop = () => { try { w && w.laneStop(); } catch {} };
+	try {
+		const opened = new Promise((ok) => (f.onload = ok));
+		document.body.appendChild(f);
+		await Promise.race([opened, laneSleep(20000)]);
+		w = f.contentWindow;
+		if (!w || !w.laneReady || !(await Promise.race([w.laneReady, laneSleep(25000).then(() => false)]))) throw new Error("lane");
+		if (window.LANE_HOOK) window.LANE_HOOK(w);
+		busy.signal.addEventListener("abort", stop);
+		tick = setInterval(() => { const n = w.laneNow(); if (n && (n.status !== slot.status || n.text.length !== slot.text.length)) { slot.status = n.status || slot.status; slot.text = n.text; paint(); } }, 500);
+		r = await w.laneRun(laneSafe({ msgs: chat.msgs.filter((m) => m !== slot && !m.streaming), mate: t.id, task, atts, speed: settings.speed }));
+		r = laneSafe(r);
+	} catch {
+		// (it didn't open: done here instead, after this round)
+		r = null;
+	} finally {
+		clearInterval(tick);
+		busy.signal.removeEventListener("abort", stop);
+		f.remove();
+	}
+	const at = chat.msgs.indexOf(slot);
+	if (!r) { if (at >= 0) chat.msgs.splice(at, 1); if (current === chat) renderThread(); return null; }
+	(r.mem || []).forEach((x) => remember(x));
+	for (const m of r.msgs) if (m.role === "assistant") m.member = t.id;
+	// (out of credits, or stopped: as if it happened here, where the chat says so; anything else: said in its place)
+	const fatal = r.error && (r.error.status === 402 || r.error.status === 401 || r.error.name === "AbortError");
+	if (fatal) r.msgs = r.msgs.filter((m) => m.role === "assistant" && (m.text || (m.kind && m.kind !== "build")));
+	else if (r.error && !r.msgs.some((m) => m.role === "assistant" && m.text)) r.msgs.push({ role: "assistant", member: t.id, error: r.error.message || "This part didn't work out." });
+	chat.msgs.splice(at, 1, ...r.msgs);
+	if (current === chat) renderThread();
+	save();
+	if (fatal) throw Object.assign(new Error(r.error.message), { status: r.error.status, name: r.error.name });
+	return r.text || "";
+}
+// in a lane: ready once the models and the leaderboards are in; then one piece, in a chat of its own nothing keeps
+if (LANE) {
+	window.laneReady = (async () => {
+		for (let i = 0; i < 320 && !(REACH && REACH.models && catalog.length && ARENA && ARENA.cats); i++) await laneSleep(125);
+		return !!(catalog.length && ARENA && ARENA.cats);
+	})();
+	window.laneNow = () => { const m = current && current.msgs[current.msgs.length - 1]; return m && m.role === "assistant" ? { status: m.status || "", text: String(m.text || "") } : null; };
+	window.laneStop = () => { if (busy) busy.abort(); };
+	window.laneRun = async (job) => {
+		current = { id: uid(), title: "", msgs: job.msgs, together: true, temp: true, at: Date.now() };
+		if (job.speed) settings.speed = job.speed;
+		busy = new AbortController();
+		window.laneMem = [];
+		const mark = current.msgs.length;
+		const out = (x) => ({ ...x, msgs: current.msgs.slice(mark).map((m) => ({ ...m, streaming: false })), mem: window.laneMem });
+		try { return out({ text: await mateDo(MATE[job.mate] || MATE.writer, job.task, job.atts || [], { brief: true }) }); }
+		catch (e) { return out({ error: { name: e.name || "", status: e.status || 0, message: String(e.message || e) } }); }
+	};
+}
 // A message to the team: one @mentioned teammate does it; small talk, the Writer (no reading, as in Celestin); anything
 // else is read once, by the conductor as the Lead, which decides both how to serve it and who does what. One teammate
 // (most requests) is served from that same read, so it costs what the same message costs in Celestin; separate parts
@@ -6845,15 +6927,36 @@ async function runTogether(text, atts, tool) {
 	if (tasks.length <= 1) return void (await mateDo(MATE[tasks[0] && tasks[0].to] || fits, text, atts, { plan, tool }));
 	(plan.remember || []).forEach((t) => remember(t));
 	if (plan.say || plan.ask) lead([plan.say, plan.ask].filter(Boolean).join("\n\n"));
-	const done = [];
-	for (const [k, x] of tasks.entries()) {
-		if (busy && busy.signal.aborted) break;
-		const t = MATE[x.to] || MATE.writer;
-		// (a later piece hears what the earlier ones made)
-		const before = done.length ? "\n\nWhat your teammates already did for this (build on it):\n" + done.map((d) => "From the " + d.name + ":\n" + d.text).join("\n\n").slice(0, 12000) : "";
-		done.push({ name: t.name, text: await mateDo(t, x.task + (k ? before : ""), k ? [] : atts, { brief: true }) });
+	// in rounds: every piece whose pieces it needs are done starts in the same round; two or more in a round work at the
+	// same time, each in its own lane (with no lanes on this device, or one that doesn't open: one after another, here)
+	const done = [], left = tasks.map((x, k) => k);
+	while (left.length && !(busy && busy.signal.aborted)) {
+		let round = left.filter((k) => tasks[k].after.every((n) => done[n]));
+		if (!round.length) round = [left[0]];
+		round = round.slice(0, LANES_MAX);
+		const job = (k) => {
+			const x = tasks[k], t = MATE[x.to] || MATE.writer;
+			// (a piece hears what the pieces it needed made)
+			const need = x.after.filter((n) => done[n]).map((n) => done[n]);
+			return { k, t, task: x.task + (need.length ? "\n\nWhat your teammates already did for this (build on it):\n" + need.map((d) => "From the " + d.name + ":\n" + d.text).join("\n\n").slice(0, 12000) : ""), atts: x.after.length ? [] : atts };
+		};
+		const jobs = round.map(job);
+		let got = jobs.map(() => null);
+		if (round.length > 1 && lanesOk()) {
+			// (every lane in the round is let finish or stop before anything goes wrong here: none is left working unseen)
+			const res = await Promise.allSettled(jobs.map((j) => laneDo(j.t, j.task, j.atts)));
+			const bad = res.find((x) => x.status === "rejected");
+			if (bad) throw bad.reason;
+			got = res.map((x) => x.value);
+		}
+		for (const [i, j] of jobs.entries()) {
+			if (got[i] == null && !(busy && busy.signal.aborted)) got[i] = await mateDo(j.t, j.task, j.atts, { brief: true });
+			done[j.k] = { name: j.t.name, text: got[i] || "" };
+			left.splice(left.indexOf(j.k), 1);
+		}
 	}
-	// several pieces: the Lead says it's done (no call: who did what is known)
+	// several pieces, all done: the Lead says so (no call: who did what is known). Stopped: nothing's said to be done
+	if (busy && busy.signal.aborted) return;
 	current.msgs.push({ role: "assistant", member: "lead", text: "Done: " + tasks.map((x) => (MATE[x.to] || MATE.writer).name).filter((n, k, a) => a.indexOf(n) === k).join(", ").replace(/, ([^,]*)$/, " and $1") + " each did their part above." });
 }
 // How Celestin serves one request: the conductor reads it and decides how (small talk needs no reading), then the part of
@@ -7058,7 +7161,7 @@ async function runChecked(text, atts, task) {
 			try {
 				return await stream(m.id, build(), (t) => { step.text = t; onText && onText(t); updateLast(); }, busy.signal, { ...(WEB ? webExtra(m.id) : {}), ...effortExtra(m.id) }, msg);
 			} catch (e) {
-				if (e.name === "AbortError" || e.status === 401) throw e;
+				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				// broke off part way: the next model does it whole
 				if (step.text) { step.text = ""; updateLast(); }
 				lastErr = e;
@@ -7142,7 +7245,7 @@ async function runTeam(text, atts) {
 				used.add(provider(m.id));
 				return out;
 			} catch (e) {
-				if (e.name === "AbortError" || e.status === 401) throw e;
+				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				// broke off part way: the next model does it whole
 				if (step.text) { step.text = ""; updateLast(); }
 				lastErr = e;
@@ -7161,7 +7264,7 @@ async function runTeam(text, atts) {
 		const out = await run(lead, teamFor("analyze", used), () => [sys(), withText(last, "You lead a team of specialist AI models. Read the user's request and decide what work it needs.\n\nReply with ONLY this JSON, nothing else:\n{\"understanding\": \"2-3 sentences: what they actually want and any hidden requirement\", \"steps\": [{\"role\": \"brainstorm|reason|research|code|write|review\", \"goal\": \"what this step must produce\"}]}\n\nUse only the steps that are genuinely needed (1 to 4): brainstorm only if ideas or options are wanted, research only if current facts are needed, reason for maths, logic and analysis, code only if code must be written, write for prose, review only for big or risky outputs. The LAST step must produce the final answer for the user.\n\nRequest:\n" + request + (material ? "\n\nThe attached material begins:\n" + material.slice(0, 6000) : ""))]);
 		plan = readPlan(out);
 	} catch (e) {
-		if (e.name === "AbortError" || e.status === 401) throw e;
+		if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 	}
 	if (!plan) {
 		const t = classify(text, atts);
@@ -7362,7 +7465,7 @@ async function runQuarks(text, atts) {
 			try {
 				return await stream(m.id, build(), (t) => { step.text = t; onText && onText(t); updateLast(); }, busy.signal, { ...(extra ? extra(m) : {}), ...effortFor(m.id, effort || capEffort(c.effort, cap, m.id)) }, msg);
 			} catch (e) {
-				if (e.name === "AbortError" || e.status === 401) throw e;
+				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				// broke off part way: the next model does it whole
 				if (step.text) { step.text = ""; updateLast(); }
 				lastErr = e;
@@ -7419,7 +7522,7 @@ async function runQuarks(text, atts) {
 		const out = await run(lead, planners, () => [{ role: "user", content: ask }], null, null, speed() === "max" ? "medium" : "low");
 		plan = readQuarks(out, idx);
 	} catch (e) {
-		if (e.name === "AbortError" || e.status === 401) throw e;
+		if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 	}
 	if (!plan) {
 		current.msgs.splice(current.msgs.indexOf(msg), 1);
@@ -7539,7 +7642,7 @@ async function runQuarks(text, atts) {
 			sts.forEach((s) => { s.model = st.model; s.id = st.id; done(s); });
 			if (writes) { fin = st; writers = g.cands; ask = gAsk; msg.text = out; msg.by = st.id; msg.at = Date.now(); msg.tags = (PROFILE && PROFILE.tags) || []; }
 		} catch (e) {
-			if (e.name === "AbortError" || e.status === 401) throw e;
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 			sts.forEach((s) => done(s, niceError(e)));
 		}
 	};
@@ -7743,7 +7846,7 @@ async function runSim(text, atts, pick) {
 			if (html) break;
 			lastErr = new Error("The model didn't return a working simulation.");
 		} catch (e) {
-			if (e.name === "AbortError" || e.status === 401) throw e;
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 			lastErr = e;
 			if (e.status === 429) await sleep(1200);
 		}
@@ -8450,7 +8553,7 @@ async function askFirst(cands, messages, msg, onText, cap, more) {
 			const out = await stream(m.id, messages, onText || (() => {}), busy.signal, { ...(cap && speed() !== "max" ? effortFor(m.id, capEffort(EFFORT.get(m.id) || "", cap, m.id)) : effortExtra(m.id)), ...(more || {}) }, msg);
 			return { out, model: m };
 		} catch (e) {
-			if (e.name === "AbortError" || e.status === 401) throw e;
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 			lastErr = e;
 			if (e.status === 429) await sleep(1200);
 		}
@@ -8589,7 +8692,7 @@ async function buildApp(text, atts, pick) {
 			lastErr = new Error(unfinished ? "The build was cut off before any file was finished." : "The model didn't return any files.");
 		} catch (e) {
 			delete msg.cut;
-			if (e.name === "AbortError" || e.status === 401) throw e;
+			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 			lastErr = e;
 			if (e.status === 429) await sleep(1200);
 			// cut off writing it whole (the gateway's limit): the same model again, in parts
@@ -9668,7 +9771,7 @@ async function direct(text, atts, msg, signal, drawn) {
 				throw new Error("The director's plan had no shots");
 			} catch (e) {
 				if (!named) msg.used.pop();
-				if (e.name === "AbortError" || e.status === 401) throw e;
+				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				lastErr = e;
 			}
 		}
@@ -13537,6 +13640,8 @@ addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
 async function loadKept() {
 	try {
 		if (!(await vault.open())) return;
+		// (a lane only reads the sign-in: the page it works for keeps the chats)
+		if (LANE) { if (!account) { const a = await vault.get("account"); if (a && a.token) account = a; } return; }
 		const kept = await vault.get("chats");
 		if (Array.isArray(kept)) convos = kept;
 		else if (convos.length) {
@@ -13589,6 +13694,7 @@ async function loadKept() {
 	renderLanding();
 	await Promise.all([loadCatalog(), loadPricing()]);
 	loadArena();
+	if (LANE) return;
 	restoreProject();
 	updateRoute();
 	renderLanding();
