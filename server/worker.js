@@ -17,15 +17,16 @@ const DEFAULT_CONFIG = {
 	// films animated in code (Claude writes every frame): "owner" = only on the owner's account (the owner, Nov 6: to test
 	// it), true = for everyone, false = off
 	drawn: "owner",
-	// the order the gateways are asked in, by number (GATEWAY_URL is 1, GATEWAY2_URL is 2). The owner, Nov 7: Flaz is the
-	// main one for everyone (MarkasAI behind it, for a model only it has or when Flaz can't answer); the owner's demo tries
-	// MarkasAI first, to test it, with Flaz behind it. A gateway that's busy or out of balance hands the request on
+	// the order the gateways are asked in, by number (GATEWAY_URL is 1, GATEWAY2_URL is 2). The owner's demo tries MarkasAI
+	// first, with Flaz behind it. A gateway that's busy or out of balance hands the request on
 	gatewayOrder: ["1", "2"],
 	ownerGatewayOrder: ["2", "1"],
-	// deep work (Max, or "take all the time you need": round after round of a critic and the builder) runs only on this
-	// gateway, never handed on to another (the owner, Nov 7: deep rounds on MarkasAI, where the money goes about ten times
-	// as far; busy there, the deep work stops and what's made stays). "" lets it use any
-	deepGateway: "2",
+	// the gateways everyone else may use at all (the owner, Nov 7: "MarkasAI is only for the demo": the public site never
+	// reaches it, not even as a backup, and isn't shown the models only it has; "ws" is WaveSpeed, when it's set up)
+	publicGateways: ["1", "ws"],
+	// deep work on one gateway only, never handed on ("" = any). Off (the owner, Nov 7: when MarkasAI is busy, deep work
+	// mustn't wait on it; it goes where everything else goes)
+	deepGateway: "",
 	// the model's list price x this. 3x is about where profit peaks for a new AI app with free rivals: a 10% higher price
 	// loses some 15-20% of buyers, so profit is nearly flat from 2.5x to 4x and falls past it. Bands are by the model's
 	// output price in dollars per million tokens.
@@ -132,7 +133,8 @@ async function route(req, env, ctx, url) {
 	await columns(env);
 	if (p === "/api/pricing" && m === "GET") {
 		const c0 = await config(env);
-		return json({ ...publicConfig(c0), reach: await reachOf(env), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
+		// (the public is shown only what its gateways reach; the demo, with the owner key, everything)
+		return json({ ...publicConfig(c0), reach: await reachOf(env, ownerKeyOk(req, env) ? undefined : c0.publicGateways), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
 	}
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
@@ -143,7 +145,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/login" && m === "POST") return login(req, env);
 	if (p === "/api/auth/google" && m === "POST") return googleSignIn(req, env);
 	if (p === "/api/webhooks/lemonsqueezy" && m === "POST") return lemonWebhook(req, env);
-	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env)));
+	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env, ownerKeyOk(req, env) ? undefined : (await config(env)).publicGateways)));
 	// a shared chat: anyone with its link can read it; a picture shared with an app, anyone with its link can fetch
 	let sh, up;
 	if ((sh = p.match(/^\/api\/shares\/([a-f0-9]{24})$/)) && m === "GET") return shareGet(env, sh[1]);
@@ -1000,7 +1002,7 @@ async function reachOf(env, only) {
 	const cf = !!(env.CF_ACCOUNT_ID && env.CF_API_TOKEN), gws = gateways(env, only);
 	const or = !!env.OPENROUTER_KEY && (!(gws.length || cf) || (await orFunded(env)));
 	// where the studio's models come from: this server (WaveSpeed) or OpenRouter's own list
-	const gwm = !wsOn(env) && gws.length ? (await gwMedia(env)).length > 0 : false;
+	const gwm = !wsOn(env) && gws.length ? (await gwMedia(env, only)).length > 0 : false;
 	const mediaFrom = wsOn(env) || gwm ? "server" : env.OPENROUTER_KEY ? "openrouter" : "";
 	if (or) return { all: true, only: "", skip: "", media: true, mediaFrom };
 	const out = { all: false, only: cf ? "^(openai|anthropic|google|x-ai)/" : "^$", skip: "^openai/(gpt-oss|.*-pro$|.*codex|.*deep-research)|:", media: !!mediaFrom, mediaFrom };
@@ -1011,7 +1013,7 @@ async function reachOf(env, only) {
 			out.models = ids.filter((id) => gws.some((g, i) => cats[i].ids.length && gatewayNames(g, id).length));
 			// (and what it has that OpenRouter doesn't list yet, with the price to be safe with: the site uses one only where
 			// the leaderboards rate it)
-			const fresh = await freshModels(env);
+			const fresh = (await freshModels(env)).filter((f) => !only || gws.some((g) => gatewayNames(g, f.id).length));
 			if (fresh.length) {
 				out.models.push(...fresh.map((f) => f.id));
 				out.fresh = fresh.map((f) => ({ id: f.id, name: f.gw, pin: f.pin * 1e6, pout: f.pout * 1e6 }));
@@ -1645,6 +1647,8 @@ async function chat(req, env, ctx, user) {
 	const web = plug ? { n: Math.max(1, Math.min(8, Number(plug.max_results) || 5)), query: plug.query || lastUserText(b.messages) } : null;
 	await Promise.all(gateways(env).map(gatewayCatalog));
 	let ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, orderFor(c, user.owner));
+	// (the public only through the gateways set for it; the owner's demo through all of them)
+	if (!user.owner && Array.isArray(c.publicGateways) && c.publicGateways.length) ways = ways.filter((w) => w.kind !== "gw" || c.publicGateways.includes(String(w.gw)));
 	if (deep && c.deepGateway) ways = ways.filter((w) => w.kind === "gw" && w.gw === String(c.deepGateway));
 	if (!ways.length) throw fail(503, deep ? "Deep work's models are busy right now." : "This server can't reach that model. Pick another, or try again later.");
 
@@ -1955,8 +1959,9 @@ const guessVideoUsdPerSec = (id) => (/sora.*pro/i.test(id) ? 0.3 : /veo.*fast|ve
 const guessTtsUsdPerChar = (id) => (/eleven/i.test(id) ? 0.0001 : 0.00002);
 // the voices a voice model takes, by its maker (ElevenLabs by name, as the site casts them)
 const voicesOf = (id) => (/eleven/i.test(id) ? WS_ELEVEN : /gemini/i.test(id) ? ["Kore", "Puck", "Charon", "Fenrir", "Aoede", "Leda", "Orus", "Zephyr"] : /gpt|tts-1|openai/i.test(id) ? ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer"] : []);
-async function gwMedia(env) {
-	const gws = gateways(env), out = [];
+// (only: the gateways this person may use; the public never reaches MarkasAI, the owner, Nov 7)
+async function gwMedia(env, only) {
+	const gws = gateways(env, only), out = [];
 	if (!gws.length) return out;
 	const cats = await Promise.all(gws.map(gatewayCatalog));
 	for (let i = 0; i < gws.length; i++) {
@@ -1968,7 +1973,7 @@ async function gwMedia(env) {
 	}
 	return out;
 }
-async function gwMediaHas(env, model, kind) { return (await gwMedia(env)).find((m) => m.site === String(model || "") && m.type === kind) || null; }
+async function gwMediaHas(env, model, kind, only) { return (await gwMedia(env, only)).find((m) => m.site === String(model || "") && m.type === kind) || null; }
 // what a picture costs there, in dollars: its unit price, or the image tokens a picture of that quality takes
 function gwImageUsd(m, quality) {
 	const p = m.pricing;
@@ -2171,7 +2176,7 @@ async function videoSubmit(req, env, user) {
 	await studioOpen(env);
 	const c = await config(env), mt = media(c);
 	const b = await body(req);
-	const gv = await gwMediaHas(env, b.model, "video");
+	const gv = await gwMediaHas(env, b.model, "video", user.owner ? undefined : c.publicGateways);
 	// (one made while the request waits, as MarkasAI does; or one started as a job, as LiteLLM's /videos does)
 	if (gv) return /\/videos\/generations/.test(gv.endpoint) || gv.pricing.resolutions ? gwVideo(env, user, gv, b, c, mt) : gwVideoJob(env, user, gv, b, c, mt);
 	const wf = await wsHas(env, b.model, "video");
@@ -2264,7 +2269,7 @@ async function imageGen(req, env, user) {
 	const c = await config(env), mt = media(c);
 	const b = await body(req);
 	if (typeof b.model !== "string") throw fail(400, "Pick an image model.");
-	const gm = await gwMediaHas(env, b.model, "image");
+	const gm = await gwMediaHas(env, b.model, "image", user.owner ? undefined : c.publicGateways);
 	if (gm) return gwImage(env, user, gm, b, c, mt);
 	const wf = await wsHas(env, b.model, "image");
 	if (wf) return wsImage(env, user, wf, b, c, mt);
@@ -2298,7 +2303,7 @@ async function speech(req, env, user) {
 	const b = await body(req);
 	const text = Array.isArray(b.input) ? b.input.map((x) => x.text || "").join(" ") : String(b.input || "");
 	if (!text.trim() || text.length > 10000) throw fail(400, "Give the voice between 1 and 10,000 characters.");
-	const gs = await gwMediaHas(env, b.model, "tts");
+	const gs = await gwMediaHas(env, b.model, "tts", user.owner ? undefined : c.publicGateways);
 	if (gs) return gwSpeech(env, user, gs, text, b, c, mt);
 	const wf = await wsHas(env, b.model, "speech");
 	if (wf) return wsAudio(env, user, wf, { prompt: text, voice: b.voice, format: "mp3" }, b.model, c, mt);
