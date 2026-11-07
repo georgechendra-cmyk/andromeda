@@ -617,6 +617,16 @@ textarea.inp { height: auto; min-height: 72px; padding: 10px 12px; line-height: 
 .mtag span { font-weight: 500; color: var(--faint); }
 .convo .tg { display: inline-flex; color: var(--faint); margin-right: 6px; vertical-align: -2px; }
 @media (max-width: 760px) { .team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* the Together app, by Apple's design rules: SF Pro where there is one, one accent (Apple's blue) for what can be
+   pressed, calm surfaces, soft depth only where something sits over something, everything on an 8px rhythm */
+html[data-app="together"] { --brand: #0071e3; --brand-rgb: 0, 113, 227; }
+html[data-app="together"] body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter Tight", "Segoe UI", system-ui, sans-serif; letter-spacing: -.003em; }
+html[data-app="together"] .welcome .greet { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Tight", "Segoe UI", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
+html[data-app="together"] .mate { border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+html[data-app="together"] .mate:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
+html[data-app="together"] .sug { border-radius: 14px; }
+html[data-app="together"] #sendBtn, html[data-app="together"] .send { background: #0071e3; color: #fff; }
+html[data-app="together"] .mtag { font-size: 13px; }
 @media (max-width: 420px) { .team { gap: 6px; } .mate { padding: 10px 12px; } .mate .mr { font-size: 12px; } }
 .sug:hover .v { color: var(--text); }
 .welcome .wmark { display: block; width: 44px; height: 44px; margin: 0 auto 14px; color: var(--brand); filter: drop-shadow(0 6px 18px color-mix(in srgb, var(--brand) 35%, transparent)); animation: rise .5s var(--ease) both; }
@@ -4153,7 +4163,7 @@ const FOLDER_D = '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-
 function renderConvoList() {
 	const q = $("#search").value.trim().toLowerCase();
 	// a project's chats are in the project (a search finds them anywhere)
-	const list = convos.filter((c) => c.msgs.length && !c.temp && (q || !spaceOf(c.space)) && (!q || c.title.toLowerCase().includes(q) || c.msgs.some((m) => (m.text || "").toLowerCase().includes(q))));
+	const list = convos.filter((c) => c.msgs.length && !c.temp && !!c.together === TOGETHER_APP && (q || !spaceOf(c.space)) && (!q || c.title.toLowerCase().includes(q) || c.msgs.some((m) => (m.text || "").toLowerCase().includes(q))));
 	const day = 864e5, now = Date.now();
 	const groups = [["Today", (c) => now - c.at < day], ["This week", (c) => now - c.at < 7 * day], ["Earlier", () => true]];
 	let html = "", used = new Set();
@@ -4394,8 +4404,8 @@ function paintLast() {
 	stick();
 }
 function render() {
-	// (an open chat says whether it's the team's)
-	if (current) TOGETHER = !!current.together;
+	// (in the Together app everything is the team's; in Celestin nothing is)
+	TOGETHER = TOGETHER_APP;
 	drawQueue();
 	if (QUEUE.length) setTimeout(drainQueue, 0);
 	// a temporary chat is gone once you leave it
@@ -6836,7 +6846,9 @@ function readPlan(raw) {
 // short, simple messages go straight to one model; anything bigger goes to the team
 // ---- Celestin Together: a team in the chat (like Grok Bot's teammates and Claude Duet, on Celestin's routing). Each
 // teammate has a field, weighed into the routing for whatever it's given; the Lead plans who does what
-var TOGETHER = false;
+// (the Together app is together.html: the same code, marked on <html>; everything in it is the team's)
+var TOGETHER_APP = document.documentElement.dataset.app === "together";
+var TOGETHER = TOGETHER_APP;
 const TEAM = [
 	{ id: "lead", name: "Lead", c: "#8e8e93", role: "Plans the work and gives each piece to the teammate for it; asks you only for real decisions", task: "reasoning", w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
 	{ id: "researcher", name: "Researcher", c: "#0a84ff", role: "Finds and checks facts on the live web, with sources", task: "research", w: { "search:overall": 0.6, "factuality:overall": 0.4 } },
@@ -6850,7 +6862,7 @@ const MATE = Object.fromEntries(TEAM.map((t) => [t.id, t]));
 const MATE_RE = new RegExp("@(" + TEAM.map((t) => t.id).join("|") + ")\\b", "gi");
 function memberTag(id) {
 	const t = MATE[id];
-	return t ? '<div class="mtag"><i style="--c:' + t.c + '"></i>' + esc(t.name) + "<span>· Celestin Together</span></div>" : "";
+	return t ? '<div class="mtag"><i style="--c:' + t.c + '"></i>' + esc(t.name) + "</div>" : "";
 }
 // the model the routing would pick for a teammate's field right now (shown on the team's cards)
 function mateModel(t) {
@@ -12152,7 +12164,7 @@ function autosize() { const t = $("#input"); t.style.height = "auto"; t.style.he
 function setMode() {
 	mode = "auto";
 	drawSpend();
-	$("#input").placeholder = innerWidth < 600 ? "Ask anything" : "Ask anything, or ask for flashcards, a simulation or an app to build";
+	$("#input").placeholder = TOGETHER_APP ? (innerWidth < 600 ? "Message the team" : "Message the team · @Builder, @Researcher… to ask one directly") : innerWidth < 600 ? "Ask anything" : "Ask anything, or ask for flashcards, a simulation or an app to build";
 	if (!current || !current.msgs.length) renderThread();
 	updateRoute();
 }
@@ -12266,8 +12278,19 @@ document.addEventListener("click", (e) => {
 	else if (t.hasAttribute("data-open-pricing")) openPricing();
 	else if (t.dataset.pick) openSettings();
 });
-$("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = false; render(); }); setTimeout(() => $("#input").focus(), 60); };
-$("#togetherNav").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = true; render(); }); setTimeout(() => $("#input").focus(), 60); };
+$("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = TOGETHER_APP; render(); }); setTimeout(() => $("#input").focus(), 60); };
+$("#togetherNav").onclick = () => { location.href = TOGETHER_APP ? "./#app" : "together.html#app"; };
+// (Celestin itself shows nothing of the Together app, the owner, Nov 7: "it's a whole different app")
+if (!TOGETHER_APP) $("#togetherNav").style.display = "none";
+if (TOGETHER_APP) {
+	// (here it leads back to Celestin)
+	const b = $("#togetherNav");
+	b.dataset.tip = "Back to Celestin";
+	b.setAttribute("aria-label", "Back to Celestin");
+	b.querySelector(".lbl").textContent = "Celestin";
+	b.querySelector("svg").innerHTML = '<use href="#logo"/>';
+	b.querySelector("svg").setAttribute("fill", "currentColor");
+}
 // ---------------------------------------------------------------- the open chat: export, print, rename, delete
 function closeChatMenu() { $("#chatPop").hidden = true; $("#chatMenuBtn").setAttribute("aria-expanded", "false"); }
 $("#chatMenuBtn").onclick = (e) => {
@@ -12900,7 +12923,7 @@ async function openShared(sid) {
 function closeShared() {
 	document.body.classList.remove("in-share");
 	$("#shared").hidden = true;
-	document.title = "Celestin — the right model for every message";
+	document.title = TOGETHER_APP ? "Celestin Together — your AI team" : "Celestin — the right model for every message";
 }
 $("#shCont").onclick = () => {
 	if (!SHARED) return;
@@ -13514,7 +13537,7 @@ addEventListener("hashchange", () => {
 	if (document.body.classList.contains("in-share")) closeShared();
 	if (location.hash === "#pricing") { showApp(true); openPricing(); return; }
 	if (location.hash === "#help") { openHelp(); return; }
-	const want = location.hash === "#app";
+	const want = TOGETHER_APP || location.hash === "#app";
 	if (want !== document.body.classList.contains("in-app")) showApp(want);
 });
 addEventListener("focus", () => { if (SERVER && account) refreshMe(); });
@@ -13555,8 +13578,8 @@ async function loadKept() {
 	// signed in shows the sign-in page over the front page (not the app behind it). Decided before the first paint, on
 	// what localStorage says; a sign-in only the database still had is caught up with just after
 	const hadAccount = connected();
-	const wantApp = () => location.hash === "#app" || location.hash === "#pricing" || (connected() && !location.hash);
-	let inApp = wantApp() && (connected() || !SERVER || location.hash !== "#app");
+	const wantApp = () => TOGETHER_APP || location.hash === "#app" || location.hash === "#pricing" || (connected() && !location.hash);
+	let inApp = TOGETHER_APP || (wantApp() && (connected() || !SERVER || location.hash !== "#app"));
 	const shareId = (location.hash.match(/^#share=([a-f0-9]{24})$/) || [])[1];
 	document.body.classList.toggle("in-app", inApp && !shareId);
 	await loadKept();
