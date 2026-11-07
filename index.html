@@ -2762,7 +2762,7 @@ function arenaRank(task, weights, share) {
 		for (const f of efforts) {
 			// the score, and what's needed to tell it apart from another: where the rating sits, and its margin (only
 			// where it was actually rated at this effort; a stand-in from elsewhere has no margin to count on)
-			let s = 0, tw = 0, mid = 0, hv = 0, skipped = 0, measured = false;
+			let s = 0, tw = 0, mid = 0, hv = 0, skipped = 0, measured = false, rated = 0;
 			for (const [cat, wt] of Object.entries(w)) {
 				if (!idx[cat] || !(wt > 0)) continue;
 				const board = cat.split(":")[0];
@@ -2794,13 +2794,14 @@ function arenaRank(task, weights, share) {
 					z = near.z - 0.75;
 					at = z + near.w / 2;
 				} else z = at = -2.5;
+				if (board === "bench" ? !!e : !!(e || o)) rated += wt;
 				s += wt * z;
 				mid += wt * at;
 				hv += (wt * h) ** 2;
 				tw += wt;
 			}
 			if (skipped && tw) { const a = s / tw, am = mid / tw; s += skipped * (a - 0.5); mid += skipped * (am - 0.5); tw += skipped; }
-			if (tw) out.push({ m, score: s / tw, effort: f, mid: mid / tw, hw: Math.sqrt(hv) / tw, task, measured });
+			if (tw) out.push({ m, score: s / tw, effort: f, mid: mid / tw, hw: Math.sqrt(hv) / tw, task, measured, cover: rated / tw });
 		}
 	}
 	out.sort((a, b) => b.score - a.score);
@@ -2848,7 +2849,10 @@ function tokensOf(messages) {
 }
 // (Celestin's own record on exactly this kind of piece is evidence the leaderboards' margins don't cover: a model whose
 // record here is clearly worse than the best's isn't level with it, whatever the ratings say)
-const quarkTied = (top, x, most = HAIR) => x.mid != null && top.mid != null && top.mid - x.mid <= most && (x.learned || 0) >= (top.learned || 0) - 0.25;
+// (only one measured on most of this work: a floor score where nobody rated it is a guess, never within a hair)
+const COVER_MIN = 0.5;
+const covered = (x) => x.cover == null || x.cover >= COVER_MIN;
+const quarkTied = (top, x, most = HAIR) => x.mid != null && top.mid != null && top.mid - x.mid <= most && (x.learned || 0) >= (top.learned || 0) - 0.25 && covered(x);
 function quarkFirst(list, cap, used, cost = callCost, priceMax = PRICE_MAX) {
 	if (speed() === "max" || list.length < 2) return list;
 	const top = list.reduce((a, b) => ((b.score ?? -Infinity) > (a.score ?? -Infinity) ? b : a));
@@ -2879,7 +2883,7 @@ function quarkFirst(list, cap, used, cost = callCost, priceMax = PRICE_MAX) {
 	if (top.mid != null) {
 		const fairAt = cost(top, cap) / FAIR_X;
 		for (const x of list) {
-			if (tied.includes(x) || x.mid == null || top.mid - x.mid > priceMax || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
+			if (tied.includes(x) || x.mid == null || !covered(x) || top.mid - x.mid > priceMax || (x.learned || 0) < (top.learned || 0) - 0.25 || !Number.isFinite(cost(x, cap))) continue;
 			if (cost(x, cap) <= fairAt && cost(x, cap) < cost(pick, cap)) pick = x;
 		}
 	}
@@ -2891,7 +2895,7 @@ function quarkFirst(list, cap, used, cost = callCost, priceMax = PRICE_MAX) {
 // to the dearest (the owner, Nov 7; found that day: a design check whose pick refused the screenshots went to Claude Fable 5)
 const BACKUP_MAX = PREFER(56);
 function backupsAfter(pick, list, top, cap, cost) {
-	const near = top && top.mid != null ? list.filter((x) => x !== pick && x.mid != null && top.mid - x.mid <= BACKUP_MAX && (x.learned || 0) >= (top.learned || 0) - 0.25 && Number.isFinite(cost(x, cap))).sort((a, b) => cost(a, cap) - cost(b, cap)) : [];
+	const near = top && top.mid != null ? list.filter((x) => x !== pick && x.mid != null && covered(x) && top.mid - x.mid <= BACKUP_MAX && (x.learned || 0) >= (top.learned || 0) - 0.25 && Number.isFinite(cost(x, cap))).sort((a, b) => cost(a, cap) - cost(b, cap)) : [];
 	return [pick, ...near, ...list.filter((x) => x !== pick && !near.includes(x))];
 }
 // Who checks or reviews work: from another lab than the one that wrote it, when one is level with the best and costs no
@@ -6573,7 +6577,9 @@ async function runAuto(text, atts) {
 	const level = PROFILE && PROFILE_TEXT === text ? PROFILE.level : "";
 	// (an everyday question thinks minimally: LMArena rates what people prefer in chat barely any higher for more thought
 	// than that, about 4 Elo, and it's a third of the price)
-	const light = speed() === "max" ? "" : task === "quick" ? "minimal" : lite ? "low" : { easy: "low", medium: "medium" }[level] || "";
+	// (a hard one, or one the conductor couldn't read, at most "high": the owner, Nov 7, "don't use max for an everyday
+	// question, or even xhigh"; only Max thinks harder)
+	const light = speed() === "max" ? "" : task === "quick" ? "minimal" : lite ? "low" : { easy: "low", medium: "medium" }[level] || "high";
 	// what Celestin measured itself on exactly this kind of work (never held up waiting for it)
 	const tags = PROFILE && PROFILE_TEXT === text && PROFILE.tags || [];
 	const record = tags.length && PROFILE.record ? await Promise.race([PROFILE.record, sleep(800).then(() => null)]) : null;
