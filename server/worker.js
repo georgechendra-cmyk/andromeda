@@ -499,7 +499,15 @@ async function authUser(req, env) {
 	const row = await env.DB.prepare("SELECT u.* , s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?").bind(await sha256hex(token)).first();
 	if (!row || row.expires_at < now()) throw fail(401, "Your session ended. Sign in again.");
 	row.owner = ownerHere(req, env, row.id);
-	return refill(env, row, await config(env));
+	const c = await config(env), u = await refill(env, row, c);
+	// Free credits stop once today's free use has cost the owner its budget: the budget was only checked when a window was
+	// handed out, so credits already in windows (and every new account's first window) could be spent past it. Found Nov 8.
+	// Bought credits still work; the most free use can cost is the budget and a call already running
+	if (!u.owner && !planOf(u, c).paid && budgetUsd(c) > 0) {
+		const r = await env.DB.prepare("SELECT mc FROM free_days WHERE day = ?").bind(spentKey()).first();
+		if (((r && r.mc) || 0) >= budgetUsd(c) * 1e6) u.free_frozen = true;
+	}
+	return u;
 }
 
 // ------------------------------------------------------------------ plans: Free, Plus, Max
@@ -536,6 +544,8 @@ const monthLeft = (u, plan) => (plan.paid && plan.month ? Math.max(0, u.plan_mc 
 function windowLeft(u, c) {
 	const plan = planOf(u, c);
 	if (plan.owner) return UNLIMITED_MC;
+	// (today's free use has cost its budget: free credits wait for tomorrow)
+	if (u.free_frozen && !plan.paid) return 0;
 	let win = Math.max(0, u.free_mc || 0);
 	if (plan.week) win = Math.min(win, Math.max(0, plan.week * 1000 - weekUsed(u)));
 	return Math.min(win, monthLeft(u, plan));
@@ -693,6 +703,7 @@ const waitText = (t) => {
 // why there's nothing to spend, and when there will be (never what anything costs)
 function outOfCredits(u, c) {
 	const plan = planOf(u, c);
+	if (u.free_frozen && !plan.paid) return fail(402, "Celestin's free credits for today are all used up: free use has a daily limit. They're back tomorrow. A credit pack keeps you going right now.");
 	const more = " A credit pack keeps you going right now.";
 	if (plan.paid && plan.month && monthLeft(u, plan) < 1000) {
 		const next = Number(u.period_at) > now() && Number(u.period_at) < plan.until;
