@@ -3895,7 +3895,7 @@ function sys(extra) {
 	// expert doing the work plans it, and does better than this if it can)
 	const plan = (!extra && PLAN_NOTE ? "A first read of this request, by the quick model that passed it to you (only for your bearings: their own words come first, and how to do it, and doing it better than this, is yours to decide): " + PLAN_NOTE : "") + (ONCE_NOTE ? (PLAN_NOTE && !extra ? "\n" : "") + "For this answer: " + ONCE_NOTE : "");
 	// what was decided for this one request goes with the newest message (placeNote), not here
-	return { role: "system", content: [extra || base, mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n"), note: [plan, skillLine(), MATH_NOTE].filter(Boolean).join("\n\n") };
+	return { role: "system", content: [extra || base, mine, spaceLine(), memoryLine(), langLine(), (TONES[settings.tone] || TONES.default)[1], safe].filter(Boolean).join("\n\n"), note: [plan, skillLine(), teamLine(), MATH_NOTE].filter(Boolean).join("\n\n") };
 }
 function spaceLine() {
 	const sp = current && spaceOf(current.space);
@@ -6798,6 +6798,26 @@ const TEAM = [
 	{ id: "reviewer", name: "Reviewer", c: "#ff375f", role: "Checks the team's work, from another lab, before it reaches you", task: "code", w: { "text:expert": 0.4, "factuality:overall": 0.3, "text:coding": 0.3 } },
 ];
 const MATE = Object.fromEntries(TEAM.map((t) => [t.id, t]));
+// the teammate working right now (in a lane, that lane's own), and what it's told about the team
+var MATE_NOW = null;
+function teamLine() {
+	if (!MATE_NOW || !TOGETHER) return "";
+	return "You're the " + MATE_NOW.name + " on Celestin Together: a team of AI teammates in this chat (" + TEAM.filter((t) => t.id !== "lead" && t.id !== MATE_NOW.id).map((t) => t.id + ": " + t.role.charAt(0).toLowerCase() + t.role.slice(1)).join("; ") + "). Do your part completely yourself. Only when a part of it truly needs another teammate's field and you can't do it well yourself, end your reply with one line: → @name: exactly what they should do (one at most, never for something you've done).";
+}
+// "→ @designer: make it look like Apple's": a handoff, at the end of a teammate's answer
+const HANDOFF_RE = /\n[ \t>*_]*(?:→|->|=>)[ \t]*@(researcher|builder|designer|writer|analyst|reviewer)\b[ \t]*:?[ \t]*([^\n]{4,600}?)[ \t*_]*$/i;
+const HANDOFF_MAX = 2;
+function takeHandoff(chat, from, text) {
+	const m = HANDOFF_RE.exec("\n" + String(text || "").trimEnd());
+	if (!m) return null;
+	// (the line comes out of what the teammate said)
+	for (let i = chat.msgs.length - 1; i >= 0; i--) {
+		const x = chat.msgs[i];
+		if (x.role === "assistant" && x.member === from && typeof x.text === "string" && HANDOFF_RE.test("\n" + x.text.trimEnd())) { x.text = ("\n" + x.text.trimEnd()).replace(HANDOFF_RE, "").replace(/^\n/, "").trimEnd(); break; }
+	}
+	const to = m[1].toLowerCase();
+	return { to: to === from ? null : to, task: m[2].trim(), text: ("\n" + String(text).trimEnd()).replace(HANDOFF_RE, "").replace(/^\n/, "") };
+}
 const MATE_RE = new RegExp("@(" + TEAM.map((t) => t.id).join("|") + ")\\b", "gi");
 function memberTag(id) {
 	const t = MATE[id];
@@ -6828,9 +6848,10 @@ function renderTogetherWelcome() {
 // Found Nov 7: without it each teammate answered the person's whole message). o.plan: read already (undefined: read it)
 async function mateDo(t, task, atts, o = {}) {
 	if (o.brief) current.msgs.push({ role: "user", brief: true, text: "(The Lead, to the " + t.name + ") " + task });
-	const mark = current.msgs.length;
-	try { await serve(task, atts, o.tool || null, { plan: o.plan, weights: t.w, check: t.id === "reviewer", member: t.id, status: t.name + " is on it" }); }
-	finally { current.msgs.slice(mark).forEach((m) => { if (m.role === "assistant") m.member = t.id; }); }
+	const mark = current.msgs.length, was = MATE_NOW;
+	MATE_NOW = t;
+	try { await serve(task, atts, o.tool || null, { plan: o.plan, weights: t.w, check: t.id === "reviewer" ? true : o.noCheck ? false : undefined, member: t.id, status: t.name + " is on it" }); }
+	finally { MATE_NOW = was; current.msgs.slice(mark).forEach((m) => { if (m.role === "assistant") m.member = t.id; }); }
 	return current.msgs.slice(mark).filter((m) => m.role === "assistant").map((m) => m.text || (m.data && (m.data.title || m.data.name)) || "").join("\n").slice(0, 8000);
 }
 // ---- Lanes. Celestin's routing reads the work in hand from the page's own state (what the request needs, its notes,
@@ -6842,7 +6863,7 @@ const LANES_MAX = 3;
 const laneSleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lanesOk = () => !LANE && TOGETHER_APP && typeof structuredClone === "function" && !(navigator.deviceMemory && navigator.deviceMemory < 4);
 const laneSafe = (x) => { try { return structuredClone(x); } catch { return JSON.parse(JSON.stringify(x)); } };
-async function laneDo(t, task, atts) {
+async function laneDo(t, task, atts, o = {}) {
 	const chat = current, slot = { role: "assistant", member: t.id, text: "", streaming: true, status: t.name + " is on it" };
 	chat.msgs.push(slot);
 	renderThread();
@@ -6863,7 +6884,7 @@ async function laneDo(t, task, atts) {
 		if (window.LANE_HOOK) window.LANE_HOOK(w);
 		busy.signal.addEventListener("abort", stop);
 		tick = setInterval(() => { const n = w.laneNow(); if (n && (n.status !== slot.status || n.text.length !== slot.text.length)) { slot.status = n.status || slot.status; slot.text = n.text; paint(); } }, 500);
-		r = await w.laneRun(laneSafe({ msgs: chat.msgs.filter((m) => m !== slot && !m.streaming), mate: t.id, task, atts, speed: settings.speed }));
+		r = await w.laneRun(laneSafe({ msgs: chat.msgs.filter((m) => m !== slot && !m.streaming), mate: t.id, task, atts, speed: settings.speed, noCheck: !!o.noCheck }));
 		r = laneSafe(r);
 	} catch {
 		// (it didn't open: done here instead, after this round)
@@ -6902,34 +6923,45 @@ if (LANE) {
 		window.laneMem = [];
 		const mark = current.msgs.length;
 		const out = (x) => ({ ...x, msgs: current.msgs.slice(mark).map((m) => ({ ...m, streaming: false })), mem: window.laneMem });
-		try { return out({ text: await mateDo(MATE[job.mate] || MATE.writer, job.task, job.atts || [], { brief: true }) }); }
+		try { return out({ text: await mateDo(MATE[job.mate] || MATE.writer, job.task, job.atts || [], { brief: true, noCheck: job.noCheck }) }); }
 		catch (e) { return out({ error: { name: e.name || "", status: e.status || 0, message: String(e.message || e) } }); }
 	};
 }
 // A message to the team: one @mentioned teammate does it; small talk, the Writer (no reading, as in Celestin); anything
 // else is read once, by the conductor as the Lead, which decides both how to serve it and who does what. One teammate
 // (most requests) is served from that same read, so it costs what the same message costs in Celestin; separate parts
-// go to their teammates in order, each hearing what the earlier ones made
+// go to their teammates in rounds (at the same time when they don't need each other), each hearing what the ones it
+// needed made. A teammate can hand a part on (see HANDOFF_RE); several teammates' work that's worth a second expert's
+// check gets one Reviewer at the end
 async function runTogether(text, atts, tool) {
+	const chat = current;
 	const named = [...new Set((text.match(MATE_RE) || []).map((x) => x.slice(1).toLowerCase()))].filter((id) => id !== "lead");
-	if (named.length === 1) return void (await mateDo(MATE[named[0]], text.replace(MATE_RE, "").trim() || text, atts, { tool }));
-	if (!atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim())) return void (await mateDo(MATE.writer, text, atts, { plan: null }));
-	const hold = { role: "assistant", member: "lead", text: "", streaming: true, status: "Working out who does what" };
-	current.msgs.push(hold);
-	updateLast();
-	let plan = null;
-	try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways, true); } finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
-	const tasks = (plan && plan.team) || [];
-	const lead = (t) => current.msgs.push({ role: "assistant", member: "lead", text: t, used: plan && plan.by ? [{ name: shortName(plan.by), desc: "Lead: planned who does what" }] : [] });
-	if (plan && plan.ask && !tasks.length) return void lead(plan.ask);
-	// (one teammate, or no plan: the teammate whose field fits best, from this read; no read at all: the keyword reading)
-	const fits = MATE[{ code: "builder", research: "researcher", reasoning: "analyst" }[(plan && plan.profile && plan.profile.kind) || classify(text, atts)]] || MATE.writer;
-	if (tasks.length <= 1) return void (await mateDo(MATE[tasks[0] && tasks[0].to] || fits, text, atts, { plan, tool }));
-	(plan.remember || []).forEach((t) => remember(t));
-	if (plan.say || plan.ask) lead([plan.say, plan.ask].filter(Boolean).join("\n\n"));
-	// in rounds: every piece whose pieces it needs are done starts in the same round; two or more in a round work at the
-	// same time, each in its own lane (with no lanes on this device, or one that doesn't open: one after another, here)
+	let tasks, plan, direct = true;
+	// (own: the person's message itself is the piece, with no brief; plan: read already, null: not to be read)
+	if (named.length === 1) tasks = [{ to: named[0], task: text.replace(MATE_RE, "").trim() || text, after: [], own: true }];
+	else if (!atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim())) tasks = [{ to: "writer", task: text, after: [], own: true, plan: null }];
+	else {
+		direct = false;
+		const hold = { role: "assistant", member: "lead", text: "", streaming: true, status: "Working out who does what" };
+		chat.msgs.push(hold);
+		updateLast();
+		plan = null;
+		try { plan = await conduct(text, atts, [], tool && TOOLS[tool].ways, true); } finally { chat.msgs.splice(chat.msgs.indexOf(hold), 1); }
+		tasks = (plan && plan.team) || [];
+		if (plan && plan.ask && !tasks.length) return void leadSays(chat, plan, plan.ask);
+		// (one teammate, or no plan: the teammate whose field fits best, from this read; no read at all: the keyword reading)
+		const fits = MATE[{ code: "builder", research: "researcher", reasoning: "analyst" }[(plan && plan.profile && plan.profile.kind) || classify(text, atts)]] || MATE.writer;
+		if (tasks.length <= 1) tasks = [{ to: (tasks[0] && MATE[tasks[0].to] ? tasks[0].to : fits.id), task: text, after: [], own: true, plan }];
+		else {
+			(plan.remember || []).forEach((t) => remember(t));
+			if (plan.say || plan.ask) leadSays(chat, plan, [plan.say, plan.ask].filter(Boolean).join("\n\n"));
+		}
+	}
+	// the Reviewer checks several teammates' work at the end when the Lead's read says a second expert would catch real
+	// mistakes in it (and no teammate was given the checking already)
+	const review = !direct && !!(plan && plan.profile && plan.profile.check) && tasks.length > 1 && !tasks.some((x) => x.to === "reviewer");
 	const done = [], left = tasks.map((x, k) => k);
+	let handoffs = 0;
 	while (left.length && !(busy && busy.signal.aborted)) {
 		let round = left.filter((k) => tasks[k].after.every((n) => done[n]));
 		if (!round.length) round = [left[0]];
@@ -6938,26 +6970,62 @@ async function runTogether(text, atts, tool) {
 			const x = tasks[k], t = MATE[x.to] || MATE.writer;
 			// (a piece hears what the pieces it needed made)
 			const need = x.after.filter((n) => done[n]).map((n) => done[n]);
-			return { k, t, task: x.task + (need.length ? "\n\nWhat your teammates already did for this (build on it):\n" + need.map((d) => "From the " + d.name + ":\n" + d.text).join("\n\n").slice(0, 12000) : ""), atts: x.after.length ? [] : atts };
+			return { k, t, own: x.own, plan: x.plan, task: x.task + (need.length ? "\n\nWhat your teammates already did for this (build on it):\n" + need.map((d) => "From the " + d.name + ":\n" + d.text).join("\n\n").slice(0, 12000) : ""), atts: x.after.length ? [] : atts };
 		};
 		const jobs = round.map(job);
 		let got = jobs.map(() => null);
 		if (round.length > 1 && lanesOk()) {
 			// (every lane in the round is let finish or stop before anything goes wrong here: none is left working unseen)
-			const res = await Promise.allSettled(jobs.map((j) => laneDo(j.t, j.task, j.atts)));
+			const res = await Promise.allSettled(jobs.map((j) => laneDo(j.t, j.task, j.atts, { noCheck: review })));
 			const bad = res.find((x) => x.status === "rejected");
 			if (bad) throw bad.reason;
 			got = res.map((x) => x.value);
 		}
 		for (const [i, j] of jobs.entries()) {
-			if (got[i] == null && !(busy && busy.signal.aborted)) got[i] = await mateDo(j.t, j.task, j.atts, { brief: true });
+			if (got[i] == null && !(busy && busy.signal.aborted)) got[i] = await mateDo(j.t, j.task, j.atts, j.own ? { plan: j.plan, tool } : { brief: true, noCheck: review });
+			// a part handed on: to that teammate, after this one
+			const h = takeHandoff(chat, j.t.id, got[i]);
+			if (h) got[i] = h.text;
+			if (h && h.to && MATE[h.to] && handoffs < HANDOFF_MAX && !(busy && busy.signal.aborted)) {
+				handoffs++;
+				tasks.push({ to: h.to, task: h.task + " (handed to you by the " + j.t.name + ")", after: [j.k] });
+				left.push(tasks.length - 1);
+			}
 			done[j.k] = { name: j.t.name, text: got[i] || "" };
 			left.splice(left.indexOf(j.k), 1);
 		}
 	}
-	// several pieces, all done: the Lead says so (no call: who did what is known). Stopped: nothing's said to be done
 	if (busy && busy.signal.aborted) return;
-	current.msgs.push({ role: "assistant", member: "lead", text: "Done: " + tasks.map((x) => (MATE[x.to] || MATE.writer).name).filter((n, k, a) => a.indexOf(n) === k).join(", ").replace(/, ([^,]*)$/, " and $1") + " each did their part above." });
+	const checked = review && (await teamReview(chat, text, done.filter(Boolean), plan));
+	// several pieces, all done: the Lead says so (no call: who did what is known). Stopped: nothing's said to be done
+	if (tasks.length > 1) chat.msgs.push({ role: "assistant", member: "lead", text: "Done: " + tasks.map((x) => (MATE[x.to] || MATE.writer).name).filter((n, k, a) => a.indexOf(n) === k).join(", ").replace(/, ([^,]*)$/, " and $1") + " each did their part above" + (checked ? ", and the Reviewer checked it all." : ".") });
+}
+function leadSays(chat, plan, text) {
+	chat.msgs.push({ role: "assistant", member: "lead", text, used: plan && plan.by ? [{ name: shortName(plan.by), desc: "Lead: planned who does what" }] : [] });
+}
+// The Reviewer at the end of a team's work: the best checker for this kind of work from another lab than the one that
+// made most of it reads everything the team made, against what the person asked, and says what's really wrong with the
+// corrected parts (or that it's right). One call: no reading first, since what it does is known
+async function teamReview(chat, text, parts, plan) {
+	const labs = chat.msgs.filter((m) => m.role === "assistant" && m.by && m.member && m.member !== "lead" && m.member !== "reviewer").map((m) => provider(m.by));
+	const lab = labs.sort((a, b) => labs.filter((x) => x === b).length - labs.filter((x) => x === a).length)[0] || "";
+	const kind = plan && plan.profile && CHECK[plan.profile.kind] ? plan.profile.kind : "reasoning";
+	const c = checkersFor(kind, lab)[0];
+	if (!c || !parts.length) return false;
+	const msg = { role: "assistant", member: "reviewer", text: "", streaming: true, status: "The Reviewer is checking the team's work" };
+	chat.msgs.push(msg);
+	updateLast();
+	const ask = "You're the Reviewer on Celestin Together, from another lab than the teammates who made this, checking their work before the user relies on it.\n\nThe user asked:\n" + text.slice(0, 4000) + "\n\nWhat the team made:\n" + parts.map((d) => "--- From the " + d.name + " ---\n" + d.text).join("\n\n").slice(0, 24000) +
+		"\n\nCheck it for real mistakes only: wrong facts or numbers, code that wouldn't work, parts that contradict each other, anything the user asked for that's missing. Don't repeat what's right and don't nitpick wording. If it's all right, say so in one short line. Otherwise list each real problem briefly, then give the corrected version of exactly those parts.";
+	try {
+		msg.text = await stream(c.id, [sys(), { role: "user", content: ask }], (t) => { msg.text = t; updateLast(); }, busy.signal, { max_tokens: 6000, ...effortFor(c.id, "medium") }, msg);
+	} catch (e) {
+		if (e.name === "AbortError" || e.status === 401 || e.status === 402) { if (!msg.text) chat.msgs.splice(chat.msgs.indexOf(msg), 1); throw e; }
+		chat.msgs.splice(chat.msgs.indexOf(msg), 1);
+		return false;
+	}
+	Object.assign(msg, { streaming: false, by: c.id, at: Date.now(), used: [{ name: shortName(c), desc: "Reviewer: checked the team's work (another lab than whoever made most of it)" }] });
+	return true;
 }
 // How Celestin serves one request: the conductor reads it and decides how (small talk needs no reading), then the part of
 // Celestin for that does it with the model measured best; a way that fails is told why and it chooses again. Celestin
@@ -7000,6 +7068,8 @@ async function serve(text, atts, tool, o = {}) {
 	if (PROFILE && speed() === "fast") PROFILE.check = false;
 	// (the Reviewer always has a second expert check, from another lab than whoever made it)
 	if (PROFILE && o.check) PROFILE.check = true;
+	// (a team's piece the Reviewer checks at the end anyway: no check of its own, unless it's code, run and fixed as it's made)
+	if (PROFILE && o.check === false && PROFILE.kind !== "code" && speed() !== "max") PROFILE.check = false;
 	if (plan) {
 		const tried = [];
 		for (let round = 0; ; round++) {
@@ -7021,6 +7091,8 @@ async function serve(text, atts, tool, o = {}) {
 				if (plan.profile && o.weights) plan.profile.weights = blendW(plan.profile.weights, o.weights, 0.35);
 				PROFILE = plan.profile;
 				if (PROFILE && o.check) PROFILE.check = true;
+				// (a team's piece the Reviewer checks at the end anyway: no check of its own, unless it's code, run and fixed as it's made)
+				if (PROFILE && o.check === false && PROFILE.kind !== "code" && speed() !== "max") PROFILE.check = false;
 				PLAN_NOTE = plan.how;
 				SKILLS_ON = plan.skills.slice();
 			}
