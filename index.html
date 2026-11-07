@@ -2449,7 +2449,9 @@ function bestFirst(list) {
 // level the model doesn't offer (the catalog lists the ones it does) becomes the nearest it has, the higher of two as near
 const LEVELS = ["none", "minimal", "low", "medium", "high", "xhigh", "max"];
 function effortExtra(id) {
-	const f = EFFORT.get(id) || "", s = speed();
+	const s = speed(), f0 = EFFORT.get(id) || "";
+	// (Auto never asks for max: xhigh at most, the owner, Nov 7)
+	const f = s === "auto" && f0 === "max" ? "xhigh" : f0;
 	// Max: as hard as the model can think (only when its levels are known: an unknown one isn't sent a level it may not take)
 	if (s === "max") { const m = catalog.find((x) => x.id === id); return m && Array.isArray(m.efforts) && m.efforts.length ? effortFor(id, "max") : effortFor(id, f); }
 	// Fast: no more than light thinking
@@ -2517,6 +2519,8 @@ const FEATURE_W = {
 // in line is another); without the leaderboards, the labs known for that kind of work
 function bestFor(feature, cap) {
 	const f = FEATURE_W[feature];
+	// (in Auto nothing thinks at max: at most xhigh, judged on what it scores at xhigh; only Max goes higher)
+	if (!cap && speed() === "auto") cap = "xhigh";
 	let data = arenaRank(f.task, f.own ? f.w : blendW(f.w, PROFILE && PROFILE.weights, 0.6), f.bench);
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
 	// (a cap on how hard it may think: it's judged by what it scored at that much thought or less, which is what will run)
@@ -8198,12 +8202,13 @@ async function buildApp(text, atts, pick) {
 	// about 35 Elo, and every top score there is at Max: capped at "high", Auto had picked GPT-6.1 Sol at medium, some 100
 	// Elo under Sol at Max, to save a third of a build), choosing the cheapest of the builders that are level at the top;
 	// Max takes the very top whatever it costs, Fast thinks lightly. Less only when the balance wouldn't cover it
-	const autoCap = speed() === "fast" ? "low" : undefined;
+	// (Auto: at most xhigh, the owner, Nov 7, on Cursor's measurements: max costs about twice xhigh for 0.2 to 4 points)
+	const autoCap = speed() === "fast" ? "low" : speed() === "max" ? undefined : "xhigh";
 	let buildCap = autoCap;
 	if (creditsMode()) {
 		await refreshMe();
 		const builder = bestFor(atts.some((a) => a.kind === "image" && a.data) ? "appFromImage" : "app", autoCap)[0];
-		const steps = speed() === "max" ? [undefined] : speed() === "fast" ? ["low"] : [undefined, "high", "medium"];
+		const steps = speed() === "max" ? [undefined] : speed() === "fast" ? ["low"] : ["xhigh", "high", "medium"];
 		const need = steps.map((cap) => (builder ? Math.max(APP_MIN_CREDITS, appCredits(builder, cap, FEATURE_W.app.out)) : APP_MIN_CREDITS));
 		const have = me ? me.credits : Infinity;
 		let k = steps.findIndex((cap, n) => need[n] * 1.5 <= have);
