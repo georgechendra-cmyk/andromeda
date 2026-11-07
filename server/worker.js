@@ -1492,14 +1492,26 @@ async function searchWeb(env, q, n) {
 // charged like anything else.
 const SEARCHERS = ["x-ai/grok-4.7", "openai/gpt-5.4-nano", "google/gemini-3.5-flash-lite", "anthropic/claude-haiku-5.5", "openai/gpt-4o-mini"];
 const SEARCH_OFF = new Map(); // a gateway that answered without searching: not asked again for an hour
+// what a search through a model really costs when the gateway doesn't say: its tokens at the labs' prices (with the
+// gateway's fee) and the lab's own search fee: Claude $10 per 1,000 searches, Google's grounding about $35 per 1,000,
+// OpenAI's search about $25 per 1,000 calls, xAI's live search $25 per 1,000 sources used
+function searchUsd(model, j, price, fee, sources) {
+	const u = (j && j.usage) || {};
+	const inT = Number(u.prompt_tokens) || 1500, outT = Math.max(Number(u.completion_tokens) || 0, (Number(u.total_tokens) || 0) - inT) || 1500;
+	const tokens = inT * ((price && price.pin) || 0.000003) + outT * ((price && price.pout) || 0.000015);
+	const lab = String(model).split("/")[0], times = Number(u.server_tool_use && u.server_tool_use.web_search_requests) || Number(u.web_searches) || 1;
+	const per = lab === "x-ai" ? 0.025 * Math.max(1, sources) : lab === "google" ? 0.035 : lab === "openai" ? 0.025 * times : 0.01 * times;
+	return tokens * (fee || 1) + per;
+}
 async function modelSearch(env, q, n, order) {
 	const gws = gateways(env).sort((a, b) => rankIn(order, a.n) - rankIn(order, b.n));
 	await Promise.all(gws.map(gatewayCatalog));
 	const ways = [...gws.map((g) => ({ id: g.n === "ws" ? "ws" : "gw" + g.n, base: g.base, key: g.key, g })), ...(env.OPENROUTER_KEY ? [{ id: "or", base: orBase(env), key: env.OPENROUTER_KEY }] : [])];
 	const ask = "Search the web now for: " + q + "\n\nThen reply with ONLY JSON: {\"results\": [{\"title\": \"...\", \"url\": \"the page's address\", \"text\": \"what that page says that matters here, in 2 to 4 sentences, with its date if it has one\"}]}: up to " + n + " results from different sources, the most useful and recent first.";
 	let usd = 0;
+	const pm = await prices(env).catch(() => new Map()), why = [];
 	for (const w of ways) {
-		if (Date.now() - (SEARCH_OFF.get(w.id) || 0) < 3600e3) continue;
+		if (Date.now() - (SEARCH_OFF.get(w.id) || 0) < 3600e3) { why.push(w.id + ": off for an hour (it answered without searching)"); continue; }
 		models: for (const model of SEARCHERS) {
 			// (a gateway's own name for it; one it doesn't have: the next)
 			const name = w.g ? gatewayNames(w.g, model)[0] : model;
@@ -1508,17 +1520,18 @@ async function modelSearch(env, q, n, order) {
 				let r;
 				try {
 					r = await fetch(w.base + "/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + w.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: name, messages: [{ role: "user", content: ask }], max_tokens: 2000, temperature: 0, ...extra }), signal: AbortSignal.timeout(40000) });
-				} catch { continue models; }
+				} catch (e) { why.push(w.id + " " + model + ": no answer (" + String((e && e.name) || e).slice(0, 40) + ")"); continue models; }
 				// a model it doesn't have: the next one; settings it doesn't take: the plainer form
-				if (r.status === 400 || r.status === 422) continue;
-				if (!r.ok) continue models;
+				if (r.status === 400 || r.status === 422) { why.push(w.id + " " + model + ": " + r.status + " to " + Object.keys(extra).join("+") + " " + (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160)); continue; }
+				if (!r.ok) { why.push(w.id + " " + model + ": " + r.status); continue models; }
 				const j = await r.json().catch(() => null);
-				usd += Number(j?.usage?.cost) || 0.012;
+				const cited = (j?.choices?.[0]?.message?.annotations || []).length + (Array.isArray(j?.citations) ? j.citations.length : 0);
+				usd += Number(j?.usage?.cost) || searchUsd(model, j, pm.get(model), w.g ? w.g.fee : 1, Math.min(n, cited || n));
 				const msg = j?.choices?.[0]?.message || {};
 				const grounding = (Array.isArray(j?.vertex_ai_grounding_metadata) ? j.vertex_ai_grounding_metadata : [j?.vertex_ai_grounding_metadata]).flatMap((g) => (g && g.groundingChunks) || []).map((c) => c && c.web && { url: c.web.uri, title: c.web.title });
 				const claude = ((msg.provider_specific_fields && msg.provider_specific_fields.citations) || []).flat();
 				const cites = [...(msg.annotations || []).map((a) => a.url_citation || a), ...(Array.isArray(j?.citations) ? j.citations : []).map((u) => (typeof u === "string" ? { url: u } : u)), ...grounding, ...claude].filter((c) => c && /^https?:\/\//.test(String(c.url || "")));
-				if (!cites.length) { SEARCH_OFF.set(w.id, Date.now()); break models; }
+				if (!cites.length) { why.push(w.id + " " + model + ": answered without sources"); SEARCH_OFF.set(w.id, Date.now()); break models; }
 				let said = [];
 				try { said = JSON.parse(String(msg.content || "").replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")).results || []; } catch {}
 				const seen = new Set(), out = [];
@@ -1533,6 +1546,8 @@ async function modelSearch(env, q, n, order) {
 			}
 		}
 	}
+	// (found nothing: why, each way, for whoever looks at the database next)
+	if (why.length) await env.DB.prepare("INSERT INTO config (k, v) VALUES ('search-why', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify({ at: new Date().toISOString(), why: why.slice(0, 30) })).run().catch(() => {});
 	return { results: [], usd };
 }
 // what a search finds: the search key's results, or (with none) a model's own search, held and charged to the person
