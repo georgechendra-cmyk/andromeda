@@ -4909,6 +4909,8 @@ async function runAgent(text, atts) {
 	const apps = appTools(servers);
 	if (servers.length) system += "\n\nYou're also connected to the user's computer (" + (navigator.userAgent.includes("Windows") ? "Windows, PowerShell" : "bash") + "): run the project's real build and tests there (computer__run_command; long ones with computer__start_command). The browser doesn't know this folder's full path: find it once with computer__list_files or computer__search_files (the folder is named " + P.name + "), then use it as cwd. Running anything is shown to the user and asked first.";
 	if (MATH_NOTE) system += "\n\n" + MATH_NOTE;
+	const long = longStart(text);
+	if (long) { msg.data.long = long; system += longLine(long); }
 	const messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
 	const tools = [...AGENT_TOOLS, ...BUILT_IN.filter((t) => /^(run_python|run_javascript|ask_expert)$/.test(t.function.name)), ...POWER_TOOLS, ...apps.tools];
 	// working through a real project with tools is its own measured skill (LMArena's agent arena), on top of the code;
@@ -4968,8 +4970,10 @@ async function runAgent(text, atts) {
 		return null;
 	};
 	try {
-		for (let step = 0; step < 200 && summary == null; step++) {
-			msg.status = (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
+		let shots = [];
+		for (let step = 0; step < (long ? 4000 : 200) && summary == null; step++) {
+			if (longTick(long, messages, step, log)) { summary = "Time's up: here's where it stands. " + (messages[messages.length - 1].content || ""); break; }
+			msg.status = (long ? longStatus(long) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
@@ -4981,7 +4985,11 @@ async function runAgent(text, atts) {
 			}
 			const calls = (reply.tool_calls || []).map((c, k) => ({ ...c, id: c.id || "call_" + step + "_" + k }));
 			messages.push({ role: "assistant", content: reply.content || "", ...(calls.length ? { tool_calls: calls } : {}), ...(reply.reasoning_details ? { reasoning_details: reply.reasoning_details } : {}) });
-			if (!calls.length) { summary = reply.content || ""; break; }
+			if (!calls.length) {
+				summary = reply.content || "";
+				if (await longGoOn(long, messages, summary, changes, shots, model, msg, log)) { summary = null; continue; }
+				break;
+			}
 			const pics = [];
 			for (const c of calls) {
 				let args = c.function?.arguments;
@@ -4993,18 +5001,24 @@ async function runAgent(text, atts) {
 				messages.push({ role: "tool", tool_call_id: c.id, content: String(out).slice(0, 40000) });
 				if (c.function?.name === "finish") summary = String(args.summary || "Done.");
 			}
+			if (pics.length) shots = pics.slice(-3);
 			if (pics.length && (model.input || []).includes("image")) messages.push({ role: "user", content: [{ type: "text", text: "What the tools showed:" }, ...pics.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] });
-			// a long session: older file contents are dropped (they can be read again), the reasoning stays
+			// it said it's finished: in a long run, reviewed first, and carried on with what the reviewer found
+			if (summary != null && (await longGoOn(long, messages, summary, changes, shots, model, msg, log))) summary = null;
+			// a long session: older tool results cleared to their start, then older file contents dropped (they can be read
+			// again), the reasoning stays
+			lightenOld(messages);
 			let size = messages.reduce((t, m) => t + JSON.stringify(m.content || "").length, 0);
 			for (let k = 1; k < messages.length - 8 && size > 360000; k++) {
 				const m = messages[k];
 				if (m.role === "tool" && m.content.length > 2000) { size -= m.content.length; m.content = "(an older result, dropped to save room: run the tool again if you need it)"; }
 			}
 		}
-		if (summary == null) summary = "That's 200 steps, so I've paused here. Say \"keep going\" and I'll carry on.";
+		if (summary == null) summary = "That's " + (long ? 4000 : 200) + " steps, so I've paused here. Say \"keep going\" and I'll carry on.";
+		summary += longNote(long);
 	} finally {
 		// whatever happened, what changed is shown (and in a folder, can be undone)
-		msg.used = [{ name: shortName(model), desc: "Engineer: explored the code, made the changes and checked them" }, ...(msg.used || []).filter((u) => /^(Expert|Reviewer)/.test(u.desc))];
+		msg.used = [{ name: shortName(model), desc: "Engineer: explored the code, made the changes and checked them" }, ...(msg.used || []).filter((u) => /^(Expert|Reviewer|Lead reviewer)/.test(u.desc))];
 		for (const [p, before] of run.before) {
 			const after = projectHas(p) ? await pRead(p).catch(() => null) : null;
 			if (before === after) continue;
@@ -5851,6 +5865,63 @@ function lightenOld(messages, keep = KEEP_TOOLS) {
 		m.content = m.content.slice(0, OLD_TOOL_CHARS) + "\n…(the rest of this older result, " + (m.content.length - OLD_TOOL_CHARS) + " more characters, " + LIGHT_NOTE + ": run the tool again if you need it)";
 	}
 }
+// ---- long runs: someone gave Celestin time ("work on this for 2 hours", "spend an hour on it", "take all the time you
+// need"), the way people leave Claude working for hours. It doesn't stop at its first "done": a lead from another lab
+// reviews what's been made and names what would make it much better, and it carries on with that, until the time is up
+// (then it wraps up, so what's made works), the reviewer has nothing big left, or the credits run low
+const LONG_MAX_MS = 24 * 3600e3, LONG_ROUNDS = 12, LONG_WRAP_STEPS = 12;
+const LONG_NUM = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, half: 0.5, satu: 1, dua: 2, tiga: 3, empat: 4, lima: 5, setengah: 0.5 };
+const LONG_RE = /\b(?:(?:work|keep (?:going|working|at it)|continue|go on|kerjakan|kerja)\b[^.!?\n]{0,30}?\b(?:for|selama)|spend|take|selama)\s+(?:about |around |up to |at least |roughly |sekitar )?(\d+(?:[.,]\d+)?|half an?|an?|one|two|three|four|five|six|seven|eight|nine|ten|twelve|setengah|satu|dua|tiga|empat|lima)\s*(hours?|hrs?|h|minutes?|mins?|jam|menit)\b/i;
+// { ms } for a set time (0: "all the time it needs", until the reviewer has nothing big left), or null
+function longRunOf(text) {
+	const t = String(text || ""), m = t.match(LONG_RE);
+	if (m) {
+		const w = m[1].toLowerCase().replace(/ an?$/, ""), n = /^\d/.test(w) ? parseFloat(w.replace(",", ".")) : LONG_NUM[w] ?? 1;
+		const ms = n * (/^(h|hrs?|hours?|jam)$/i.test(m[2]) ? 3600e3 : 60e3);
+		if (ms >= 60e3) return { ms: Math.min(ms, LONG_MAX_MS) };
+	}
+	return deepWanted(t) ? { ms: 0 } : null;
+}
+const longMins = (ms) => { const m = Math.max(1, Math.round(ms / 60e3)); return m >= 90 ? (m / 60).toFixed(1).replace(/\.0$/, "") + " hours" : m + " minute" + (m === 1 ? "" : "s"); };
+function longStart(text) {
+	const r = longRunOf(text);
+	return r ? { start: Date.now(), until: r.ms ? Date.now() + r.ms : 0, rounds: 0, wrap: 0, ask: String(text || "").slice(0, 3000) } : null;
+}
+const longLine = (long) => "\n\nThis is a long run: " + (long.until ? "you have about " + longMins(long.until - Date.now()) + " (until " + new Date(long.until).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) + ")" : "take all the time the work needs") + ". Don't stop at good enough: once it works, keep making it much better for what was asked (what's missing or only faked, real depth and features, robustness and tests, how it looks and feels, polish), checking every change for real. Keep the plan up to date. Each time you say you're done, a lead from another lab reviews it, and you carry on with what they found; when the time is up you'll be told to wrap up. (This replaces any rule about stopping as soon as it's done: use the time well, never pad it.)";
+const longStatus = (long) => "Long run" + (long.wrap ? " · wrapping up" : long.until ? " · " + longMins(long.until - Date.now()) + " left" : "") + (long.rounds ? " · review round " + long.rounds : "");
+const LONG_WRAP = "Time's up for this run. Wrap up now: make sure everything you changed works (run it), update the plan, then finish with a short summary of what you did, what you checked, and what's left.";
+// the reviewer: from another lab than the one doing the work, looking at what was made (and pictures of it, when there are)
+async function longReview(long, report, work, shots, by, msg) {
+	const critics = checkersFor("code", by ? provider(by.id) : "").filter((m) => !shots.length || (m.input || []).includes("image"));
+	if (!critics.length) return null;
+	const text = "You lead a top engineering and product studio. Someone asked for:\n" + long.ask + "\n\nThe team has been working on it" + (long.until ? " and has about " + longMins(Math.max(0, long.until - Date.now())) + " left" : "") + ". Their report:\n" + String(report || "").slice(0, 6000) + "\n\nWhat they've made or changed so far:\n" + String(work || "(nothing to show yet)").slice(0, 120000) + (shots.length ? "\n\n(Pictures of it running are below.)" : "") +
+		"\n\nJudge it as the person who asked would. What would make it DRAMATICALLY better for what they asked? Not small touches: what's missing or only faked, bugs and fragile parts, tests, real depth (features, levels, content), how it looks and feels, polish. Each change concrete enough to build, the most important first.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's already excellent and nothing big is missing, \"upgrades\": [\"what to change or add, where, and how it should work\"]}\nAt most 6 upgrades.";
+	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: shots.length ? [{ type: "text", text }, ...shots.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] : text }], msg, undefined, "high");
+	const j = parseJSON(r.out) || {};
+	if (!msg.used.some((u) => /^Lead reviewer/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Lead reviewer: reviewed the work each time it was done, naming what would make it much better" });
+	return { model: r.model, ship: !!j.ship, upgrades: (Array.isArray(j.upgrades) ? j.upgrades : []).map((x) => String(x).slice(0, 600)).filter((x) => x.trim()).slice(0, 6) };
+}
+// at a "done": true to carry on (the reviewer's list is put to the agent), false to stop
+async function longGoOn(long, messages, report, work, shots, model, msg, log) {
+	if (!long || long.wrap || long.rounds >= LONG_ROUNDS || (long.until && Date.now() > long.until)) return false;
+	if (creditsMode()) { await refreshMe(); if (me && !me.owner && me.credits < APP_MIN_CREDITS * 3) { long.short = true; return false; } }
+	msg.status = "Long run: a lead from another lab is reviewing it";
+	updateLast();
+	let r = null;
+	try { r = await longReview(long, report, await work(), shots, model, msg); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; }
+	if (!r || !r.upgrades.length) return false;
+	long.rounds++;
+	messages.push({ role: "user", content: "A lead from another lab reviewed what you've made" + (long.until ? " (time left: about " + longMins(Math.max(0, long.until - Date.now())) + ")" : "") + " and says these would make it much better:\n- " + r.upgrades.join("\n- ") + "\n\nKeep working: do all of them properly, check each for real (run it, test it, look at it), keep the plan up to date, then finish again with what you did." });
+	log("Review round " + long.rounds + " by " + shortName(r.model), r.upgrades.length + " thing" + (r.upgrades.length === 1 ? "" : "s") + " to make better");
+	return true;
+}
+// at the top of each step: the time's up, so it wraps up (a few steps to leave it working), then stops
+function longTick(long, messages, step, log) {
+	if (!long) return false;
+	if (long.until && !long.wrap && Date.now() > long.until) { long.wrap = step || 1; messages.push({ role: "user", content: LONG_WRAP }); log("Time's up: wrapping up"); }
+	return !!long.wrap && step - long.wrap > LONG_WRAP_STEPS;
+}
+const longNote = (long) => (long ? "\n\n*Long run: worked " + longMins(Date.now() - long.start) + (long.rounds ? ", with " + long.rounds + " review round" + (long.rounds === 1 ? "" : "s") + " by a lead from another lab" : "") + (long.short ? " (it stopped there: the credits ran low)" : "") + ".*" : "");
 // a long job: the oldest steps summed up so there's always room to keep going
 async function compact(messages, keep = 14) {
 	if (messages.length <= keep + 4) return;
@@ -5908,9 +5979,15 @@ async function runAct(text, atts, resume) {
 	cands.splice(0, cands.length, ...noDearer(cands));
 	let ci = 0, model = cands[0] || best("code"), summary = null, step = resume && resume.state ? resume.state.step : 0;
 	const keep = () => vault.set("act:" + msg.data.id, { messages, step }).catch(() => {});
+	// a long run (its clock and rounds kept with the job, so picking it up again carries on with the same time)
+	const long = resume ? msg.data.long || null : longStart(text);
+	if (long && !resume) { msg.data.long = long; messages[0].content += longLine(long); }
+	const actWork = async () => [msg.data.log.slice(-40).map((x) => "- " + x.label + (x.detail ? ": " + x.detail : "")).join("\n"), (msg.data.outFiles || []).length ? "Files saved: " + msg.data.outFiles.map((f) => f.path).join(", ") : "", (msg.data.downloads || []).length ? "Handed over: " + msg.data.downloads.map((d) => d.name).join(", ") : ""].filter(Boolean).join("\n\n");
+	let shots = [];
 	try {
-		for (; step < 400 && summary == null; step++) {
-			msg.status = msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Working";
+		for (; step < (long ? 4000 : 400) && summary == null; step++) {
+			if (longTick(long, messages, step, log)) { summary = "Time's up: here's where it stands. " + (messages[messages.length - 1].content || ""); break; }
+			msg.status = (long ? longStatus(long) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Working");
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
@@ -5922,7 +5999,11 @@ async function runAct(text, atts, resume) {
 			}
 			const calls = (reply.tool_calls || []).map((c, k) => ({ ...c, id: c.id || "call_" + step + "_" + k }));
 			messages.push({ role: "assistant", content: reply.content || "", ...(calls.length ? { tool_calls: calls } : {}), ...(reply.reasoning_details ? { reasoning_details: reply.reasoning_details } : {}) });
-			if (!calls.length) { summary = reply.content || ""; break; }
+			if (!calls.length) {
+				summary = reply.content || "";
+				if (await longGoOn(long, messages, summary, actWork, shots, model, msg, log)) { summary = null; keep(); continue; }
+				break;
+			}
 			const pics = [];
 			for (const c of calls) {
 				let args = c.function?.arguments;
@@ -5999,6 +6080,7 @@ async function runAct(text, atts, resume) {
 				}
 				messages.push({ role: "tool", tool_call_id: c.id, content: String(out).slice(0, 50000) });
 			}
+			if (pics.length) shots = pics.slice(-3);
 			// what the tools showed, for a model that can see, so it checks its own work by looking
 			if (pics.length && (model.input || []).includes("image")) messages.push({ role: "user", content: [{ type: "text", text: "What the tools showed:" }, ...pics.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] });
 			// light to keep going: older tool results cleared to their start; then, for room, pictures go first, then the
@@ -6013,9 +6095,10 @@ async function runAct(text, atts, resume) {
 			keep();
 			save();
 		}
-		if (summary == null) summary = "That's 400 steps, so I've paused here. Say \"keep going\" and I'll carry on from where I am.";
+		if (summary == null) summary = "That's " + (long ? 4000 : 400) + " steps, so I've paused here. Say \"keep going\" and I'll carry on from where I am.";
+		summary += longNote(long);
 	} finally {
-		msg.used = [{ name: shortName(model), desc: "Did the work with tools" + (names ? " (" + names + ")" : "") }, ...(msg.used || []).filter((u) => /^Expert/.test(u.desc))];
+		msg.used = [{ name: shortName(model), desc: "Did the work with tools" + (names ? " (" + names + ")" : "") }, ...(msg.used || []).filter((u) => /^(Expert|Lead reviewer)/.test(u.desc))];
 		msg.text = summary != null ? summary || "Done." : "";
 		if (summary != null) { msg.data.running = false; vault.del ? vault.del("act:" + msg.data.id) : vault.set("act:" + msg.data.id, null); }
 	}
@@ -7761,15 +7844,19 @@ async function deepenApp(files, request, msg, rules, by) {
 }
 async function deepRounds(files, request, msg, rules, by) {
 	const deep = { rounds: 0, upgrades: 0 };
-	for (let round = 1; round <= DEEP_ROUNDS; round++) {
+	// (given a set time, "work on it for 2 hours": round after round until the time is up, unless the critic has nothing
+	// big left first)
+	const lr = longRunOf(request), until = lr && lr.ms ? Date.now() + lr.ms : 0, most = until ? 60 : DEEP_ROUNDS;
+	for (let round = 1; round <= most; round++) {
 		if (busy && busy.signal.aborted) break;
+		if (until && Date.now() > until) { deep.timeUp = true; break; }
 		let c = null;
 		try { c = await critiqueApp(files, request, msg, by); } catch (e) { if (e.name === "AbortError" || e.status === 401) throw e; if (e.status === 503 || e.status === 429) deep.busy = true; }
 		if (!c || (c.ship && !c.upgrades.length) || !c.upgrades.length) break;
 		const fixers = bestFor("app"), builder = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
 		const room = await roundCap(builder, files, "max");
 		if (room.need) { deep.short = true; break; }
-		msg.status = "Deep work, round " + round + " of " + DEEP_ROUNDS + ": building " + c.upgrades.length + " improvement" + (c.upgrades.length === 1 ? "" : "s");
+		msg.status = "Deep work, round " + round + (until ? " (" + longMins(Math.max(0, until - Date.now())) + " left)" : " of " + DEEP_ROUNDS) + ": building " + c.upgrades.length + " improvement" + (c.upgrades.length === 1 ? "" : "s");
 		updateLast();
 		const have = Object.entries(files).map(([p, x]) => "=== FILE: " + p + " ===\n" + x).join("\n\n").slice(0, 160000);
 		msg.cut = false;
@@ -8377,7 +8464,7 @@ async function buildApp(text, atts, pick) {
 	let files = prev ? await applyChange(prev.data.files, parsed, by, asked, said, msg) : Object.assign({}, parsed.files);
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
 	else files = await heal(files, text, msg, rules, !prev, by);
-	if (!unfinished && deepWanted(text) && !(msg.tested && msg.tested.short)) files = await deepenApp(files, text, msg, rules, by);
+	if (!unfinished && longRunOf(text) && !(msg.tested && msg.tested.short)) files = await deepenApp(files, text, msg, rules, by);
 	msg.data = { files, title };
 	msg.tab = "preview";
 	{
