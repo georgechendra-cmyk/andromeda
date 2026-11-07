@@ -140,7 +140,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/pricing" && m === "GET") {
 		const c0 = await config(env);
 		// (the public is shown only what its gateways reach; the demo, with the owner key, everything)
-		return json({ ...publicConfig(c0), reach: await reachOf(env, ownerKeyOk(req, env) ? undefined : c0.publicGateways), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env) });
+		return json({ ...publicConfig(c0), reach: await reachOf(env, ownerKeyOk(req, env) ? undefined : c0.publicGateways), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env), cached: await cachedModels(env) });
 	}
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
@@ -1653,6 +1653,15 @@ async function speedList(env) {
 	} catch {}
 	SPEEDS = { at: Date.now(), map };
 	return map;
+}
+// the models that have really had cached tokens back (a prompt read again at the cached price) in the last 30 days: the
+// site counts a warm cache's discount only for these (looked up at most every 10 minutes)
+let CACHED = { at: 0, list: [] };
+async function cachedModels(env) {
+	if (Date.now() - CACHED.at < 600e3) return CACHED.list;
+	try { CACHED = { at: Date.now(), list: ((await env.DB.prepare("SELECT DISTINCT model FROM usage WHERE cached_tok > 0 AND created_at > ?").bind(now() - 30 * 864e5).all()).results || []).map((r) => r.model) }; }
+	catch { CACHED = { at: Date.now(), list: CACHED.list || [] }; }
+	return CACHED.list;
 }
 async function cantFinishList(env) { const map = await cantMap(env); return Object.keys(map).filter((m) => now() - map[m] < CANT_DAYS * 864e5); }
 

@@ -2877,13 +2877,16 @@ const THINK_TOK = { none: 0, minimal: 400, low: 1500, medium: 3000, high: 5000, 
 // attached as this request sends it, where a long chat or a whole file makes the price of reading count. The thinking
 // is as long as this model really thinks at that effort)
 let IN_TOK = 3000;
+const cacheWorks = (id) => !!(pricing && Array.isArray(pricing.cached) && pricing.cached.includes(id));
 function callCost(x, cap, out = 800, inTok = IN_TOK) {
 	const m = x.m || x, eff = capEffort(x.effort || "", cap, m.id);
 	const thinks = Array.isArray(m.efforts) && m.efforts.some((e) => e !== "none");
 	const t = (eff ? THINK_TOK[eff] ?? 2000 : thinks ? 2000 : 0) * verbosity(m.id);
 	// (the model that answered just before in this chat, a few minutes ago, has the chat so far cached: that part is read
 	// back at its cached price, as it's charged)
-	const hot = HOT && HOT.id === m.id && inTok === IN_TOK ? Math.min(inTok, HOT.tok) : 0;
+	// (only where caching has really happened: the server says which models have had cached tokens back lately. Found
+	// Nov 8: none had, so a long chat stayed on a model it took to be up to ten times cheaper to re-read than it was)
+	const hot = HOT && HOT.id === m.id && inTok === IN_TOK && cacheWorks(m.id) ? Math.min(inTok, HOT.tok) : 0;
 	const pin = Number(m.pin) || 0, read = m.pcr != null && pin > 0 ? m.pcr / pin : /^anthropic\//.test(m.id) ? 0.1 : 1;
 	const v = pin * (inTok - hot + hot * read) + (Number(m.pout) || 0) * (out + t);
 	return v > 0 ? v : Infinity;
