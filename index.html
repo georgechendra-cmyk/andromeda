@@ -7775,10 +7775,8 @@ async function deepRounds(files, request, msg, rules, by) {
 		deep.upgrades += c.upgrades.length;
 		// every other round, the tester and the designer go over it again
 		if (round % 2 === 0) {
-			const lg = await reviewLogic(files, request, msg, rules, by);
-			if (lg && lg.fixed) { const t = await probeApp(lg.files); if (!t.errors.length && !t.blank) files = lg.files; }
-			const seen = await polishLook(files, request, msg, rules);
-			files = seen.files;
+			const rb = await reviewBoth(files, request, msg, rules, by, true);
+			if (rb && rb.changed) { const t = await probeApp(rb.files); if (!t.errors.length && !t.blank) files = rb.files; }
 		}
 	}
 	msg.tested = { ...(msg.tested || { ok: true, fixed: 0, rounds: 0 }), deep };
@@ -7789,19 +7787,62 @@ async function deepRounds(files, request, msg, rules, by) {
 // positions against the real rules, a control that does nothing, a state there's no way out of. Only real bugs, the worst
 // first; the builder fixes the ones that are real (only what changes). Null when it couldn't be done (it's then left as
 // it was): too big to read whole, too few credits, or no tester answered.
+// what the tester found (null: it couldn't look: too big to read whole, or no tester answered)
+async function findBugs(files, request, msg, by) {
+	const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
+	if (code.length > 120000) return null;
+	const testers = checkersFor("code", by ? provider(by.id) : "");
+	if (!testers.length) return null;
+	const look = await askFirst(testers.slice(0, 3), [{ role: "user", content: "You test apps and games for a living. Someone asked for:\n" + String(request).slice(0, 3000) + "\n\nThis was built for them:\n\n" + code +
+			"\n\nRead the code and play it through in your head, start to finish: the first screen, every control, every state it can be in, a few minutes of real use. Find only REAL bugs: things that don't work, get stuck, or break the rules of the real thing it imitates. For example: an AI player or goalkeeper that holds the ball and never acts again; a timer or cooldown that can never run out because it's reset or counted back every frame; starting positions or rules that are wrong for the real thing (players in the wrong half at kick-off); a pass or move that comes straight back to whoever made it; a control or button that does nothing; a state with no way out; a score, clock or win condition that's wrong; movement with no speeding up or slowing down; computer players that copy or mirror the person's moves, or never make a mistake; a game that restarts, resets or pauses by itself. Not style, not wording, not ideas for new features.\n\nReply with ONLY this JSON:\n{\"bugs\": [\"where it is (file and function), what's wrong, and what should happen instead\"]}\nAn empty list if there are none. At most 8, the worst first." }], msg, undefined, "medium");
+	const bugs = ((parseJSON(look.out) || {}).bugs || []).map((x) => String(x).slice(0, 400)).filter((x) => x.trim()).slice(0, 8);
+	if (!msg.used.some((u) => /^Tester/.test(u.desc))) msg.used.push({ name: shortName(look.model), desc: "Tester: played it through, looking for what doesn't work" });
+	return bugs;
+}
+// The tester plays it through and, unless it's a change the person asked for (look false), the designer looks at it
+// running, both at the same time; then ONE fix by the builder does what both found, reading the project and thinking it
+// through once. { changed, files, logic, polished }, or null when it couldn't be done
+async function reviewBoth(files, request, msg, rules, by, look) {
+	try {
+		if (creditsMode()) { await refreshMe(); if (me && me.credits < APP_MIN_CREDITS) return null; }
+		msg.status = look ? "A second AI is playing it through while a designer looks at it" : "A second AI is playing it through, looking for bugs";
+		updateLast();
+		const soft = (p) => p.catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; });
+		const [bugs0, problems0] = await Promise.all([soft(findBugs(files, request, msg, by)), look ? soft(lookAtApp(files, request, msg)) : null]);
+		const bugs = bugs0 || [], problems = problems0 || [];
+		if (!bugs.length && !problems.length) return { changed: false, files, logic: 0, polished: 0 };
+		const fixers = bestFor("app"), fixer = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
+		const room = await roundCap(fixer, files, "high");
+		if (room.need) return { changed: false, files, logic: 0, polished: 0 };
+		msg.status = "Fixing what they found (" + [bugs.length && bugs.length + (bugs.length === 1 ? " bug" : " bugs"), problems.length && problems.length + " about how it looks"].filter(Boolean).join(", ") + ")";
+		updateLast();
+		const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
+		msg.cut = false;
+		const ask = [sys(rules), { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + code.slice(0, 80000) +
+			(bugs.length ? "\n\nA tester from another lab played it through and found these bugs (fix every one that's real; one that isn't: leave it, and say why in NOTES):\n- " + bugs.join("\n- ") : "") +
+			(problems.length ? "\n\nIt runs without errors. Looking at it in a browser (as it opens, and after its main button and keys were pressed), a lead designer found:\n- " + problems.join("\n- ") : "") +
+			"\n\nFix all of it properly in one go, keeping every feature and everything that already works. " + CHANGE_FORMAT + " (In NOTES, one line per thing fixed.)" }];
+		const r = await askFirst([fixer, ...fixers.filter((m) => m !== fixer)].slice(0, 3), ask, msg, undefined, room.cap);
+		const p = parseFiles(r.out);
+		if (cutShort(p, msg.cut) || !changed(p)) { delete msg.cut; return { changed: false, files, logic: 0, polished: 0 }; }
+		delete msg.cut;
+		const next = await applyChange(files, p, r.model, ask, r.out, msg);
+		if (problems.length && !msg.used.some((u) => u.name === shortName(r.model) && /^Polish/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Polish: fixed what the designer saw" });
+		return { changed: true, files: next, logic: bugs.length, polished: problems.length };
+	} catch (e) {
+		delete msg.cut;
+		if (e.name === "AbortError" || e.status === 401) throw e;
+		return null;
+	}
+}
 async function reviewLogic(files, request, msg, rules, by) {
 	try {
 		if (creditsMode()) { await refreshMe(); if (me && me.credits < APP_MIN_CREDITS) return null; }
-		const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
-		if (code.length > 120000) return null;
-		const testers = checkersFor("code", by ? provider(by.id) : "");
-		if (!testers.length) return null;
 		msg.status = "A second AI is playing it through, looking for bugs";
 		updateLast();
-		const look = await askFirst(testers.slice(0, 3), [{ role: "user", content: "You test apps and games for a living. Someone asked for:\n" + String(request).slice(0, 3000) + "\n\nThis was built for them:\n\n" + code +
-			"\n\nRead the code and play it through in your head, start to finish: the first screen, every control, every state it can be in, a few minutes of real use. Find only REAL bugs: things that don't work, get stuck, or break the rules of the real thing it imitates. For example: an AI player or goalkeeper that holds the ball and never acts again; a timer or cooldown that can never run out because it's reset or counted back every frame; starting positions or rules that are wrong for the real thing (players in the wrong half at kick-off); a pass or move that comes straight back to whoever made it; a control or button that does nothing; a state with no way out; a score, clock or win condition that's wrong; movement with no speeding up or slowing down; computer players that copy or mirror the person's moves, or never make a mistake; a game that restarts, resets or pauses by itself. Not style, not wording, not ideas for new features.\n\nReply with ONLY this JSON:\n{\"bugs\": [\"where it is (file and function), what's wrong, and what should happen instead\"]}\nAn empty list if there are none. At most 8, the worst first." }], msg, undefined, "medium");
-		const bugs = ((parseJSON(look.out) || {}).bugs || []).map((x) => String(x).slice(0, 400)).filter((x) => x.trim()).slice(0, 8);
-		if (!msg.used.some((u) => /^Tester/.test(u.desc))) msg.used.push({ name: shortName(look.model), desc: "Tester: played it through, looking for what doesn't work" });
+		const bugs = await findBugs(files, request, msg, by);
+		if (!bugs) return null;
+		const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
 		if (!bugs.length) return { files, found: 0, fixed: 0 };
 		msg.status = "Fixing " + bugs.length + (bugs.length === 1 ? " bug" : " bugs") + " the tester found";
 		updateLast();
@@ -7826,23 +7867,24 @@ async function reviewLogic(files, request, msg, rules, by) {
 }
 async function heal(files, request, msg, rules, look = true, by = null) {
 	const fixers = bestFor("app");
-	let fixed = 0, lastModel = null, reviewed = !look, logic = 0;
-	// (a round more when the tester's fixes need running again)
-	const rounds = () => 3 + (logic ? 1 : 0);
+	// (a change the person asked for (look false) isn't reviewed again, as before)
+	let fixed = 0, lastModel = null, reviewed = !look, logic = 0, polished = 0;
+	// (a round more when the review's fix needs running again)
+	const rounds = () => 3 + (logic || polished ? 1 : 0);
 	for (let round = 1; round <= rounds(); round++) {
 		msg.status = round === 1 ? "Testing it" : "Testing the fix";
 		updateLast();
 		const t = await probeApp(files);
 		if (!t.errors.length && !t.blank) {
-			// it runs clean: once, before the look, the tester plays it through; what they fix is run again
+			// it runs clean: once, the tester plays it through and (look) the designer looks at it, at the same time, and one fix
+			// does what both found; that's run again
 			if (!reviewed) {
 				reviewed = true;
-				const lg = await reviewLogic(files, request, msg, rules, by);
-				if (lg && lg.fixed) { files = lg.files; logic = lg.fixed; continue; }
+				const rb = await reviewBoth(files, request, msg, rules, by, look);
+				if (rb && rb.changed) { files = rb.files; logic = rb.logic; polished = rb.polished; continue; }
 			}
-			const seen = look ? await polishLook(files, request, msg, rules) : { files, polished: 0 };
-			msg.tested = { ok: true, fixed, rounds: round - 1, polished: seen.polished, logic };
-			return seen.files;
+			msg.tested = { ok: true, fixed, rounds: round - 1, polished, logic };
+			return files;
 		}
 		const problems = t.errors.length ? t.errors : ["The page loads blank: nothing is drawn or shown."];
 		if (round === rounds()) {
