@@ -3504,7 +3504,7 @@ async function deskChat(req, env, ctx, bid) {
 	];
 	if (pass && ["booking", "message", "question"].includes(pass.kind)) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, slot, slot_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)").bind(id(), bid, bot.user_id, visitor, pass.kind, String(pass.summary || text).slice(0, 200), JSON.stringify({ name: String(pass.name || "").slice(0, 80), contact: String(pass.contact || "").slice(0, 80), when: slot || String(pass.when || "").slice(0, 80), ...(slot ? { booked: true, remind: String(pass.remind || "").slice(0, 600) } : {}) }), slot, slot ? slotAt(slot, bot.tz) : null, now()));
 	await env.DB.batch(qs);
-	return json({ reply, passed: pass ? pass.kind : null, ...(slot ? { booked: slot } : {}) });
+	return json({ reply, passed: pass ? pass.kind : null, ...(slot ? { booked: slot, at: slotAt(slot, bot.tz), minutes: sc.minutes } : {}) });
 }
 
 // ------------------------------------------------------------------ payments

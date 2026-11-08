@@ -40,13 +40,18 @@ button:disabled { opacity: .4; cursor: default; }
 button:focus-visible { outline: 2px solid var(--you); outline-offset: 2px; }
 .note { text-align: center; font-size: 12px; color: var(--muted); padding: 2px 0 10px; }
 .note a { color: inherit; }
+.bk { align-self: center; width: min(320px, 92%); margin: 6px 0; padding: 14px 16px; border-radius: 18px; background: var(--field); border: 1px solid var(--line); text-align: center; animation: in .2s ease-out; }
+.bk .ok { width: 34px; height: 34px; margin: 0 auto 6px; border-radius: 50%; background: #34c759; color: #fff; display: grid; place-items: center; }
+.bk b { display: block; font-size: 15px; }
+.bk span { display: block; font-size: 14px; color: var(--muted); margin-top: 2px; }
+.bk a { display: inline-block; margin-top: 10px; padding: 7px 14px; border-radius: 999px; background: var(--you); color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; }
 .err { align-self: center; font-size: 13px; color: #ff453a; text-align: center; padding: 6px 12px; }
 </style>
 </head>
 <body>
-<header><div class="av" id="av">?</div><b id="name">Loading…</b><small>Usually replies right away</small></header>
+<header><div class="av" id="av">?</div><b id="name">Loading…</b><small id="sub">Usually replies right away</small></header>
 <main id="log" aria-live="polite"></main>
-<div class="note">Answered by an AI front desk; bookings are confirmed by the team · <a href="./together.html" target="_blank" rel="noopener">Made with Celestin Together</a></div>
+<div class="note"><span id="byAi">Answered by an AI front desk</span> · <a href="./together.html" target="_blank" rel="noopener">Made with Celestin Together</a></div>
 <form id="f"><div><textarea id="t" rows="1" placeholder="Message" aria-label="Your message" maxlength="1000"></textarea><button id="go" aria-label="Send" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></form>
 <script>
 const SERVER = "https://andromeda-credits.georgechendra.workers.dev";
@@ -56,9 +61,17 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&l
 let visitor = "";
 try { visitor = localStorage.getItem("fd-visitor") || ""; } catch {}
 if (!/^[A-Za-z0-9_-]{16,64}$/.test(visitor)) { visitor = "v_" + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join(""); try { localStorage.setItem("fd-visitor", visitor); } catch {} }
-let intro = "", shown = 0, busy = false;
+let intro = "", shown = 0, busy = false, booked = null;
+// (in Indonesian on an Indonesian phone)
+const ID = /^id\b/i.test(navigator.language || "");
+const L = ID ? { loading: "Memuat…", sub: "Biasanya langsung membalas", msg: "Ketik pesan", send: "Kirim", team: "Tim", ai: "Dijawab oleh resepsionis AI", hi: "Halo! Ada yang bisa kami bantu?", bad: "Tautan ini tidak lengkap", off: "Tidak tersedia", fail: "Pesan tidak terkirim. Coba lagi.", booked: "Sudah dipesan", cal: "Tambah ke kalender", chat: "Chat dengan " } : { loading: "Loading…", sub: "Usually replies right away", msg: "Message", send: "Send", team: "The team", ai: "Answered by an AI front desk", hi: "Hi! How can we help?", bad: "This link isn't complete", off: "Unavailable", fail: "It didn't go through. Try again.", booked: "Booked", cal: "Add to calendar", chat: "Chat with " };
+if (ID) document.documentElement.lang = "id";
+$("#name").textContent = L.loading; $("#sub").textContent = L.sub; $("#t").placeholder = L.msg; $("#go").setAttribute("aria-label", L.send); $("#byAi").textContent = L.ai;
+// a booking: the card, and the time as a calendar file
+const ics = (b) => { const f = (ms) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, ""); return "data:text/calendar;charset=utf-8," + encodeURIComponent(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Celestin Together//Front desk//EN", "BEGIN:VEVENT", "UID:" + b.at + "-" + id + "@celestin", "DTSTAMP:" + f(Date.now()), "DTSTART:" + f(b.at), "DTEND:" + f(b.at + (b.minutes || 60) * 60e3), "SUMMARY:" + String(b.name).replace(/[\r\n,;]/g, " "), "END:VEVENT", "END:VCALENDAR"].join("\r\n")); };
+const bookCard = (b) => { const when = new Date(b.at).toLocaleString(ID ? "id-ID" : [], { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }); return '<div class="bk"><div class="ok"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7"/></svg></div><b>' + esc(L.booked) + "</b><span>" + esc(when) + '</span><a href="' + ics(b) + '" download="booking.ics">' + esc(L.cal) + "</a></div>"; };
 const draw = (msgs, typing) => {
-	const html = (intro ? '<div class="m them">' + esc(intro) + "</div>" : "") + msgs.map((m) => m.role === "customer" ? '<div class="m you">' + esc(m.text) + "</div>" : m.role === "owner" ? '<div class="who">The team</div><div class="m team">' + esc(m.text) + "</div>" : '<div class="m them">' + esc(m.text) + "</div>").join("") + (typing ? '<div class="typing" aria-label="Typing"><i></i><i></i><i></i></div>' : "");
+	const html = (intro ? '<div class="m them">' + esc(intro) + "</div>" : "") + msgs.map((m) => m.role === "customer" ? '<div class="m you">' + esc(m.text) + "</div>" : m.role === "owner" ? '<div class="who">' + esc(L.team) + '</div><div class="m team">' + esc(m.text) + "</div>" : '<div class="m them">' + esc(m.text) + "</div>").join("") + (booked ? bookCard(booked) : "") + (typing ? '<div class="typing" aria-label="Typing"><i></i><i></i><i></i></div>' : "");
 	$("#log").innerHTML = html;
 	$("#log").scrollTop = $("#log").scrollHeight;
 	shown = msgs.length;
@@ -68,16 +81,16 @@ async function load() {
 	try { const r = await fetch(SERVER + "/api/r/" + id + "/msgs?visitor=" + visitor); if (r.ok) { const j = await r.json(); if (j.msgs.length !== shown && !busy) { msgs = j.msgs; draw(msgs); } } } catch {}
 }
 async function start() {
-	if (!id) { $("#name").textContent = "This link isn't complete"; return; }
+	if (!id) { $("#name").textContent = L.bad; return; }
 	try {
 		const r = await fetch(SERVER + "/api/r/" + id), j = await r.json();
 		if (!r.ok) throw new Error((j.error && j.error.message) || "This front desk isn't open.");
-		$("#name").textContent = j.name; document.title = "Chat with " + j.name; $("#av").textContent = (j.name.trim()[0] || "?").toUpperCase();
-		intro = j.intro || "Hi! How can we help?";
+		$("#name").textContent = j.name; document.title = L.chat + j.name; $("#av").textContent = (j.name.trim()[0] || "?").toUpperCase();
+		intro = j.intro || L.hi;
 		draw([]);
 		await load();
 		setInterval(load, 15000);
-	} catch (e) { $("#name").textContent = "Unavailable"; $("#log").innerHTML = '<div class="err">' + esc(e.message || e) + "</div>"; }
+	} catch (e) { $("#name").textContent = L.off; $("#log").innerHTML = '<div class="err">' + esc(e.message || e) + "</div>"; }
 }
 $("#t").addEventListener("input", () => { $("#go").disabled = !$("#t").value.trim() || busy; $("#t").style.height = "auto"; $("#t").style.height = Math.min(140, $("#t").scrollHeight) + "px"; });
 $("#t").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#f").requestSubmit(); } });
@@ -90,7 +103,8 @@ $("#f").addEventListener("submit", async (e) => {
 	try {
 		const r = await fetch(SERVER + "/api/r/" + id + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visitor, text }) });
 		const j = await r.json();
-		if (!r.ok) throw new Error((j.error && j.error.message) || "It didn't go through. Try again.");
+		if (!r.ok) throw new Error((j.error && j.error.message) || L.fail);
+		if (j.booked && j.at) booked = { at: j.at, minutes: j.minutes, name: $("#name").textContent };
 		msgs.push({ role: "bot", text: j.reply }); draw(msgs);
 	} catch (err) { draw(msgs); $("#log").insertAdjacentHTML("beforeend", '<div class="err">' + esc(err.message || err) + "</div>"); }
 	busy = false; $("#go").disabled = !$("#t").value.trim(); $("#t").focus();
