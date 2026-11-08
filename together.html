@@ -2341,6 +2341,11 @@ const DOWN = new Map(), SESSION_FAIL = {};
 // (how many are left out right now: more than five at once is the connection or the gateway, not them, and none is)
 const downNow = () => { let n = 0; const t = Date.now(); for (const until of DOWN.values()) if (until > t) n++; return n; };
 let SPEED = {}, HOT = null;
+// how quick models measured here before the server has its own record of them (Nov 8, three real reads through Flaz)
+const SPEED_SEEN = { "z-ai/glm-5.3-flash": { first: 18000, tps: 60, n: 0 } };
+// quick enough for a fast feature: its first word within 12 s here (measured, or not measured yet)
+const FAST_FIRST_MAX = 12000;
+const fastEnough = (id) => { const sp = (SPEED[id] && SPEED[id].n > 0 ? SPEED[id] : SPEED_SEEN[id]); return !sp || !(sp.first > FAST_FIRST_MAX); };
 // small talk: answered straight away, without the reading call
 const SMALL_TALK = /^(hi+|hello+|hey+|heya|yo|sup|hai|halo|thanks?|thank you|thank u|thx|ty|tq|makasih|terima kasih|ok(ay)?|k|cool|nice|great|awesome|good (morning|afternoon|evening|night)|bye|goodbye|see (you|ya))[\s!.?,:)]*$/i;
 function readReach(r) {
@@ -2745,13 +2750,13 @@ function bestFor(feature, cap) {
 	// (in Auto nothing thinks at max: at most xhigh, judged on what it scores at xhigh; only Max goes higher)
 	if (!cap && speed() === "auto") cap = "xhigh";
 	let data = arenaRank(f.task, f.own ? f.w : blendW(f.w, PROFILE && PROFILE.weights, 0.6), f.bench);
-	if (f.fast) data = data.filter((x) => FAST.test(x.m.id));
+	if (f.fast) data = data.filter((x) => FAST.test(x.m.id) && fastEnough(x.m.id));
 	// (a cap on how hard it may think: it's judged by what it scored at that much thought or less, which is what will run)
 	if (cap) { const under = data.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) data = under; }
 	// (the quick reader sorts every message, so the best of the fast ones, not the cheapest that's nearly as good)
 	// (every model is picked by the 54/46 and 1.8x rules for exactly this task, nothing else: the owner, Nov 7, "DeepSeek
 	// only if it's close to the best on that topic")
-	data = bestFirst(f.fast ? data : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
+	data = bestFirst(quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -6955,7 +6960,8 @@ async function runAuto(text, atts) {
 	// an everyday message (a greeting, an everyday question): the best-rated fast model (the owner's call, Nov 3: it answers
 	// these as well as the big ones do, for a fraction); a model the person pinned, or Max, as for everything else
 	const everyday = task === "quick" && !atts.length && speed() !== "max" && !pinModel(task);
-	const fast = everyday ? bestFirst(arenaRank("quick").filter((x) => FAST.test(x.m.id))).map((x) => x.m) : [];
+	// (an everyday answer by the 54/46 and 1.8x rules too, among the quick ones: the owner, Nov 7, "a hello? use a Rp20 one")
+	const fast = everyday ? bestFirst(quarkFirst(arenaRank("quick").filter((x) => FAST.test(x.m.id) && fastEnough(x.m.id)), undefined, undefined, (x, c) => callCost(x, c, 400))).map((x) => x.m) : [];
 	const cands = fast.length ? fast : rank(task, light || undefined, record ? { tags, record } : null);
 	// what running its code showed, added to that record: whose code ran first time, on exactly this
 	const share = (results) => { if (tags.length && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results: results.map((r) => ({ ...r, tags })) }) }).catch(() => {}); };
