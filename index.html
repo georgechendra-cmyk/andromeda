@@ -7298,6 +7298,16 @@ async function studyRefs(plan, text, atts) {
 		for (const ref of plan.refs) {
 			const bits = [];
 			// a YouTube video they linked: its title, channel and thumbnail (YouTube's own oEmbed), the thumbnail read for its look
+			// the watcher: the best at reading pictures and video of the models that can watch YouTube (Gemini's), by the rules
+			const watcher = links.length ? (bestFirst(quarkFirst(arenaRank("vision", { "vision:overall": 1 }).filter((x) => provider((x.m || x).id) === "google")))[0] || {}).m : null;
+			if (watcher && !REF_WATCH) {
+				hold.status = "Watching the video you linked";
+				updateLast();
+				try {
+					const seen = String(await stream(watcher.id, [{ role: "user", content: [{ type: "file", file: { file_id: links[0], format: "video/mp4" } }, { type: "text", text: "Watch this whole video carefully, the way a director studies a reference before matching it. The user wants work made like it" + (ref.take ? ", for " + ref.take : "") + ". Describe exactly what makes it what it is, concretely enough to match it with no further study: who's in it and their personality (energy, humour, how they talk, catchphrases, how fast), the format and structure, the visual style (palette, lighting, camera, editing rhythm, captions and type, how things move, roughly what frame rate it feels like), sound and music. 250 words at most." }] }], () => {}, busy.signal, { max_tokens: 1200, temperature: 0, ...effortFor(watcher.id, "low") }, hold)).trim();
+					if (seen) { bits.push("Watched it (" + links[0] + "): " + seen); REF_WATCH = { model: watcher, video: links[0], brief: seen, name: ref.name, take: ref.take }; }
+				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			}
 			for (const link of links) {
 				try {
 					const o = JSON.parse((await toolCall("/api/tools/fetch", { url: "https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent(link) }, 15000)).text || "{}");
@@ -7338,6 +7348,41 @@ async function studyRefs(plan, text, atts) {
 		}
 	} finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 	return found;
+}
+// the video the watcher watched for this request, and what it said (null: none)
+var REF_WATCH = null;
+// the watcher watches the video again with what was made: does it match? ({ match, notes })
+async function refJudge(what, made, msg) {
+	const w = REF_WATCH;
+	if (!w) return null;
+	try {
+		const raw = await stream(w.model.id, [{ role: "user", content: [{ type: "file", file: { file_id: w.video, format: "video/mp4" } }, { type: "text", text: "You watched this video as the reference for " + (w.take || "the user's request") + ". What you said about it:\n" + w.brief + "\n\nThis is " + what + " the team made to be like it:\n" + String(made).slice(0, 12000) + "\n\nJudge it against the video, as the one who studied it: does it really feel like it (the personality, the tone, the format, the look)? Only real misses, said as a director would (\"no, they're more like joking\", \"it cuts much faster\"). Reply with ONLY this JSON: {\"match\": true or false, \"notes\": [\"...\"]}" }] }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor(w.model.id, "low") }, msg);
+		const j = parseJSON(raw) || {};
+		return { match: j.match !== false, notes: (Array.isArray(j.notes) ? j.notes : []).map(String).filter(Boolean).slice(0, 6) };
+	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }
+}
+// a written answer made from a reference: the watcher's verdict, and once more with its notes when it isn't like it
+async function refRevise(request, mark) {
+	if (!REF_WATCH) return;
+	const m = [...current.msgs.slice(mark)].reverse().find((x) => x.role === "assistant" && x.text && (!x.kind || x.kind === "build"));
+	if (!m) return;
+	// (who rewrites it: whoever wrote it, or the best writer)
+	const writer = m.by || ((rank("write") || [])[0] || {}).id;
+	if (!writer) return;
+	m.status = "The one who watched the video is checking it"; m.streaming = true; updateLast();
+	const v = await refJudge("the answer", m.text, m);
+	m.streaming = false;
+	if (!v) return;
+	(m.used = m.used || []).push({ name: shortName(REF_WATCH.model), desc: "Watched the reference video, briefed the team, then checked the result against it" + (v.match ? ": it matched" : "") });
+	if (v.match || !v.notes.length) { updateLast(); return; }
+	const was = m.text;
+	m.text = ""; m.streaming = true; m.status = "Making it more like the video"; updateLast();
+	try {
+		m.text = await stream(writer, [sys(), { role: "user", content: request + "\n\nWhat you wrote:\n" + was + "\n\nThe one who watched the reference video says it isn't like it yet:\n- " + v.notes.join("\n- ") + "\n\nWrite it again so it is, keeping what was right. Reply with only the new version." }], (t) => { m.text = t; updateLast(); }, busy.signal, effortExtra(writer), m);
+		m.refFixed = v.notes;
+	} catch (e) { m.text = was; if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	m.streaming = false;
+	updateLast();
 }
 // what's found goes with the request to whoever does the work (the request written out, and the note with the newest
 // message), and a reference nothing reliable was found on is said plainly, with what would let it be matched
@@ -7395,6 +7440,7 @@ async function serve(text, atts, tool, o = {}) {
 	// (a team's piece the Reviewer checks at the end anyway: no check of its own, unless it's code, run and fixed as it's made)
 	if (PROFILE && o.check === false && PROFILE.kind !== "code" && speed() !== "max") PROFILE.check = false;
 	// a named reference to match: looked up first
+	REF_WATCH = null;
 	if (plan && plan.refs && plan.refs.length && !LANE) useRefs(plan, text, await studyRefs(plan, text, atts));
 	// a long run: what it'll likely cost, and a go-ahead, before anything is spent (not for Max's own extra rounds: only
 	// when they gave it time, or all the time it needs)
@@ -7406,10 +7452,10 @@ async function serve(text, atts, tool, o = {}) {
 		}
 	}
 	if (plan) {
-		const tried = [];
+		const tried = [], start = current.msgs.length;
 		for (let round = 0; ; round++) {
 			const mark = current.msgs.length;
-			try { await runWay(plan, text, atts); break; }
+			try { await runWay(plan, text, atts); if (REF_WATCH && !LANE) await refRevise(text, start); break; }
 			catch (e) {
 				// (something this server can't make yet isn't made into something else)
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.quiet || round >= 2) throw e;
@@ -10477,7 +10523,16 @@ async function runVideo(text, atts, planned) {
 	const msg = { role: "assistant", kind: "studio", text: "", streaming: true, status: "Writing the shot list", used: [], data: null };
 	current.msgs.push(msg);
 	updateLast();
-	const plan = planned ? (drawn ? cleanPlan(planned, planned.want, true) : planned) : await direct(text, atts, msg, busy.signal, drawn);
+	let plan = planned ? (drawn ? cleanPlan(planned, planned.want, true) : planned) : await direct(text, atts, msg, busy.signal, drawn);
+	// (made from a reference video: the one who watched it reads the plan first, and it's planned again with its notes)
+	if (!planned && REF_WATCH && plan && plan.scenes) {
+		msg.status = "The one who watched the video is checking the plan";
+		updateLast();
+		const v = await refJudge("the plan for a video (its look, and each shot's picture, words and caption)", JSON.stringify({ title: plan.title, look: plan.look, scenes: plan.scenes.map((x) => ({ seconds: x.seconds, draw: x.draw || x.shot, vo: x.vo, caption: x.caption })) }), msg);
+		if (v && !v.match && v.notes.length) { const again = await direct(text + "\n\nThe one who watched the reference video says the first plan wasn't like it yet:\n- " + v.notes.join("\n- ") + "\nPlan it so it is.", atts, msg, busy.signal, drawn).catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }); if (again && again.scenes) plan = again; }
+		msg.used = msg.used || [];
+		if (v) msg.used.push({ name: shortName(REF_WATCH.model), desc: "Watched the reference video, briefed the director, and checked the plan against it" });
+	}
 	// (the person's own words, for the animator of a film made in one take)
 	plan.ask = String((planned && planned.ask) || text || "").slice(0, 2000);
 	const left = await walletLeft();
