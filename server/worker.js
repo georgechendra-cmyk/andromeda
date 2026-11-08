@@ -3351,7 +3351,18 @@ const slotsText = (list, c) => list.length ? list.map((d) => d.name + " " + d.da
 async function desksOf(env, user) {
 	const bots = (await env.DB.prepare("SELECT * FROM bots WHERE user_id = ? ORDER BY created_at").bind(user.id).all()).results || [];
 	const items = (await env.DB.prepare("SELECT i.*, b.name AS bot_name FROM bot_items i JOIN bots b ON b.id = i.bot_id WHERE i.user_id = ? ORDER BY (i.status = 'new') DESC, i.created_at DESC LIMIT 100").bind(user.id).all()).results || [];
-	return json({ bots: bots.map(deskOut), items: items.map((i) => ({ id: i.id, bot: i.bot_id, botName: i.bot_name, visitor: i.visitor, kind: i.kind, summary: i.summary, details: (() => { try { return JSON.parse(i.details || "{}"); } catch { return {}; } })(), slot: i.slot || null, status: i.status, at: i.created_at })) });
+	// (its week: who it talked to, what it answered, what it booked)
+	const since = now() - 7 * 864e5, week = {};
+	if (bots.length) {
+		const ids = bots.map((b) => b.id), qs = ids.map(() => "?").join(",");
+		const [talk, booked] = await Promise.all([
+			env.DB.prepare("SELECT bot_id, COUNT(DISTINCT visitor) AS people, SUM(CASE WHEN role = 'bot' THEN 1 ELSE 0 END) AS answered FROM bot_msgs WHERE bot_id IN (" + qs + ") AND created_at > ? GROUP BY bot_id").bind(...ids, since).all(),
+			env.DB.prepare("SELECT bot_id, COUNT(*) AS n FROM bot_items WHERE bot_id IN (" + qs + ") AND kind = 'booking' AND slot IS NOT NULL AND status != 'cancelled' AND created_at > ? GROUP BY bot_id").bind(...ids, since).all(),
+		]);
+		for (const r of talk.results || []) week[r.bot_id] = { people: r.people || 0, answered: r.answered || 0, booked: 0 };
+		for (const r of booked.results || []) (week[r.bot_id] ||= { people: 0, answered: 0, booked: 0 }).booked = r.n || 0;
+	}
+	return json({ bots: bots.map((b) => ({ ...deskOut(b), week: week[b.id] || { people: 0, answered: 0, booked: 0 } })), items: items.map((i) => ({ id: i.id, bot: i.bot_id, botName: i.bot_name, visitor: i.visitor, kind: i.kind, summary: i.summary, details: (() => { try { return JSON.parse(i.details || "{}"); } catch { return {}; } })(), slot: i.slot || null, status: i.status, at: i.created_at })) });
 }
 async function deskSave(req, env, user) {
 	const b = await body(req);
