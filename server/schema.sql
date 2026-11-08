@@ -199,3 +199,7 @@ CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, ki
 -- phone calls placed for a business through its own Twilio account, turn by turn
 CREATE TABLE IF NOT EXISTS calls (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, job_id TEXT, to_num TEXT NOT NULL, name TEXT, purpose TEXT NOT NULL, lang TEXT, models TEXT, turns TEXT, status TEXT NOT NULL DEFAULT 'calling', outcome TEXT, sid TEXT, created_at INTEGER NOT NULL, updated_at INTEGER);
 CREATE INDEX IF NOT EXISTS calls_user ON calls (user_id, created_at);
+
+-- subscriptions found in a person's receipts and statements, and their money settings (act without asking, what's saved)
+CREATE TABLE IF NOT EXISTS subs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, amount REAL, currency TEXT, cycle TEXT, next_at INTEGER, last_at INTEGER, prev_amount REAL, trial_end INTEGER, status TEXT NOT NULL DEFAULT 'active', cancel_url TEXT, sender TEXT, created_at INTEGER NOT NULL, updated_at INTEGER, UNIQUE (user_id, key));
+CREATE TABLE IF NOT EXISTS money (user_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER);

@@ -1749,6 +1749,35 @@ html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-w
 html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
 .desk-it.off { opacity: .6; }
+.mn-total { text-align: center; margin: 2px 0 12px; }
+.mn-total b { display: block; font-size: clamp(30px, 6vw, 40px); letter-spacing: -0.035em; font-weight: 700; }
+.mn-total span { color: var(--muted); font-size: 14px; }
+.mn-saved { display: inline-block; margin-top: 8px; padding: 4px 12px; border-radius: 999px; font-size: 13px; font-weight: 600; color: #1a7f37; background: color-mix(in srgb, #34c759 16%, transparent); }
+.mn-uni { position: relative; width: min(460px, 100%); aspect-ratio: 1; margin: 0 auto; }
+.mn-ring { position: absolute; left: 50%; top: 50%; width: calc(var(--r) * 2); aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; border: 1px dashed var(--line); }
+.mn-core { position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; display: grid; place-content: center; text-align: center; background: radial-gradient(circle at 32% 30%, color-mix(in srgb, var(--brand) 30%, var(--bg2)), var(--bg2)); box-shadow: 0 10px 30px -14px var(--brand); }
+.mn-core b { font-size: 22px; line-height: 1; }
+.mn-core span { font-size: 11px; color: var(--muted); }
+.mn-b { position: absolute; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; border: 0; padding: 2px; display: grid; place-content: center; text-align: center; color: #fff; font: inherit; cursor: pointer; background: radial-gradient(circle at 32% 28%, color-mix(in srgb, var(--c) 55%, #fff), var(--c) 70%); box-shadow: 0 8px 20px -10px var(--c); transition: transform .2s var(--ease), opacity .2s; }
+.mn-b span { font-size: clamp(9px, 1.6vw, 11.5px); font-weight: 650; line-height: 1.1; text-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.mn-b small { font-size: clamp(8px, 1.4vw, 10.5px); opacity: .92; }
+.mn-b:hover, .mn-b.pick { transform: translate(-50%, -50%) scale(1.1); z-index: 2; }
+.mn-b.pick { outline: 3px solid var(--text); outline-offset: 2px; }
+.mn-b.trial { box-shadow: 0 0 0 3px #ff3b30, 0 0 22px #ff3b30; }
+.mn-b.up { animation: mnup 1.8s ease-in-out infinite; }
+.mn-b.off { opacity: .22; }
+@keyframes mnup { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--c) 28%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .mn-b.up { animation: none; } }
+.mn-key { display: flex; justify-content: center; gap: 18px; font-size: 11.5px; color: var(--faint); margin: 2px 0 10px; }
+.mn-what { text-align: center; font-size: 15px; margin: 4px 0 12px; }
+.mn-what b { color: #1a7f37; }
+.mn-strip { position: relative; height: 62px; margin: 18px 6px 8px; border-top: 2px solid var(--line); }
+.mn-dot { position: absolute; top: -6px; width: 10px; height: 10px; border-radius: 50%; background: var(--c); transform: translateX(-50%); }
+.mn-dl { position: absolute; transform: translateX(-50%); font-size: 11px; color: var(--muted); white-space: nowrap; }
+.mn-sl, .mn-sr { position: absolute; bottom: 0; font-size: 10.5px; color: var(--faint); }
+.mn-sl { left: 0; } .mn-sr { right: 0; }
+.mn-pick { margin-top: 12px; padding: 14px 16px; border-radius: 18px; background: var(--bg2); border: 1px solid var(--line); }
+.mn-empty { text-align: center; color: var(--muted); padding: 30px 10px 6px; }
 .tcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 10px 0; }
 .tcard { border-radius: 16px; padding: 12px 14px; background: var(--bg2); border: 1px solid var(--line); }
 .tcard .tct { font-weight: 650; margin-bottom: 6px; }
@@ -2008,6 +2037,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<button class="nav-i tg-only" id="tgMarketNav" style="--c:#ff9500" data-tip="Marketing: posts at the right moment" aria-label="Marketing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="lbl">Marketing</span><span class="nb" id="tgMarketNb"></span></button>
 			<button class="nav-i tg-only" id="tgBackNav" style="--c:#34c759" data-tip="Bring customers back: messages ready to send" aria-label="Bring customers back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Customers</span><span class="nb" id="tgBackNb"></span></button>
 			<button class="nav-i tg-only" id="tgConnNav" style="--c:#0a84ff" data-tip="Accounts: Telegram, Discord, Bluesky, X: post and message by itself" aria-label="Accounts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span class="lbl">Accounts</span></button>
+			<button class="nav-i" id="moneyNav" data-tip="Money: your subscriptions, watched; cancel in a tap" aria-label="Money"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M15 9.5c-.6-1-1.7-1.5-3-1.5-1.7 0-3 .9-3 2.2 0 3 6 1.6 6 4.6 0 1.3-1.3 2.2-3 2.2-1.4 0-2.6-.6-3.1-1.6M12 6.5V8M12 16v1.5"/></svg><span class="lbl">Money</span></button>
 			<button class="nav-i" id="togetherNav" data-tip="Celestin Together: a team in your chat" aria-label="Celestin Together"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/></svg><span class="lbl">Together</span></button>
 			<button class="nav-i nav-search" id="searchNav" data-tip="Search chats" aria-label="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="lbl">Search chats</span></button>
 			<button class="nav-i" id="chatsNav" data-tip="Your chats" aria-label="Your chats" aria-expanded="false" aria-controls="sbPanel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span class="lbl">Chats</span></button>
@@ -3500,7 +3530,7 @@ async function conduct(text, atts, tried, only, team) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or an agent: ANY other job they want done by itself in the background, once or again and again, while they're away (answer or write emails; watch prices, pages, tickets, competitors or their inbox; follow news; research something and email or report it; post for them; write something every day; anything else). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for an agent, what: the job in their words). When they ask for several of these for their business at once (a front desk that also calls or emails customers to rebook, answers email, markets…), kind setup, with kinds listing the parts (desk, winback, email, marketing), type place (customers come to it: a shop, salon, clinic) or online, assistant (a name they gave it, if any) and everything else they told you. Never ask them what you can decide yourself: fill in anything missing with the most likely choice and say in one line what you assumed; ask only when nothing useful can be done without the answer.\n" : "")
+		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or an agent: ANY other job they want done by itself in the background, once or again and again, while they're away (answer or write emails; watch prices, pages, tickets, competitors or their inbox; follow news; research something and email or report it; post for them; write something every day; anything else). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for an agent, what: the job in their words). When they ask for several of these for their business at once (a front desk that also calls or emails customers to rebook, answers email, markets…), kind setup, with kinds listing the parts (desk, winback, email, marketing), type place (customers come to it: a shop, salon, clinic) or online, assistant (a name they gave it, if any) and everything else they told you. Never ask them what you can decide yourself: fill in anything missing with the most likely choice and say in one line what you assumed; ask only when nothing useful can be done without the answer. Also kind money: when they want help with their own subscriptions or spending (track them, what they pay for, cancel one, be their money manager), with what: the name of one to cancel, if they named one.\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
 		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup\", \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
@@ -13116,6 +13146,7 @@ document.addEventListener("click", (e) => {
 	else if (t.dataset.pick) openSettings();
 });
 $("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = TOGETHER_APP; render(); }); setTimeout(() => $("#input").focus(), 60); };
+$("#moneyNav").onclick = () => { openSidebar(false); openMoney(); };
 $("#togetherNav").onclick = () => { location.href = TOGETHER_APP ? "./#app" : "together.html#app"; };
 // (Celestin opens the Together app, its own app, in one click: the owner couldn't find it with this hidden, Nov 8)
 if (!TOGETHER_APP) $("#togetherNav").dataset.tip = "Open Celestin Together, your AI team (its own app)";
@@ -14202,6 +14233,12 @@ function drawJob(kind, edit, pre) {
 // asked for in the chat ("an agent that markets my company", "rebook my customers"): the Lead opens it, filled in
 async function runJobWay(plan, text) {
 	const j = plan.job || {}, kind = j.kind === "desk" ? "desk" : j.kind === "agent" ? "agent" : JOB_INFO[j.kind] ? j.kind : /market|post|social|instagram|tiktok|promo/i.test(text) ? "marketing" : /desk|recept|customer service|answer (my )?customers/i.test(text) ? "desk" : /rebook|win ?back|bring (my )?(customers|regulars)/i.test(text) ? "winback" : "agent";
+	if (j.kind === "money" || /\b(my subscriptions?|what am i paying|money manager|financial (manager|advisor))\b/i.test(text)) {
+		current.msgs.push({ role: "assistant", member: "analyst", text: "Here's your money: every subscription found in your receipts, watched every day for renewals, trials ending and prices going up. Tap one to cancel it. (I manage subscriptions and spending, not investments.)" });
+		updateLast();
+		openMoney(j.what || "");
+		return;
+	}
 	if (j.kind === "setup" || (Array.isArray(j.kinds) && j.kinds.filter((k) => ["desk", "winback", "email", "marketing"].includes(k)).length > 1)) {
 		current.msgs.push({ role: "assistant", member: "lead", text: "I'll set up " + (j.name ? poss(j.name) : "your business's") + " team: everything you asked for, working by itself day and night and speaking as " + (j.name || "your business") + ". Check it and press Start." });
 		updateLast();
@@ -14244,13 +14281,13 @@ function untable(h) {
 }
 { const mdTables = md; md = function (text, live) { const h = mdTables(text, live); return typeof h === "string" && h.includes("<table") ? untable(h) : h; }; }
 // ---- connected accounts: each person's own Telegram, Discord, Bluesky and X (see connSave on the server)
-var CONNS = { on: false, conns: [] };
+var CONNS = { on: false, conns: [] }, CONN_QUEUE = [];
 const POST_KINDS = ["telegram", "discord", "bluesky", "x"];
 const CONN_INFO = {
 	telegram: { name: "Telegram", c: "#2aabee", what: "Your agents' reports on your phone the moment they find something, and posts to your channel.", how: "In Telegram, open @BotFather, send /newbot and copy the token it gives you. For messages to you: send any message to your new bot. For a channel: add the bot as an admin and write the channel's @name below.", fields: [["token", "Bot token", "123456789:AA…"], ["chat", "Channel (optional)", "@yourchannel, or empty for messages to you"]] },
 	discord: { name: "Discord", c: "#5865f2", what: "Posts and reports in a channel of your server.", how: "In Discord: Server settings → Integrations → Webhooks → New webhook, pick the channel, then Copy webhook URL.", fields: [["webhook", "Webhook URL", "https://discord.com/api/webhooks/…"]] },
 	bluesky: { name: "Bluesky", c: "#1185fe", what: "Marketing posts go out by themselves at the best moment.", how: "In Bluesky: Settings → Privacy and security → App passwords → Add app password. Use it here with your handle (never your real password).", fields: [["handle", "Handle", "yourname.bsky.social"], ["appPassword", "App password", "xxxx-xxxx-xxxx-xxxx"]] },
-	gmail: { name: "Gmail", c: "#ea4335", what: "Your agents read your inbox and write and send email for you (each one approved by you first, or by themselves: you choose per agent).", how: "", fields: [["url", "Your script's web app link", "https://script.google.com/macros/s/…/exec"]] },
+	gmail: { name: "Gmail", c: "#ea4335", what: "Your agents read your inbox and send email for you, your subscriptions are found in your receipts, and bookings go in your Google Calendar.", how: "", fields: [["url", "Your script's web app link", "https://script.google.com/macros/s/…/exec"]] },
 	twilio: { name: "Phone calls (Twilio)", c: "#f22f46", what: "Bring customers back can phone them for you: your AI assistant calls, talks and writes down what they said.", how: "On twilio.com: create an account (a paid one calls any number; a trial only calls numbers you've verified), buy a phone number with Voice (Phone Numbers → Buy a number), then copy the Account SID and Auth Token from the console's front page.", fields: [["sid", "Account SID", "AC…"], ["token", "Auth Token", ""], ["from", "Your Twilio number", "+62…"]] },
 	x: { name: "X", c: "#000000", what: "Marketing posts go out by themselves at the best moment.", how: "On developer.x.com: sign up for the free plan, open your app → Settings → User authentication: Read and write. Then Keys and tokens: copy the API key and secret, and generate an access token and secret.", fields: [["apiKey", "API key", ""], ["apiSecret", "API key secret", ""], ["accessToken", "Access token", ""], ["accessSecret", "Access token secret", ""]] },
 };
@@ -14259,17 +14296,45 @@ async function syncConns() { if (!creditsMode() || !account) return; try { const
 async function openConns(kind) {
 	if (!creditsMode() || !account) { openAccount(); return; }
 	openModal('<h2>Accounts</h2><p class="sub">Connect your own accounts once, and your team posts and messages for you by itself: marketing posts go out at the right moment, and agents send what they find to your phone. Kept encrypted; never shown again.</p><div id="cnBox"><p class="help">Loading…</p></div>', "wide");
-	await syncConns();
+	await Promise.all([syncConns(), syncMoney()]);
 	drawConns(kind);
 }
 // the little script that lets their agents use their Gmail: it runs in their own Google account and answers only to the
 // key in it (made here, for them)
-const gmailScript = (key) => "// Celestin Together: lets your agents read and send your Gmail. Only this key can use it.\nconst KEY = \"" + key + "\";\n" +
-	"function doPost(e) {\n  var b = JSON.parse((e.postData && e.postData.contents) || \"{}\");\n  if (b.key !== KEY) return out({ ok: false, error: \"wrong key\" });\n  try {\n" +
-	"    if (b.action === \"whoami\") return out({ ok: true, email: Session.getActiveUser().getEmail(), left: MailApp.getRemainingDailyQuota() });\n" +
-	"    if (b.action === \"send\") {\n      if (b.threadId) { var th = GmailApp.getThreadById(b.threadId), me = Session.getActiveUser().getEmail(), ms = th.getMessages().filter(function (x) { return x.getFrom().indexOf(me) < 0; }); (ms.length ? ms[ms.length - 1] : th).reply(b.body); }\n      else GmailApp.sendEmail(b.to, b.subject || \"\", b.body || \"\");\n      return out({ ok: true });\n    }\n" +
-	"    if (b.action === \"list\") {\n      var list = [];\n      GmailApp.search(b.query || \"is:unread newer_than:2d\", 0, Math.min(20, b.max || 10)).forEach(function (t) {\n        var all = t.getMessages(), me2 = Session.getActiveUser().getEmail(), others = all.filter(function (x) { return x.getFrom().indexOf(me2) < 0; }), m = others.length ? others[others.length - 1] : all[all.length - 1];\n        list.push({ id: m.getId(), threadId: t.getId(), from: m.getFrom(), to: m.getTo(), subject: m.getSubject(), date: m.getDate().toISOString(), text: m.getPlainBody().slice(0, 3000) });\n      });\n      return out({ ok: true, list: list });\n    }\n" +
-	"    return out({ ok: false, error: \"unknown action\" });\n  } catch (err) { return out({ ok: false, error: String(err) }); }\n}\nfunction out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }\n";
+const gmailScript = (key) => `// Celestin: lets your agents read your Gmail, send email for you, and put bookings in your Google Calendar.
+// Only this key can use it.
+const KEY = "${key}";
+function doPost(e) {
+  var b = JSON.parse((e.postData && e.postData.contents) || "{}");
+  if (b.key !== KEY) return out({ ok: false, error: "wrong key" });
+  try {
+    var me = Session.getActiveUser().getEmail();
+    if (b.action === "whoami") return out({ ok: true, email: me, left: MailApp.getRemainingDailyQuota(), version: 2 });
+    if (b.action === "send") {
+      if (b.threadId) { var th = GmailApp.getThreadById(b.threadId), ms = th.getMessages().filter(function (x) { return x.getFrom().indexOf(me) < 0; }); (ms.length ? ms[ms.length - 1] : th).reply(b.body); }
+      else GmailApp.sendEmail(b.to, b.subject || "", b.body || "");
+      return out({ ok: true });
+    }
+    if (b.action === "list" || b.action === "search") {
+      var all = b.action === "search", max = Math.min(all ? 40 : 20, b.max || 10), threads = GmailApp.search(b.query || "is:unread newer_than:2d", b.start || 0, max), list = [];
+      threads.forEach(function (t) {
+        var msgs = t.getMessages(), others = msgs.filter(function (x) { return x.getFrom().indexOf(me) < 0; });
+        (all ? msgs.slice(-3) : [others.length ? others[others.length - 1] : msgs[msgs.length - 1]]).forEach(function (m) {
+          list.push({ id: m.getId(), threadId: t.getId(), from: m.getFrom(), to: m.getTo(), subject: m.getSubject(), date: m.getDate().toISOString(), text: m.getPlainBody().slice(0, all ? 1500 : 3000) });
+        });
+      });
+      return out({ ok: true, list: list, more: threads.length >= max });
+    }
+    if (b.action === "event") {
+      var start = new Date(b.start);
+      CalendarApp.getDefaultCalendar().createEvent(b.title || "Booking", start, new Date(start.getTime() + (b.minutes || 30) * 60000), { description: b.details || "" });
+      return out({ ok: true });
+    }
+    return out({ ok: false, error: "unknown action" });
+  } catch (err) { return out({ ok: false, error: String(err) }); }
+}
+function out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
+`;
 function drawConns(kind) {
 	const box = $("#cnBox");
 	if (!box) return;
@@ -14281,10 +14346,10 @@ function drawConns(kind) {
 			'<div class="field"><label for="cn_url">Your script\'s web app link</label><input class="inp" id="cn_url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></div><div class="help" style="margin-bottom:10px">It runs in your own Google account: Celestin never sees your password. Gmail lets it send about 100 emails a day.</div>' +
 			'<div class="status" id="cnStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="cnBack">Back</button><button class="btn dark" id="cnGo">Connect</button></div>';
 		$("#gmCopy").onclick = () => navigator.clipboard.writeText($("#gmScript").value).then(() => toast("Copied: paste it in script.google.com"), () => {});
-		$("#cnBack").onclick = () => drawConns();
+		$("#cnBack").onclick = () => drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined); if (CONN_QUEUE.length) $("#cnBack").textContent = "Skip this one";
 		$("#cnGo").onclick = async () => {
 			const st = $("#cnStatus"); st.className = "status"; st.innerHTML = '<span class="spin"></span> Checking it…'; $("#cnGo").disabled = true;
-			try { await api("/api/conns", { method: "POST", body: JSON.stringify({ kind: "gmail", url: $("#cn_url").value.trim(), key }) }); await syncConns(); drawConns(); toast("Gmail connected"); }
+			try { await api("/api/conns", { method: "POST", body: JSON.stringify({ kind: "gmail", url: $("#cn_url").value.trim(), key }) }); await syncConns(); drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined); toast("Gmail connected"); }
 			catch (e) { st.className = "status bad"; st.textContent = e.message || String(e); $("#cnGo").disabled = false; }
 		};
 		return;
@@ -14293,22 +14358,25 @@ function drawConns(kind) {
 		const k = CONN_INFO[kind];
 		box.innerHTML = "<h3 style=\"margin:0 0 6px\">" + esc(k.name) + '</h3><p class="help" style="margin:0 0 12px">' + esc(k.how) + "</p>" + k.fields.map(([f, l, ph]) => '<div class="field"><label for="cn_' + f + '">' + esc(l) + '</label><input class="inp" id="cn_' + f + '" autocomplete="off" spellcheck="false" placeholder="' + esc(ph) + '"' + (/secret|password/i.test(f) ? ' type="password"' : "") + "></div>").join("") +
 			'<div class="status" id="cnStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="cnBack">Back</button><button class="btn dark" id="cnGo">Connect</button></div>';
-		$("#cnBack").onclick = () => drawConns();
+		$("#cnBack").onclick = () => drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined); if (CONN_QUEUE.length) $("#cnBack").textContent = "Skip this one";
 		$("#cnGo").onclick = async () => {
 			const st = $("#cnStatus"); st.className = "status"; st.innerHTML = '<span class="spin"></span> Checking it…'; $("#cnGo").disabled = true;
 			const b = { kind };
 			k.fields.forEach(([f]) => (b[f] = $("#cn_" + f).value.trim()));
-			try { await api("/api/conns", { method: "POST", body: JSON.stringify(b) }); await syncConns(); drawConns(); toast(k.name + " connected"); }
+			try { await api("/api/conns", { method: "POST", body: JSON.stringify(b) }); await syncConns(); drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined); toast(k.name + " connected"); }
 			catch (e) { st.className = "status bad"; st.textContent = e.message || String(e); $("#cnGo").disabled = false; }
 		};
 		return;
 	}
 	const back = SETUP_DRAFT ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn dark" id="cnSetup">Back to setting up ' + esc(SETUP_DRAFT.name || "your business") + "</button></div>" : "";
-	box.innerHTML = back + Object.entries(CONN_INFO).map(([k, x]) => { const c = connOf(k); return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div class="row" style="gap:10px;align-items:center"><span class="tav" style="--c:' + x.c + ';--s:30px"><b style="color:#fff;font-size:13px">' + esc(x.name[0]) + "</b></span><div><b>" + esc(x.name) + '</b><div class="help">' + esc(c ? "Connected: " + c.name : x.what) + "</div></div></div>" +
+	box.innerHTML = back + '<div class="field desk"><label class="chk" style="font-weight:600"><input type="checkbox" id="cnAuto"' + (MONEY.auto ? " checked" : "") + '> Act without asking</label><div class="help" style="margin:2px 0 0 24px">Emails, replies and cancellations go out without waiting for your OK. Everything it does is in its log, and it never spends money.</div></div>' +
+		(Object.keys(CONN_INFO).some((k) => !connOf(k)) ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn dark" id="cnAll">Connect everything, one after another</button></div>' : "") + Object.entries(CONN_INFO).map(([k, x]) => { const c = connOf(k); return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div class="row" style="gap:10px;align-items:center"><span class="tav" style="--c:' + x.c + ';--s:30px"><b style="color:#fff;font-size:13px">' + esc(x.name[0]) + "</b></span><div><b>" + esc(x.name) + '</b><div class="help">' + esc(c ? "Connected: " + c.name : x.what) + "</div></div></div>" +
 		'<div class="row" style="gap:8px">' + (c ? (POST_KINDS.includes(k) || k === "gmail" ? '<button class="btn" data-cntest="' + k + '">Send a test</button>' : "") + '<button class="btn" data-cnoff="' + k + '">Disconnect</button>' : '<button class="btn dark" data-cnon="' + k + '">Connect</button>') + "</div></div></div>"; }).join("") +
 		'<p class="help">Instagram, TikTok, Facebook, LinkedIn and Threads stay one tap for now: they only let apps they have approved post for you.</p>';
 	$$("[data-cnon]").forEach((b) => (b.onclick = () => drawConns(b.dataset.cnon)));
 	if ($("#cnSetup")) $("#cnSetup").onclick = () => openSetup();
+	if ($("#cnAll")) $("#cnAll").onclick = () => { CONN_QUEUE = Object.keys(CONN_INFO).filter((k) => !connOf(k)); drawConns(CONN_QUEUE.shift()); };
+	$("#cnAuto").onchange = async () => { try { MONEY.auto = (await api("/api/money/prefs", { method: "POST", body: JSON.stringify({ auto: $("#cnAuto").checked }) })).auto; toast(MONEY.auto ? "It acts without asking now" : "It asks before sending again"); } catch (e) { toast(e.message || String(e)); } };
 	$$("[data-cnoff]").forEach((b) => (b.onclick = async () => { if (!confirm("Disconnect " + CONN_INFO[b.dataset.cnoff].name + "?")) return; await api("/api/conns/" + b.dataset.cnoff, { method: "DELETE" }).catch(() => {}); await syncConns(); drawConns(); }));
 	$$("[data-cntest]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { const j = await api("/api/conns/" + b.dataset.cntest + "/test", { method: "POST" }); toast("Sent: look on " + CONN_INFO[b.dataset.cntest].name); if (j.url) window.open(j.url, "_blank", "noopener"); } catch (e) { toast(e.message || String(e)); } b.disabled = false; }));
 }
@@ -14390,6 +14458,85 @@ async function startSetup() {
 		$("#suDone").onclick = closeModal;
 		toast(poss(d.name) + " team is working");
 	} catch (e) { st.className = "status bad"; st.textContent = (e.message || String(e)) + (made.length ? " (made so far: " + made.join(", ") + ")" : ""); $("#suGo").disabled = false; }
+}
+// ---- Money: the person's subscriptions as a small universe (each one a planet sized by what it costs a year, nearer
+// the middle the sooner it renews; a trial about to end glows red, a price that went up pulses), a strip of what renews
+// in the next 30 days, "what if I cancel these", and cancel in a tap. No table anywhere
+var MONEY = { subs: [], totals: {}, saved: {}, auto: false }, MONEY_WHATIF = new Set(), MONEY_PICK = null;
+const curSym = (c) => ({ USD: "$", EUR: "€", GBP: "£", IDR: "Rp", SGD: "S$", AUD: "A$", JPY: "¥", INR: "₹" })[c] || (c ? c + " " : "$");
+const moneyFmt = (n, c) => curSym(c) + (c === "IDR" || c === "JPY" ? Math.round(n).toLocaleString() : (Math.round((Number(n) || 0) * 100) / 100).toLocaleString(undefined, { maximumFractionDigits: 2 }));
+async function syncMoney() { if (!creditsMode() || !account) return; try { MONEY = { subs: [], totals: {}, saved: {}, ...(await api("/api/money")) }; } catch {} }
+async function openMoney(cancel) {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	openModal('<h2>Money</h2><p class="sub">Your subscriptions, found in your receipts and watched every day: renewals, free trials ending, prices going up. Cancel in a tap. It manages subscriptions and spending; it doesn\'t give investment advice.</p><div id="mnBox"><p class="help">Loading…</p></div>', "wide");
+	await Promise.all([CONNS.at ? null : syncConns(), syncMoney()]);
+	// (Gmail there and never read: it starts reading, no question asked)
+	if (connOf("gmail") && !MONEY.lastScan && !MONEY.scanning && !MONEY.subs.length) await moneyScan();
+	drawMoney();
+	if (cancel) { const x = MONEY.subs.find((y) => y.name.toLowerCase().includes(String(cancel).toLowerCase())); if (x) { MONEY_PICK = x.id; drawMoney(); moneyCancelFlow(x.id); } }
+	if (MONEY.scanning) moneyPoll();
+}
+async function moneyScan() { try { await api("/api/money/scan", { method: "POST", body: JSON.stringify({ models: agentModels().quick }) }); MONEY.scanning = true; } catch (e) { toast(e.message || String(e)); } }
+function moneyPoll(k = 0) { setTimeout(async () => { if (!$("#mnBox")) return; await syncMoney(); drawMoney(); if (MONEY.scanning && k < 60) moneyPoll(k + 1); }, 4000); }
+function drawMoney() {
+	const box = $("#mnBox");
+	if (!box) return;
+	const t = Date.now(), live = MONEY.subs.filter((x) => x.status === "active" || x.status === "trial");
+	const cur = Object.entries(MONEY.totals || {}).sort((a, b) => b[1] - a[1])[0] || [LOC.currency, 0];
+	const saved = Object.entries(MONEY.saved || {}).filter(([, v]) => v > 0);
+	const days = (ms) => Math.max(0, Math.round((ms - t) / 864e5));
+	const when = (ms) => new Date(ms).toLocaleDateString([], { day: "numeric", month: "short" });
+	const tools = '<div class="row" style="gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px">' + (connOf("gmail") ? '<button class="btn" id="mnScan">' + (MONEY.lastScan ? "Read my receipts again" : "Read my receipts") + "</button>" : '<button class="btn dark" id="mnGmail">Connect Gmail to find them</button>') + '<label class="btn" style="cursor:pointer">Add a card statement<input type="file" id="mnFile" accept=".pdf,.csv,.txt,.xlsx,.xls" hidden></label></div>';
+	const hero = '<div class="mn-total"><b>' + esc(moneyFmt(cur[1], cur[0])) + '</b><span>a year · ' + esc(moneyFmt(cur[1] / 12, cur[0])) + " a month</span>" + (saved.length ? '<div class="mn-saved">Saved with Celestin: ' + saved.map(([c, v]) => esc(moneyFmt(v, c))).join(" + ") + " a year</div>" : "") + "</div>";
+	if (MONEY.scanning && !live.length) { box.innerHTML = '<div class="mn-empty"><span class="spin"></span> Reading your receipts from the past year… it takes a minute or two.</div>' + tools; moneyWire(); return; }
+	if (!live.length) { box.innerHTML = '<div class="mn-empty">' + (MONEY.lastScan ? "No subscriptions in your receipts. Add a card statement to catch the rest." : "Connect your Gmail (its receipts show every subscription), or add a card statement.") + "</div>" + tools; moneyWire(); return; }
+	const maxY = Math.max(...live.map((x) => x.yearly || 0), 1);
+	const ring = (x) => { const d = days(x.next || t + 40 * 864e5); return d <= 7 ? 0 : d <= 31 ? 1 : 2; };
+	const rings = [0, 1, 2].map((r) => live.filter((x) => ring(x) === r));
+	const planets = rings.map((list, r) => list.map((x, i) => {
+		const ang = (i / list.length) * Math.PI * 2 - Math.PI / 2 + r * (Math.PI / Math.max(2, list.length)) + r * 0.45, rad = [21, 33, 45][r];
+		const size = 8 + 9.5 * Math.sqrt((x.yearly || 0) / maxY), hue = [...x.name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 11);
+		const trial = x.trial && x.trial > t && x.trial - t < 3 * 864e5, up = x.prev && x.amount > x.prev;
+		return '<button class="mn-b' + (trial ? " trial" : "") + (up ? " up" : "") + (MONEY_WHATIF.has(x.id) ? " off" : "") + (MONEY_PICK === x.id ? " pick" : "") + '" data-mn="' + x.id + '" style="--c:hsl(' + hue + ' 68% 52%);left:' + (50 + rad * Math.cos(ang)).toFixed(1) + "%;top:" + (50 + rad * Math.sin(ang)).toFixed(1) + "%;width:" + size.toFixed(1) + '%" aria-label="' + esc(x.name + ", " + moneyFmt(x.amount, x.currency) + " a " + x.cycle) + '"><span>' + esc(x.name.length > 11 ? x.name.slice(0, 10) + "…" : x.name) + "</span><small>" + esc(moneyFmt(x.amount, x.currency)) + "</small></button>";
+	}).join("")).join("");
+	const whatIf = live.filter((x) => MONEY_WHATIF.has(x.id)), cut = whatIf.reduce((n, x) => n + (x.currency === cur[0] ? x.yearly : 0), 0);
+	const soon = live.filter((x) => x.next && x.next - t < 30 * 864e5).sort((a, b) => a.next - b.next).slice(0, 8);
+	const strip = soon.length ? '<div class="mn-strip">' + soon.map((x, k) => '<div class="mn-dot" style="left:' + Math.min(98, Math.max(2, (days(x.next) / 30) * 100)).toFixed(1) + '%;--c:hsl(' + [...x.name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 11) + ' 68% 52%)"></div><div class="mn-dl" style="left:' + Math.min(92, Math.max(8, (days(x.next) / 30) * 100)).toFixed(1) + "%;top:" + (k % 2 ? 26 : 8) + 'px">' + esc(x.name) + " · " + esc(days(x.next) ? when(x.next) : "today") + "</div>").join("") + '<span class="mn-sl">today</span><span class="mn-sr">in 30 days</span></div>' : "";
+	const p = live.find((x) => x.id === MONEY_PICK);
+	const pick = p ? '<div class="mn-pick"><div class="row" style="justify-content:space-between;gap:8px;align-items:baseline"><b>' + esc(p.name) + "</b><span>" + esc(moneyFmt(p.amount, p.currency)) + " a " + esc(p.cycle) + " · " + esc(moneyFmt(p.yearly, p.currency)) + ' a year</span></div><div class="help" style="margin:4px 0 10px">' + [p.next ? "Renews " + when(p.next) + " (in " + days(p.next) + " days)" : "", p.last ? "last charged " + when(p.last) : "", p.trial && p.trial > t ? "free trial ends " + when(p.trial) : "", p.prev && p.amount > p.prev ? "went up from " + moneyFmt(p.prev, p.currency) : ""].filter(Boolean).map(esc).join(" · ") + '</div><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn dark" data-mncancel="' + p.id + '">Cancel it</button><button class="btn" data-mnwhat="' + p.id + '">' + (MONEY_WHATIF.has(p.id) ? "Keep it in" : "What if I cancel it?") + '</button><button class="btn" data-mnhide="' + p.id + '">Not a subscription</button></div><div id="mnAct" style="margin-top:10px"></div></div>' : '<p class="help" style="text-align:center">Tap a planet to see it, try cancelling it, or cancel it.</p>';
+	box.innerHTML = hero + '<div class="mn-uni"><div class="mn-ring" style="--r:22%"></div><div class="mn-ring" style="--r:33%"></div><div class="mn-ring" style="--r:44%"></div><div class="mn-core"><b>' + live.length + "</b><span>subscription" + (live.length > 1 ? "s" : "") + "</span></div>" + planets + "</div>" +
+		'<div class="mn-key"><span>this week</span><span>this month</span><span>later</span></div>' +
+		(whatIf.length ? '<div class="mn-what">Cancel ' + (whatIf.length === 1 ? esc(whatIf[0].name) : "these " + whatIf.length) + " and save <b>" + esc(moneyFmt(cut, cur[0])) + "</b> a year</div>" : "") + strip + pick + tools;
+	moneyWire();
+}
+function moneyWire() {
+	$$("[data-mn]").forEach((b) => (b.onclick = () => { MONEY_PICK = MONEY_PICK === b.dataset.mn ? null : b.dataset.mn; drawMoney(); }));
+	$$("[data-mnwhat]").forEach((b) => (b.onclick = () => { const k = b.dataset.mnwhat; MONEY_WHATIF.has(k) ? MONEY_WHATIF.delete(k) : MONEY_WHATIF.add(k); drawMoney(); }));
+	$$("[data-mnhide]").forEach((b) => (b.onclick = async () => { await api("/api/money/" + b.dataset.mnhide, { method: "POST", body: JSON.stringify({ status: "hidden" }) }).catch(() => {}); MONEY_PICK = null; await syncMoney(); drawMoney(); }));
+	$$("[data-mncancel]").forEach((b) => (b.onclick = () => moneyCancelFlow(b.dataset.mncancel)));
+	if ($("#mnScan")) $("#mnScan").onclick = async () => { await moneyScan(); drawMoney(); moneyPoll(); };
+	if ($("#mnGmail")) $("#mnGmail").onclick = () => openConns("gmail");
+	if ($("#mnFile")) $("#mnFile").onchange = async (e) => {
+		const f = e.target.files[0];
+		if (!f) return;
+		toast("Reading your statement…");
+		try { const text = String(await readDocument(f)); const j = await api("/api/money/upload", { method: "POST", body: JSON.stringify({ text, models: agentModels().quick }) }); toast(j.found ? "Found " + j.found + " in your statement" : "Nothing new in that statement"); } catch (err) { toast(err.message || String(err)); }
+		await syncMoney(); drawMoney();
+	};
+}
+// cancelling: its own page (a link to tap: a browser won't open one by itself after a wait), or an email to whoever bills it
+async function moneyCancelFlow(sid) {
+	const out = $("#mnAct"), x = MONEY.subs.find((y) => y.id === sid);
+	if (!out || !x) return;
+	const done = async () => { const j = await api("/api/money/" + sid + "/cancel", { method: "POST", body: JSON.stringify({ done: true }) }); toast("Cancelled: " + moneyFmt(j.saved || x.yearly, x.currency) + " a year saved"); MONEY_PICK = null; await syncMoney(); drawMoney(); };
+	out.innerHTML = '<span class="spin"></span> One moment…';
+	try {
+		const j = await api("/api/money/" + sid + "/cancel", { method: "POST", body: "{}" });
+		if (j.sent) { toast("Cancellation email sent to " + j.to + ": " + moneyFmt(j.saved || x.yearly, x.currency) + " a year saved"); MONEY_PICK = null; await syncMoney(); drawMoney(); return; }
+		if (j.url) { out.innerHTML = '<div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><a class="btn dark" href="' + esc(j.url) + '" target="_blank" rel="noopener">Open its cancel page</a><span class="help">Cancelled it there?</span><button class="btn" id="mnDone">Yes, it\'s cancelled</button></div>'; $("#mnDone").onclick = done; return; }
+		out.innerHTML = '<div class="help">An email from your Gmail to ' + esc(j.to) + ' (they bill you):</div><textarea class="inp" id="mnDraft" rows="6" style="margin:6px 0">' + esc(j.draft || "") + '</textarea><button class="btn dark" id="mnSend">Send it</button>';
+		$("#mnSend").onclick = async () => { $("#mnSend").disabled = true; try { await api("/api/money/" + sid + "/cancel", { method: "POST", body: JSON.stringify({ send: true, body: $("#mnDraft").value }) }); toast("Sent: " + moneyFmt(x.yearly, x.currency) + " a year saved"); MONEY_PICK = null; await syncMoney(); drawMoney(); } catch (e) { toast(e.message || String(e)); $("#mnSend").disabled = false; } };
+	} catch (e) { out.textContent = e.message || String(e); }
 }
 // ---- Celestin Together's agents: any job, run by the server (see runAgent there)
 var AGENTS = { agents: [], log: [] };
@@ -14474,7 +14621,7 @@ function drawAgents(edit, ask) {
 	$("#agNew").onclick = () => drawAgents("new");
 	$$("[data-agsendmail]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api("/api/agents/log/" + b.dataset.agsendmail + "/send", { method: "POST", body: JSON.stringify({ body: $('[data-agbody="' + b.dataset.agsendmail + '"]').value }) }); toast("Sent from your Gmail"); } catch (e) { toast(e.message || String(e)); b.disabled = false; return; } await syncAgents(true); drawAgents(); }));
 	$$("[data-agdiscard]").forEach((b) => (b.onclick = async () => { await api("/api/agents/log/" + b.dataset.agdiscard + "/discard", { method: "POST" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
-	$$("[data-agedit]").forEach((b) => (b.onclick = () => drawAgents(b.dataset.agedit)));
+	$$("[data-agedit]").forEach((b) => (b.onclick = () => { const a = AGENTS.agents.find((x) => x.id === b.dataset.agedit); if (a && (a.sources || []).some((x) => x.type === "money")) openMoney(); else drawAgents(b.dataset.agedit); }));
 	$$("[data-agdel]").forEach((b) => (b.onclick = async () => { if (!confirm("Delete this agent and what it found?")) return; await api("/api/agents/" + b.dataset.agdel, { method: "DELETE" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
 	$$("[data-agpause]").forEach((b) => (b.onclick = async () => { const a = AGENTS.agents.find((x) => x.id === b.dataset.agpause); if (!a) return; await api("/api/agents", { method: "POST", body: JSON.stringify({ ...a, ...agentModels(), tz: -new Date().getTimezoneOffset(), active: !a.active }) }).catch((e) => toast(e.message)); await syncAgents(true); drawAgents(); }));
 	$$("[data-agrun]").forEach((b) => (b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Looking…'; try { const j = await api("/api/agents/" + b.dataset.agrun + "/run", { method: "POST" }); toast(j.ran && j.ran.reported ? "It found something: it's below" : (j.ran && j.ran.look) || "Done"); } catch (e) { toast(e.message || String(e)); } await syncAgents(true); drawAgents(); }));

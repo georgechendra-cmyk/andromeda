@@ -179,6 +179,12 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})$/)) && m === "DELETE") return jobDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/run$/)) && m === "POST") return jobRunNow(env, ctx, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
+	if (p === "/api/money" && m === "GET") return moneyOf(env, user);
+	if (p === "/api/money/scan" && m === "POST") return moneyScanStart(req, env, ctx, user);
+	if (p === "/api/money/prefs" && m === "POST") return moneyPrefs(req, env, user);
+	if (p === "/api/money/upload" && m === "POST") return moneyUpload(req, env, ctx, user);
+	if ((fd = p.match(/^\/api\/money\/([a-f0-9]{24})$/)) && m === "POST") return moneyEdit(req, env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/money\/([a-f0-9]{24})\/cancel$/)) && m === "POST") return moneyCancel(req, env, ctx, user, fd[1]);
 	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
 	if (p === "/api/conns" && m === "POST") return connSave(req, env, user);
 	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x|twilio|gmail)$/)) && m === "DELETE") return connDelete(env, user, fd[1]);
@@ -679,6 +685,8 @@ function columns(env) {
 		if (!acols.has("act")) { try { await env.DB.prepare("ALTER TABLE agents ADD COLUMN act TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS calls (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, job_id TEXT, to_num TEXT NOT NULL, name TEXT, purpose TEXT NOT NULL, lang TEXT, models TEXT, turns TEXT, status TEXT NOT NULL DEFAULT 'calling', outcome TEXT, sid TEXT, created_at INTEGER NOT NULL, updated_at INTEGER)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS calls_user ON calls (user_id, created_at)").run();
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS subs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, key TEXT NOT NULL, name TEXT NOT NULL, amount REAL, currency TEXT, cycle TEXT, next_at INTEGER, last_at INTEGER, prev_amount REAL, trial_end INTEGER, status TEXT NOT NULL DEFAULT 'active', cancel_url TEXT, sender TEXT, created_at INTEGER NOT NULL, updated_at INTEGER, UNIQUE (user_id, key))").run();
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS money (user_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT, secret TEXT NOT NULL, meta TEXT, created_at INTEGER NOT NULL, UNIQUE (user_id, kind))").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
@@ -3463,6 +3471,182 @@ async function connTest(env, user, kind) {
 	return json({ ok: true, url: r.url || null });
 }
 
+// ------------------------------------------------------------------ money: subscriptions, found and watched
+// a booking in their Google Calendar (the Gmail script, version 2; an older one: nothing happens)
+async function calendarAdd(env, userId, e) { const { c } = await gmailOf(env, userId); await gmailCall(c, { action: "event", title: e.title, start: new Date(e.start).toISOString(), minutes: e.minutes || 30, details: e.details || "" }); }
+// where each service is cancelled (its own page); anything else: an email to whoever bills it
+const CANCEL_LINKS = { netflix: "https://www.netflix.com/cancelplan", spotify: "https://www.spotify.com/account/subscription/", youtube: "https://www.youtube.com/paid_memberships", disney: "https://www.disneyplus.com/account/subscription", "prime video": "https://www.amazon.com/mc/pipelines/cancellation", "amazon prime": "https://www.amazon.com/mc/pipelines/cancellation", icloud: "https://apps.apple.com/account/subscriptions", "apple": "https://apps.apple.com/account/subscriptions", "google play": "https://play.google.com/store/account/subscriptions", "google one": "https://one.google.com/settings", chatgpt: "https://chatgpt.com/#settings/Subscription", openai: "https://chatgpt.com/#settings/Subscription", claude: "https://claude.ai/settings/billing", anthropic: "https://claude.ai/settings/billing", adobe: "https://account.adobe.com/plans", "microsoft": "https://account.microsoft.com/services", xbox: "https://account.microsoft.com/services", canva: "https://www.canva.com/settings/billing-and-teams", notion: "https://www.notion.so/my-account", dropbox: "https://www.dropbox.com/account/plan", hulu: "https://secure.hulu.com/account", paramount: "https://www.paramountplus.com/account/", duolingo: "https://www.duolingo.com/settings/subscription", grammarly: "https://account.grammarly.com/subscription", linkedin: "https://www.linkedin.com/premium/manage/", audible: "https://www.audible.com/account/overview", doordash: "https://www.doordash.com/consumer/membership/", zoom: "https://zoom.us/billing", github: "https://github.com/settings/billing", figma: "https://www.figma.com/settings", midjourney: "https://www.midjourney.com/account", discord: "https://discord.com/settings/subscriptions", twitch: "https://www.twitch.tv/subscriptions", patreon: "https://www.patreon.com/settings/memberships", crunchyroll: "https://www.crunchyroll.com/account/membership", playstation: "https://www.playstation.com/acct/management", "new york times": "https://myaccount.nytimes.com/seg/subscription", medium: "https://medium.com/me/settings/membership", perplexity: "https://www.perplexity.ai/settings/account", cursor: "https://cursor.com/settings" };
+const cancelLink = (name) => { const n = String(name || "").toLowerCase(); const k = Object.keys(CANCEL_LINKS).find((x) => n.includes(x)); return k ? CANCEL_LINKS[k] : ""; };
+const subKey = (n) => String(n || "").toLowerCase().replace(/\b(inc|llc|ltd|corp|com|subscription|membership)\b/g, "").replace(/[^a-z0-9]+/g, "").slice(0, 40);
+const CYCLE_DAYS = { week: 7, month: 30.44, year: 365.25 };
+const yearlyOf = (s) => (Number(s.amount) || 0) * (s.cycle === "year" ? 1 : s.cycle === "week" ? 52 : 12);
+const isMoneyAgent = (a) => /"type":"money"/.test(String(a.sources || ""));
+async function moneyState(env, uid) { const r = await env.DB.prepare("SELECT state FROM money WHERE user_id = ?").bind(uid).first().catch(() => null); try { return JSON.parse((r && r.state) || "{}") || {}; } catch { return {}; } }
+async function moneySave(env, uid, st) { await env.DB.prepare("INSERT INTO money (user_id, state, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at").bind(uid, JSON.stringify(st), now()).run(); }
+const subOut = (s) => ({ id: s.id, name: s.name, amount: s.amount, currency: s.currency || "USD", cycle: s.cycle || "month", next: s.next_at, last: s.last_at, prev: s.prev_amount, trial: s.trial_end, status: s.status, cancel: s.cancel_url || cancelLink(s.name), sender: s.sender || "", yearly: yearlyOf(s) });
+async function moneyOf(env, user) {
+	const subs = ((await env.DB.prepare("SELECT * FROM subs WHERE user_id = ? AND status != 'hidden' ORDER BY next_at").bind(user.id).all()).results || []).map(subOut);
+	const st = await moneyState(env, user.id), totals = {};
+	for (const x of subs) if (x.status === "active" || x.status === "trial") totals[x.currency] = Math.round(((totals[x.currency] || 0) + x.yearly) * 100) / 100;
+	return json({ subs, totals, saved: st.saved || {}, scanning: !!(st.scanning && now() - st.scanning < 10 * 60e3), lastScan: st.lastScan || 0, read: (st.read || []).length, auto: !!st.auto, agent: st.agent || null });
+}
+async function moneyPrefs(req, env, user) { const b = await body(req), st = await moneyState(env, user.id); st.auto = !!b.auto; await moneySave(env, user.id, st); return json({ auto: st.auto }); }
+// charges in emails (or a statement), read by the quick model, a dozen at a time
+async function moneyExtract(env, ctx, owner, models, mails, spent) {
+	const out = [];
+	for (let i = 0; i < mails.length && !spent.broke; i += 12) {
+		const batch = mails.slice(i, i + 12);
+		const j = jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "Emails (or pieces of a card statement) of one person. Find every charge, receipt or paid plan in them.\n\n" + batch.map((m, k) => "Item " + (k + 1) + " · from " + m.from + " · " + m.date + " · " + m.subject + "\n" + String(m.text || "").slice(0, 1200)).join("\n\n---\n\n") +
+			'\n\nReply with ONLY JSON: {"charges": [{"n": the item number, "merchant": "the service, short (Netflix, Spotify)", "amount": the number charged, "currency": "USD, EUR, IDR…", "date": "YYYY-MM-DD", "recurring": true when it is a subscription or plan that renews, "cycle": "month" or "year" or "week", "next": "YYYY-MM-DD if a next charge or renewal date is written", "trial_end": "YYYY-MM-DD if a free trial ending is written", "cancelled": true if it says the plan was cancelled}]}. Leave out ads, newsletters, shipping updates, one-off purchases and anything that is not a charge or a plan.' }], 1500, spent));
+		for (const c of j && Array.isArray(j.charges) ? j.charges : []) { const m = batch[(Number(c.n) || 0) - 1]; if (m && c.merchant) out.push({ ...c, sender: (String(m.from).match(/<([^>]+)>/) || [])[1] || String(m.from), mailDate: m.date }); }
+	}
+	return out;
+}
+// the charges, as subscriptions: the newest charge says the price and when it renews; what changed is told
+async function moneyMerge(env, uid, charges) {
+	const by = new Map(), changes = [], t = now();
+	for (const c of charges) { if (!c.recurring && !c.trial_end && !c.cancelled) continue; const k = subKey(c.merchant); if (k) (by.get(k) || by.set(k, []).get(k)).push(c); }
+	for (const [k, list] of by) {
+		list.sort((a, b) => String(b.date || b.mailDate || "").localeCompare(String(a.date || a.mailDate || "")));
+		const last = list.find((x) => Number(x.amount)) || list[0], cycle = ["week", "month", "year"].includes(last.cycle) ? last.cycle : "month";
+		const lastAt = Date.parse(last.date || last.mailDate) || t, step = CYCLE_DAYS[cycle] * 864e5;
+		let next = Date.parse(last.next || "") || lastAt + step;
+		for (let g = 0; next < t - 864e5 && g < 60; g++) next += step;
+		const trialRaw = list.find((x) => x.trial_end), trial = trialRaw ? Date.parse(trialRaw.trial_end) || null : null;
+		const stale = t - lastAt > step * 1.6 && !(trial && trial > t), cancelled = !!list[0].cancelled;
+		const amount = Number(last.amount) || 0, older = list.find((x) => x !== last && Number(x.amount) && Number(x.amount) !== amount && String(x.date || "") < String(last.date || ""));
+		const old = await env.DB.prepare("SELECT * FROM subs WHERE user_id = ? AND key = ?").bind(uid, k).first();
+		const status = cancelled ? "cancelled" : trial && trial > t && !amount ? "trial" : stale ? "ended" : "active";
+		if (!old) {
+			await env.DB.prepare("INSERT INTO subs (id, user_id, key, name, amount, currency, cycle, next_at, last_at, prev_amount, trial_end, status, cancel_url, sender, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(id(), uid, k, String(last.merchant).slice(0, 60), amount, String(last.currency || "USD").toUpperCase().slice(0, 4), cycle, next, lastAt, older ? Number(older.amount) : null, trial, status, cancelLink(last.merchant) || null, String(last.sender || "").slice(0, 120), t, t).run();
+			if (status === "active" || status === "trial") changes.push({ type: "new", name: last.merchant, amount, currency: last.currency || "USD", cycle });
+			if (older && amount > Number(older.amount)) changes.push({ type: "up", name: last.merchant, from: Number(older.amount), amount, currency: last.currency || "USD" });
+			continue;
+		}
+		const newer = lastAt > (old.last_at || 0);
+		if (old.status === "cancelled" && newer && !cancelled) changes.push({ type: "after", name: old.name, amount, currency: old.currency });
+		if (newer && amount > (Number(old.amount) || 0) + 0.009 && old.amount) changes.push({ type: "up", name: old.name, from: Number(old.amount), amount, currency: old.currency });
+		if (newer || trial) await env.DB.prepare("UPDATE subs SET amount = ?, cycle = ?, next_at = ?, last_at = ?, prev_amount = CASE WHEN ? > amount AND amount > 0 THEN amount ELSE prev_amount END, trial_end = COALESCE(?, trial_end), status = CASE WHEN status = 'hidden' THEN 'hidden' WHEN ? THEN 'cancelled' WHEN status = 'cancelled' AND ? THEN 'active' ELSE ? END, sender = COALESCE(NULLIF(?, ''), sender), updated_at = ? WHERE id = ?").bind(amount || old.amount, cycle, next, Math.max(lastAt, old.last_at || 0), amount, trial, cancelled ? 1 : 0, newer ? 1 : 0, status, String(last.sender || ""), t, old.id).run();
+	}
+	return changes;
+}
+// reading their receipts: the past year the first time, then only what's new
+async function moneyScan(env, ctx, uid, full) {
+	const st = await moneyState(env, uid), g = await gmailOf(env, uid);
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(uid).first(), owner = await readyUser(env, row, await config(env));
+	const q = '(receipt OR invoice OR subscription OR renewal OR renews OR "free trial" OR billing OR "payment confirmation" OR "your plan" OR membership) -category:social ' + (full ? "newer_than:400d" : "newer_than:3d");
+	let mails = [];
+	for (let start = 0, page = 0; page < (full ? 4 : 1); page++, start += 40) {
+		let r;
+		try { r = await gmailCall(g.c, { action: "search", query: q, start, max: 40 }); }
+		catch (e) { if (page) break; r = await gmailCall(g.c, { action: "list", query: q, max: 20 }); }
+		mails.push(...(r.list || []));
+		if (!r.more) break;
+	}
+	const read = new Set(st.read || []);
+	mails = mails.filter((m) => m && m.id && !read.has(m.id));
+	const spent = { mc: 0, broke: false };
+	const changes = await moneyExtract(env, ctx, owner, st.models || [], mails, spent).then((c) => moneyMerge(env, uid, c));
+	const st2 = await moneyState(env, uid);
+	st2.read = [...new Set([...mails.map((m) => m.id), ...(st2.read || [])])].slice(0, 3000);
+	st2.lastScan = now(); st2.scanning = 0; st2.spent = (st2.spent || 0) + spent.mc;
+	await moneySave(env, uid, st2);
+	return { changes, spent, n: mails.length };
+}
+// the money agent: watches the receipts every day, and says what's coming in time (each thing once)
+async function moneyAgentFor(env, uid) {
+	const st = await moneyState(env, uid);
+	if (st.agent && (await env.DB.prepare("SELECT id FROM agents WHERE id = ? AND user_id = ?").bind(st.agent, uid).first())) return st.agent;
+	const conns = new Set(((await env.DB.prepare("SELECT kind FROM conns WHERE user_id = ?").bind(uid).all()).results || []).map((r) => r.kind));
+	const aid = id(), t = now();
+	await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, act, state, next_at, active, created_at) VALUES (?, ?, 'Money manager', ?, 1440, ?, '', 0, ?, 420, ?, '{}', ?, 1, ?)").bind(aid, uid, "Watch my subscriptions: renewals, free trials ending, prices going up, new ones, and charges after I cancel; tell me in time.", JSON.stringify([{ type: "money", value: "receipts" }]), JSON.stringify({ quick: st.models || [], work: [] }), JSON.stringify({ send: ["telegram", "discord"].filter((k) => conns.has(k)), posts: [] }), t + 864e5, t).run();
+	st.agent = aid;
+	await moneySave(env, uid, st);
+	return aid;
+}
+const moneyFmtS = (n, c) => (({ USD: "$", EUR: "€", GBP: "£", IDR: "Rp", SGD: "S$", AUD: "A$" })[c] || (c || "$") + " ") + (Math.round(Number(n) * 100) / 100);
+async function runMoneyAgent(env, ctx, a, manual) {
+	const t = now();
+	if (!manual) await env.DB.prepare("UPDATE agents SET next_at = ?, last_at = ? WHERE id = ?").bind(t + Math.max(60, a.every_min) * 60e3, t, a.id).run();
+	let act = {};
+	try { act = JSON.parse(a.act || "{}") || {}; } catch {}
+	const lines = [];
+	let look = "Looked: nothing new", mc = 0;
+	try {
+		const r = await moneyScan(env, ctx, a.user_id, false);
+		mc = r.spent.mc;
+		for (const c of r.changes) lines.push(c.type === "new" ? "🆕 New subscription: " + c.name + ", " + moneyFmtS(c.amount, c.currency) + " a " + c.cycle : c.type === "up" ? "📈 " + c.name + " went up: " + moneyFmtS(c.from, c.currency) + " → " + moneyFmtS(c.amount, c.currency) : "⚠️ " + c.name + " charged you " + moneyFmtS(c.amount, c.currency) + " after you cancelled");
+		look = "Read " + r.n + " new receipts";
+	} catch (e) { look = "Couldn't read your receipts: " + (e.message || e); }
+	const st = await moneyState(env, a.user_id);
+	st.told = st.told || {};
+	for (const x of (await env.DB.prepare("SELECT * FROM subs WHERE user_id = ? AND status IN ('active', 'trial')").bind(a.user_id).all()).results || []) {
+		const r1 = x.id + ":r:" + x.next_at, r2 = x.id + ":t:" + x.trial_end;
+		if (x.next_at && x.next_at > t - 3600e3 && x.next_at - t < 36 * 3600e3 && !st.told[r1]) { lines.push("🔁 " + x.name + " renews " + (x.next_at - t < 18 * 3600e3 ? "today" : "tomorrow") + ": " + moneyFmtS(x.amount, x.currency)); st.told[r1] = t; }
+		if (x.trial_end && x.trial_end > t && x.trial_end - t < 72 * 3600e3 && !st.told[r2]) { lines.push("⏳ Your " + x.name + " free trial ends in " + ((n) => n + (n === 1 ? " day" : " days"))(Math.max(1, Math.ceil((x.trial_end - t) / 864e5))) + ": cancel now if you don't want to pay"); st.told[r2] = t; }
+	}
+	for (const k of Object.keys(st.told)) if (t - st.told[k] > 90 * 864e5) delete st.told[k];
+	await moneySave(env, a.user_id, st);
+	const qs = [env.DB.prepare("UPDATE agents SET state = ?, spent_mc = spent_mc + ?, runs = runs + 1, last_at = ? WHERE id = ?").bind(JSON.stringify({ look: look + " · " + new Date(t).toISOString() }), mc, t, a.id)];
+	const text = lines.length ? lines.join("\n") + "\n\nOpen Money in Celestin to cancel anything in a tap." : "";
+	if (text) qs.push(env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at, seen) VALUES (?, ?, ?, 'report', ?, ?, 0)").bind(id(), a.id, a.user_id, text, t));
+	await env.DB.batch(qs);
+	if (text) for (const k of act.send || []) { try { await connPost(env, a.user_id, k, "💰 Money\n\n" + text); } catch {} }
+	return { look, reported: !!text, spent: mc / 1000 };
+}
+async function moneyScanStart(req, env, ctx, user) {
+	const b = await body(req), st = await moneyState(env, user.id);
+	await gmailOf(env, user.id);
+	st.models = (Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3);
+	if (st.scanning && now() - st.scanning < 10 * 60e3) return json({ scanning: true });
+	st.scanning = now();
+	await moneySave(env, user.id, st);
+	await moneyAgentFor(env, user.id);
+	ctx.waitUntil(moneyScan(env, ctx, user.id, true).catch(async () => { const s2 = await moneyState(env, user.id); s2.scanning = 0; await moneySave(env, user.id, s2); }));
+	return json({ scanning: true });
+}
+// a card or bank statement they add (its text): the subscriptions in it
+async function moneyUpload(req, env, ctx, user) {
+	const b = await body(req), text = String(b.text || "").slice(0, 40000);
+	if (text.length < 40) throw fail(400, "That file has no text to read.");
+	const st = await moneyState(env, user.id);
+	if (Array.isArray(b.models) && b.models.length) { st.models = b.models.slice(0, 3); await moneySave(env, user.id, st); }
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first(), owner = await readyUser(env, row, await config(env));
+	const parts = [];
+	for (let i = 0; i < text.length; i += 1200) parts.push({ id: "stmt", from: "your statement", subject: "Statement", date: new Date().toISOString().slice(0, 10), text: text.slice(i, i + 1200) });
+	const spent = { mc: 0, broke: false };
+	const changes = await moneyMerge(env, user.id, await moneyExtract(env, ctx, owner, st.models || [], parts, spent));
+	await moneyAgentFor(env, user.id);
+	return json({ found: changes.length });
+}
+async function moneyEdit(req, env, user, sid) {
+	const b = await body(req);
+	if (!["hidden", "active", "cancelled"].includes(b.status)) throw fail(400, "Nothing to change.");
+	await env.DB.prepare("UPDATE subs SET status = ?, updated_at = ? WHERE id = ? AND user_id = ?").bind(b.status, now(), sid, user.id).run();
+	return json({ ok: true });
+}
+// cancel one: done (they cancelled it, or an email went) counts what it saves; else its page, or an email to whoever bills it
+async function moneyCancel(req, env, ctx, user, sid) {
+	const b = await body(req), x = await env.DB.prepare("SELECT * FROM subs WHERE id = ? AND user_id = ?").bind(sid, user.id).first();
+	if (!x) throw fail(404, "That isn't one of yours.");
+	const st = await moneyState(env, user.id);
+	const off = async () => {
+		await env.DB.prepare("UPDATE subs SET status = 'cancelled', updated_at = ? WHERE id = ?").bind(now(), sid).run();
+		if (x.status !== "cancelled") { const s2 = await moneyState(env, user.id); s2.saved = s2.saved || {}; s2.saved[x.currency || "USD"] = Math.round(((s2.saved[x.currency || "USD"] || 0) + yearlyOf(x)) * 100) / 100; await moneySave(env, user.id, s2); }
+	};
+	if (b.done) { await off(); return json({ ok: true, saved: yearlyOf(x) }); }
+	const letter = (bodyText) => emailSend(env, user.id, { to: x.sender, subject: "Please cancel my " + x.name + " subscription", body: bodyText });
+	if (b.send) { if (!EMAIL_RE.test(x.sender || "")) throw fail(400, "There's no address to send it to."); await letter(String(b.body || "").slice(0, 5000)); await off(); return json({ sent: true, to: x.sender, saved: yearlyOf(x) }); }
+	const url = x.cancel_url || cancelLink(x.name);
+	if (url) return json({ url });
+	if (!EMAIL_RE.test(x.sender || "")) return json({ url: "https://www.google.com/search?q=" + encodeURIComponent("how to cancel " + x.name + " subscription") });
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(user.id).first(), owner = await readyUser(env, row, await config(env));
+	const draft = String((await agentAsk(env, ctx, owner, st.models || [], [{ role: "user", content: "Write a short, polite, firm email asking " + x.name + " to cancel the subscription on this email address at the end of the current billing period, and to confirm the cancellation in writing. Only the body, signed simply." }], 400, { mc: 0 })) || "").trim() || "Hello,\n\nPlease cancel my " + x.name + " subscription for this email address at the end of the current billing period, and confirm the cancellation in writing.\n\nThank you.";
+	// (act without asking: it goes now)
+	if (st.auto) { await letter(draft); await off(); return json({ sent: true, to: x.sender, saved: yearlyOf(x) }); }
+	return json({ draft, to: x.sender });
+}
+
 // ------------------------------------------------------------------ Celestin Together's agents
 const AGENT_MAX = 30, AGENT_TICK = 8, AGENT_EVERY = [0, 10, 30, 60, 180, 360, 720, 1440];
 const AGENT_SOURCES = ["url", "news", "rss", "hn", "gmail"];
@@ -3532,7 +3716,7 @@ async function agentSeen(req, env, user) {
 async function agentRunNow(env, ctx, user, aid) {
 	const a = await env.DB.prepare("SELECT * FROM agents WHERE id = ? AND user_id = ?").bind(aid, user.id).first();
 	if (!a) throw fail(404, "That agent isn't yours.");
-	const r = await runAgent(env, ctx, a, true);
+	const r = await (isMoneyAgent(a) ? runMoneyAgent : runAgent)(env, ctx, a, true);
 	return json({ ran: r, agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first()) });
 }
 // (reports through the owner's Gmail: at most 40 a day, so sign-in codes always get through)
@@ -3544,7 +3728,7 @@ async function reportMailOk(env) {
 }
 async function runDueAgents(env, ctx) {
 	const due = (await env.DB.prepare("SELECT * FROM agents WHERE active = 1 AND next_at <= ? ORDER BY next_at LIMIT ?").bind(now(), AGENT_TICK).all()).results || [];
-	for (const a of due) { try { await runAgent(env, ctx, a, false); } catch {} }
+	for (const a of due) { try { await (isMoneyAgent(a) ? runMoneyAgent : runAgent)(env, ctx, a, false); } catch {} }
 }
 // a page as text (the same rules as the fetch tool: public pages only)
 async function pageText(href, max = 30000) {
@@ -3635,7 +3819,7 @@ async function runAgent(env, ctx, a, manual) {
 	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(a.user_id).first();
 	if (!row) return null;
 	const owner = await readyUser(env, row, await config(env));
-	const spent = { mc: 0, broke: false }, logs = [];
+	const spent = { mc: 0, broke: false }, logs = [], autoAll = !!(await moneyState(env, a.user_id)).auto;
 	const looks = await Promise.all(sources.map((x) => agentLook(x, st, env, a.user_id)));
 	st.seen = Object.fromEntries(looks.map((l) => [l.key, l.keep]));
 	// (an inbox's first look: what's there is new for a one-off; for a standing agent, only what comes after)
@@ -3695,7 +3879,7 @@ async function runAgent(env, ctx, a, manual) {
 				for (const e of mail ? (Array.isArray(j.emails) ? j.emails : []).slice(0, 10) : []) {
 					const m = { to: String((e && e.to) || "").trim(), threadId: String((e && (e.thread || e.threadId)) || "").trim() || undefined, subject: String((e && e.subject) || "").trim(), body: String((e && e.body) || "").trim() };
 					if (!m.body || (!m.threadId && !EMAIL_RE.test(m.to))) continue;
-					if (mail === "ask") { logs.push({ kind: "approve", text: JSON.stringify(m) }); continue; }
+					if (mail === "ask" && !autoAll) { logs.push({ kind: "approve", text: JSON.stringify(m) }); continue; }
 					try { await emailSend(env, a.user_id, m); logs.push({ kind: "action", text: "Emailed " + (m.to || "a reply in the thread") + (m.subject ? ": " + m.subject : "") + "\n\n" + m.body.slice(0, 3000) }); }
 					catch (err) { logs.push({ kind: "note", text: "Couldn't send the email to " + (m.to || "the thread") + ": " + (err.message || err) }); }
 				}
@@ -4257,6 +4441,7 @@ async function deskChat(req, env, ctx, bid) {
 	];
 	if (pass && ["booking", "message", "question"].includes(pass.kind)) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, slot, slot_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)").bind(id(), bid, bot.user_id, visitor, pass.kind, String(pass.summary || text).slice(0, 200), JSON.stringify({ name: String(pass.name || "").slice(0, 80), contact: String(pass.contact || "").slice(0, 80), when: slot || String(pass.when || "").slice(0, 80), ...(slot ? { booked: true, remind: String(pass.remind || "").slice(0, 600) } : {}) }), slot, slot ? slotAt(slot, bot.tz) : null, now()));
 	await env.DB.batch(qs);
+	if (slot && ctx) ctx.waitUntil(calendarAdd(env, bot.user_id, { title: "Booking: " + String(pass.name || "a customer").slice(0, 60), start: slotAt(slot, bot.tz), minutes: sc.minutes, details: String(pass.summary || "") + (pass.contact ? " · " + pass.contact : "") + " (booked by your front desk)" }).catch(() => {}));
 	return json({ reply, passed: pass ? pass.kind : null, ...(slot ? { booked: slot, at: slotAt(slot, bot.tz), minutes: sc.minutes } : {}) });
 }
 
