@@ -1483,9 +1483,12 @@ function priceOf(way, u, price, inTokens, outChars) {
 	const pd = u.prompt_tokens_details && typeof u.prompt_tokens_details === "object" ? u.prompt_tokens_details : {};
 	const told = "cache_write_tokens" in pd || "cache_creation_input_tokens" in u || "cache_creation_input_tokens" in pd;
 	if (claude && way.kind === "gw" && !told && !GW_NOCACHE.has(way.gw) && prompt - read >= 1024) wrote = prompt - read;
-	// Gemini leaves its thinking out of completion_tokens but bills it: it's in the total
-	const out = Math.max(u.completion_tokens || 0, (u.total_tokens || 0) - (u.prompt_tokens || 0)) || Math.ceil((outChars || 0) / 4);
-	const list = (prompt - read - wrote) * price.pin + read * (price.pcr ?? (claude ? price.pin * 0.1 : price.pin)) + wrote * (price.pcw ?? (claude ? price.pin * 1.25 : price.pin)) + out * price.pout + (u.web_searches || 0) * 0.01;
+	// Gemini leaves its thinking out of completion_tokens but bills it: it's in the total. (Only when the prompt's tokens
+	// were said: a YouTube video Gemini watched through Flaz came back with prompt_tokens 0 and total_tokens 615,000 for
+	// 19 seconds, a count, not a bill (its own cost: $0.0007). Tested Nov 8. Taken as thinking, one short video cost a
+	// person 70 credits.) Each video watched: a cent at list price, for what watching it may really cost
+	const out = Math.max(u.completion_tokens || 0, u.prompt_tokens ? (u.total_tokens || 0) - u.prompt_tokens : 0) || Math.ceil((outChars || 0) / 4);
+	const list = (prompt - read - wrote) * price.pin + read * (price.pcr ?? (claude ? price.pin * 0.1 : price.pin)) + wrote * (price.pcw ?? (claude ? price.pin * 1.25 : price.pin)) + out * price.pout + (u.web_searches || 0) * 0.01 + (Number(u.videos) || 0) * 0.01;
 	return { list, real: list * (way.fee ?? 1) };
 }
 
@@ -1762,6 +1765,8 @@ async function chat(req, env, ctx, user) {
 	// a hair under, so floating-point dust (1.0000000000000002) never rounds a whole extra unit up
 	const toMc = (usd) => Math.ceil((usd * mult / c.creditUsd) * 1000 - 1e-6);
 	const inTokens = inTokensOf(b);
+	// (videos it's given to watch: a YouTube link as a file or picture part, which Gemini watches)
+	const videos = (b.messages || []).reduce((n, m) => n + (Array.isArray(m.content) ? m.content.filter((p) => p && (p.type === "file" || (p.type === "image_url" && /youtu.?be/i.test(String((p.image_url && p.image_url.url) || ""))))).length : 0), 0);
 	// a search is held at its worst case too: a few searches, and what they read
 	const inUsd = inTokens * price.pin + (web ? web.n * 0.01 + 20000 * price.pin : 0);
 	const room = toUsd(spendable(user, c)) - inUsd;
@@ -1789,7 +1794,7 @@ async function chat(req, env, ctx, user) {
 	const settle = async (way, usage, outChars) => {
 		if (settled) return null;
 		settled = true;
-		const { list, real } = way ? priceOf(way, usage, price, inTokens, outChars) : { list: 0, real: 0 };
+		const { list, real } = way ? priceOf(way, videos ? { ...(usage || {}), videos } : usage, price, inTokens, outChars) : { list: 0, real: 0 };
 		// the real cost, even past the reserve (the input estimate can run low, e.g. images): the owner never absorbs it.
 		// The output was capped to what the balance covers, so any overshoot is small, and a balance below zero only
 		// blocks the next request until credits are bought.

@@ -12826,8 +12826,8 @@ document.addEventListener("click", (e) => {
 });
 $("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = TOGETHER_APP; render(); }); setTimeout(() => $("#input").focus(), 60); };
 $("#togetherNav").onclick = () => { location.href = TOGETHER_APP ? "./#app" : "together.html#app"; };
-// (Celestin itself shows nothing of the Together app, the owner, Nov 7: "it's a whole different app")
-if (!TOGETHER_APP) $("#togetherNav").style.display = "none";
+// (Celestin opens the Together app, its own app, in one click: the owner couldn't find it with this hidden, Nov 8)
+if (!TOGETHER_APP) $("#togetherNav").dataset.tip = "Open Celestin Together, your AI team (its own app)";
 if (TOGETHER_APP) {
 	// (here it leads back to Celestin)
 	const b = $("#togetherNav");
