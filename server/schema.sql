@@ -177,3 +177,10 @@ CREATE INDEX IF NOT EXISTS bot_msgs_v ON bot_msgs (bot_id, visitor, created_at);
 CREATE INDEX IF NOT EXISTS bot_msgs_ip ON bot_msgs (bot_id, ip, created_at);
 CREATE TABLE IF NOT EXISTS bot_items (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, user_id TEXT NOT NULL, visitor TEXT NOT NULL, kind TEXT NOT NULL, summary TEXT, details TEXT, status TEXT NOT NULL DEFAULT 'new', created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS bot_items_user ON bot_items (user_id, status, created_at);
+
+-- Celestin Together's jobs that run by themselves (win-back messages, marketing posts) and what they make
+CREATE TABLE IF NOT EXISTS team_jobs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL, config TEXT NOT NULL, models TEXT, state TEXT, next_at INTEGER NOT NULL, last_at INTEGER, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS team_jobs_due ON team_jobs (active, next_at);
+CREATE INDEX IF NOT EXISTS team_jobs_user ON team_jobs (user_id);
+CREATE TABLE IF NOT EXISTS team_job_items (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT, text TEXT NOT NULL, link TEXT, why TEXT, status TEXT NOT NULL DEFAULT 'ready', created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS team_job_items_user ON team_job_items (user_id, status, created_at);

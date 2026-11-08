@@ -1824,6 +1824,9 @@ html[data-app="together"] .auth-main { align-self: center; }
 	html[data-app="together"] .atg-list, html[data-app="together"] .atg-foot { display: none; }
 }
 
+.tw-jobs { display: flex; flex-direction: column; gap: 8px; }
+.twj-h { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 4px 2px; }
+
 </style>
 </head>
 <body>
@@ -3457,8 +3460,9 @@ async function conduct(text, atts, tried, only, team) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
+		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback or marketing) and what they told you (name, brief about the business, goal, topic, platforms, language).\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\"" + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing\", \"name\": \"\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
 		+ " \"refs\": only when the request asks for something like, in the style of, or replicating a specific named thing it should match (a creator or channel, a game, a film or show, a brand, a website, an artist, a particular video or page): each one's name as they wrote it, what it is, and exactly what to take from it; never for a plain topic (a video ABOUT black holes has none)."
@@ -3489,7 +3493,7 @@ async function conduct(text, atts, tried, only, team) {
 		if (busy.signal.aborted) throw e;
 		return null;
 	}
-	const way = ways.some(([k]) => k === j.way) ? j.way : only ? ways[0][0] : "answer";
+	const way = ways.some(([k]) => k === j.way) || (team && j.way === "job") ? j.way : only ? ways[0][0] : "answer";
 	// what it read the work as: the skills that decide which models do it
 	let profile = null;
 	if (idx) {
@@ -3514,6 +3518,7 @@ async function conduct(text, atts, tried, only, team) {
 		team: team ? (Array.isArray(j.team) ? j.team : []).filter((x) => x && MATE[String(x.to || "").toLowerCase()] && String(x.to).toLowerCase() !== "lead" && String(x.task || "").trim()).map((x, k) => ({ to: String(x.to).toLowerCase(), task: String(x.task).slice(0, 4000), after: Array.isArray(x.after) ? [...new Set(x.after.map((n) => Math.floor(Number(n)) - 1).filter((n) => n >= 0 && n < k))] : k ? [k - 1] : [] })).slice(0, 6) : null,
 		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader,
 		made: j.made === "coded" || j.made === "filmed" ? j.made : "",
+		job: team && j.job && typeof j.job === "object" ? j.job : null,
 		refs: (Array.isArray(j.refs) ? j.refs : []).filter((x) => x && String(x.name || "").trim()).slice(0, 2).map((x) => ({ name: String(x.name).trim().slice(0, 80), kind: String(x.kind || "").slice(0, 60), take: String(x.take || "").slice(0, 200) })) };
 }
 // the way it chose, done by the part of Celestin that does it
@@ -3550,6 +3555,7 @@ async function runWay(plan, text, atts) {
 	}
 	if (w === "app") return runApp(whole, atts, { edit: plan.edit });
 	if (w === "task") return runTaskWay(plan, whole);
+	if (w === "job") return runJobWay(plan, whole);
 	if (w === "act" || w === "apps") return runAct(text, atts);
 	if (w === "research") {
 		if (!SKILLS_ON.includes("research")) SKILLS_ON.unshift("research");
@@ -7153,7 +7159,8 @@ function renderTogetherWelcome() {
 	// (always on: what the teammates keep doing by themselves, from the last look at the tasks)
 	const on = TEAM_TASKS.slice(0, 4).map((t) => '<button class="aon" data-tasks="1"><i style="--c:' + MATE[t.member].c + '"></i><b>' + esc(MATE[t.member].name) + "</b> " + esc(t.title.length > 48 ? t.title.slice(0, 46).trimEnd() + "…" : t.title) + ' <span class="when">' + esc(whenText(t)) + "</span></button>").join("");
 	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night") : "A receptionist on a link you share: answers customers day and night, passes bookings to you") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
-	$("#view").innerHTML = '<section class="welcome together"><div class="tw-team">' + cards + '</div><div class="tw-jobs">' + desk + '</div><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1>' +
+	const jobsHtml = Object.entries(JOB_INFO).map(([k, x]) => { const mine = JOBS.jobs.filter((j) => j.kind === k), r = jobReady(k); return '<button class="tw-job" data-job="' + k + '"><span class="tav" style="--c:' + x.c + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + x.icon + '</svg></span><span class="twj"><b>' + esc(x.name) + "</b><span>" + esc(mine.length ? (r ? r + " ready for you" : "On, working by itself") : x.what) + '</span></span><span class="twgo">' + (mine.length ? (r ? "Open" : "Open") : "Set it up") + "</span></button>"; }).join("");
+	$("#view").innerHTML = '<section class="welcome together"><div class="tw-team">' + cards + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + desk + jobsHtml + '</div><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1>' +
 		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + "</div></section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
@@ -7165,6 +7172,7 @@ function renderTogetherWelcome() {
 	$$("[data-tsug]").forEach((b) => (b.onclick = () => { $("#input").value = b.dataset.tsug; autosize(); send(); }));
 	$$("[data-tasks]").forEach((b) => (b.onclick = () => openTasks()));
 	if ($("#twDesk")) $("#twDesk").onclick = () => openDesks();
+	$$("[data-job]").forEach((b) => (b.onclick = () => openJob(b.dataset.job)));
 	// (no sky here: the Together app is Apple-plain; the team is the picture)
 }
 // one teammate's piece, served the Celestin way with the teammate's field weighed in. o.brief: a piece the Lead gave out
@@ -13892,6 +13900,104 @@ async function runTaskWay(plan, text) {
 	current.msgs.push({ role: "assistant", text: "Done. **" + whenText(task) + "** I'll: " + task.prompt + "\n\n" + (mate ? "Each answer goes to **Team updates** in Celestin Together, from me, even with this page closed." : "Each answer goes to your **Tasks** chat, even if this page is closed.") + " You can change or stop it in **Tasks** in the sidebar." });
 	syncTasks();
 }
+// ---- Celestin Together's jobs that run by themselves (the server does them; see runJob): bringing customers back,
+// and marketing that posts at the right moment
+var JOBS = { jobs: [], items: [] };
+const JOB_INFO = {
+	winback: { name: "Bring customers back", c: "#30d158", icon: '<path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/>', what: "Warm, personal messages that bring your regulars back to book again, one tap to send on WhatsApp" },
+	marketing: { name: "Marketing", c: "#ff9f0a", icon: '<path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6"/>', what: "Posts in your voice, put out when your audience is on and your topic is hot" },
+};
+const jobReady = (kind) => JOBS.items.filter((x) => x.status === "ready" && (!kind || x.jobKind === kind)).length;
+// who writes them: the model measured best at persuasive, on-brand writing that follows instructions exactly, by the
+// rules (54/46, 1.8x), and the next two
+function jobModels() {
+	try { return pinFirst(diversify(bestFirst(quarkFirst(arenaRank("write", { "text:creative_writing": 0.6, "text:instruction_following": 0.4 }), undefined, null, (x, c) => callCost(x, c, 600, 2500)))), "write").slice(0, 3).map((m) => m.id); } catch { return []; }
+}
+async function syncJobs(quiet) {
+	if (!TOGETHER_APP || !creditsMode() || !account) return;
+	let j;
+	try { j = await api("/api/jobs"); } catch { return; }
+	const before = jobReady();
+	JOBS = { jobs: j.jobs || [], items: j.items || [] };
+	const n = jobReady();
+	if (n > before && !quiet) {
+		const post = JOBS.items.find((x) => x.status === "ready" && x.kind === "post");
+		toast(post ? "Your post is ready: now's the moment to put it out" : n - before + " message" + (n - before > 1 ? "s" : "") + " ready to send");
+		try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Celestin Together", { body: post ? "Your post is ready: now's the moment" : "Messages ready to send to your customers", icon: "icons/together-192.png" }); } catch {}
+	}
+	if (current && !current.msgs.length) renderTogetherWelcome();
+	if ($("#jobBox")) drawJob($("#jobBox").dataset.kind);
+}
+function openJob(kind, prefill) {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	const info = JOB_INFO[kind];
+	openModal("<h2>" + esc(info.name) + '</h2><p class="sub">' + esc(info.what) + '. It works by itself, day and night, on your credits.</p><div id="jobBox" data-kind="' + kind + '"></div>', "wide");
+	drawJob(kind, prefill ? "new" : null, prefill);
+	syncJobs(true);
+}
+function jobForm(kind, d, pre) {
+	d = d || {}; const c = d.config || {}; pre = pre || {};
+	const desk = DESKS.bots[0], v = (x, y) => esc(x != null && x !== "" ? x : y || "");
+	const plats = ["x", "instagram", "tiktok", "linkedin", "threads", "facebook"], on = c.platforms || pre.platforms || ["x"];
+	return '<div class="field"><label for="jbName">' + (kind === "marketing" ? "Your brand" : "Your business") + '</label><input class="inp" id="jbName" maxlength="60" value="' + v(d.name, pre.name || (desk && desk.name)) + '"></div>' +
+		'<div class="field"><label for="jbBrief">About it</label><textarea class="inp" id="jbBrief" rows="5" maxlength="6000" placeholder="What you do, for whom, what makes you different, your prices and offers, how you talk (friendly, premium, playful…)">' + v(c.brief, pre.brief || (desk && desk.brief)) + "</textarea></div>" +
+		'<div class="field"><label for="jbGoal">' + (kind === "marketing" ? "What you want from it" : "What the messages are for") + '</label><input class="inp" id="jbGoal" maxlength="1000" placeholder="' + (kind === "marketing" ? "More sign-ups from students; launch week for our new menu" : "Invite them back to book; 10% off this month for regulars") + '" value="' + v(c.goal, pre.goal) + '"></div>' +
+		(kind === "winback" ? '<div class="field"><label for="jbList">Your customers</label><textarea class="inp" id="jbList" rows="6" placeholder="One per line: name, phone, and anything worth remembering&#10;Rina, 0812-3456-7890, short bob, last came 6 weeks ago&#10;Budi, 0813-1111-2222, always orders kopi susu">' + v((c.customers || []).map((x) => [x.name, x.phone, x.notes].filter(Boolean).join(", ")).join("\n")) + '</textarea><div class="help">Each one gets their own message, written for them. Nobody gets another within the days below.</div></div>' +
+			'<div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:160px"><label for="jbEvery">Again after (days)</label><input class="inp" id="jbEvery" type="number" min="7" max="180" value="' + (c.every || 30) + '"></div><div class="field" style="flex:2;min-width:220px"><label for="jbLink">Where they book or reply</label><input class="inp" id="jbLink" placeholder="Your front desk link, or your booking page" value="' + v(c.link, desk ? deskLink(desk.id) : "") + '"></div></div>'
+			: '<div class="field"><label for="jbTopic">The topic to ride</label><input class="inp" id="jbTopic" maxlength="120" placeholder="e.g. artificial intelligence, coffee, skincare" value="' + v(c.topic, pre.topic) + '"><div class="help">When it spikes in the news, a post goes out right then.</div></div>' +
+			'<div class="field"><label>Where</label><div class="row" style="gap:12px;flex-wrap:wrap">' + plats.map((p) => '<label class="chk"><input type="checkbox" data-plat="' + p + '"' + (on.includes(p) ? " checked" : "") + "> " + { x: "X", instagram: "Instagram", tiktok: "TikTok", linkedin: "LinkedIn", threads: "Threads", facebook: "Facebook" }[p] + "</label>").join("") + '</div></div><div class="field"><label for="jbPer">Posts a day</label><input class="inp" id="jbPer" type="number" min="1" max="6" value="' + (c.perDay || 1) + '" style="max-width:120px"></div>') +
+		'<div class="field"><label for="jbLang">Language</label><input class="inp" id="jbLang" maxlength="30" placeholder="Bahasa Indonesia, English…" value="' + v(c.lang, pre.lang) + '"></div>' +
+		'<div class="status" id="jbStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px">' + (d.id ? '<button class="btn" id="jbCancel">Cancel</button>' : "") + '<button class="btn dark" id="jbSave">' + (d.id ? "Save" : "Start it") + "</button></div>";
+}
+function drawJob(kind, edit, pre) {
+	const box = $("#jobBox");
+	if (!box) return;
+	// (what the Lead filled in stays with the form; a refresh never redraws a form being filled in)
+	if (pre) box._pre = pre; else pre = box._pre;
+	if (!edit && $("#jbSave") && JOBS.jobs.some((j) => j.kind === kind) === false) return;
+	const mine = JOBS.jobs.filter((j) => j.kind === kind), ed = edit === "new" ? {} : edit ? mine.find((j) => j.id === edit) : null;
+	if (ed || !mine.length) {
+		box.innerHTML = jobForm(kind, ed, pre);
+		if ($("#jbCancel")) $("#jbCancel").onclick = () => drawJob(kind);
+		$("#jbSave").onclick = async () => {
+			$("#jbSave").disabled = true;
+			const config = { brief: $("#jbBrief").value, goal: $("#jbGoal").value, lang: $("#jbLang").value, tz: -new Date().getTimezoneOffset() };
+			if (kind === "winback") Object.assign(config, { customers: $("#jbList").value, every: +$("#jbEvery").value, link: $("#jbLink").value });
+			else Object.assign(config, { topic: $("#jbTopic").value, perDay: +$("#jbPer").value, platforms: $$("[data-plat]").filter((x) => x.checked).map((x) => x.dataset.plat) });
+			try {
+				await api("/api/jobs", { method: "POST", body: JSON.stringify({ id: ed && ed.id, kind, name: $("#jbName").value, config, models: jobModels() }) });
+				try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch {}
+				await syncJobs(true);
+				drawJob(kind);
+				toast(kind === "marketing" ? "Marketing is on: it'll post when the moment's right" : "On it: the messages will be ready here in a minute or two");
+			} catch (e) { $("#jbStatus").className = "status bad"; $("#jbStatus").textContent = e.message || String(e); $("#jbSave").disabled = false; }
+		};
+		return;
+	}
+	const items = JOBS.items.filter((x) => x.jobKind === kind).slice(0, 60);
+	box.innerHTML = mine.map((j) => '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(j.name) + '</b><span class="help">' + (kind === "marketing" ? j.posted + " posted · next look " + new Date(j.next_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : j.sent + " of " + ((j.config.customers || []).length) + " customers messaged") + "</span></div>" +
+		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-jbrun="' + j.id + '">' + (kind === "marketing" ? "Write a post now" : "Write the next ones now") + '</button><button class="btn" data-jbedit="' + j.id + '">Edit</button><button class="btn" data-jbdel="' + j.id + '">Delete</button></div></div>').join("") +
+		'<div class="field"><label>' + (kind === "marketing" ? "Posts" : "Messages") + (jobReady(kind) ? " · " + jobReady(kind) + " ready" : "") + "</label>" + (items.length ? items.map((it) => '<div class="desk-it' + (it.status === "ready" ? " new" : "") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(it.kind === "post" ? "For " + ({ x: "X", instagram: "Instagram", tiktok: "TikTok", linkedin: "LinkedIn", threads: "Threads", facebook: "Facebook" }[it.title] || it.title) : it.title) + '</b><span class="help">' + (it.status === "ready" ? "ready" : it.status) + " · " + new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + "</span></div>" +
+			'<div style="white-space:pre-wrap;margin:4px 0">' + esc(it.text) + "</div>" + (it.why ? '<div class="help">' + esc(it.why) + "</div>" : "") +
+			'<div class="row" style="gap:8px;margin-top:6px">' + (it.link ? '<a class="btn dark" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-jbgo="' + it.id + '">' + (it.kind === "post" ? (it.title === "x" ? "Post on X" : it.title === "threads" ? "Post on Threads" : "Open " + it.title) : "Send on WhatsApp") + "</a>" : "") + '<button class="btn" data-jbcopy="' + it.id + '">Copy</button>' + (it.status === "ready" ? '<button class="btn" data-jbdone="' + it.id + '">' + (it.kind === "post" ? "Posted" : "Sent") + "</button>" : "") + "</div></div>").join("") : '<div class="help">' + (kind === "marketing" ? "The first post comes at the next good moment, or press Write a post now." : "The first messages come in a minute or two.") + "</div>") + "</div>" +
+		'<div class="row" style="justify-content:flex-end"><button class="btn" data-jbedit="new">Add another</button></div>';
+	const act = async (iid, status) => { await api("/api/jobs/items/" + iid, { method: "POST", body: JSON.stringify({ status }) }).catch(() => {}); await syncJobs(true); };
+	$$("[data-jbgo]").forEach((x) => x.addEventListener("click", () => setTimeout(() => act(x.dataset.jbgo, "done"), 400)));
+	$$("[data-jbdone]").forEach((x) => (x.onclick = () => act(x.dataset.jbdone, "done")));
+	$$("[data-jbcopy]").forEach((x) => (x.onclick = () => { const it = JOBS.items.find((y) => y.id === x.dataset.jbcopy); if (it) navigator.clipboard.writeText(it.text).then(() => toast("Copied"), () => {}); }));
+	$$("[data-jbedit]").forEach((x) => (x.onclick = () => drawJob(kind, x.dataset.jbedit)));
+	$$("[data-jbdel]").forEach((x) => (x.onclick = async () => { if (!confirm("Delete this job and what it made?")) return; await api("/api/jobs/" + x.dataset.jbdel, { method: "DELETE" }).catch(() => {}); await syncJobs(true); drawJob(kind); }));
+	$$("[data-jbrun]").forEach((x) => (x.onclick = async () => { x.disabled = true; x.textContent = "Working…"; try { await api("/api/jobs/" + x.dataset.jbrun + "/run", { method: "POST" }); } catch (e) { toast(e.message || String(e)); } await syncJobs(true); }));
+}
+// asked for in the chat ("an agent that markets my company", "rebook my customers"): the Lead opens it, filled in
+async function runJobWay(plan, text) {
+	const j = plan.job || {}, kind = j.kind === "desk" ? "desk" : JOB_INFO[j.kind] ? j.kind : /market|post|social|instagram|tiktok|promo/i.test(text) ? "marketing" : /desk|recept|customer service|answer (my )?customers/i.test(text) ? "desk" : "winback";
+	const say = { desk: "I'll set up your front desk: it answers your customers on a link you share, day and night, takes bookings and passes the rest to you.", marketing: "I'll run your marketing: posts in your voice, put out when your audience is on and your topic is hot. Check the details and start it.", winback: "I'll bring your customers back: a warm, personal message for each one, ready to send on WhatsApp, with your booking link. Paste your customers and start it." }[kind];
+	current.msgs.push({ role: "assistant", member: kind === "marketing" ? "writer" : kind === "desk" ? "lead" : "writer", text: say });
+	updateLast();
+	if (kind === "desk") { openDesks("new"); setTimeout(() => { if ($("#dkName") && j.name) $("#dkName").value = j.name; if ($("#dkBrief") && j.brief) $("#dkBrief").value = j.brief; }, 50); return; }
+	openJob(kind, { name: j.name, brief: j.brief, goal: j.goal, topic: j.topic, platforms: j.platforms, lang: j.lang });
+}
 // ---- Celestin Together's Front desk: a receptionist on a link you share (the server answers customers; see deskChat)
 var DESKS = { bots: [], items: [], at: 0 };
 const deskLink = (id) => location.origin + location.pathname.replace(/[^/]*$/, "") + "talk.html#" + id;
@@ -13997,8 +14103,8 @@ async function syncTasks(quiet) {
 	}
 	return j;
 }
-setInterval(() => { syncTasks(); syncDesks(); }, 5 * 60e3);
-addEventListener("focus", () => { syncTasks(); syncDesks(); });
+setInterval(() => { syncTasks(); syncDesks(); syncJobs(); }, 5 * 60e3);
+addEventListener("focus", () => { syncTasks(); syncDesks(); syncJobs(); });
 async function openTasks() {
 	if (!creditsMode() || !account) { openAccount(); return; }
 	openModal('<h2>Tasks</h2><p class="sub">Things Celestin does by itself on a schedule, even with this page closed. Each run uses your credits like a message, and its answer waits in your Tasks chat.</p>' +

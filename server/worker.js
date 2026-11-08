@@ -130,6 +130,7 @@ export default {
 	// every few minutes: the scheduled tasks that are due run (see "tasks"), and pictures shared with apps a day ago go
 	async scheduled(event, env, ctx) {
 		ctx.waitUntil(runDueTasks(env, ctx));
+		ctx.waitUntil(columns(env).then(() => runDueJobs(env, ctx)).catch(() => {}));
 		ctx.waitUntil(columns(env).then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3)])).catch(() => {}));
 	},
 };
@@ -165,6 +166,11 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/r\/([a-f0-9]{24})\/msgs$/)) && m === "GET") return deskMsgs(env, fd[1], url.searchParams.get("visitor"));
 
 	const user = await authUser(req, env);
+	if (p === "/api/jobs" && m === "GET") return jobsOf(env, user);
+	if (p === "/api/jobs" && m === "POST") return jobSave(req, env, user);
+	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})$/)) && m === "DELETE") return jobDelete(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/run$/)) && m === "POST") return jobRunNow(env, ctx, user, fd[1]);
+	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
 	if (p === "/api/bots" && m === "GET") return desksOf(env, user);
 	if (p === "/api/bots" && m === "POST") return deskSave(req, env, user);
 	if ((fd = p.match(/^\/api\/bots\/([a-f0-9]{24})$/)) && m === "DELETE") return deskDelete(env, user, fd[1]);
@@ -626,6 +632,11 @@ function columns(env) {
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS bot_msgs_ip ON bot_msgs (bot_id, ip, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS bot_items (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, user_id TEXT NOT NULL, visitor TEXT NOT NULL, kind TEXT NOT NULL, summary TEXT, details TEXT, status TEXT NOT NULL DEFAULT 'new', created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS bot_items_user ON bot_items (user_id, status, created_at)").run();
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS team_jobs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT NOT NULL, config TEXT NOT NULL, models TEXT, state TEXT, next_at INTEGER NOT NULL, last_at INTEGER, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS team_jobs_due ON team_jobs (active, next_at)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS team_jobs_user ON team_jobs (user_id)").run();
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS team_job_items (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT, text TEXT NOT NULL, link TEXT, why TEXT, status TEXT NOT NULL DEFAULT 'ready', created_at INTEGER NOT NULL)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS team_job_items_user ON team_job_items (user_id, status, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
 	})().catch((e) => { COLS = null; throw e; });
@@ -3044,6 +3055,202 @@ async function runDueTasks(env, ctx) {
 		await env.DB.prepare("UPDATE tasks SET last_at = ?, next_at = ?, active = ? WHERE id = ?").bind(now(), next || t.next_at, next ? 1 : 0, t.id).run();
 		try { await runTask(env, ctx, t); } catch {}
 	}
+}
+
+// ------------------------------------------------------------------ Celestin Together's jobs
+const JOB_KINDS = ["winback", "marketing"], JOB_MAX = 10, JOB_RUN_TICK = 5;
+const jobOut = (j) => { let config = {}; try { config = JSON.parse(j.config || "{}"); } catch {} let state = {}; try { state = JSON.parse(j.state || "{}"); } catch {} return { id: j.id, kind: j.kind, name: j.name, config, next_at: j.next_at, last_at: j.last_at, active: !!j.active, created_at: j.created_at, posted: state.posted || 0, sent: Object.keys(state.sent || {}).length }; };
+async function jobsOf(env, user) {
+	const jobs = (await env.DB.prepare("SELECT * FROM team_jobs WHERE user_id = ? ORDER BY created_at").bind(user.id).all()).results || [];
+	const items = (await env.DB.prepare("SELECT i.*, j.name AS job_name, j.kind AS job_kind FROM team_job_items i JOIN team_jobs j ON j.id = i.job_id WHERE i.user_id = ? ORDER BY (i.status = 'ready') DESC, i.created_at DESC LIMIT 120").bind(user.id).all()).results || [];
+	return json({ jobs: jobs.map(jobOut), items: items.map((i) => ({ id: i.id, job: i.job_id, jobName: i.job_name, jobKind: i.job_kind, kind: i.kind, title: i.title, text: i.text, link: i.link, why: i.why, status: i.status, at: i.created_at })) });
+}
+// the customer list, as the owner pasted it: one per line, "name, phone, last visit, notes" (any order of the rest)
+function parseCustomers(list) {
+	const out = [];
+	for (const line of String(list || "").split(/\r?\n/)) {
+		const parts = line.split(/[,;\t|]/).map((x) => x.trim()).filter(Boolean);
+		if (!parts.length) continue;
+		const phone = parts.find((x) => /^\+?[\d\s().-]{8,}$/.test(x)) || "";
+		const rest = parts.filter((x) => x !== phone);
+		out.push({ name: (rest[0] || "").slice(0, 60), phone: phone.replace(/[^\d+]/g, "").slice(0, 20), notes: rest.slice(1).join(", ").slice(0, 200) });
+		if (out.length >= 500) break;
+	}
+	return out.filter((c) => c.name || c.phone);
+}
+async function jobSave(req, env, user) {
+	const b = await body(req);
+	const kind = JOB_KINDS.includes(b.kind) ? b.kind : "";
+	if (!kind) throw fail(400, "Pick a job.");
+	const name = String(b.name || "").trim().slice(0, 60) || (kind === "winback" ? "Bring customers back" : "Marketing");
+	const c = b.config || {};
+	const config = {
+		brief: String(c.brief || "").trim().slice(0, 6000), goal: String(c.goal || "").trim().slice(0, 1000), lang: String(c.lang || "").slice(0, 30), link: String(c.link || "").slice(0, 300),
+		tz: Math.max(-840, Math.min(840, Math.round(Number(c.tz) || 420))),
+	};
+	if (config.brief.length < 20) throw fail(400, "Tell it about your business first: what you do, who for, your voice.");
+	if (kind === "winback") {
+		config.customers = parseCustomers(c.customers);
+		if (!config.customers.length) throw fail(400, "Paste your customers, one per line: name, phone, and anything worth remembering (their usual, their last visit).");
+		config.every = Math.max(7, Math.min(180, Math.round(Number(c.every) || 30)));
+	} else {
+		config.platforms = (Array.isArray(c.platforms) ? c.platforms : ["x"]).filter((p) => ["x", "instagram", "tiktok", "linkedin", "facebook", "threads"].includes(p)).slice(0, 4);
+		if (!config.platforms.length) config.platforms = ["x"];
+		config.topic = String(c.topic || "").trim().slice(0, 120);
+		config.perDay = Math.max(1, Math.min(6, Math.round(Number(c.perDay) || 1)));
+	}
+	const models = JSON.stringify((Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3));
+	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
+		const r = await env.DB.prepare("UPDATE team_jobs SET name = ?, config = ?, models = ?, active = ?, next_at = ? WHERE id = ? AND user_id = ?").bind(name, JSON.stringify(config), models, b.active === false ? 0 : 1, now() + 60e3, b.id, user.id).run();
+		if (r.meta && r.meta.changes) return json({ job: jobOut(await env.DB.prepare("SELECT * FROM team_jobs WHERE id = ?").bind(b.id).first()) });
+	}
+	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM team_jobs WHERE user_id = ?").bind(user.id).first();
+	if (n && n.n >= JOB_MAX) throw fail(429, "You have " + JOB_MAX + " jobs already: delete one to add another.");
+	const jid = id();
+	await env.DB.prepare("INSERT INTO team_jobs (id, user_id, kind, name, config, models, state, next_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, '{}', ?, 1, ?)").bind(jid, user.id, kind, name, JSON.stringify(config), models, now() + 60e3, now()).run();
+	return json({ job: jobOut(await env.DB.prepare("SELECT * FROM team_jobs WHERE id = ?").bind(jid).first()) });
+}
+async function jobDelete(env, user, jid) {
+	const own = await env.DB.prepare("SELECT id FROM team_jobs WHERE id = ? AND user_id = ?").bind(jid, user.id).first();
+	if (!own) throw fail(404, "That job isn't yours.");
+	await env.DB.batch([env.DB.prepare("DELETE FROM team_jobs WHERE id = ?").bind(jid), env.DB.prepare("DELETE FROM team_job_items WHERE job_id = ?").bind(jid)]);
+	return json({ ok: true });
+}
+async function jobItem(req, env, user, iid) {
+	const b = await body(req);
+	const r = await env.DB.prepare("UPDATE team_job_items SET status = ? WHERE id = ? AND user_id = ?").bind(["done", "skipped", "ready"].includes(b.status) ? b.status : "done", iid, user.id).run();
+	if (!(r.meta && r.meta.changes)) throw fail(404, "That isn't in your inbox.");
+	return json({ ok: true });
+}
+async function jobRunNow(env, ctx, user, jid) {
+	const j = await env.DB.prepare("SELECT * FROM team_jobs WHERE id = ? AND user_id = ?").bind(jid, user.id).first();
+	if (!j) throw fail(404, "That job isn't yours.");
+	const made = await runJob(env, ctx, j, true);
+	return json({ made });
+}
+async function runDueJobs(env, ctx) {
+	const due = (await env.DB.prepare("SELECT * FROM team_jobs WHERE active = 1 AND next_at <= ? ORDER BY next_at LIMIT ?").bind(now(), JOB_RUN_TICK).all()).results || [];
+	for (const j of due) { try { await runJob(env, ctx, j, false); } catch {} }
+}
+// one model call for a job, on the owner's credits (like a scheduled task); "" when it couldn't (no credits: it waits)
+async function jobAsk(env, ctx, j, messages, maxTokens) {
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(j.user_id).first();
+	if (!row) return "";
+	const owner = await readyUser(env, row, await config(env));
+	let models = [];
+	try { models = JSON.parse(j.models || "[]"); } catch {}
+	if (!models.length) models = ["google/gemini-3.8-flash"];
+	for (const model of models) {
+		try {
+			const res = await chat(new Request("https://andromeda.internal/api/chat/completions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.7 }) }), env, ctx, owner);
+			const out = String((await res.json().catch(() => ({}))).choices?.[0]?.message?.content || "");
+			if (out) return out;
+		} catch (e) { if (e.status === 402) return ""; }
+	}
+	return "";
+}
+const waLink = (phone, text) => { let p = String(phone || "").replace(/[^\d+]/g, ""); if (p.startsWith("+")) p = p.slice(1); else if (p.startsWith("0")) p = "62" + p.slice(1); return p.length >= 8 ? "https://wa.me/" + p + "?text=" + encodeURIComponent(text) : ""; };
+const POST_LINK = { x: (t) => "https://x.com/intent/post?text=" + encodeURIComponent(t), threads: (t) => "https://www.threads.net/intent/post?text=" + encodeURIComponent(t), linkedin: () => "https://www.linkedin.com/feed/?shareActive=true", facebook: () => "https://www.facebook.com/", instagram: () => "https://www.instagram.com/", tiktok: () => "https://www.tiktok.com/upload" };
+// when people are on each platform, by the hour where the audience is (0 to 1; from the platforms' own published
+// engagement studies, rounded): the hours a post is most likely to be seen
+const ACTIVE = {
+	x: [.15, .1, .05, .05, .05, .1, .25, .45, .7, .9, .85, .75, .8, .75, .65, .6, .6, .65, .75, .9, 1, .85, .6, .3],
+	instagram: [.2, .1, .05, .05, .05, .1, .2, .35, .5, .55, .6, .8, .9, .75, .6, .6, .65, .75, .9, 1, .95, .8, .55, .3],
+	tiktok: [.4, .25, .1, .05, .05, .05, .1, .2, .3, .4, .45, .5, .55, .5, .5, .55, .6, .7, .85, .95, 1, 1, .85, .6],
+	linkedin: [.05, .05, .05, .05, .05, .1, .3, .65, .95, 1, .85, .7, .8, .7, .6, .6, .65, .55, .35, .2, .15, .1, .05, .05],
+	facebook: [.15, .1, .05, .05, .05, .1, .25, .45, .6, .7, .75, .8, .85, .8, .7, .65, .65, .7, .8, .9, .95, .8, .55, .3],
+	threads: [.2, .1, .05, .05, .05, .1, .25, .45, .65, .8, .8, .75, .8, .75, .65, .6, .6, .7, .8, .95, 1, .85, .6, .3],
+};
+// how hot the topic is in the news right now against its last 3 days (GDELT, one look an hour per topic; 1 = usual)
+async function topicHeat(env, topic) {
+	const q = String(topic || "").trim();
+	if (!q) return { heat: 1 };
+	const k = "heat:" + q.toLowerCase().slice(0, 80);
+	const kept = await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind(k).first().catch(() => null);
+	try { const v = kept && JSON.parse(kept.v); if (v && now() - v.at < 3600e3) return v; } catch {}
+	let heat = 1;
+	try {
+		const r = await fetch("https://api.gdeltproject.org/api/v2/doc/doc?query=" + encodeURIComponent(/\s/.test(q) ? '"' + q + '"' : q) + "&mode=timelinevolraw&timespan=3d&format=json", { signal: AbortSignal.timeout(12000) });
+		const j = await r.json();
+		const pts = ((j.timeline && j.timeline[0] && j.timeline[0].data) || []).map((x) => Number(x.value) || 0);
+		if (pts.length > 8) { const avg = pts.reduce((a, b) => a + b, 0) / pts.length, recent = pts.slice(-4).reduce((a, b) => a + b, 0) / 4; heat = avg > 0 ? Math.max(.2, Math.min(5, recent / avg)) : 1; }
+	} catch {}
+	const v = { at: now(), heat: Math.round(heat * 100) / 100 };
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(k, JSON.stringify(v)).run().catch(() => {});
+	return v;
+}
+// what the internet is talking about right now (Hacker News' front page, one request), for posts that join in
+async function talkedAbout() {
+	try { const j = await (await fetch("https://hn.algolia.com/api/v1/search?tags=front_page&hitsPerPage=12", { signal: AbortSignal.timeout(8000) })).json(); return (j.hits || []).map((h) => h.title).filter(Boolean).slice(0, 12); } catch { return []; }
+}
+// the next best hour to post: when the audience is most active, at least (24 / perDay) hours after the last post
+function nextSlot(cfg, last, heat) {
+	const plat = (cfg.platforms || ["x"])[0], curve = ACTIVE[plat] || ACTIVE.x, gap = (24 / (cfg.perDay || 1)) * 3600e3 * 0.75, t0 = now();
+	let best = null;
+	for (let h = 1; h <= 36; h++) {
+		const at = t0 + h * 3600e3 - (t0 % 3600e3) + 5 * 60e3;
+		if (last && at - last < gap) continue;
+		const local = new Date(at + (cfg.tz || 0) * 60e3).getUTCHours();
+		const score = curve[local] * (1 + 0.25 * Math.max(0, heat - 1)) - h * 0.004;
+		if (!best || score > best.score) best = { at, score, local };
+	}
+	return best || { at: t0 + 24 * 3600e3, local: 0 };
+}
+async function runJob(env, ctx, j, manual) {
+	let cfg = {}, state = {};
+	try { cfg = JSON.parse(j.config || "{}"); } catch {}
+	try { state = JSON.parse(j.state || "{}"); } catch {}
+	const t = now();
+	const put = (kind, title, text, link, why) => env.DB.prepare("INSERT INTO team_job_items (id, job_id, user_id, kind, title, text, link, why, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?)").bind(id(), j.id, j.user_id, kind, title, text, link || null, why || null, now());
+	let made = 0, next = t + 24 * 3600e3;
+	if (j.kind === "winback") {
+		const every = (cfg.every || 30) * 864e5, sent = state.sent || {};
+		const due = (cfg.customers || []).filter((c) => !(sent[c.phone || c.name] > t - every)).slice(0, 12);
+		if (due.length) {
+			const ask = "You write for " + j.name + ". About the business, from its owner:\n" + cfg.brief + "\n\nWhat these messages are for: " + (cfg.goal || "invite each customer back to book again, warmly") + (cfg.link ? "\nWhere they can book or ask (put it in each message): " + cfg.link : "") + "\n\nWrite one WhatsApp message for each customer below: warm, welcoming and persuasive the way a favourite local business would be, never pushy or salesy; personal (use their name and what's noted about them); short (2 to 4 sentences); in " + (cfg.lang || "the language that fits the business and the customer's name") + "; with one clear, easy next step. No made-up offers: only what the owner gave.\n\nCustomers:\n" + due.map((c, k) => (k + 1) + ". " + (c.name || "(no name)") + (c.notes ? " (" + c.notes + ")" : "")).join("\n") + "\n\nReply with ONLY a JSON array, one per customer, in order: [{\"n\": 1, \"message\": \"...\"}]";
+			const out = await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 2600);
+			let list = [];
+			try { list = JSON.parse(out.replace(/^[\s\S]*?(\[[\s\S]*\])[\s\S]*$/, "$1")); } catch {}
+			const qs = [];
+			for (const x of Array.isArray(list) ? list : []) {
+				const c = due[(Number(x.n) || 0) - 1], msg = String(x.message || "").trim();
+				if (!c || !msg) continue;
+				qs.push(put("message", c.name || c.phone, msg, waLink(c.phone, msg), c.notes || ""));
+				sent[c.phone || c.name] = t;
+				made++;
+			}
+			if (qs.length) await env.DB.batch(qs);
+			state.sent = sent;
+		}
+		next = t + (due.length >= 12 ? 3600e3 : 24 * 3600e3);
+	} else if (j.kind === "marketing") {
+		const heatV = await topicHeat(env, cfg.topic), heat = heatV.heat || 1, last = state.lastPost || 0;
+		const plat = (cfg.platforms || ["x"])[0];
+		// a spike in the topic: post now (if the last post was more than 4 hours ago); else at the hour that's best
+		const local = new Date(t + (cfg.tz || 0) * 60e3).getUTCHours(), act = (ACTIVE[plat] || ACTIVE.x)[local];
+		const spike = heat >= 1.5 && t - last > 4 * 3600e3;
+		const onTime = !state.nextPost || t >= state.nextPost - 6 * 60e3;
+		if (manual || spike || onTime) {
+			const talk = await talkedAbout();
+			const recent = (state.recent || []).slice(-6);
+			const ask = "You run marketing for " + j.name + ". About it, from the owner:\n" + cfg.brief + (cfg.goal ? "\n\nWhat they want from it: " + cfg.goal : "") + "\n\nWrite ONE post for " + plat + " to go out now" + (cfg.topic ? ", about or around " + cfg.topic + (heat >= 1.3 ? " (it's hot in the news right now: " + heat + "x its usual coverage, so join that conversation)" : "") : "") + ". What people are talking about online right now (use one only if it truly fits):\n- " + (talk.join("\n- ") || "(unknown)") + "\n\nRecent posts (don't repeat them):\n- " + (recent.join("\n- ") || "(none)") + "\n\nWrite it like the best accounts on " + plat + ": a hook in the first line, specific and true (nothing the owner didn't give), in the brand's own voice, " + (plat === "x" || plat === "threads" ? "under 270 characters, at most one hashtag" : "with a short caption and 3 to 5 fitting hashtags") + ", in " + (cfg.lang || "the language of the audience") + ". Reply with ONLY the post.";
+			const post = (await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 700)).trim().replace(/^"|"$/g, "");
+			if (post) {
+				const why = spike ? cfg.topic + " is spiking in the news right now (" + heat + "x its usual): posting now" : "Now (" + String(local).padStart(2, "0") + ":00 where your audience is) is when most of them are on " + plat + (heat > 1.1 ? ", and " + cfg.topic + " is hotter than usual (" + heat + "x)" : "");
+				await put("post", plat, post, (POST_LINK[plat] || POST_LINK.x)(post), why).run();
+				made++;
+				state.lastPost = t;
+				state.posted = (state.posted || 0) + 1;
+				state.recent = [...recent, post.slice(0, 200)].slice(-6);
+			}
+		}
+		const slot = nextSlot(cfg, state.lastPost || last, heat);
+		state.nextPost = slot.at;
+		// (looked at again within the hour, so a spike is caught, and at the next good hour)
+		next = Math.min(slot.at, t + 3600e3);
+	}
+	await env.DB.prepare("UPDATE team_jobs SET state = ?, last_at = ?, next_at = ? WHERE id = ?").bind(JSON.stringify(state), t, next, j.id).run();
+	return made;
 }
 
 // ------------------------------------------------------------------ Celestin Together's Front desk
