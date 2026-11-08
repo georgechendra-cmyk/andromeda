@@ -1995,6 +1995,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 		</div>
 		<nav class="sb-nav" aria-label="Celestin">
 			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
+			<button class="nav-i tg-only" id="tgAgentNav" style="--c:#5e5ce6" data-tip="Agents: any job, done by itself day and night" aria-label="Agents"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/><circle cx="12" cy="4" r="1"/></svg><span class="lbl">Agents</span><span class="nb" id="tgAgentNb"></span></button>
 			<button class="nav-i tg-only" id="tgDeskNav" style="--c:#30b0c7" data-tip="Front desk: your receptionist on a link" aria-label="Front desk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg><span class="lbl">Front desk</span><span class="nb" id="tgDeskNb"></span></button>
 			<button class="nav-i tg-only" id="tgMarketNav" style="--c:#ff9500" data-tip="Marketing: posts at the right moment" aria-label="Marketing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="lbl">Marketing</span><span class="nb" id="tgMarketNb"></span></button>
 			<button class="nav-i tg-only" id="tgBackNav" style="--c:#34c759" data-tip="Bring customers back: messages ready to send" aria-label="Bring customers back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Customers</span><span class="nb" id="tgBackNb"></span></button>
@@ -2752,6 +2753,8 @@ const FEATURE_W = {
 	docx: { task: "write", out: 4000, w: { "text:industry_writing_and_literature_and_language": 0.35, "text:instruction_following": 0.3, "factuality:overall": 0.2, "text:expert": 0.15 } },
 	director: { task: "write", out: 2500, w: { "text:creative_writing": 0.45, "text:instruction_following": 0.35, "text:industry_entertainment_and_sports_and_media": 0.2 } },
 	directorFromImage: { task: "vision", out: 2500, w: { "vision:overall": 0.4, "vision:creative_writing_vision": 0.3, "text:creative_writing": 0.15, "text:instruction_following": 0.15 } },
+	// an agent's work: following a brief exactly, judging what matters, getting the facts right
+	agent: { task: "reasoning", out: 1500, in: 6000, w: { "text:instruction_following": 0.35, "text:hard_prompts": 0.25, "factuality:overall": 0.2, "text:expert": 0.2 } },
 	// a picture drawn in code (an SVG): a web page's visual craft with an illustrator's eye
 	drawn: { task: "code", out: 7000, bench: 0.15, w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
 	imagePrompt: { task: "write", out: 300, w: { "text:creative_writing": 0.4, "text:instruction_following": 0.4, "text:industry_entertainment_and_sports_and_media": 0.2 } },
@@ -3488,7 +3491,7 @@ async function conduct(text, atts, tried, only, team) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback or marketing) and what they told you (name, brief about the business, goal, topic, platforms, language).\n" : "")
+		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or an agent: ANY other job they want done by itself, again and again, while they're away (watch prices, pages, tickets or competitors; follow news on something; research or write something every day; keep an eye on anything). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for an agent, what: the job in their words).\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
 		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing\", \"name\": \"\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
@@ -7189,9 +7192,10 @@ function renderTogetherWelcome() {
 	// (always on: what the teammates keep doing by themselves, from the last look at the tasks)
 	const on = TEAM_TASKS.slice(0, 4).map((t) => '<button class="aon" data-tasks="1"><i style="--c:' + MATE[t.member].c + '"></i><b>' + esc(MATE[t.member].name) + "</b> " + esc(t.title.length > 48 ? t.title.slice(0, 46).trimEnd() + "…" : t.title) + ' <span class="when">' + esc(whenText(t)) + "</span></button>").join("");
 	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : (() => { const t = DESKS.bots.reduce((a, b) => ({ people: a.people + ((b.week && b.week.people) || 0), answered: a.answered + ((b.week && b.week.answered) || 0), booked: a.booked + ((b.week && b.week.booked) || 0) }), { people: 0, answered: 0, booked: 0 }); return deskWeek({ week: t }) ? "This week: " + deskWeek({ week: t }) : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night"; })()) : "A receptionist on a link you share: answers customers day and night and books them at your free times") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
+	const un = agentUnseen(), agentCard = '<button class="tw-job" id="twAgents"><span class="tav" style="--c:#5e5ce6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/></svg></span><span class="twj"><b>Agents</b><span>' + (AGENTS.agents.length ? (un ? un + " new report" + (un > 1 ? "s" : "") + " for you" : AGENTS.agents.filter((a) => a.active).length + " working by themselves, day and night") : "Any job, done by itself day and night: describe it, and it starts") + '</span></span><span class="twgo">' + (AGENTS.agents.length ? "Open" : "Make one") + "</span></button>";
 	const jobsHtml = Object.entries(JOB_INFO).map(([k, x]) => { const mine = JOBS.jobs.filter((j) => j.kind === k), r = jobReady(k); return '<button class="tw-job" data-job="' + k + '"><span class="tav" style="--c:' + x.c + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + x.icon + '</svg></span><span class="twj"><b>' + esc(x.name) + "</b><span>" + esc(mine.length ? (r ? r + " ready for you" : "On, working by itself") : x.what) + '</span></span><span class="twgo">' + (mine.length ? (r ? "Open" : "Open") : "Set it up") + "</span></button>"; }).join("");
 	$("#view").innerHTML = '<section class="welcome together"><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1><div class="tw-team">' + cards + "</div>" +
-		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + desk + jobsHtml + "</div></section>";
+		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + agentCard + desk + jobsHtml + "</div></section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 	$$("[data-medit]").forEach((x) => {
@@ -7202,6 +7206,7 @@ function renderTogetherWelcome() {
 	$$("[data-tsug]").forEach((b) => (b.onclick = () => { $("#input").value = b.dataset.tsug; autosize(); send(); }));
 	$$("[data-tasks]").forEach((b) => (b.onclick = () => openTasks()));
 	if ($("#twDesk")) $("#twDesk").onclick = () => openDesks();
+	if ($("#twAgents")) $("#twAgents").onclick = () => openAgents();
 	$$("[data-job]").forEach((b) => (b.onclick = () => openJob(b.dataset.job)));
 	// (no sky here: the Together app is Apple-plain; the team is the picture)
 }
@@ -13100,6 +13105,7 @@ if (TOGETHER_APP) {
 	$(".brand-name").textContent = "Celestin Together";
 	$(".brand-link").title = "Celestin Together's home page";
 	$("#tgDeskNav").onclick = () => { openSidebar(false); openDesks(); };
+	$("#tgAgentNav").onclick = () => { openSidebar(false); openAgents(); };
 	$("#tgMarketNav").onclick = () => { openSidebar(false); openJob("marketing"); };
 	$("#tgBackNav").onclick = () => { openSidebar(false); openJob("winback"); };
 }
@@ -14052,6 +14058,7 @@ function railBadges() {
 	if (!TOGETHER_APP) return;
 	const put = (id, n) => { const el = $(id); if (el) el.textContent = n > 0 ? (n > 99 ? "99+" : String(n)) : ""; };
 	put("#tgDeskNb", deskNew());
+	put("#tgAgentNb", agentUnseen());
 	put("#tgMarketNb", jobReady("marketing"));
 	put("#tgBackNb", jobReady("winback"));
 }
@@ -14158,12 +14165,120 @@ function drawJob(kind, edit, pre) {
 }
 // asked for in the chat ("an agent that markets my company", "rebook my customers"): the Lead opens it, filled in
 async function runJobWay(plan, text) {
-	const j = plan.job || {}, kind = j.kind === "desk" ? "desk" : JOB_INFO[j.kind] ? j.kind : /market|post|social|instagram|tiktok|promo/i.test(text) ? "marketing" : /desk|recept|customer service|answer (my )?customers/i.test(text) ? "desk" : "winback";
+	const j = plan.job || {}, kind = j.kind === "desk" ? "desk" : j.kind === "agent" ? "agent" : JOB_INFO[j.kind] ? j.kind : /market|post|social|instagram|tiktok|promo/i.test(text) ? "marketing" : /desk|recept|customer service|answer (my )?customers/i.test(text) ? "desk" : /rebook|win ?back|bring (my )?(customers|regulars)/i.test(text) ? "winback" : "agent";
+	if (kind === "agent") {
+		current.msgs.push({ role: "assistant", member: "lead", text: "I'll set up an agent for that: it works by itself on our server, day and night, even with this page closed, and tells you what matters. Check its plan and start it." });
+		updateLast();
+		openAgents("new", j.what || j.goal || text);
+		return;
+	}
 	const say = { desk: "I'll set up your front desk: it answers your customers on a link you share, day and night, takes bookings and passes the rest to you.", marketing: "I'll run your marketing: posts in your voice, put out when your audience is on and your topic is hot. Check the details and start it.", winback: "I'll bring your customers back: a warm, personal message for each one, ready to send on WhatsApp, with your booking link. Paste your customers and start it." }[kind];
 	current.msgs.push({ role: "assistant", member: kind === "marketing" ? "writer" : kind === "desk" ? "lead" : "writer", text: say });
 	updateLast();
 	if (kind === "desk") { openDesks("new"); setTimeout(() => { if ($("#dkName") && j.name) $("#dkName").value = j.name; if ($("#dkBrief") && j.brief) $("#dkBrief").value = j.brief; }, 50); return; }
 	openJob(kind, { name: j.name, brief: j.brief, goal: j.goal, topic: j.topic, platforms: j.platforms, lang: j.lang });
+}
+// ---- Celestin Together's agents: any job, run by the server (see runAgent there)
+var AGENTS = { agents: [], log: [] };
+const agentUnseen = () => AGENTS.log.filter((l) => !l.seen && l.kind === "report").length;
+const AGENT_EVERY = [[10, "every 10 minutes"], [30, "every 30 minutes"], [60, "every hour"], [180, "every 3 hours"], [360, "every 6 hours"], [720, "twice a day"], [1440, "once a day"]];
+const AGENT_SRC = { url: "A page", news: "News about", rss: "A feed (RSS)", hn: "Hacker News about" };
+const everyText = (m) => (AGENT_EVERY.find(([k]) => k === m) || [0, "every " + m + " minutes"])[1];
+// who does its quick looks and its work: the quick reader, and the best at following a brief exactly, by the rules
+const agentModels = () => { try { return { quick: bestFor("reader").slice(0, 2).map((m) => m.id), work: bestFor("agent").slice(0, 3).map((m) => m.id) }; } catch { return { quick: [], work: [] }; } };
+async function syncAgents(quiet) {
+	if (!TOGETHER_APP || !creditsMode() || !account) return;
+	let j;
+	try { j = await api("/api/agents"); } catch { return; }
+	const before = agentUnseen();
+	AGENTS = { agents: j.agents || [], log: j.log || [] };
+	railBadges();
+	const n = agentUnseen();
+	if (n > before && !quiet) toast(n - before === 1 ? "An agent has something for you" : "Your agents have " + (n - before) + " new reports");
+	if ($("#agBox") && !$("#agBox").contains(document.activeElement)) drawAgents();
+	if (current && !current.msgs.length) renderTogetherWelcome();
+}
+function openAgents(edit, ask) {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	openModal('<h2>Agents</h2><p class="sub">Any job, done by itself on our server, day and night, even with this page closed. It watches what you tell it, does the work when something matters, and reports to you here. A look that finds nothing new costs nothing.</p><div id="agBox"></div>', "wide");
+	drawAgents(edit || (AGENTS.agents.length ? null : "new"), ask);
+	syncAgents(true);
+}
+// words → a plan to check: what to watch, how often, when to tell you
+async function planAgent(text) {
+	const ask = "Turn this into an AI agent that runs by itself on a server, again and again, while its owner is away.\nWhat they want: " + text +
+		'\n\nReply with ONLY JSON: {"name": "2 to 4 words", "goal": "its job, written out fully and clearly in the language they wrote in: what to do each time, what good work looks like, what to include in a report", "every": one of 10, 30, 60, 180, 360, 720, 1440 (minutes: as often as the job truly needs; prices or tickets 10 to 30, news 60 to 180, a daily brief or daily writing 1440), "sources": [{"type": "url" or "news" or "rss" or "hn", "value": "a full https link for url or rss, or search words for news or hn"}] (what it should keep an eye on; use only links they gave or that you are sure exist; [] when it just does something on a schedule), "notify": "when it should tell them, in a few words"}';
+	for (const m of bestFor("spec").slice(0, 3)) {
+		try { const p = parseJSON(await once(m.id, [{ role: "user", content: ask }], { response_format: { type: "json_object" }, ...effortExtra(m.id) })); if (p && p.goal) return p; } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	return { name: "My agent", goal: text, every: 60, sources: [], notify: "" };
+}
+function agentForm(a) {
+	a = a || {};
+	const srcRow = (x) => '<div class="row ag-src" style="gap:8px;margin-bottom:6px"><select class="inp" style="max-width:170px" data-agt>' + Object.entries(AGENT_SRC).map(([k, v]) => '<option value="' + k + '"' + (x.type === k ? " selected" : "") + ">" + v + "</option>").join("") + '</select><input class="inp" style="flex:1;min-width:0" data-agv placeholder="https://… or the words to follow" value="' + esc(x.value || "") + '"><button class="btn" data-agx aria-label="Remove">×</button></div>';
+	return '<div class="field"><label for="agName">Its name</label><input class="inp" id="agName" maxlength="60" value="' + esc(a.name || "") + '"></div>' +
+		'<div class="field"><label for="agGoal">Its job</label><textarea class="inp" id="agGoal" rows="5" maxlength="4000">' + esc(a.goal || "") + "</textarea></div>" +
+		'<div class="field"><label>What it keeps an eye on</label><div id="agSrcs">' + (a.sources || []).map(srcRow).join("") + '</div><button class="btn" id="agAddSrc">Add something to watch</button><div class="help">Nothing here: it just does its job every time. Something here: it works only when there\'s something new, so quiet hours cost nothing.</div></div>' +
+		'<div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:180px"><label for="agEvery">How often it looks</label><select class="inp" id="agEvery">' + AGENT_EVERY.map(([k, v]) => '<option value="' + k + '"' + (Number(a.every || 60) === k ? " selected" : "") + ">" + v + "</option>").join("") + '</select></div><div class="field" style="flex:2;min-width:220px"><label for="agNotify">Tell me when</label><input class="inp" id="agNotify" maxlength="600" placeholder="e.g. a price drops, anything important" value="' + esc(a.notify || "") + '"></div></div>' +
+		'<label class="chk" style="margin:2px 0 10px"><input type="checkbox" id="agEmail"' + (a.email ? " checked" : "") + "> Email me its reports too (" + esc((account && account.email) || "your email") + ")</label>" +
+		'<div class="help" style="margin-bottom:12px">On your credits: a look that finds nothing new is free, a quick check of something new is a fraction of a credit, and a full report is a few credits.</div>' +
+		'<div class="status" id="agStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="agCancel">Cancel</button><button class="btn dark" id="agSave">' + (a.id ? "Save" : "Start it") + "</button></div>";
+}
+function drawAgents(edit, ask) {
+	const box = $("#agBox");
+	if (!box) return;
+	// 1. describe it
+	if (edit === "new") {
+		const ex = ["Watch my competitor's menu prices and tell me when they change", "Every morning at 7, the 5 news stories that matter for a small coffee shop in Bandung", "Tell me the moment concert tickets for my favourite band go on sale", "Every day, write 3 Instagram post ideas for my bakery", "Follow AI news and tell me only what's actually big"];
+		box.innerHTML = '<div class="field"><label for="agAsk">What should it do?</label><textarea class="inp" id="agAsk" rows="4" maxlength="2000" placeholder="Describe the job in your own words">' + esc(ask || "") + '</textarea></div><div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:12px">' + ex.map((x) => '<button class="btn" data-agex="' + esc(x) + '" style="font-size:12.5px">' + esc(x) + "</button>").join("") + '</div><div class="status" id="agStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px">' + (AGENTS.agents.length ? '<button class="btn" id="agBack">Back</button>' : "") + '<button class="btn dark" id="agPlan">Plan it</button></div>';
+		$$("[data-agex]").forEach((b) => (b.onclick = () => { $("#agAsk").value = b.dataset.agex; $("#agAsk").focus(); }));
+		if ($("#agBack")) $("#agBack").onclick = () => drawAgents();
+		const go = async () => {
+			const t = $("#agAsk").value.trim();
+			if (t.length < 6) { $("#agAsk").focus(); return; }
+			$("#agPlan").disabled = true; $("#agStatus").className = "status"; $("#agStatus").innerHTML = '<span class="spin"></span> Planning it…';
+			try { const p = await planAgent(t); drawAgentForm({ name: p.name, goal: p.goal, every: Number(p.every) || 60, sources: Array.isArray(p.sources) ? p.sources : [], notify: p.notify || "" }); }
+			catch (e) { $("#agStatus").className = "status bad"; $("#agStatus").textContent = e.message || String(e); $("#agPlan").disabled = false; }
+		};
+		$("#agPlan").onclick = go;
+		if (ask && ask.length >= 6) go();
+		return;
+	}
+	// 2. its plan, to check and change
+	if (edit) { const a = AGENTS.agents.find((x) => x.id === edit); if (a) { drawAgentForm(a); return; } }
+	// 3. the agents, and what they found
+	const un = AGENTS.log.filter((l) => !l.seen), name = (id) => (AGENTS.agents.find((a) => a.id === id) || {}).name || "An agent";
+	box.innerHTML = AGENTS.agents.map((a) => { const look = String(a.lastLook || ""), at = look.split(" · ")[1]; return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(a.name) + '</b><span class="help">' + esc(everyText(a.every)) + " · " + creditsText(a.spent) + " credits so far</span></div>" +
+		'<div class="help" style="margin-top:2px">' + (a.active ? "" : "<b>Paused</b> · ") + esc(look.split(" · ")[0] || "Starting: its first look is in a minute or two") + (at ? " · " + esc(new Date(at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })) : "") + "</div>" +
+		'<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" data-agrun="' + a.id + '">Look now</button><button class="btn" data-agpause="' + a.id + '">' + (a.active ? "Pause" : "Resume") + '</button><button class="btn" data-agedit="' + a.id + '">Edit</button><button class="btn" data-agdel="' + a.id + '">Delete</button></div></div>'; }).join("") +
+		'<div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn dark" id="agNew">New agent</button></div>' +
+		'<div class="field"><label>What they found' + (un.length ? " · " + un.length + " new" : "") + "</label>" + (AGENTS.log.length ? AGENTS.log.slice(0, 40).map((l) => '<div class="desk-it' + (l.seen ? "" : " new") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(name(l.agent)) + '</b><span class="help">' + esc(new Date(l.at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })) + '</span></div><div class="md">' + md(l.text) + "</div></div>").join("") : '<div class="help">Nothing yet: what they find shows up here.</div>') + "</div>";
+	$("#agNew").onclick = () => drawAgents("new");
+	$$("[data-agedit]").forEach((b) => (b.onclick = () => drawAgents(b.dataset.agedit)));
+	$$("[data-agdel]").forEach((b) => (b.onclick = async () => { if (!confirm("Delete this agent and what it found?")) return; await api("/api/agents/" + b.dataset.agdel, { method: "DELETE" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
+	$$("[data-agpause]").forEach((b) => (b.onclick = async () => { const a = AGENTS.agents.find((x) => x.id === b.dataset.agpause); if (!a) return; await api("/api/agents", { method: "POST", body: JSON.stringify({ ...a, ...agentModels(), tz: -new Date().getTimezoneOffset(), active: !a.active }) }).catch((e) => toast(e.message)); await syncAgents(true); drawAgents(); }));
+	$$("[data-agrun]").forEach((b) => (b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Looking…'; try { const j = await api("/api/agents/" + b.dataset.agrun + "/run", { method: "POST" }); toast(j.ran && j.ran.reported ? "It found something: it's below" : (j.ran && j.ran.look) || "Done"); } catch (e) { toast(e.message || String(e)); } await syncAgents(true); drawAgents(); }));
+	// (shown: seen)
+	if (un.length) api("/api/agents/seen", { method: "POST", body: JSON.stringify({ ids: un.map((l) => l.id) }) }).then(() => { un.forEach((l) => (l.seen = true)); railBadges(); }).catch(() => {});
+}
+function drawAgentForm(a) {
+	const box = $("#agBox");
+	if (!box) return;
+	box.innerHTML = agentForm(a);
+	const wire = () => $$("[data-agx]").forEach((x) => (x.onclick = () => x.closest(".ag-src").remove()));
+	wire();
+	$("#agAddSrc").onclick = () => { $("#agSrcs").insertAdjacentHTML("beforeend", agentForm({ sources: [{ type: "url", value: "" }] }).match(/<div class="row ag-src"[\s\S]*?<\/button><\/div>/)[0]); wire(); };
+	$("#agCancel").onclick = () => drawAgents(AGENTS.agents.length ? null : "new");
+	$("#agSave").onclick = async () => {
+		$("#agSave").disabled = true;
+		const sources = $$(".ag-src").map((r) => ({ type: r.querySelector("[data-agt]").value, value: r.querySelector("[data-agv]").value.trim() })).filter((x) => x.value);
+		try {
+			await api("/api/agents", { method: "POST", body: JSON.stringify({ id: a.id, name: $("#agName").value, goal: $("#agGoal").value, every: +$("#agEvery").value, sources, notify: $("#agNotify").value, email: $("#agEmail").checked, tz: -new Date().getTimezoneOffset(), active: a.id ? a.active !== false : true, ...agentModels() }) });
+			await syncAgents(true);
+			drawAgents();
+			toast(a.id ? "Saved" : "It's working: its first look is in a minute or two");
+		} catch (e) { $("#agStatus").className = "status bad"; $("#agStatus").textContent = e.message || String(e); $("#agSave").disabled = false; }
+	};
 }
 // ---- Celestin Together's Front desk: a receptionist on a link you share (the server answers customers; see deskChat)
 var DESKS = { bots: [], items: [], at: 0 };
@@ -14294,8 +14409,10 @@ async function syncTasks(quiet) {
 	}
 	return j;
 }
-setInterval(() => { syncTasks(); syncDesks(); syncJobs(); }, 5 * 60e3);
-addEventListener("focus", () => { syncTasks(); syncDesks(); syncJobs(); });
+setInterval(() => { syncTasks(); syncDesks(); syncJobs(); syncAgents(); }, 5 * 60e3);
+addEventListener("focus", () => { syncTasks(); syncDesks(); syncJobs(); syncAgents(); });
+// (what's waiting, as soon as the app is open: the rail's counts and the welcome)
+setTimeout(() => { syncDesks(true); syncJobs(true); syncAgents(true); }, 2500);
 async function openTasks() {
 	if (!creditsMode() || !account) { openAccount(); return; }
 	openModal('<h2>Tasks</h2><p class="sub">Things Celestin does by itself on a schedule, even with this page closed. Each run uses your credits like a message, and its answer waits in your Tasks chat.</p>' +

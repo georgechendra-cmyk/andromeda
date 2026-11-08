@@ -134,6 +134,7 @@ export default {
 		ctx.waitUntil(columns(env)
 			.then(() => runDueJobs(env, ctx)).catch(() => {})
 			.then(() => deskReminders(env)).catch(() => {})
+			.then(() => runDueAgents(env, ctx)).catch(() => {})
 			.then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3)])).catch(() => {}));
 	},
 };
@@ -175,6 +176,11 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})$/)) && m === "DELETE") return jobDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/run$/)) && m === "POST") return jobRunNow(env, ctx, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
+	if (p === "/api/agents" && m === "GET") return agentsOf(env, user, url);
+	if (p === "/api/agents" && m === "POST") return agentSave(req, env, user);
+	if (p === "/api/agents/seen" && m === "POST") return agentSeen(req, env, user);
+	if ((fd = p.match(/^\/api\/agents\/([a-f0-9]{24})$/)) && m === "DELETE") return agentDelete(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/agents\/([a-f0-9]{24})\/run$/)) && m === "POST") return agentRunNow(env, ctx, user, fd[1]);
 	if (p === "/api/bots" && m === "GET") return desksOf(env, user);
 	if (p === "/api/bots" && m === "POST") return deskSave(req, env, user);
 	if ((fd = p.match(/^\/api\/bots\/([a-f0-9]{24})$/)) && m === "DELETE") return deskDelete(env, user, fd[1]);
@@ -651,6 +657,12 @@ function columns(env) {
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS team_jobs_user ON team_jobs (user_id)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS team_job_items (id TEXT PRIMARY KEY, job_id TEXT NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, title TEXT, text TEXT NOT NULL, link TEXT, why TEXT, status TEXT NOT NULL DEFAULT 'ready', created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS team_job_items_user ON team_job_items (user_id, status, created_at)").run();
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, goal TEXT NOT NULL, every_min INTEGER NOT NULL DEFAULT 60, sources TEXT, notify TEXT, email INTEGER NOT NULL DEFAULT 0, models TEXT, state TEXT, next_at INTEGER NOT NULL, last_at INTEGER, active INTEGER NOT NULL DEFAULT 1, spent_mc INTEGER NOT NULL DEFAULT 0, runs INTEGER NOT NULL DEFAULT 0, tz INTEGER NOT NULL DEFAULT 420, created_at INTEGER NOT NULL)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS agents_due ON agents (active, next_at)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS agents_user ON agents (user_id)").run();
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS agent_log (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS agent_log_user ON agent_log (user_id, created_at)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS agent_log_agent ON agent_log (agent_id, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
 	})().catch((e) => { COLS = null; throw e; });
@@ -1644,6 +1656,20 @@ async function wikiSearch(q, n) {
 	}
 	return [];
 }
+// the news on something, from GDELT's open index of the world's news (every country and language, minutes old): the
+// newest articles first (titles and links; a page is read when it's needed)
+async function newsSearch(q, n, days = 3) {
+	const query = String(q || "").replace(/[^\p{L}\p{N}\s"'-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+	if (query.length < 3) return [];
+	try {
+		const r = await fetch("https://api.gdeltproject.org/api/v2/doc/doc?query=" + encodeURIComponent(/\s/.test(query) && !/"/.test(query) && query.split(" ").length <= 4 ? '"' + query + '"' : query) + "&mode=artlist&maxrecords=" + Math.min(50, Math.max(5, n * 3)) + "&format=json&sort=datedesc&timespan=" + days + "d", { signal: AbortSignal.timeout(12000) });
+		if (!r.ok) return [];
+		const j = await r.json().catch(() => ({}));
+		const seen = new Set();
+		return (j.articles || []).filter((a) => a && a.url && a.title && !seen.has(a.title.toLowerCase()) && seen.add(a.title.toLowerCase())).slice(0, n)
+			.map((a) => ({ title: String(a.title).slice(0, 200) + " (" + (a.domain || "news") + ")", url: a.url, text: "News, " + String(a.seendate || "").replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2}).*/, "$1-$2-$3 $4:$5 UTC") + (a.language ? ", " + a.language : "") }));
+	} catch { return []; }
+}
 // what a search finds: the search key's results, or (with none) a model's own search, held and charged to the person
 async function searchFor(env, user, q, n) {
 	const keyed = await searchWeb(env, q, n);
@@ -1654,8 +1680,10 @@ async function searchFor(env, user, q, n) {
 	let got = { results: [], usd: 0 };
 	try { got = await modelSearch(env, q, n, orderFor(c, user.owner)); }
 	finally { await charge(env, user.id, "web-search" + (got.model ? ": " + got.model : ""), held, got.usd, mt); }
-	// (nothing could search the web: Wikipedia, which is free, rather than nothing)
-	return got.results.length ? got.results : await wikiSearch(q, n);
+	// (nothing could search the web: the news (GDELT, open and free) and Wikipedia, rather than nothing)
+	if (got.results.length) return got.results;
+	const [news, wiki] = await Promise.all([newsSearch(q, Math.ceil(n / 2) + 1), wikiSearch(q, Math.max(2, Math.floor(n / 2)))]);
+	return [...news, ...wiki].slice(0, n + 2);
 }
 // the search results go in front of the newest message (not the system prompt), so the cached start of the
 // conversation stays the same
@@ -3077,6 +3105,180 @@ async function runDueTasks(env, ctx) {
 		await env.DB.prepare("UPDATE tasks SET last_at = ?, next_at = ?, active = ? WHERE id = ?").bind(now(), next || t.next_at, next ? 1 : 0, t.id).run();
 		try { await runTask(env, ctx, t); } catch {}
 	}
+}
+
+// ------------------------------------------------------------------ Celestin Together's agents
+const AGENT_MAX = 30, AGENT_TICK = 8, AGENT_EVERY = [10, 30, 60, 180, 360, 720, 1440];
+const AGENT_SOURCES = ["url", "news", "rss", "hn"];
+const agentOut = (a) => { const j = (x, d) => { try { return JSON.parse(x || "") ?? d; } catch { return d; } }; const st = j(a.state, {}); return { id: a.id, name: a.name, goal: a.goal, every: a.every_min, sources: j(a.sources, []), notify: a.notify || "", email: !!a.email, active: !!a.active, next_at: a.next_at, last_at: a.last_at, spent: Math.round((a.spent_mc || 0) / 100) / 10, runs: a.runs || 0, memory: st.memory || "", lastLook: st.look || "", created_at: a.created_at }; };
+async function agentsOf(env, user, url) {
+	const agents = (await env.DB.prepare("SELECT * FROM agents WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()).results || [];
+	const log = (await env.DB.prepare("SELECT id, agent_id, kind, text, created_at, seen FROM agent_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 80").bind(user.id).all()).results || [];
+	return json({ agents: agents.map(agentOut), log: log.map((l) => ({ id: l.id, agent: l.agent_id, kind: l.kind, text: l.text, at: l.created_at, seen: !!l.seen })) });
+}
+async function agentSave(req, env, user) {
+	const b = await body(req);
+	const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60), goal = String(b.goal || "").trim().slice(0, 4000);
+	if (!name || goal.length < 10) throw fail(400, "Give your agent a name and say what it should do.");
+	const every = AGENT_EVERY.includes(Number(b.every)) ? Number(b.every) : 60;
+	const sources = (Array.isArray(b.sources) ? b.sources : []).map((x) => ({ type: String(x && x.type || ""), value: String(x && x.value || "").trim().slice(0, 300) })).filter((x) => AGENT_SOURCES.includes(x.type) && x.value && (x.type !== "url" && x.type !== "rss" || /^https?:\/\//i.test(x.value))).slice(0, 8);
+	const notify = String(b.notify || "").trim().slice(0, 600), email = b.email ? 1 : 0, tz = Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 420)));
+	const models = JSON.stringify({ quick: (Array.isArray(b.quick) ? b.quick : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 2), work: (Array.isArray(b.work) ? b.work : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3) });
+	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
+		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, b.active === false ? 0 : 1, b.id, user.id).run();
+		if (r.meta && r.meta.changes) return json({ agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(b.id).first()) });
+	}
+	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ?").bind(user.id).first();
+	if (n && n.n >= AGENT_MAX) throw fail(429, "You have " + AGENT_MAX + " agents already: delete one to add another.");
+	const aid = id(), t = now();
+	// (its first look: now)
+	await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, state, next_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 1, ?)").bind(aid, user.id, name, goal, every, JSON.stringify(sources), notify, email, models, tz, t, t).run();
+	return json({ agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first()) });
+}
+async function agentDelete(env, user, aid) {
+	await env.DB.batch([env.DB.prepare("DELETE FROM agents WHERE id = ? AND user_id = ?").bind(aid, user.id), env.DB.prepare("DELETE FROM agent_log WHERE agent_id = ? AND user_id = ?").bind(aid, user.id)]);
+	return json({ ok: true });
+}
+async function agentSeen(req, env, user) {
+	const b = await body(req);
+	const ids = (Array.isArray(b.ids) ? b.ids : []).filter((x) => /^[a-f0-9]{24}$/.test(String(x))).slice(0, 200);
+	if (ids.length) await env.DB.batch(ids.map((x) => env.DB.prepare("UPDATE agent_log SET seen = 1 WHERE id = ? AND user_id = ?").bind(x, user.id)));
+	return json({ ok: true });
+}
+async function agentRunNow(env, ctx, user, aid) {
+	const a = await env.DB.prepare("SELECT * FROM agents WHERE id = ? AND user_id = ?").bind(aid, user.id).first();
+	if (!a) throw fail(404, "That agent isn't yours.");
+	const r = await runAgent(env, ctx, a, true);
+	return json({ ran: r, agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first()) });
+}
+async function runDueAgents(env, ctx) {
+	const due = (await env.DB.prepare("SELECT * FROM agents WHERE active = 1 AND next_at <= ? ORDER BY next_at LIMIT ?").bind(now(), AGENT_TICK).all()).results || [];
+	for (const a of due) { try { await runAgent(env, ctx, a, false); } catch {} }
+}
+// a page as text (the same rules as the fetch tool: public pages only)
+async function pageText(href, max = 30000) {
+	let u;
+	try { u = new URL(href); } catch { return null; }
+	if (!/^https?:$/.test(u.protocol) || /^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[?::1)/.test(u.hostname)) return null;
+	try {
+		const r = await fetch(u.toString(), { headers: { "User-Agent": "Mozilla/5.0 (compatible; Celestin/1.0; +https://celestin.pages.dev)", Accept: "text/html,application/rss+xml,application/xml,text/plain,application/json;q=0.9,*/*;q=0.5" }, redirect: "follow", signal: AbortSignal.timeout(12000) });
+		if (!r.ok) return { error: "answered " + r.status };
+		const type = r.headers.get("Content-Type") || "";
+		if (!/text|json|xml/.test(type)) return { error: "not a text page" };
+		let t = (await r.text()).slice(0, 1_500_000);
+		const title = ((t.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "").replace(/\s+/g, " ").trim().slice(0, 200);
+		return { raw: t, title, type, text: /html/.test(type) ? htmlText(t).slice(0, max) : t.slice(0, max) };
+	} catch { return { error: "didn't answer" }; }
+}
+const htmlText = (t) => t.replace(/<(script|style|noscript|svg|nav|footer|header)[\s\S]*?<\/\1>/gi, " ").replace(/<br\s*\/?>|<\/(p|div|li|h\d|tr|td|th)>/gi, "\n").replace(/<[^>]+>/g, " ")
+	.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d))
+	.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
+// a feed's items (RSS or Atom)
+function feedItems(x) {
+	const out = [], tag = (s, n) => ((s.match(new RegExp("<" + n + "[^>]*>([\\s\\S]*?)</" + n + ">", "i")) || [])[1] || "").replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+	for (const m of String(x).matchAll(/<(item|entry)\b[\s\S]*?<\/\1>/gi)) {
+		const it = m[0], link = tag(it, "link") || ((it.match(/<link[^>]*href="([^"]+)"/i) || [])[1] || "");
+		out.push({ title: htmlText(tag(it, "title")).slice(0, 200), url: link.trim(), text: htmlText(tag(it, "description") || tag(it, "summary") || tag(it, "content")).slice(0, 400), at: tag(it, "pubDate") || tag(it, "updated") || tag(it, "published") });
+		if (out.length >= 30) break;
+	}
+	return out;
+}
+// a short fingerprint of a line or a link, to know what's new since the last look
+const fp = async (x) => (await sha256hex(String(x))).slice(0, 12);
+// what's new in each thing it watches since the last look (nothing new: nothing to read, nothing spent)
+async function agentLook(src, st) {
+	const key = await fp(src.type + ":" + src.value), was = new Set(st.seen && st.seen[key] || []), first = !st.seen || !st.seen[key];
+	let items = [], keep = [];
+	if (src.type === "url") {
+		const p = await pageText(src.value, 60000);
+		if (!p || p.error) return { key, error: src.value + ": " + ((p && p.error) || "not a page"), fresh: [], keep: [...was] };
+		const lines = p.text.split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3);
+		const hashes = await Promise.all(lines.map(fp));
+		keep = [...new Set(hashes)].slice(0, 1500);
+		items = lines.filter((l, i) => !was.has(hashes[i])).slice(0, 80).map((l) => ({ text: l.slice(0, 400) }));
+		return { key, label: p.title || src.value, fresh: first ? [] : items, first, all: first ? lines.slice(0, 120).join("\n").slice(0, 6000) : "", keep };
+	}
+	if (src.type === "news") items = await newsSearch(src.value, 15, 2);
+	else if (src.type === "hn") { try { const j = await (await fetch("https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=20&query=" + encodeURIComponent(src.value), { signal: AbortSignal.timeout(8000) })).json(); items = (j.hits || []).map((h) => ({ title: h.title, url: h.url || "https://news.ycombinator.com/item?id=" + h.objectID, text: (h.points || 0) + " points" })); } catch {} }
+	else if (src.type === "rss") { const p = await pageText(src.value, 400000); if (!p || p.error) return { key, error: src.value + ": " + ((p && p.error) || "not a feed"), fresh: [], keep: [...was] }; items = feedItems(p.raw); }
+	const hs = await Promise.all(items.map((x) => fp(x.url || x.title)));
+	keep = [...new Set([...hs, ...was])].slice(0, 400);
+	return { key, label: src.type + ": " + src.value, fresh: items.filter((x, i) => !was.has(hs[i])).slice(0, 15), first, keep };
+}
+// one model call for an agent, on its owner's credits; "" when it couldn't (no credits: it waits). Credits spent, added up
+async function agentAsk(env, ctx, owner, models, messages, maxTokens, spent) {
+	for (const model of models) {
+		try {
+			const res = await chat(new Request("https://andromeda.internal/api/chat/completions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, messages, max_tokens: maxTokens, temperature: 0.3 }) }), env, ctx, owner);
+			const j = await res.json().catch(() => ({}));
+			spent.mc += Math.round((Number(j.usage && j.usage.credits) || 0) * 1000);
+			const out = String(j.choices?.[0]?.message?.content || "");
+			if (out) return out;
+		} catch (e) { if (e.status === 402) { spent.broke = true; return ""; } }
+	}
+	return "";
+}
+const jsonIn = (t) => { try { return JSON.parse(String(t).replace(/^[\s\S]*?(\{[\s\S]*\})[\s\S]*$/, "$1")); } catch { return null; } };
+async function runAgent(env, ctx, a, manual) {
+	const t = now();
+	let st = {};
+	try { st = JSON.parse(a.state || "{}") || {}; } catch {}
+	let sources = [], models = {};
+	try { sources = JSON.parse(a.sources || "[]"); } catch {}
+	try { models = JSON.parse(a.models || "{}"); } catch {}
+	const quick = (models.quick || []).length ? models.quick : ["deepseek/deepseek-v4.1-flash"], work = (models.work || []).length ? models.work : quick;
+	// moved on first, so a slow look never runs twice
+	if (!manual) await env.DB.prepare("UPDATE agents SET next_at = ?, last_at = ? WHERE id = ?").bind(t + a.every_min * 60e3, t, a.id).run();
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(a.user_id).first();
+	if (!row) return null;
+	const owner = await readyUser(env, row, await config(env));
+	const spent = { mc: 0, broke: false }, logs = [];
+	const looks = await Promise.all(sources.map((x) => agentLook(x, st)));
+	st.seen = Object.fromEntries(looks.map((l) => [l.key, l.keep]));
+	const fresh = looks.filter((l) => l.fresh.length), errors = looks.filter((l) => l.error).map((l) => l.error);
+	const firstPages = looks.filter((l) => l.first && l.all);
+	const local = new Date(t + (Number(a.tz) || 420) * 60e3).toISOString().slice(0, 16).replace("T", " ");
+	const what = "Your job, as " + a.name + ", working for its owner by yourself: " + a.goal + (a.notify ? "\n\nTell the owner when: " + a.notify : "") + "\n\nWhat you know so far (your memory): " + (st.memory || "(nothing yet: this is your first look)");
+	const newText = fresh.map((l) => "From " + l.label + ":\n" + l.fresh.map((x) => "- " + [x.title, x.text, x.url].filter(Boolean).join(" · ")).join("\n")).join("\n\n").slice(0, 12000) +
+		(firstPages.length ? "\n\n" + firstPages.map((l) => "The page " + l.label + " as it is now (your first look at it):\n" + l.all).join("\n\n").slice(0, 9000) : "");
+	let look = "";
+	// nothing to watch: it works every time; something to watch: only when there's something new (or on its first look)
+	const due = !sources.length || fresh.length || firstPages.length || manual;
+	if (!due) look = errors.length ? "Couldn't look: " + errors[0] : "Looked: nothing new";
+	else {
+		let go = !sources.length || manual || firstPages.length, read = [];
+		if (!go) {
+			// the quick look: is any of this what the owner wants? (most looks end here, for a fraction of a credit)
+			const q = jsonIn(await agentAsk(env, ctx, owner, quick, [{ role: "user", content: what + "\n\nNew since your last look:\n" + newText + "\n\nDoes any of this matter for your job (worth acting on or telling the owner)? Reply with ONLY JSON: {\"act\": true or false, \"why\": \"a few words\", \"read\": [up to 3 links worth reading in full first]}" }], 300, spent));
+			go = !!(q && q.act);
+			read = q && Array.isArray(q.read) ? q.read.filter((x) => /^https?:\/\//.test(String(x))).slice(0, 3) : [];
+			look = go ? "New: " + String((q && q.why) || "worth a look").slice(0, 140) : "Looked: " + fresh.reduce((n, l) => n + l.fresh.length, 0) + " new, nothing that matters" + (q && q.why ? " (" + String(q.why).slice(0, 100) + ")" : "");
+		}
+		if (go && !spent.broke) {
+			const pages = (await Promise.all(read.map((u) => pageText(u, 8000)))).map((p, i) => p && !p.error ? "Read in full, " + read[i] + ":\n" + p.text : "").filter(Boolean).join("\n\n");
+			const out = await agentAsk(env, ctx, owner, work, [
+				{ role: "system", content: "You are an AI agent that works by itself, day and night, for its owner, on Celestin. Right now it's " + local + " where they are. Be useful and concrete: real findings, numbers, names, links, and what to do about it. Never make anything up; say what you couldn't find out. Write in the language the job is written in." },
+				{ role: "user", content: what + (newText ? "\n\nNew since your last look:\n" + newText : "") + (pages ? "\n\n" + pages.slice(0, 20000) : "") + (errors.length ? "\n\n(Couldn't look at: " + errors.join("; ") + ")" : "") + "\n\nDo your job now. Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already reported, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"}" },
+			], 2500, spent);
+			const j = jsonIn(out) || (out ? { report: out } : null);
+			if (j) {
+				if (typeof j.memory === "string" && j.memory.trim()) st.memory = j.memory.trim().slice(0, 2000);
+				if (j.report && String(j.report).trim()) logs.push({ kind: "report", text: String(j.report).trim().slice(0, 12000) });
+				look = String(j.look || look || (j.report ? "Reported" : "Worked: nothing to report")).slice(0, 160);
+			} else if (!spent.broke) look = "Couldn't think it through this time: tries again next look";
+		}
+	}
+	if (spent.broke) { look = "Paused: out of credits (it carries on when there are more)"; if (st.broke !== true) logs.push({ kind: "note", text: "Out of credits: I'll carry on as soon as there are more." }); st.broke = true; } else st.broke = false;
+	st.look = look + " · " + new Date(t).toISOString();
+	const qs = [env.DB.prepare("UPDATE agents SET state = ?, spent_mc = spent_mc + ?, runs = runs + 1, last_at = ? WHERE id = ?").bind(JSON.stringify(st), spent.mc, t, a.id)];
+	for (const l of logs) qs.push(env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at, seen) VALUES (?, ?, ?, ?, ?, ?, 0)").bind(id(), a.id, a.user_id, l.kind, l.text, now()));
+	await env.DB.batch(qs);
+	// (by email too, when its owner asked)
+	const report = logs.find((l) => l.kind === "report");
+	if (report && a.email && mailOn(env) && row.email) {
+		try { await sendMail(env, row.email, a.name + ": " + report.text.replace(/[#*_>\[\]]/g, "").replace(/\s+/g, " ").slice(0, 70), report.text + "\n\n— " + a.name + ", your agent on Celestin Together (https://celestin.pages.dev/together)", '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#111;white-space:pre-wrap">' + report.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]) + '</div><p style="color:#777;font-size:13px">— ' + a.name.replace(/[&<>]/g, "") + ', your agent on <a href="https://celestin.pages.dev/together">Celestin Together</a></p>'); } catch {}
+	}
+	return { look, reported: !!report, spent: spent.mc / 1000 };
 }
 
 // ------------------------------------------------------------------ Celestin Together's jobs
