@@ -8456,15 +8456,26 @@ async function critiqueApp(files, request, msg, by) {
 	if (!msg.used.some((u) => /^Critic/.test(u.desc))) msg.used.push({ name: shortName(r.model), desc: "Critic: played it each round and named what would make it much better" });
 	return { ship: !!j.ship, upgrades: (Array.isArray(j.upgrades) ? j.upgrades : []).map((x) => String(x).slice(0, 600)).filter((x) => x.trim()).slice(0, 6) };
 }
-async function deepenApp(files, request, msg, rules, by) {
+async function deepenApp(files, request, msg, rules, by, cap) {
 	DEEP_NOW++;
-	try { return await deepRounds(files, request, msg, rules, by); } finally { DEEP_NOW--; }
+	try { return await deepRounds(files, request, msg, rules, by, cap); } finally { DEEP_NOW--; }
 }
-async function deepRounds(files, request, msg, rules, by) {
+// a hard build's rounds: covered three times over by the credits (the owner's own account: always)
+const DEEP_HARD = 2;
+async function canDeepen(by) {
+	if (!creditsMode()) return true;
+	await refreshMe();
+	if (!me) return false;
+	if (me.owner) return true;
+	const m = by && (by.id ? by : catalog.find((x) => x.id === by));
+	const round = m ? appCredits(m, "xhigh", 8000, 15000) * 1.15 : 80;
+	return me.credits >= round * DEEP_HARD * 3;
+}
+async function deepRounds(files, request, msg, rules, by, cap) {
 	const deep = { rounds: 0, upgrades: 0 };
 	// (given a set time, "work on it for 2 hours": round after round until the time is up, unless the critic has nothing
 	// big left first)
-	const lr = longRunOf(request), until = lr && lr.ms ? Date.now() + lr.ms : 0, most = until ? 60 : DEEP_ROUNDS;
+	const lr = longRunOf(request), until = lr && lr.ms ? Date.now() + lr.ms : 0, most = until ? 60 : cap || DEEP_ROUNDS;
 	for (let round = 1; round <= most; round++) {
 		if (busy && busy.signal.aborted) break;
 		if (until && Date.now() > until) { deep.timeUp = true; break; }
@@ -9083,7 +9094,9 @@ async function buildApp(text, atts, pick) {
 	let files = prev ? await applyChange(prev.data.files, parsed, by, asked, said, msg) : Object.assign({}, parsed.files);
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
 	else files = await heal(files, text, msg, rules, !prev, by);
-	if (!unfinished && longRunOf(text) && !(msg.tested && msg.tested.short)) files = await deepenApp(files, text, msg, rules, by);
+	// (a set time or Max: the full deep work; a build the conductor read as hard: up to DEEP_HARD rounds, when covered)
+	const hard = !longRunOf(text) && speed() !== "fast" && !!(PROFILE && PROFILE.level === "hard");
+	if (!unfinished && (longRunOf(text) || (hard && (await canDeepen(by)))) && !(msg.tested && msg.tested.short)) files = await deepenApp(files, text, msg, rules, by, hard ? DEEP_HARD : 0);
 	msg.data = { files, title };
 	msg.tab = "preview";
 	{
