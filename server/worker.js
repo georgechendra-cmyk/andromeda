@@ -654,6 +654,7 @@ function columns(env) {
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS bot_items_user ON bot_items (user_id, status, created_at)").run();
 		// (a front desk's booking hours; a booking's time, there and as an instant, and whether its reminder is made)
 		const bcols = new Set(((await env.DB.prepare("PRAGMA table_info(bots)").all()).results || []).map((r) => r.name));
+		if (!bcols.has("cc")) { try { await env.DB.prepare("ALTER TABLE bots ADD COLUMN cc TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		if (!bcols.has("slots")) { try { await env.DB.prepare("ALTER TABLE bots ADD COLUMN slots TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		const icols = new Set(((await env.DB.prepare("PRAGMA table_info(bot_items)").all()).results || []).map((r) => r.name));
 		for (const [k, t] of [["slot", "TEXT"], ["slot_at", "INTEGER"], ["reminded", "INTEGER NOT NULL DEFAULT 0"]]) if (!icols.has(k)) { try { await env.DB.prepare("ALTER TABLE bot_items ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
@@ -3272,7 +3273,16 @@ async function twilioApi(c, method, path, form) {
 const WORKER_URL = "https://andromeda-credits.georgechendra.workers.dev";
 const xmlEsc = (t) => String(t).replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]);
 // a voice and a language Twilio speaks and hears it in
-const callVoice = (lang) => /indo|bahasa|^id\b/i.test(lang || "") ? { lang: "id-ID", voice: "Google.id-ID-Standard-A" } : { lang: "en-US", voice: "Google.en-US-Neural2-F" };
+const possW = (n) => String(n || "") + (/s$/i.test(String(n || "")) ? "'" : "'s");
+const VOICES = { id: ["id-ID", "Google.id-ID-Standard-A", "Indonesian"], es: ["es-US", "Google.es-US-Neural2-A", "Spanish"], pt: ["pt-BR", "Google.pt-BR-Neural2-A", "Portuguese"], fr: ["fr-FR", "Google.fr-FR-Neural2-A", "French"], de: ["de-DE", "Google.de-DE-Neural2-A", "German"], gb: ["en-GB", "Google.en-GB-Neural2-A", "English"], au: ["en-AU", "Google.en-AU-Neural2-A", "English"], en: ["en-US", "Google.en-US-Neural2-F", "English"] };
+// the language a call is in: the one the owner gave, else the one the customer's country speaks
+function callVoice(lang, num) {
+	const l = String(lang || ""), cc = ccOf(num);
+	const k = /indo|bahasa/i.test(l) ? "id" : /espa|spanish/i.test(l) ? "es" : /portug/i.test(l) ? "pt" : /fran|french/i.test(l) ? "fr" : /deutsch|german/i.test(l) ? "de" : /english|inggris/i.test(l) ? (cc === "44" ? "gb" : cc === "61" ? "au" : "en")
+		: cc === "62" ? "id" : ["34", "52", "54", "56", "57", "58", "51", "53"].includes(cc) ? "es" : ["55", "351"].includes(cc) ? "pt" : cc === "33" ? "fr" : ["49", "43", "41"].includes(cc) ? "de" : cc === "44" ? "gb" : cc === "61" ? "au" : "en";
+	const [code, voice, name] = VOICES[k];
+	return { lang: code, voice, name };
+}
 const twiml = (say, v, id, end) => '<?xml version="1.0" encoding="UTF-8"?><Response>' + (end ? '<Say language="' + v.lang + '" voice="' + v.voice + '">' + xmlEsc(say) + "</Say><Hangup/>" : '<Gather input="speech" language="' + v.lang + '" speechTimeout="auto" actionOnEmptyResult="true" method="POST" action="' + WORKER_URL + "/api/call/" + id + '/turn"><Say language="' + v.lang + '" voice="' + v.voice + '">' + xmlEsc(say) + "</Say></Gather>") + "</Response>";
 async function twilioSigOk(token, url, params, sig) {
 	const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
@@ -3280,13 +3290,15 @@ async function twilioSigOk(token, url, params, sig) {
 	return sameString(b64e(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(data)))), String(sig || ""));
 }
 // a call placed for someone: its opening written first (so the customer never waits in silence), then Twilio dials
-async function placeCall(env, ctx, owner, { to, name, purpose, lang, models, jobId }) {
+async function placeCall(env, ctx, owner, { to, name, purpose, lang, models, jobId, business, assistant }) {
 	const row = await env.DB.prepare("SELECT * FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(owner.id).first();
 	if (!row) throw fail(404, "No Twilio account is connected.");
-	const c = await unseal(env, row.secret), cid = id(), v = callVoice(lang), spent = { mc: 0 };
-	const open = jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You're about to phone " + (name || "a customer") + " for a business, as its AI assistant. " + purpose + "\n\nWrite what you say the moment they pick up: greet them by name, say you're the AI assistant of the business (always say you're an AI), and why you're calling, in one or two short, warm sentences, in " + (v.lang === "id-ID" ? "Indonesian" : "English") + ". Reply with ONLY JSON: {\"say\": \"...\"}" }], 200, spent));
-	const say = (open && open.say) || (v.lang === "id-ID" ? "Halo" + (name ? " " + name : "") + ", saya asisten AI. Ada waktu sebentar?" : "Hi" + (name ? " " + name : "") + ", this is an AI assistant calling. Do you have a moment?");
-	await env.DB.prepare("INSERT INTO calls (id, user_id, job_id, to_num, name, purpose, lang, models, turns, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'calling', ?)").bind(cid, owner.id, jobId || null, to, name || null, purpose, v.lang, JSON.stringify(models), JSON.stringify([{ who: "ai", text: say }]), now()).run();
+	const c = await unseal(env, row.secret), cid = id(), v = callVoice(lang, to), spent = { mc: 0 }, biz = String(business || "the business"), me = assistant ? assistant + " from " + biz : biz;
+	// (it speaks as the business, by its name; "virtual assistant" says what it is in two words, as calls in the US and
+	// Europe must, and it never claims to be a person)
+	const open = jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You're about to phone " + (name || "a customer") + " for " + biz + ", as " + (assistant ? assistant + ", " : "") + "its virtual assistant. " + purpose + "\n\nWrite what you say the moment they pick up: greet them by name, say it's " + me + " (" + possW(biz) + " virtual assistant) and why you're calling, in one or two short, warm, natural sentences, in " + v.name + ". Reply with ONLY JSON: {\"say\": \"...\"}" }], 200, spent));
+	const say = (open && open.say) || (v.lang === "id-ID" ? "Halo" + (name ? " " + name : "") + ", ini " + me + ", asisten virtual " + biz + ". Ada waktu sebentar?" : "Hi" + (name ? " " + name : "") + ", it's " + me + ", " + possW(biz) + " virtual assistant. Do you have a moment?");
+	await env.DB.prepare("INSERT INTO calls (id, user_id, job_id, to_num, name, purpose, lang, models, turns, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'calling', ?)").bind(cid, owner.id, jobId || null, to, name || null, "You are " + me + ", " + possW(biz) + " virtual assistant. " + purpose, v.lang, JSON.stringify(models), JSON.stringify([{ who: "ai", text: say }]), now()).run();
 	const call = await twilioApi(c, "POST", "/Calls.json", { To: to, From: c.from, Twiml: twiml(say, v, cid, false), StatusCallback: WORKER_URL + "/api/call/" + cid + "/status", StatusCallbackMethod: "POST", Timeout: "25" });
 	await env.DB.prepare("UPDATE calls SET sid = ? WHERE id = ?").bind(call.sid || null, cid).run();
 	return cid;
@@ -3300,7 +3312,7 @@ async function callHook(req, env, ctx, cid, kind) {
 	const conn = await env.DB.prepare("SELECT secret FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(cl.user_id).first();
 	const c = conn && (await unseal(env, conn.secret));
 	if (!c || !(await twilioSigOk(c.token, WORKER_URL + "/api/call/" + cid + "/" + kind, params, req.headers.get("X-Twilio-Signature")))) throw fail(403, "Not from Twilio.");
-	const v = callVoice(cl.lang), turns = JSON.parse(cl.turns || "[]");
+	const v = callVoice(cl.lang === "id-ID" ? "indonesian" : cl.lang === "es-US" ? "spanish" : cl.lang === "pt-BR" ? "portuguese" : cl.lang === "fr-FR" ? "french" : cl.lang === "de-DE" ? "german" : "english", cl.to_num), turns = JSON.parse(cl.turns || "[]");
 	if (kind === "status") {
 		const st = String(params.CallStatus || "");
 		if (/completed|busy|no-answer|failed|canceled/.test(st)) await callDone(env, cl, turns, cl.outcome || ({ busy: "Busy", "no-answer": "No answer", failed: "The call didn't go through", canceled: "Cancelled" }[st] || (turns.length > 1 ? "Talked" : "Hung up")));
@@ -3313,8 +3325,8 @@ async function callHook(req, env, ctx, cid, kind) {
 	let models = [];
 	try { models = JSON.parse(cl.models || "[]"); } catch {}
 	const spent = { mc: 0 };
-	const j = owner ? jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You're on the phone, as the AI assistant of a business, with " + (cl.name || "a customer") + ". Why you called: " + cl.purpose + "\n\nThe call so far:\n" + turns.map((t) => (t.who === "ai" ? "You: " : "Them: ") + t.text).join("\n") +
-		"\n\nSay your next line: short, warm, natural for a phone call, in " + (v.lang === "id-ID" ? "Indonesian" : "English") + ". Never pressure them. If they want to book, get the day and time and say the team will confirm by message. If they ask not to be called, apologise, promise they won't be, and end. End politely once it's settled (or after two silences). Reply with ONLY JSON: {\"say\": \"...\", \"end\": true or false, \"outcome\": \"when ending: one line for the owner (e.g. wants to rebook Sat 10:00; not interested; asked not to be called)\", \"dnc\": true only if they asked not to be called}" }], 220, spent)) : null;
+	const j = owner ? jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You're on the phone with " + (cl.name || "a customer") + ". " + cl.purpose + "\n\nThe call so far:\n" + turns.map((t) => (t.who === "ai" ? "You: " : "Them: ") + t.text).join("\n") +
+		"\n\nSay your next line: short, warm, natural for a phone call, in " + v.name + ". If they ask whether you're a real person, say honestly you're the business's virtual assistant. Never pressure them. If they want to book, get the day and time and say the team will confirm by message. If they ask not to be called, apologise, promise they won't be, and end. End politely once it's settled (or after two silences). Reply with ONLY JSON: {\"say\": \"...\", \"end\": true or false, \"outcome\": \"when ending: one line for the owner (e.g. wants to rebook Sat 10:00; not interested; asked not to be called)\", \"dnc\": true only if they asked not to be called}" }], 220, spent)) : null;
 	const say = (j && j.say) || (v.lang === "id-ID" ? "Maaf, ada gangguan. Tim kami akan menghubungi Anda lewat pesan. Terima kasih!" : "Sorry, something went wrong on our side. The team will message you. Thank you!");
 	const end = !j || !!j.end || turns.filter((t) => t.who === "them" && t.text === "(silence)").length >= 2 || turns.length > 24;
 	turns.push({ who: "ai", text: say });
@@ -3629,12 +3641,12 @@ function parseCustomers(list) {
 	for (const line of String(list || "").split(/\r?\n/)) {
 		const parts = line.split(/[,;\t|]/).map((x) => x.trim()).filter(Boolean);
 		if (!parts.length) continue;
-		const phone = parts.find((x) => /^\+?[\d\s().-]{8,}$/.test(x)) || "";
-		const rest = parts.filter((x) => x !== phone);
-		out.push({ name: (rest[0] || "").slice(0, 60), phone: phone.replace(/[^\d+]/g, "").slice(0, 20), notes: rest.slice(1).join(", ").slice(0, 200) });
+		const phone = parts.find((x) => /^\+?[\d\s().-]{8,}$/.test(x)) || "", email = parts.find((x) => EMAIL_RE.test(x)) || "";
+		const rest = parts.filter((x) => x !== phone && x !== email);
+		out.push({ name: (rest[0] || "").slice(0, 60), phone: phone.replace(/[^\d+]/g, "").slice(0, 20), email: email.toLowerCase().slice(0, 120), notes: rest.slice(1).join(", ").slice(0, 200) });
 		if (out.length >= 500) break;
 	}
-	return out.filter((c) => c.name || c.phone);
+	return out.filter((c) => c.name || c.phone || c.email);
 }
 async function jobSave(req, env, user) {
 	const b = await body(req);
@@ -3645,13 +3657,19 @@ async function jobSave(req, env, user) {
 	const config = {
 		brief: String(c.brief || "").trim().slice(0, 6000), goal: String(c.goal || "").trim().slice(0, 1000), lang: String(c.lang || "").slice(0, 30), link: String(c.link || "").slice(0, 300),
 		tz: tzIn(c.tz),
+		// (who the business is to its customers: a place with hours, or online; its assistant's name; its country's calling code)
+		type: c.type === "online" ? "online" : "place",
+		assistant: String(c.assistant || "").replace(/\s+/g, " ").trim().slice(0, 40),
+		country: String(c.country || "").replace(/\D/g, "").slice(0, 4),
 	};
+	if (c.hours && typeof c.hours === "object") { const h = slotsCfg({ slots: { days: c.hours.days, open: c.hours.open, close: c.hours.close, minutes: 60, per: 1 } }); if (h) config.hours = { days: h.days, open: h.open, close: h.close }; }
 	if (config.brief.length < 20) throw fail(400, "Tell it about your business first: what you do, who for, your voice.");
 	if (kind === "winback") {
 		config.customers = parseCustomers(c.customers);
-		if (!config.customers.length) throw fail(400, "Paste your customers, one per line: name, phone, and anything worth remembering (their usual, their last visit).");
+		config.fromDesk = /^[a-f0-9]{24}$/.test(String(c.fromDesk || "")) ? c.fromDesk : "";
+		if (!config.customers.length && !config.fromDesk) throw fail(400, "Paste your customers, one per line: name, phone or email, and anything worth remembering (their usual, their last visit).");
 		config.every = Math.max(7, Math.min(180, Math.round(Number(c.every) || 30)));
-		config.via = c.via === "call" ? "call" : "whatsapp";
+		config.via = ["call", "email", "whatsapp", "auto"].includes(c.via) ? c.via : "whatsapp";
 	} else {
 		config.platforms = (Array.isArray(c.platforms) ? c.platforms : ["x"]).filter((p) => ["x", "instagram", "tiktok", "linkedin", "facebook", "threads", "bluesky", "telegram", "discord"].includes(p)).slice(0, 6);
 		config.auto = !!c.auto;
@@ -3692,12 +3710,12 @@ async function jobRunNow(env, ctx, user, jid) {
 }
 async function deskReminders(env) {
 	const t = now();
-	const rows = (await env.DB.prepare("SELECT i.*, b.name AS bot_name FROM bot_items i JOIN bots b ON b.id = i.bot_id WHERE i.reminded = 0 AND i.kind = 'booking' AND i.slot_at IS NOT NULL AND i.slot_at BETWEEN ? AND ? AND i.status != 'cancelled' LIMIT 50").bind(t + 2 * 3600e3, t + 26 * 3600e3).all()).results || [];
+	const rows = (await env.DB.prepare("SELECT i.*, b.name AS bot_name, b.cc AS bot_cc FROM bot_items i JOIN bots b ON b.id = i.bot_id WHERE i.reminded = 0 AND i.kind = 'booking' AND i.slot_at IS NOT NULL AND i.slot_at BETWEEN ? AND ? AND i.status != 'cancelled' LIMIT 50").bind(t + 2 * 3600e3, t + 26 * 3600e3).all()).results || [];
 	for (const r of rows) {
 		let d = {};
 		try { d = JSON.parse(r.details || "{}"); } catch {}
 		const text = d.remind || "Hi" + (d.name ? " " + d.name : "") + "! A reminder of your booking at " + r.bot_name + ": " + r.slot + ". See you then!";
-		const link = waLink(d.contact, text);
+		const link = waLink(d.contact, text, r.bot_cc);
 		await env.DB.batch([
 			env.DB.prepare("UPDATE bot_items SET reminded = 1 WHERE id = ? AND reminded = 0").bind(r.id),
 			...(link ? [env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, created_at) VALUES (?, ?, ?, ?, 'reminder', ?, ?, 'new', ?)").bind(id(), r.bot_id, r.user_id, r.visitor, "Remind " + (d.name || "them") + " of " + r.slot, JSON.stringify({ name: d.name || "", contact: d.contact || "", when: r.slot, text, link }), t)] : []),
@@ -3739,7 +3757,50 @@ async function jobAsk(env, ctx, j, messages, maxTokens) {
 	}
 	return "";
 }
-const waLink = (phone, text) => { let p = String(phone || "").replace(/[^\d+]/g, ""); if (p.startsWith("+")) p = p.slice(1); else if (p.startsWith("0")) p = "62" + p.slice(1); return p.length >= 8 ? "https://wa.me/" + p + "?text=" + encodeURIComponent(text) : ""; };
+// a phone number in full (+countrycode…): a local one takes the owner's country code (cc); none known: Indonesia's, as before
+function e164(phone, cc) {
+	const raw = String(phone || "").trim(), d = raw.replace(/\D/g, ""), c = String(cc || "62").replace(/\D/g, "") || "62";
+	if (d.length < 7) return "";
+	if (raw.startsWith("+")) return "+" + d;
+	if (d.startsWith("00")) return "+" + d.slice(2);
+	if (d.startsWith("0")) return "+" + c + d.slice(1);
+	if (d.startsWith(c) && d.length >= c.length + 8) return "+" + d;
+	return "+" + c + d;
+}
+const waLink = (phone, text, cc) => { const p = e164(phone, cc).slice(1); return p.length >= 8 ? "https://wa.me/" + p + "?text=" + encodeURIComponent(text) : ""; };
+// each country's clocks (minutes from UTC, standard time: its westmost and eastmost), by calling code
+const CC_TZ = { 1: [-480, -300], 7: [180, 300], 20: [120, 120], 27: [120, 120], 30: [120, 120], 31: [60, 60], 32: [60, 60], 33: [60, 60], 34: [60, 60], 36: [60, 60], 39: [60, 60], 40: [120, 120], 41: [60, 60], 43: [60, 60], 44: [0, 0], 45: [60, 60], 46: [60, 60], 47: [60, 60], 48: [60, 60], 49: [60, 60], 51: [-300, -300], 52: [-420, -360], 53: [-300, -300], 54: [-180, -180], 55: [-240, -180], 56: [-240, -240], 57: [-300, -300], 58: [-240, -240], 60: [480, 480], 61: [480, 600], 62: [420, 540], 63: [480, 480], 64: [720, 720], 65: [480, 480], 66: [420, 420], 81: [540, 540], 82: [540, 540], 84: [420, 420], 86: [480, 480], 90: [180, 180], 91: [330, 330], 92: [300, 300], 94: [330, 330], 95: [390, 390], 98: [210, 210], 212: [60, 60], 233: [0, 0], 234: [60, 60], 254: [180, 180], 255: [180, 180], 256: [180, 180], 351: [0, 0], 353: [0, 0], 358: [120, 120], 380: [120, 120], 420: [60, 60], 852: [480, 480], 855: [420, 420], 880: [360, 360], 886: [480, 480], 961: [120, 120], 962: [180, 180], 965: [180, 180], 966: [180, 180], 971: [240, 240], 972: [120, 120], 974: [180, 180], 977: [345, 345] };
+const ccOf = (num) => { const d = String(num || "").replace(/\D/g, ""); for (const n of [3, 2, 1]) if (CC_TZ[d.slice(0, n)]) return d.slice(0, n); return ""; };
+// a good moment to call this number for this business: a place calls while it's open where it is (its hours; or 9:00 to
+// 19:00, Monday to Saturday); an online one in the customer's own daytime (10:00 to 19:00, Monday to Saturday); never
+// outside 8:00 to 21:00 for the customer, wherever in their country they are
+function callTime(cfg, num, t) {
+	const span = CC_TZ[ccOf(num)] || [tzIn(cfg.tz), tzIn(cfg.tz)];
+	const at = (off, from, to, days) => { const d = new Date(t + off * 60e3), m = d.getUTCHours() * 60 + d.getUTCMinutes(); return (!days || days.includes(d.getUTCDay())) && m >= from && m < to; };
+	const theirs = (from, to, days) => at(span[0], from, to, days) && at(span[1], from, to, days);
+	if (cfg.type === "online") return theirs(600, 1140, [1, 2, 3, 4, 5, 6]);
+	const h = cfg.hours || {}, open = hhmmMin(h.open) ?? 540, close = hhmmMin(h.close) ?? 1140, days = Array.isArray(h.days) && h.days.length ? h.days.map(Number) : [1, 2, 3, 4, 5, 6];
+	return at(tzIn(cfg.tz), open, Math.max(open + 30, close - 30), days) && theirs(480, 1260);
+}
+// everyone who booked through a front desk: their name, how to reach them, and when they last came
+async function deskCustomers(env, userId, botId) {
+	const bot = await env.DB.prepare("SELECT cc FROM bots WHERE id = ? AND user_id = ?").bind(botId, userId).first();
+	if (!bot) return [];
+	const rows = (await env.DB.prepare("SELECT details, summary, slot_at, created_at FROM bot_items WHERE bot_id = ? AND user_id = ? AND kind = 'booking' AND status != 'cancelled' ORDER BY created_at DESC LIMIT 500").bind(botId, userId).all()).results || [];
+	const by = new Map();
+	for (const r of rows) {
+		let d = {};
+		try { d = JSON.parse(r.details || "{}"); } catch {}
+		const contact = String(d.contact || "").trim(), email = EMAIL_RE.test(contact) ? contact.toLowerCase() : "", phone = !email && contact.replace(/\D/g, "").length >= 7 ? e164(contact, bot.cc) : "";
+		const k = phone || email;
+		if (!k) continue;
+		const when = Math.min(Number(r.slot_at) || r.created_at, now());
+		const c = by.get(k);
+		if (!c || when > c.last) by.set(k, { name: String(d.name || (c && c.name) || "").slice(0, 60), phone, email, last: when, notes: "Last booked " + new Date(when).toISOString().slice(0, 10) + ": " + String(r.summary || "").slice(0, 120), visits: ((c && c.visits) || 0) + 1 });
+		else c.visits++;
+	}
+	return [...by.values()];
+}
 const POST_LINK = { bluesky: (t) => "https://bsky.app/intent/compose?text=" + encodeURIComponent(t), telegram: (t) => "https://t.me/share/url?url=%20&text=" + encodeURIComponent(t), discord: () => "https://discord.com/app", x: (t) => "https://x.com/intent/post?text=" + encodeURIComponent(t), threads: (t) => "https://www.threads.net/intent/post?text=" + encodeURIComponent(t), linkedin: () => "https://www.linkedin.com/feed/?shareActive=true", facebook: () => "https://www.facebook.com/", instagram: () => "https://www.instagram.com/", tiktok: () => "https://www.tiktok.com/upload" };
 // when people are on each platform, by the hour where the audience is (0 to 1; from the platforms' own published
 // engagement studies, rounded): the hours a post is most likely to be seen
@@ -3800,46 +3861,60 @@ async function runJob(env, ctx, j, manual) {
 	const t = now();
 	const put = (kind, title, text, link, why) => env.DB.prepare("INSERT INTO team_job_items (id, job_id, user_id, kind, title, text, link, why, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?)").bind(id(), j.id, j.user_id, kind, title, text, link || null, why || null, now());
 	let made = 0, next = t + 24 * 3600e3;
-	const calling = j.kind === "winback" && cfg.via === "call" && !!(await env.DB.prepare("SELECT id FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(j.user_id).first().catch(() => null));
-	if (calling) {
-		// (by phone: 9:00 to 19:00 where the business is, three at a time, never anyone who asked not to be called)
-		const every = (cfg.every || 30) * 864e5, sent = state.sent || {}, dnc = new Set(state.dnc || []);
-		const hour = new Date(t + tzIn(cfg.tz) * 60e3).getUTCHours();
-		const due = (cfg.customers || []).filter((c) => c.phone && !dnc.has(c.phone) && !(sent[c.phone] > t - every));
-		if (hour >= 9 && hour < 19 && due.length) {
+	if (j.kind === "winback") {
+		const every = (cfg.every || 30) * 864e5, sent = state.sent || {}, dnc = new Set(state.dnc || []), cc = String(cfg.country || "");
+		// its customers: the ones pasted, and everyone who booked through its front desk (the latest visit counts)
+		let customers = (cfg.customers || []).map((c) => ({ ...c, phone: c.phone ? e164(c.phone, cc) : "" }));
+		if (cfg.fromDesk) {
+			const fromDesk = await deskCustomers(env, j.user_id, cfg.fromDesk);
+			for (const d of fromDesk) { const same = customers.find((c) => (d.phone && c.phone === d.phone) || (d.email && c.email === d.email)); if (same) Object.assign(same, { last: d.last, notes: [same.notes, d.notes].filter(Boolean).join("; ") }); else customers.push(d); }
+			// (a place's hours, when the job has none of its own: its front desk's)
+			if (!cfg.hours) { const b = await env.DB.prepare("SELECT slots, cc FROM bots WHERE id = ?").bind(cfg.fromDesk).first(); const sl = b && slotsCfg(b); if (sl) cfg.hours = { days: sl.days, open: sl.open, close: sl.close }; }
+		}
+		const conns = new Set(((await env.DB.prepare("SELECT kind FROM conns WHERE user_id = ?").bind(j.user_id).all()).results || []).map((r) => r.kind));
+		const via = cfg.via || "whatsapp";
+		// each one, the best way there is: a call, an email, or a WhatsApp message ready to send
+		const how = (c) => (via === "call" || via === "auto") && c.phone && conns.has("twilio") ? "call" : (via === "email" || via === "auto") && c.email && conns.has("gmail") ? "email" : (via === "whatsapp" || via === "auto") && c.phone ? "whatsapp" : via === "email" && c.email ? "note" : null;
+		const key = (c) => c.phone || c.email || c.name;
+		const due = customers.filter((c) => !dnc.has(key(c)) && !(sent[key(c)] > t - every) && !(c.last && c.last > t - every)).map((c) => ({ ...c, how: how(c) })).filter((c) => c.how);
+		let waiting = 0;
+		// calls: three at a time, each when it's a good moment for that business and that customer
+		const calls = due.filter((c) => c.how === "call");
+		if (calls.length) {
 			const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(j.user_id).first();
 			const owner = row && (await readyUser(env, row, await config(env)));
 			let models = [];
 			try { models = JSON.parse(cfg.callModels ? JSON.stringify(cfg.callModels) : j.models || "[]"); } catch {}
-			for (const c of owner ? due.slice(0, 3) : []) {
-				const to = waLink(c.phone, "x") ? "+" + waLink(c.phone, "x").slice(14).split("?")[0] : null;
-				if (!to) continue;
-				try { await placeCall(env, ctx, owner, { to, name: c.name, lang: cfg.lang, models, jobId: j.id, purpose: "You're calling for " + j.name + ". About the business, from its owner: " + cfg.brief + "\nWhy you call: " + (cfg.goal || "to invite them back to book again, warmly") + (c.notes ? "\nWhat's noted about them: " + c.notes : "") + (cfg.link ? "\nIf they'd like to book, offer to send them the booking link by message (" + cfg.link + ")." : "") }); sent[c.phone] = t; made++; }
-				catch (e) { await put("note", c.name || c.phone, "Couldn't call " + (c.name || c.phone) + ": " + (e.message || e), null, "").run(); sent[c.phone] = t; }
+			let placed = 0;
+			for (const c of owner ? calls : []) {
+				if (!callTime(cfg, c.phone, t)) { waiting++; continue; }
+				if (placed >= 3) { waiting++; continue; }
+				try { await placeCall(env, ctx, owner, { to: c.phone, name: c.name, lang: cfg.lang, models, jobId: j.id, business: j.name, assistant: cfg.assistant, purpose: "You're calling for " + j.name + ". About the business, from its owner: " + cfg.brief + "\nWhy you call: " + (cfg.goal || "to ask if they'd like to come back and book again, warmly") + (c.notes ? "\nWhat's known about them: " + c.notes : "") + (cfg.link ? "\nIf they'd like to book, offer to send them the booking link by text or email (" + cfg.link + ")." : "") }); placed++; made++; }
+				catch (e) { await put("note", c.name || c.phone, "Couldn't call " + (c.name || c.phone) + ": " + (e.message || e), null, "").run(); }
+				sent[key(c)] = t;
 			}
-			state.sent = sent;
 		}
-		next = hour < 9 ? t + (9 - hour) * 3600e3 : hour >= 19 ? t + (33 - hour) * 3600e3 : t + (due.length > 3 ? 1800e3 : 24 * 3600e3);
-	} else if (j.kind === "winback") {
-		const every = (cfg.every || 30) * 864e5, sent = state.sent || {};
-		const due = (cfg.customers || []).filter((c) => !(sent[c.phone || c.name] > t - every)).slice(0, 12);
-		if (due.length) {
-			const ask = "You write for " + j.name + ". About the business, from its owner:\n" + cfg.brief + "\n\nWhat these messages are for: " + (cfg.goal || "invite each customer back to book again, warmly") + (cfg.link ? "\nWhere they can book or ask (put it in each message): " + cfg.link : "") + "\n\nWrite one WhatsApp message for each customer below: warm, welcoming and persuasive the way a favourite local business would be, never pushy or salesy; personal (use their name and what's noted about them); short (2 to 4 sentences); in " + (cfg.lang || "the language that fits the business and the customer's name") + "; with one clear, easy next step. No made-up offers: only what the owner gave." + (await jobTaste(env, j, "message")) + "\n\nCustomers:\n" + due.map((c, k) => (k + 1) + ". " + (c.name || "(no name)") + (c.notes ? " (" + c.notes + ")" : "")).join("\n") + "\n\nReply with ONLY a JSON array, one per customer, in order: [{\"n\": 1, \"message\": \"...\"}]";
-			const out = await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 2600);
+		// emails and WhatsApp messages: written for each person, in one go
+		const writes = due.filter((c) => c.how === "email" || c.how === "whatsapp").slice(0, 12);
+		if (writes.length) {
+			const ask = "You write for " + j.name + (cfg.assistant ? " (sign as " + cfg.assistant + " from " + j.name + ")" : "") + ". About the business, from its owner:\n" + cfg.brief + "\n\nWhat these are for: " + (cfg.goal || "ask each customer, warmly, if they'd like to come back and book again") + (cfg.link ? "\nWhere they can book or ask (put it in each one): " + cfg.link : "") + "\n\nWrite one for each customer below, personal (their name, what's known about them), warm, welcoming and persuasive without pressure, in " + (cfg.lang || "the language that suits them") + ". A WhatsApp one: short, like a friend texting. An email: a subject line and a short email." + (await jobTaste(env, j, "message")) + "\n\nCustomers:\n" + writes.map((c, k) => (k + 1) + ". " + (c.name || "(no name)") + " (" + (c.how === "email" ? "email" : "WhatsApp") + ")" + (c.notes ? ": " + c.notes : "")).join("\n") + "\n\nReply with ONLY a JSON array, one per customer: [{\"n\": 1, \"subject\": \"for an email\", \"message\": \"...\"}]";
+			const out = await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 3000);
 			let list = [];
 			try { list = JSON.parse(out.replace(/^[\s\S]*?(\[[\s\S]*\])[\s\S]*$/, "$1")); } catch {}
-			const qs = [];
 			for (const x of Array.isArray(list) ? list : []) {
-				const c = due[(Number(x.n) || 0) - 1], msg = String(x.message || "").trim();
+				const c = writes[(Number(x.n) || 0) - 1], msg = String((x && x.message) || "").trim();
 				if (!c || !msg) continue;
-				qs.push(put("message", c.name || c.phone, msg, waLink(c.phone, msg), c.notes || ""));
-				sent[c.phone || c.name] = t;
+				if (c.how === "email") {
+					try { await emailSend(env, j.user_id, { to: c.email, subject: String(x.subject || "We'd love to see you again").slice(0, 200), body: msg }); await env.DB.prepare("INSERT INTO team_job_items (id, job_id, user_id, kind, title, text, link, why, status, created_at) VALUES (?, ?, ?, 'email', ?, ?, ?, ?, 'done', ?)").bind(id(), j.id, j.user_id, c.name || c.email, msg, "mailto:" + c.email, "Emailed " + c.email + ": " + String(x.subject || "").slice(0, 120), now()).run(); }
+					catch (e) { await put("note", c.name || c.email, "Couldn't email " + c.email + ": " + (e.message || e), null, "").run(); }
+				} else await put("message", c.name || c.phone, msg, waLink(c.phone, msg, cc), c.notes || "").run();
+				sent[key(c)] = t;
 				made++;
 			}
-			if (qs.length) await env.DB.batch(qs);
-			state.sent = sent;
 		}
-		next = t + (due.length >= 12 ? 3600e3 : 24 * 3600e3);
+		state.sent = sent;
+		// (looked at again soon while anyone is waiting for a good moment to be called, or more are due; else tomorrow)
+		next = t + (waiting ? 30 * 60e3 : due.length > writes.length + calls.length || writes.length >= 12 ? 3600e3 : 24 * 3600e3);
 	} else if (j.kind === "marketing") {
 		const heatV = await topicHeat(env, cfg.topic), heat = heatV.heat || 1, last = state.lastPost || 0;
 		const plat = (cfg.platforms || ["x"])[0];
@@ -3948,15 +4023,15 @@ async function deskSave(req, env, user) {
 	const intro = String(b.intro || "").trim().slice(0, 300);
 	const slots = b.slots ? slotsCfg({ slots: b.slots }) : null;
 	if (b.slots && !slots) throw fail(400, "Check the booking hours: at least one day, and closing after opening.");
-	const slotsJson = slots ? JSON.stringify(slots) : null;
+	const slotsJson = slots ? JSON.stringify(slots) : null, cc = String(b.country || "").replace(/\D/g, "").slice(0, 4) || null;
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
-		const r = await env.DB.prepare("UPDATE bots SET name = ?, intro = ?, brief = ?, models = ?, cap_mc = ?, tz = ?, active = ?, slots = ? WHERE id = ? AND user_id = ?").bind(name, intro, brief, models, cap, tz, b.active === false ? 0 : 1, slotsJson, b.id, user.id).run();
+		const r = await env.DB.prepare("UPDATE bots SET name = ?, intro = ?, brief = ?, models = ?, cap_mc = ?, tz = ?, active = ?, slots = ?, cc = COALESCE(?, cc) WHERE id = ? AND user_id = ?").bind(name, intro, brief, models, cap, tz, b.active === false ? 0 : 1, slotsJson, cc, b.id, user.id).run();
 		if (r.meta && r.meta.changes) return json({ bot: deskOut(await env.DB.prepare("SELECT * FROM bots WHERE id = ?").bind(b.id).first()) });
 	}
 	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM bots WHERE user_id = ?").bind(user.id).first();
 	if (n && n.n >= DESK_MAX) throw fail(429, "You have " + DESK_MAX + " front desks already: delete one to add another.");
 	const did = id();
-	await env.DB.prepare("INSERT INTO bots (id, user_id, name, intro, brief, models, cap_mc, tz, active, slots, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)").bind(did, user.id, name, intro, brief, models, cap, tz, slotsJson, now()).run();
+	await env.DB.prepare("INSERT INTO bots (id, user_id, name, intro, brief, models, cap_mc, tz, active, slots, cc, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)").bind(did, user.id, name, intro, brief, models, cap, tz, slotsJson, cc, now()).run();
 	return json({ bot: deskOut(await env.DB.prepare("SELECT * FROM bots WHERE id = ?").bind(did).first()) });
 }
 async function deskDelete(env, user, bid) {
