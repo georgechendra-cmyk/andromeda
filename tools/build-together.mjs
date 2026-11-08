@@ -13,5 +13,12 @@ s = s.split("docs/og.png").join("docs/og-together.png");
 s = s.replace(/(<meta property="og:image:alt" content=")[^"]*"/, '$1Celestin Together: your AI team, each the model measured best at its job."');
 s = s.replace(/(<meta name="description" content=")[^"]*"/, '$1Celestin Together: six AI teammates in one chat, each the model measured best at their job. They split the work, do it at the same time, and check it."');
 s = s.replace(/(<meta property="og:description" content=")[^"]*"/, '$1Six AI teammates in one chat, each the model measured best at their job. They split the work, do it at the same time, and check it."');
+// its own mark and icons: the same orbit with a moon at each tip
+s = s.split('href="#logo"').join('href="#logoT"');
+s = s.replace('<link rel="icon" href="icons/icon.svg" type="image/svg+xml">', '<link rel="icon" href="icons/together.svg" type="image/svg+xml">');
+s = s.replace('<link rel="icon" href="icons/icon-192.png" type="image/png" sizes="192x192">', '<link rel="icon" href="icons/together-192.png" type="image/png" sizes="192x192">');
+s = s.replace('<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">', '<link rel="apple-touch-icon" href="icons/together-touch.png">');
+s = s.replace('<svg class="mark"><use href="#logoT"/></svg>Celestin</button></header>', '<svg class="mark"><use href="#logoT"/></svg>Celestin Together</button></header>');
+s = s.replace('<footer class="auth-foot">Free credits every day · no card · your chats stay in your browser</footer>', '<footer class="auth-foot">Free to start · no card · no subscription · made by Celestin</footer>');
 writeFileSync(new URL("together.html", dir), s);
 console.log("together.html built");

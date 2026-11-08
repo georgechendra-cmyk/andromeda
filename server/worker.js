@@ -3067,7 +3067,7 @@ async function deskSave(req, env, user) {
 	const name = String(b.name || "").trim().slice(0, 60), brief = String(b.brief || "").trim().slice(0, 8000);
 	if (!name) throw fail(400, "Give your front desk a name (your business's, say).");
 	if (brief.length < 20) throw fail(400, "Tell it about your business first: what you do, hours, prices, how bookings work.");
-	const cap = Math.max(5, Math.min(5000, Math.round(Number(b.cap) || 200))) * 1000, tz = Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 420)));
+	const cap = Number(b.cap) > 0 ? Math.max(5, Math.min(100000, Math.round(Number(b.cap)))) * 1000 : 0, tz = Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 420)));
 	const models = JSON.stringify((Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3));
 	const intro = String(b.intro || "").trim().slice(0, 300);
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
@@ -3138,7 +3138,8 @@ async function deskChat(req, env, ctx, bid) {
 		]);
 		return json({ reply, kept: true });
 	};
-	if (spent >= (Number(bot.cap_mc) || 0)) return keep("daily limit");
+	// (a limit only if the owner set one: none by default, it runs on their credits)
+	if (Number(bot.cap_mc) > 0 && spent >= Number(bot.cap_mc)) return keep("daily limit");
 	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(bot.user_id).first();
 	if (!row) return keep("no owner");
 	const owner = await readyUser(env, row, await config(env));

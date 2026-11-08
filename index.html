@@ -1699,7 +1699,7 @@ html[data-app="together"] #appSky, html[data-app="together"] .sky { display: non
 html[data-app="together"] .sidebar { background: var(--glass); }
 /* a teammate's round icon */
 .tav { --s: 30px; width: var(--s); height: var(--s); border-radius: 50%; background: var(--c); color: #fff; display: inline-grid; place-items: center; flex: none; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.18); }
-.tav svg { width: 52%; height: 52%; }
+.tav svg { width: 52%; height: 52%; color: #fff !important; stroke: #fff; }
 /* the group chat */
 html[data-app="together"] .msg.tg { display: grid; grid-template-columns: 30px minmax(0, 1fr); column-gap: 10px; align-items: start; margin-bottom: 4px; }
 html[data-app="together"] .msg.tg > .tav { grid-column: 1; grid-row: 1 / span 2; margin-top: 16px; }
@@ -1796,10 +1796,38 @@ a.btn, a.btn:hover { text-decoration: none; }
 .dk-m.bot { align-self: flex-start; background: var(--bg3); }
 .dk-m.owner { align-self: flex-start; background: var(--bg3); box-shadow: inset 3px 0 0 #30d158; }
 
+/* Celestin Together's first screen: what the team does for you, beside the sign-in */
+.auth-tg { display: none; }
+html[data-app="together"] .auth { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); grid-template-rows: auto 1fr auto; column-gap: 40px; padding-inline: clamp(16px, 5vw, 64px); }
+html[data-app="together"] .auth > .auth-top { grid-column: 1 / -1; }
+html[data-app="together"] .auth > .auth-foot { grid-column: 1 / -1; }
+html[data-app="together"] .auth-tg { display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 24px 0; max-width: 540px; justify-self: end; width: 100%; animation: rise .5s var(--ease) both; }
+html[data-app="together"] .auth-main { align-self: center; }
+.atg-k { font-size: 13px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--brand); }
+.auth-tg h2 { margin: 0; font-size: clamp(30px, 3.4vw, 44px); line-height: 1.05; letter-spacing: -.035em; font-weight: 700; }
+.auth-tg h2 span { color: var(--muted); font-weight: 600; }
+.atg-chat { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: 22px; background: var(--bg2); box-shadow: 0 18px 50px -28px rgba(0,0,0,.35); }
+.atg-you { align-self: flex-end; max-width: 80%; background: var(--brand); color: #fff; padding: 8px 13px; border-radius: 19px 19px 6px 19px; font-size: 14.5px; }
+.atg-row { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; align-items: end; max-width: 92%; }
+.atg-row .tav { --s: 28px; }
+.atg-row small { display: block; font-size: 11px; color: var(--muted); margin: 0 0 2px 12px; }
+.atg-row p { margin: 0; background: var(--tgb, var(--bg3)); padding: 8px 13px; border-radius: 19px 19px 19px 6px; font-size: 14.5px; line-height: 1.4; }
+.atg-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.atg-list li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; }
+.atg-list .tav { --s: 34px; }
+.atg-list b { display: block; font-size: 15px; font-weight: 600; }
+.atg-list span { font-size: 13.5px; color: var(--muted); line-height: 1.45; }
+.atg-foot { margin: 0; font-size: 12.5px; color: var(--muted); }
+@media (max-width: 880px) {
+	html[data-app="together"] .auth { grid-template-columns: 1fr; grid-template-rows: auto auto auto auto; }
+	html[data-app="together"] .auth-tg { justify-self: center; padding: 8px 0 0; gap: 14px; }
+	html[data-app="together"] .atg-list, html[data-app="together"] .atg-foot { display: none; }
+}
+
 </style>
 </head>
 <body>
-<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M22.6 8.2L11.7 6.8L5.8 16L11.7 25.2L22.6 23.8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity=".68"/><g fill="currentColor"><circle cx="22.6" cy="8.2" r="2.9"/><circle cx="11.7" cy="6.8" r="1.6"/><circle cx="5.8" cy="16" r="2.2"/><circle cx="11.7" cy="25.2" r="1.6"/><circle cx="22.6" cy="23.8" r="2.2"/><circle cx="26.6" cy="16" r="1.05"/></g></symbol></defs></svg>
+<svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/></symbol><symbol id="logoT" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/><circle cx="26.5" cy="26.7" r="2.5" fill="currentColor"/></symbol></defs></svg>
 
 <!-- ============================== the site ============================== -->
 <div class="site" id="site">
@@ -2073,6 +2101,20 @@ a.btn, a.btn:hover { text-decoration: none; }
 </div>
 <section class="auth" id="auth" aria-labelledby="authTitle">
 	<header class="auth-top"><button class="logo" id="authBack" title="Back to the front page"><svg class="mark"><use href="#logo"/></svg>Celestin</button></header>
+	<aside class="auth-tg" aria-label="What Celestin Together does for you">
+		<div class="atg-k">Celestin Together</div>
+		<h2>Your AI team.<br><span>Working for your business, day and night.</span></h2>
+		<div class="atg-chat" aria-hidden="true">
+			<div class="atg-you">Halo, besok ada meja buat 4 orang jam 7?</div>
+			<div class="atg-row"><span class="tav" style="--c:#30b0c7" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><div><small>Front desk · 23:41</small><p>Ada! Meja untuk 4 orang besok jam 19.00 sudah saya catat atas nama Rina. Tim kami konfirmasi di sini ya 🙏</p></div></div>
+		</div>
+		<ul class="atg-list">
+			<li><span class="tav" style="--c:#30b0c7" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><div><b>A front desk that never sleeps</b><span>Answers your customers on a link you share, takes bookings, passes the rest to you.</span></div></li>
+			<li><span class="tav" style="--c:#ff9f0a" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span><div><b>Marketing at the right moment</b><span>Writes your posts and puts them out when your audience and your topic are hot.</span></div></li>
+			<li><span class="tav" style="--c:#30d158" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/></svg></span><div><b>Customers who come back</b><span>Warm, personal messages that bring regulars back to rebook.</span></div></li>
+		</ul>
+		<p class="atg-foot">Every teammate is the AI model measured best at its job, right now. You pay only for the work: no subscription.</p>
+	</aside>
 	<div class="auth-main" id="authMain"></div>
 	<footer class="auth-foot">Free credits every day · no card · your chats stay in your browser</footer>
 </section>
@@ -12358,7 +12400,7 @@ function openAccount() {
 		// (what was typed stays when the form switches between signing in and making an account)
 		const draw = (swap, keep, say) => {
 			openAuth();
-			$("#authMain").innerHTML = '<div class="auth-card' + (swap ? " swap-in" : "") + '"><svg class="auth-mark" aria-hidden="true"><use href="#logo"/></svg><h1 id="authTitle">' + (mode === "in" ? "Welcome back" : "Create your account") + '</h1><p class="lede">' + (mode === "in" ? "Sign in to Celestin." : "Free credits straight away, and more every day. No card.") + "</p>" +
+			$("#authMain").innerHTML = '<div class="auth-card' + (swap ? " swap-in" : "") + '"><svg class="auth-mark" aria-hidden="true"><use href="#logo"/></svg><h1 id="authTitle">' + (mode === "in" ? (TOGETHER_APP ? "Welcome back to your team" : "Welcome back") : TOGETHER_APP ? "Hire your AI team" : "Create your account") + '</h1><p class="lede">' + (mode === "in" ? (TOGETHER_APP ? "Sign in to Celestin Together." : "Sign in to Celestin.") : TOGETHER_APP ? "Free to start, no card. Your team works on credits: you pay only for what it does." : "Free credits straight away, and more every day. No card.") + "</p>" +
 				(gid ? '<div class="gsi" id="gsiBtn"></div><div class="or"><span>or with your email</span></div>' : "") +
 				'<div class="field"><label for="acEmail">Email</label><input class="inp" id="acEmail" type="email" autocomplete="email" inputmode="email"></div>' +
 				'<div class="field"><label for="acPass">Password</label><input class="inp" id="acPass" type="password" autocomplete="' + (mode === "in" ? "current-password" : "new-password") + '"' + (mode === "up" ? ' placeholder="At least 8 characters"' : "") + '><div class="status" id="acStatus" role="status"></div></div>' +
@@ -13884,7 +13926,7 @@ function deskForm(d) {
 	return '<div class="field"><label for="dkName">Your business</label><input class="inp" id="dkName" maxlength="60" placeholder="e.g. Kopi Senja" value="' + esc(d.name || "") + '"></div>' +
 		'<div class="field"><label for="dkIntro">How it says hello</label><input class="inp" id="dkIntro" maxlength="300" placeholder="Hi! I\'m Kopi Senja\'s front desk. How can I help?" value="' + esc(d.intro || "") + '"></div>' +
 		'<div class="field"><label for="dkBrief">What it should know</label><textarea class="inp" id="dkBrief" rows="7" maxlength="8000" placeholder="What you do and where. Opening hours. Services or menu with prices. How bookings or orders work (how far ahead, how many people, deposits). Delivery, payment, parking. What it must never promise.">' + esc(d.brief || "") + "</textarea></div>" +
-		'<div class="field"><label for="dkCap">Daily limit (credits)</label><input class="inp" id="dkCap" type="number" min="5" max="5000" step="5" value="' + (d.cap || 100) + '" style="max-width:140px"><div class="help">About one credit for every four or five customer messages. Past it, it still takes messages for you, without spending.</div></div>' +
+		'<div class="help" style="margin:-4px 0 12px">It runs on your credits, day and night, with no daily limit: about one credit for every few customer messages.</div>' +
 		'<div class="status" id="dkStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px">' + (d.id ? '<button class="btn" id="dkCancel">Cancel</button>' : "") + '<button class="btn dark" id="dkSave">' + (d.id ? "Save" : "Open the front desk") + "</button></div>";
 }
 function drawDesks(edit) {
@@ -13897,7 +13939,7 @@ function drawDesks(edit) {
 		$("#dkSave").onclick = async () => {
 			$("#dkSave").disabled = true;
 			try {
-				await api("/api/bots", { method: "POST", body: JSON.stringify({ id: ed && ed.id, name: $("#dkName").value, intro: $("#dkIntro").value, brief: $("#dkBrief").value, cap: +$("#dkCap").value, tz: -new Date().getTimezoneOffset(), models: deskModels() }) });
+				await api("/api/bots", { method: "POST", body: JSON.stringify({ id: ed && ed.id, name: $("#dkName").value, intro: $("#dkIntro").value, brief: $("#dkBrief").value, cap: 0, tz: -new Date().getTimezoneOffset(), models: deskModels() }) });
 				await syncDesks(true);
 				drawDesks();
 			} catch (e) { $("#dkStatus").className = "status bad"; $("#dkStatus").textContent = e.message || String(e); $("#dkSave").disabled = false; }
@@ -13905,7 +13947,7 @@ function drawDesks(edit) {
 		return;
 	}
 	const kind = { booking: "Booking", message: "Message", question: "Question" };
-	box.innerHTML = DESKS.bots.map((b) => '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(b.name) + '</b><span class="help">' + creditsText(b.today) + " of " + creditsText(b.cap) + " credits today</span></div>" +
+	box.innerHTML = DESKS.bots.map((b) => '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(b.name) + '</b><span class="help">' + creditsText(b.today) + " credits today</span></div>" +
 		'<div class="row" style="gap:8px;margin-top:6px"><input class="inp" readonly value="' + esc(deskLink(b.id)) + '" aria-label="Its link" style="flex:1;min-width:0"><button class="btn" data-dkcopy="' + b.id + '">Copy link</button><a class="btn" href="' + esc(deskLink(b.id)) + '" target="_blank" rel="noopener">Open</a></div>' +
 		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-dkedit="' + b.id + '">Edit</button><button class="btn" data-dkdel="' + b.id + '">Delete</button></div></div>').join("") +
 		'<div class="field"><label>Inbox' + (deskNew() ? " · " + deskNew() + " new" : "") + "</label>" + (DESKS.items.length ? DESKS.items.slice(0, 40).map((it) => '<div class="desk-it' + (it.status === "new" ? " new" : "") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(kind[it.kind] || "Message") + "</b><span class=\"help\">" + esc(it.botName) + " · " + new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + '</span></div><div>' + esc(it.summary || "") + "</div>" + (it.details && (it.details.name || it.details.contact || it.details.when) ? '<div class="help">' + esc([it.details.name, it.details.contact, it.details.when].filter(Boolean).join(" · ")) + "</div>" : "") +
