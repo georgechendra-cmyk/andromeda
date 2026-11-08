@@ -2161,7 +2161,10 @@ async function gwImage(env, user, m, b, c, mt) {
 		const u = j.usage || {}, p = m.pricing, per = (v) => Number(v || 0) / m.idr / (Number(p.per_tokens) || 1e6);
 		const outTok = Number(u.output_tokens || u.completion_tokens) || 0;
 		const told = p.per_tokens && outTok ? per(p.input) * (Number(u.input_tokens || u.prompt_tokens) || 0) + per(p.image_output || p.output) * outTok : 0;
-		const charged = await charge(env, user.id, b.model, held, told > 0 ? told : each * data.length, mt);
+		// (a count that leaves the picture's own tokens out, the text's only, would price it at a sliver of what the gateway
+		// bills: under half what a picture of that kind takes, its known price is charged instead)
+		const est = each * data.length;
+		const charged = await charge(env, user.id, b.model, held, told > est * 0.5 ? told : est, mt);
 		return json({ data, usage: { cost: (charged / 1000) * c.creditUsd, credits: charged / 1000 } });
 	} catch (e) {
 		await charge(env, user.id, b.model, held, 0, mt);
@@ -2205,7 +2208,8 @@ async function gwSpeech(env, user, m, text, b, c, mt) {
 const gvJob = (jobId) => { try { const g = JSON.parse(unb64url(jobId.slice(3))); return g && g.id ? g : null; } catch { return null; } };
 async function gwVideoJob(env, user, m, b, c, mt) {
 	const secs = Math.max(1, Math.min(m.maxSecs, Math.round(Number(b.duration) || 8)));
-	const perSec = gwVideoUsdPerSec(m, String(b.resolution || "720p").toUpperCase());
+	// (priced at what's asked for, 720p, the only size sent: a 480p choice priced at 480p was made, and paid, at 720p)
+	const perSec = gwVideoUsdPerSec(m, "720P");
 	const reserve = mt.toMc(perSec * secs * 1.05);
 	const held = await hold(env, user, reserve, c);
 	let j, r;
