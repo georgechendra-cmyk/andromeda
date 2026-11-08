@@ -2748,6 +2748,8 @@ const FEATURE_W = {
 	docx: { task: "write", out: 4000, w: { "text:industry_writing_and_literature_and_language": 0.35, "text:instruction_following": 0.3, "factuality:overall": 0.2, "text:expert": 0.15 } },
 	director: { task: "write", out: 2500, w: { "text:creative_writing": 0.45, "text:instruction_following": 0.35, "text:industry_entertainment_and_sports_and_media": 0.2 } },
 	directorFromImage: { task: "vision", out: 2500, w: { "vision:overall": 0.4, "vision:creative_writing_vision": 0.3, "text:creative_writing": 0.15, "text:instruction_following": 0.15 } },
+	// a picture drawn in code (an SVG): a web page's visual craft with an illustrator's eye
+	drawn: { task: "code", out: 7000, bench: 0.15, w: { "webdev:webdev-html": 0.5, "webdev:overall": 0.2, "text:creative_writing": 0.15, "text:coding": 0.15 } },
 	imagePrompt: { task: "write", out: 300, w: { "text:creative_writing": 0.4, "text:instruction_following": 0.4, "text:industry_entertainment_and_sports_and_media": 0.2 } },
 	// reading each request to route it runs before every answer: the fast model that's best at it (a slow one would hold
 	// every answer up)
@@ -10602,6 +10604,7 @@ async function runStudio(text, atts, pick) {
 	if (!mediaReady()) throw mediaSoon(pick.kind);
 	// drawn in code: no media models to load
 	if (drawnOnly() && (pick.kind === "video" || pick.edit)) return pick.edit ? studioEdit(text, atts, pick) : runVideo(text, atts);
+	if (drawnOnly() && pick.kind === "image") return runDrawnImage(text, atts);
 	await loadMedia();
 	if (pick.edit) return studioEdit(text, atts, pick);
 	if (pick.kind === "video") return runVideo(text, atts);
@@ -11613,7 +11616,64 @@ async function composeFrom(ask, secs, msg, signal) {
 }
 
 // ---- photos, posters, logos
+// an SVG as a PNG, at 2K on its longer side (its own shape, from its viewBox)
+async function svgToPng(svg) {
+	let w = 1024, h = 1024;
+	const vb = /viewBox\s*=\s*["']\s*[-\d.]+[\s,]+[-\d.]+[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(svg);
+	if (vb && +vb[1] > 0 && +vb[2] > 0) { w = +vb[1]; h = +vb[2]; }
+	const k = 2048 / Math.max(w, h), W = Math.round(w * k), H = Math.round(h * k);
+	let x = /xmlns=/.test(svg) ? svg : svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+	x = x.replace(/<svg\b([^>]*)>/i, (m0, a) => "<svg" + a.replace(/\s(width|height)\s*=\s*("[^"]*"|'[^']*')/gi, "") + ' width="' + W + '" height="' + H + '">');
+	const url = URL.createObjectURL(new Blob([x], { type: "image/svg+xml" }));
+	try {
+		const img = new Image();
+		await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("drawing didn't parse")); img.src = url; });
+		const c = document.createElement("canvas");
+		c.width = W; c.height = H;
+		c.getContext("2d").drawImage(img, 0, 0, W, H);
+		const png = await new Promise((res) => c.toBlob(res, "image/png"));
+		if (!png) throw new Error("drawing didn't render");
+		return { png, svg: new Blob([x.replace(' width="' + W + '" height="' + H + '"', "")], { type: "image/svg+xml" }) };
+	} finally { URL.revokeObjectURL(url); }
+}
+// a picture's name from what was asked ("make me a logo for Kopi Senja" → "Logo for Kopi Senja"), cut at a word
+function pictureTitle(t) {
+	let x = String(t || "").replace(/^Change this image:\s*/i, "").replace(/^(please\s+|can you\s+|could you\s+|tolong\s+|buatkan\s+|buat\s+)*((make|draw|create|generate|design|give|paint|sketch)\s+(me\s+)?)?((an?|the|some)\s+)?/i, "").replace(/[.!?]+$/, "").replace(/\s+/g, " ").trim();
+	if (x.length > 44) x = x.slice(0, 44).replace(/\s+\S*$/, "") + "…";
+	return x ? x.charAt(0).toUpperCase() + x.slice(1) : "Your picture";
+}
+// a picture drawn in code, when no picture model is connected: by the model measured best at visual work in code (the
+// same rules as everything), as an SVG; a change is drawn again from the last one's SVG
+async function runDrawnImage(text, atts) {
+	const msg = { role: "assistant", kind: "studio", text: "", streaming: true, status: "Drawing it", used: [], data: null };
+	current.msgs.push(msg);
+	updateLast();
+	const prev = [...current.msgs].reverse().find((m) => m !== msg && m.kind === "studio" && m.data && m.data.kind === "image" && (m.data.svgs || []).length);
+	const change = /^Change this image:/i.test(text) && prev;
+	let before = "";
+	if (change) { const b = await vault.get(prev.data.svgs[0]); if (b) before = await b.text(); }
+	const ask = (before
+		? "Here is a picture as SVG:\n" + before.slice(0, 60000) + "\n\n" + text.replace(/^Change this image:\s*/i, "Change it: ") + "\nKeep everything else as it is."
+		: "Draw this as one SVG picture: " + text) +
+		"\n\nMake it beautiful, the way a top illustrator and designer would: a strong composition, a considered palette, gradients, light and depth where they help, crisp shapes, and any words set in clean, readable type (font-family=\"Inter, Helvetica, Arial, sans-serif\"). Nothing external: no images, fonts, scripts or links. Pick the shape that suits it: viewBox=\"0 0 1024 1024\" square, \"0 0 1536 1024\" wide, \"0 0 1024 1536\" tall. Reply with ONLY the SVG, from <svg to </svg>.";
+	let made = null, title = pictureTitle(text);
+	for (const m of bestFor("drawn").slice(0, 3)) {
+		try {
+			const out = await once(m.id, [{ role: "user", content: ask }], { ...effortExtra(m.id) }, msg);
+			const svg = (String(out).match(/<svg\b[\s\S]*<\/svg>/i) || [])[0];
+			if (!svg) continue;
+			made = await svgToPng(svg.replace(/<script\b[\s\S]*?<\/script>/gi, "").replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, ""));
+			msg.used.push({ name: shortName(m), desc: "Drew it in code" });
+			break;
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	if (!made) throw new Error("The picture couldn't be drawn. Try again, or say it differently.");
+	msg.data = { kind: "image", drawn: true, spec: { title, prompt: text }, images: [await vault.put(made.png)], svgs: [await vault.put(made.svg)] };
+	msg.text = "**" + (prev && change ? (prev.data.spec && prev.data.spec.title) || "Your picture" : title || "Your picture") + "** · drawn in code";
+}
 async function runImage(text, atts) {
+	// (no picture model connected: drawn in code)
+	if (drawnOnly() && !(MEDIA.image || []).length) return runDrawnImage(text, atts);
 	const msg = { role: "assistant", kind: "studio", text: "", streaming: true, status: "Planning the image", used: [], data: null };
 	current.msgs.push(msg);
 	updateLast();
@@ -11723,7 +11783,7 @@ async function renderStudio(m, i, box) {
 	if (!d) { box.innerHTML = ""; return; }
 	if (d.kind === "image") {
 		const urls = await Promise.all((d.images || []).map((k) => vault.url(k)));
-		box.innerHTML = '<div class="shots imgs">' + urls.map((u, n) => (u ? '<figure class="shot"><img src="' + u + '" alt=""><figcaption><button class="btn" data-imgedit="' + n + '">Edit</button><button class="btn" data-imgdl="' + n + '">Download</button></figcaption></figure>' : '<figure class="shot gone">Image not on this device</figure>')).join("") + "</div>";
+		box.innerHTML = '<div class="shots imgs">' + urls.map((u, n) => (u ? '<figure class="shot"><img src="' + u + '" alt=""><figcaption><button class="btn" data-imgedit="' + n + '">Edit</button><button class="btn" data-imgdl="' + n + '">Download</button>' + ((d.svgs || [])[n] ? '<button class="btn" data-imgsvg="' + n + '" title="The picture as a vector: sharp at any size">SVG</button>' : "") + "</figcaption></figure>" : '<figure class="shot gone">Image not on this device</figure>')).join("") + "</div>";
 		$$("[data-imgedit]", box).forEach((b) => b.onclick = async () => {
 			const blob = await vault.get(d.images[b.dataset.imgedit]);
 			if (!blob) { toast("That picture isn't on this device any more"); return; }
@@ -11733,6 +11793,7 @@ async function renderStudio(m, i, box) {
 			$("#input").placeholder = "Say what to change in the picture";
 			$("#input").focus();
 		});
+		$$("[data-imgsvg]", box).forEach((b) => b.onclick = async () => { const blob = await vault.get(d.svgs[b.dataset.imgsvg]); if (blob) saveBlob(blob, (d.spec?.title || "image").replace(/[^\w -]+/g, "").slice(0, 40) + ".svg"); else toast("That drawing isn't on this device any more"); });
 		$$("[data-imgdl]", box).forEach((b) => b.onclick = async () => { const blob = await vault.get(d.images[b.dataset.imgdl]); if (blob) saveBlob(blob, (d.spec?.title || "image").replace(/[^\w -]+/g, "").slice(0, 40) + "." + (blob.type.split("/")[1] || "png").replace("svg+xml", "svg")); });
 		return;
 	}
@@ -14340,7 +14401,9 @@ async function importData(d, from) {
 }
 
 // ---------------------------------------------------------------- what's new: shown once after an update, so nothing new goes unnoticed
-const WHATS_NEW = { v: "2026-11-08b", items: [
+const WHATS_NEW = { v: "2026-11-08c", items: [
+	['<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>', "Pictures, drawn for you", "Ask for a logo, poster, icon or illustration: it's drawn in code by the model best at it, with the SVG to download (sharp at any size). Say what to change and only that changes."],
+	['<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>', "Your front desk takes bookings", "In Celestin Together: set your hours and it books customers at the times you're free, never double-books, and has a WhatsApp reminder ready the day before."],
 	['<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>', "Bring your chats", "Coming from ChatGPT or Claude? Pick their export (Settings → Your data → Import) and every chat, and Claude's projects, come over as they were. Read in your browser, never uploaded."],
 	['<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 20c0-3 2.5-5 5-5s5 2 5 5M11 20c0-3 2.5-5 5-5s5 2 5 5"/>', "Celestin Together", "Your own AI team in one chat: six teammates, each the model measured best at their job, working at the same time. Same credits."],
 	['<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9Z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>', "3D models you can use", "Ask for a 3D model and download it as .glb, .stl or .obj: for games, Blender, 3D printing or selling."],
