@@ -1748,7 +1748,18 @@ html[data-app="together"] .welcome.together .greet { font-size: clamp(30px, 4vw,
 html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-weight: 500; color: var(--muted); letter-spacing: -.01em; }
 html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
-html[data-app="together"] .sug { border-radius: 999px; background: var(--bg2); border-color: transparent; padding: 9px 14px; }
+html[data-app="together"] .sug { border-radius: 18px; background: var(--bg2); border-color: transparent; padding: 10px 14px; }
+@media (max-width: 560px) { html[data-app="together"] .sugs { grid-template-columns: 1fr; } }
+/* its rail: the jobs first, each with what's waiting */
+.nav-i.tg-only { display: none; }
+html[data-app="together"] .nav-i.tg-only { display: flex; }
+html[data-app="together"] #codeNav { display: none; }
+.nav-i.tg-only { position: relative; }
+@media (max-width: 860px) { .nav-i .nb { position: static !important; margin-left: auto; box-shadow: none !important; } }
+.nav-i .nb { position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff3b30; color: #fff; font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; box-shadow: 0 0 0 2px var(--side, var(--bg)); }
+.nav-i .nb:empty { display: none; }
+html[data-app="together"] .nav-i.tg-only svg { color: var(--c); }
+.welcome.together .tw-jobs { margin-top: 34px; }
 html[data-app="together"] .sug:hover { background: var(--bg3); }
 html[data-app="together"] .sugs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-weight: 600; color: var(--brand); min-width: 0; }
@@ -1977,6 +1988,9 @@ html[data-app="together"] .auth-main { align-self: center; }
 		</div>
 		<nav class="sb-nav" aria-label="Celestin">
 			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
+			<button class="nav-i tg-only" id="tgDeskNav" style="--c:#30b0c7" data-tip="Front desk: your receptionist on a link" aria-label="Front desk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg><span class="lbl">Front desk</span><span class="nb" id="tgDeskNb"></span></button>
+			<button class="nav-i tg-only" id="tgMarketNav" style="--c:#ff9500" data-tip="Marketing: posts at the right moment" aria-label="Marketing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="lbl">Marketing</span><span class="nb" id="tgMarketNb"></span></button>
+			<button class="nav-i tg-only" id="tgBackNav" style="--c:#34c759" data-tip="Bring customers back: messages ready to send" aria-label="Bring customers back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Customers</span><span class="nb" id="tgBackNb"></span></button>
 			<button class="nav-i" id="togetherNav" data-tip="Celestin Together: a team in your chat" aria-label="Celestin Together"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/></svg><span class="lbl">Together</span></button>
 			<button class="nav-i nav-search" id="searchNav" data-tip="Search chats" aria-label="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="lbl">Search chats</span></button>
 			<button class="nav-i" id="chatsNav" data-tip="Your chats" aria-label="Your chats" aria-expanded="false" aria-controls="sbPanel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span class="lbl">Chats</span></button>
@@ -7166,8 +7180,8 @@ function renderTogetherWelcome() {
 	const on = TEAM_TASKS.slice(0, 4).map((t) => '<button class="aon" data-tasks="1"><i style="--c:' + MATE[t.member].c + '"></i><b>' + esc(MATE[t.member].name) + "</b> " + esc(t.title.length > 48 ? t.title.slice(0, 46).trimEnd() + "…" : t.title) + ' <span class="when">' + esc(whenText(t)) + "</span></button>").join("");
 	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night") : "A receptionist on a link you share: answers customers day and night, passes bookings to you") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
 	const jobsHtml = Object.entries(JOB_INFO).map(([k, x]) => { const mine = JOBS.jobs.filter((j) => j.kind === k), r = jobReady(k); return '<button class="tw-job" data-job="' + k + '"><span class="tav" style="--c:' + x.c + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + x.icon + '</svg></span><span class="twj"><b>' + esc(x.name) + "</b><span>" + esc(mine.length ? (r ? r + " ready for you" : "On, working by itself") : x.what) + '</span></span><span class="twgo">' + (mine.length ? (r ? "Open" : "Open") : "Set it up") + "</span></button>"; }).join("");
-	$("#view").innerHTML = '<section class="welcome together"><div class="tw-team">' + cards + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + desk + jobsHtml + '</div><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1>' +
-		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + "</div></section>";
+	$("#view").innerHTML = '<section class="welcome together"><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1><div class="tw-team">' + cards + "</div>" +
+		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + desk + jobsHtml + "</div></section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 	$$("[data-medit]").forEach((x) => {
@@ -12971,6 +12985,12 @@ if (TOGETHER_APP) {
 	b.querySelector(".lbl").textContent = "Celestin";
 	b.querySelector("svg").innerHTML = '<use href="#logo"/>';
 	b.querySelector("svg").setAttribute("fill", "currentColor");
+	b.dataset.tip = "Back to Celestin: code, pictures and video";
+	$(".brand-name").textContent = "Celestin Together";
+	$(".brand-link").title = "Celestin Together's home page";
+	$("#tgDeskNav").onclick = () => { openSidebar(false); openDesks(); };
+	$("#tgMarketNav").onclick = () => { openSidebar(false); openJob("marketing"); };
+	$("#tgBackNav").onclick = () => { openSidebar(false); openJob("winback"); };
 }
 // ---------------------------------------------------------------- the open chat: export, print, rename, delete
 function closeChatMenu() { $("#chatPop").hidden = true; $("#chatMenuBtn").setAttribute("aria-expanded", "false"); }
@@ -13916,6 +13936,14 @@ const JOB_INFO = {
 const jobReady = (kind) => JOBS.items.filter((x) => x.status === "ready" && (!kind || x.jobKind === kind)).length;
 // who writes them: the model measured best at persuasive, on-brand writing that follows instructions exactly, by the
 // rules (54/46, 1.8x), and the next two
+// what's waiting on each job, on Together's rail (a red count, like an app's badge)
+function railBadges() {
+	if (!TOGETHER_APP) return;
+	const put = (id, n) => { const el = $(id); if (el) el.textContent = n > 0 ? (n > 99 ? "99+" : String(n)) : ""; };
+	put("#tgDeskNb", deskNew());
+	put("#tgMarketNb", jobReady("marketing"));
+	put("#tgBackNb", jobReady("winback"));
+}
 function jobModels() {
 	try { return pinFirst(diversify(bestFirst(quarkFirst(arenaRank("write", { "text:creative_writing": 0.6, "text:instruction_following": 0.4 }), undefined, null, (x, c) => callCost(x, c, 600, 2500)))), "write").slice(0, 3).map((m) => m.id); } catch { return []; }
 }
@@ -13934,6 +13962,7 @@ async function syncJobs(quiet) {
 	try { j = await api("/api/jobs"); } catch { return; }
 	const before = jobReady();
 	JOBS = { jobs: j.jobs || [], items: j.items || [] };
+	railBadges();
 	const n = jobReady();
 	if (n > before && !quiet) {
 		const post = JOBS.items.find((x) => x.status === "ready" && x.kind === "post");
@@ -14043,6 +14072,7 @@ async function syncDesks(quiet) {
 	try { j = await api("/api/bots"); } catch { return; }
 	const before = deskNew();
 	DESKS = { bots: j.bots || [], items: j.items || [], at: Date.now() };
+	railBadges();
 	const n = deskNew();
 	if (n > before && !quiet) toast(n - before === 1 ? "Your front desk passed you something new" : "Your front desk passed you " + (n - before) + " new things");
 	if (current && !current.msgs.length) renderTogetherWelcome();
