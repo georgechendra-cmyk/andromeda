@@ -156,6 +156,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/login" && m === "POST") return login(req, env);
 	if (p === "/api/auth/google" && m === "POST") return googleSignIn(req, env);
 	if (p === "/api/webhooks/lemonsqueezy" && m === "POST") return lemonWebhook(req, env);
+	if (p === "/api/pay/notify" && m === "POST") return payNotify(req, env);
 	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env, ownerKeyOk(req, env) ? undefined : (await config(env)).publicGateways)));
 	// a shared chat: anyone with its link can read it; a picture shared with an app, anyone with its link can fetch
 	let sh, up;
@@ -208,6 +209,9 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/tools/fetch" && m === "POST") return toolFetch(req, env);
 	if (p === "/api/tools/search" && m === "POST") return toolSearch(req, env, user);
 	if (p === "/api/payments/qris" && m === "POST") return qrisPayment(req, env, user);
+	if ((tk = p.match(/^\/api\/payments\/([a-f0-9]{24})$/)) && m === "GET") return paymentState(env, user, tk[1]);
+	if (p === "/api/owner/paynotify" && m === "GET") return payNotifySetup(env, user, false);
+	if (p === "/api/owner/paynotify" && m === "POST") return payNotifySetup(env, user, true);
 	if (p === "/api/support" && m === "GET") return supportList(env, user);
 	let tkt;
 	if ((tkt = p.match(/^\/api\/support\/(\d{6})\/solved$/)) && m === "POST") return supportSolved(env, user, tkt[1]);
@@ -3509,23 +3513,98 @@ async function deskChat(req, env, ctx, bid) {
 
 // ------------------------------------------------------------------ payments
 
+const PAY_MATCH_DAYS = 3;
 async function qrisPayment(req, env, user) {
 	const c = await config(env);
 	if (!c.open) throw fail(403, "Credits aren't on sale yet.");
 	const b = await body(req);
+	const reference = String(b.reference || "").trim().slice(0, 120);
+	// "I've paid" on one already asked for: the name it came from, for a match by hand if it's ever needed
+	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
+		const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ? AND user_id = ?").bind(b.id, user.id).first();
+		if (!p) throw fail(404, "That payment isn't yours.");
+		if (reference) await env.DB.prepare("UPDATE payments SET note = ? WHERE id = ?").bind(reference, p.id).run();
+		return json({ ok: true, payment: payOut(p) });
+	}
 	// a month of a plan, or a pack of credits (a plan's payment is "plan:<id>" and carries no credits of its own)
 	const plan = b.plan ? c.plans.find((p) => p.id === b.plan) : null;
 	const pack = plan ? null : c.packs.find((p) => p.id === b.pack);
 	const item = plan || pack;
 	if (!item || !item.prices || !item.prices.IDR) throw fail(400, b.plan ? "Pick a plan." : "Pick a pack.");
-	const reference = String(b.reference || "").trim().slice(0, 120);
-	if (reference.length < 2) throw fail(400, "Write the name on your payment so it can be matched.");
+	const packId = plan ? "plan:" + plan.id : pack.id, t = now();
+	// (the same pack asked for again within a day: the same payment, at the same amount)
+	const again = await env.DB.prepare("SELECT * FROM payments WHERE user_id = ? AND method = 'qris' AND status = 'pending' AND pack = ? AND created_at > ? ORDER BY created_at DESC LIMIT 1").bind(user.id, packId, t - 864e5).first();
+	if (again) { if (reference) await env.DB.prepare("UPDATE payments SET note = ? WHERE id = ?").bind(reference, again.id).run(); return json({ ok: true, payment: payOut(again) }); }
 	const open = await env.DB.prepare("SELECT COUNT(*) AS n FROM payments WHERE user_id = ? AND status = 'pending'").bind(user.id).first();
 	if (open && open.n >= 3) throw fail(429, "You already have payments waiting to be confirmed.");
-	const pay = { id: id(), user_id: user.id, method: "qris", pack: plan ? "plan:" + plan.id : pack.id, amount: item.prices.IDR, currency: "IDR", credits_mc: plan ? 0 : (pack.credits + (pack.bonus || 0)) * 1000, status: "pending", note: reference };
+	// its own amount: the price plus 1 to 999 rupiah no other payment waiting has
+	const base = Number(item.prices.IDR), taken = new Set(((await env.DB.prepare("SELECT amount FROM payments WHERE method = 'qris' AND status = 'pending' AND created_at > ?").bind(t - PAY_MATCH_DAYS * 864e5).all()).results || []).map((r) => Number(r.amount)));
+	let amount = 0;
+	for (let k = 0; k < 60 && !amount; k++) { const a = base + 1 + (crypto.getRandomValues(new Uint32Array(1))[0] % 999); if (!taken.has(a)) amount = a; }
+	if (!amount) throw fail(503, "Too many payments are waiting right now. Try again in a few minutes.");
+	const pay = { id: id(), user_id: user.id, method: "qris", pack: packId, amount, currency: "IDR", credits_mc: plan ? 0 : (pack.credits + (pack.bonus || 0)) * 1000, status: "pending", note: reference || null, created_at: t };
 	await env.DB.prepare("INSERT INTO payments (id, user_id, method, pack, amount, currency, credits_mc, status, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		.bind(pay.id, pay.user_id, pay.method, pay.pack, pay.amount, pay.currency, pay.credits_mc, pay.status, pay.note, now()).run();
-	return json({ ok: true, payment: { ...pay, credits: pay.credits_mc / 1000 } });
+		.bind(pay.id, pay.user_id, pay.method, pay.pack, pay.amount, pay.currency, pay.credits_mc, pay.status, pay.note, t).run();
+	return json({ ok: true, payment: payOut(pay) });
+}
+const payOut = (p) => ({ id: p.id, pack: p.pack, amount: Number(p.amount), currency: p.currency, credits: (Number(p.credits_mc) || 0) / 1000, status: p.status, at: p.created_at });
+async function paymentState(env, user, pid) {
+	const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ? AND user_id = ?").bind(pid, user.id).first();
+	if (!p) throw fail(404, "That payment isn't yours.");
+	return json({ payment: payOut(p) });
+}
+// ---- money arriving, from the owner's phone: "Kamu menerima Rp159.347 dari BUDI" (any app's wording)
+// the rupiah amounts in a notification: "Rp159.347", "Rp 159.347,00", "IDR 159,347", "159347"
+function rupiahIn(text) {
+	const out = [];
+	for (const m of String(text || "").matchAll(/(?:rp\.?|idr)\s*([\d][\d.,]*)/gi)) {
+		let x = m[1].replace(/[.,]$/, "");
+		if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(x)) x = x.replace(/,\d{1,2}$/, "").replace(/\./g, "");
+		else if (/^\d{1,3}(,\d{3})+(\.\d{1,2})?$/.test(x)) x = x.replace(/\.\d{1,2}$/, "").replace(/,/g, "");
+		else x = x.replace(/[.,]\d{1,2}$/, "").replace(/[.,]/g, "");
+		const n = Number(x);
+		if (n >= 1000 && n < 1e9) out.push(n);
+	}
+	return [...new Set(out)];
+}
+async function payKey(env, make) {
+	const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'pay-notify-key'").first();
+	if (row && row.v && !make) return row.v;
+	const k = "pn_" + [...crypto.getRandomValues(new Uint8Array(24))].map((b) => b.toString(16).padStart(2, "0")).join("");
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('pay-notify-key', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(k).run();
+	return k;
+}
+async function payNotify(req, env) {
+	const raw = await req.text();
+	let b = {};
+	try { b = JSON.parse(raw); } catch { b = { text: raw }; }
+	const given = String(b.key || (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "") || "").trim();
+	const row = await env.DB.prepare("SELECT v FROM config WHERE k = 'pay-notify-key'").first();
+	if (!row || !row.v || !given || !sameString(given, row.v)) throw fail(401, "Wrong key.");
+	const text = [b.title, b.text, b.message, b.body].filter((x) => typeof x === "string").join(" ").slice(0, 2000);
+	const amounts = rupiahIn(text), t = now();
+	let matched = null;
+	for (const a of amounts) {
+		const rows = (await env.DB.prepare("SELECT * FROM payments WHERE method = 'qris' AND status = 'pending' AND amount = ? AND created_at > ?").bind(a, t - PAY_MATCH_DAYS * 864e5).all()).results || [];
+		// (its own amount: one payment; never a guess between two)
+		if (rows.length === 1 && (await addCredits(env, rows[0].id))) { matched = rows[0]; break; }
+	}
+	// what came in, kept for the owner (the last 30)
+	const seen = await env.DB.prepare("SELECT v FROM config WHERE k = 'pay-seen'").first();
+	let list = [];
+	try { list = JSON.parse((seen && seen.v) || "[]"); } catch {}
+	list.unshift({ at: t, text: text.slice(0, 200), amounts, matched: matched ? { id: matched.id, amount: Number(matched.amount) } : null });
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('pay-seen', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(list.slice(0, 30))).run();
+	return json({ ok: true, matched: matched ? matched.id : null, amounts });
+}
+// the owner's setup: the key their phone sends, where to, and what came in lately
+async function payNotifySetup(env, user, rotate) {
+	if (!user.owner) throw fail(403, "Only the owner sees this.");
+	const key = await payKey(env, rotate);
+	const seen = await env.DB.prepare("SELECT v FROM config WHERE k = 'pay-seen'").first();
+	let list = [];
+	try { list = JSON.parse((seen && seen.v) || "[]"); } catch {}
+	return json({ key, url: "https://andromeda-credits.georgechendra.workers.dev/api/pay/notify", seen: list });
 }
 
 async function addCredits(env, paymentId) {

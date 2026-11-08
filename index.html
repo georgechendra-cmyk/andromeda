@@ -1749,6 +1749,8 @@ html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-w
 html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
 .desk-it.off { opacity: .6; }
+.status .spin { display: inline-block; width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .convos .bring { display: block; margin: 2px 10px 8px; padding: 0; border: 0; background: none; color: var(--brand); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .convos .bring:hover { text-decoration: underline; }
 html[data-app="together"] .sug { border-radius: 18px; background: var(--bg2); border-color: transparent; padding: 10px 14px; }
@@ -12240,6 +12242,21 @@ function openSettings() {
 // ---------------------------------------------------------------- credits: account, pricing
 const creditUsd = () => (pricing && pricing.creditUsd) || 0.01;
 // the owner's own view, in Your account: what Celestin is doing and costing right now
+// automatic QRIS payments, for the owner: the key their phone sends with each "money received" notification, the steps
+// to set it up, and what came in lately (matched, or kept for a look)
+async function drawPayNotify(rotate) {
+	const box = $("#ownerPay");
+	if (!box) return;
+	let j;
+	try { j = await api("/api/owner/paynotify", rotate ? { method: "POST", body: "{}" } : {}); } catch (e) { box.textContent = "Couldn't load: " + (e.message || e); return; }
+	const body = '{"key":"' + j.key + '","title":"[notification_title]","text":"[notification_text]"}';
+	box.innerHTML = '<b>Automatic payments</b><div class="help" style="margin:4px 0 8px">On the phone your QRIS money arrives on (Android): install MacroDroid (free) → Add macro → Trigger: Notification → Notification received → pick your wallet app (OVO). Action: Connectivity → HTTP request → POST to the address below, content type application/json, body below. Save. Each payment then confirms itself within seconds.</div>' +
+		'<div class="field"><label>Address</label><input class="inp" readonly value="' + esc(j.url) + '"></div><div class="field"><label>Body (keep the key secret)</label><textarea class="inp" readonly rows="3">' + esc(body) + '</textarea></div>' +
+		'<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="pnCopy">Copy body</button><button class="btn" id="pnRotate">New key</button></div>' +
+		(j.seen.length ? '<div class="help" style="margin-top:8px"><b>Came in lately:</b><br>' + j.seen.slice(0, 8).map((x) => esc(new Date(x.at).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })) + " · " + (x.amounts.length ? x.amounts.map((a) => "Rp" + a.toLocaleString("id-ID")).join(", ") : "no amount") + " · " + (x.matched ? "added automatically" : "<b>not matched: check it, then approve by hand</b>")).join("<br>") + "</div>" : '<div class="help" style="margin-top:8px">Nothing has come in from your phone yet.</div>');
+	$("#pnCopy").onclick = () => navigator.clipboard.writeText(body).then(() => toast("Copied: paste it as the request body"), () => {});
+	$("#pnRotate").onclick = () => { if (confirm("Make a new key? The old one stops working, so update your phone too.")) drawPayNotify(true); };
+}
 async function drawOwnerStats() {
 	const box = $("#ownerStats");
 	if (!box) return;
@@ -12255,6 +12272,8 @@ async function drawOwnerStats() {
 		j.top.length ? "<b>Where the money went (24 h):</b> " + j.top.map((x) => esc(x.model.replace(/^[^/]+\//, "")) + " " + rp(x.idr) + " (" + x.n + ")").join(" · ") : "",
 		j.search && j.search.why && j.search.why.length ? "<b>Web search last failed</b> " + esc(new Date(j.search.at).toLocaleString()) + ": " + esc(String(j.search.why[0]).slice(0, 140)) : "",
 	].filter(Boolean).join("<br>");
+	if (!$("#ownerPay")) box.insertAdjacentHTML("afterend", '<div id="ownerPay" style="margin-top:12px"></div>');
+	drawPayNotify();
 }
 function creditsText(n) {
 	const v = Number(n) || 0;
@@ -12860,23 +12879,44 @@ function buy(item, P, plan) {
 	window.open(u.toString(), "_blank", "noopener");
 	toast("Complete the payment in the new tab. " + (plan ? "Your plan starts" : "Your credits appear") + " here automatically.");
 }
-function openQris(pack, P, plan) {
+// QRIS: this payment's own amount (the price and a code of a few rupiah that says it's theirs), and it confirms itself
+// the moment the money arrives: "waiting", then "pending, please hold" once they say they've paid, then "paid"
+let QRIS_WATCH = 0;
+async function openQris(pack, P, plan) {
 	const total = pack.credits + (pack.bonus || 0);
-	openModal("<h2>Pay with QRIS</h2><p class=\"sub\">" + esc(pack.name) + " · " + (plan ? "a month" : creditsText(total) + " credits") + "</p>" +
-		'<div class="qris"><img src="' + esc(P.qris.image) + '" alt="QRIS code"><div><div class="help" style="font-size:12.5px;color:var(--faint)">Amount, exactly</div><div class="amt">' + money(pack.prices.IDR, "IDR") + "</div>" +
-		(P.qris.name ? '<p style="font-size:13.5px;color:var(--muted);margin:6px 0 14px">to <b style="color:var(--text)">' + esc(P.qris.name) + "</b></p>" : "<p></p>") +
-		'<ol style="font-size:13.5px;color:var(--muted);padding-left:18px;line-height:1.6;margin:0 0 14px"><li>Open any e-wallet or bank app and scan the code.</li><li>Pay the exact amount above.</li><li>Write the name your payment came from below and press I\'ve paid.</li></ol>' +
-		'<div class="field"><label>Name on the payment</label><input class="inp" id="qrRef" placeholder="e.g. Budi Santoso (GoPay)"><div class="status" id="qrStatus"></div></div>' +
-		'<div class="row" style="justify-content:flex-end"><button class="btn" data-open-pricing>Back</button><button class="btn dark" id="qrPaid">I\'ve paid</button></div></div></div>', "");
+	openModal('<h2>Pay with QRIS</h2><p class="sub">' + esc(pack.name) + " · " + (plan ? "a month" : creditsText(total) + " credits") + '</p><div id="qrBox"><p class="help">Getting your amount…</p></div>', "");
+	let pay;
+	try { pay = (await api("/api/payments/qris", { method: "POST", body: JSON.stringify(plan ? { plan: pack.id } : { pack: pack.id }) })).payment; }
+	catch (e) { if ($("#qrBox")) $("#qrBox").innerHTML = '<div class="status bad">' + esc(e.message || String(e)) + '</div><div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" data-open-pricing>Back</button></div>'; return; }
+	const box = $("#qrBox");
+	if (!box) return;
+	const full = money(pay.amount, "IDR"), code = String(pay.amount).slice(-3);
+	box.innerHTML = '<div class="qris">' + (P.qris.image ? '<img src="' + esc(P.qris.image) + '" alt="QRIS code">' : "") + '<div><div class="help" style="font-size:12.5px;color:var(--faint)">Pay exactly</div><div class="amt">' + esc(full.slice(0, -3)) + '<span style="color:var(--brand)">' + esc(full.slice(-3)) + "</span></div>" +
+		'<p class="help" style="margin:4px 0 10px">The last 3 digits (' + esc(code) + ") say it's you, so your " + (plan ? "month starts" : "credits arrive") + " by themselves the moment it's paid.</p>" +
+		(P.qris.name ? '<p style="font-size:13.5px;color:var(--muted);margin:0 0 12px">to <b style="color:var(--text)">' + esc(P.qris.name) + "</b></p>" : "") +
+		'<ol style="font-size:13.5px;color:var(--muted);padding-left:18px;line-height:1.6;margin:0 0 12px"><li>Open any e-wallet or bank app and scan the code.</li><li>Pay exactly ' + esc(full) + ".</li><li>That's it: this page updates by itself.</li></ol>" +
+		'<div class="status" id="qrStatus" role="status"><span class="spin"></span> Waiting for your payment…</div>' +
+		'<details style="margin:10px 0"><summary class="help">Paid a different amount?</summary><div class="field" style="margin-top:8px"><label for="qrRef">The name it was paid from</label><input class="inp" id="qrRef" placeholder="e.g. Budi Santoso (GoPay)"></div></details>' +
+		'<div class="row" style="justify-content:flex-end"><button class="btn" data-open-pricing>Back</button><button class="btn dark" id="qrPaid">I\'ve paid</button></div></div></div>';
+	const watch = ++QRIS_WATCH, until = Date.now() + 45 * 60e3;
+	const done = () => {
+		openModal("<h2>Paid, thank you!</h2><p class=\"sub\">" + (plan ? "Your month of " + esc(pack.name) + " has started." : creditsText(total) + " credits are in your account.") + '</p><div class="row" style="justify-content:flex-end"><button class="btn dark" data-open-account>See my account</button></div>');
+		refreshMe();
+		toast(plan ? "Paid: your month has started" : "Paid: " + creditsText(total) + " credits added");
+	};
+	const poll = async () => {
+		if (watch !== QRIS_WATCH || Date.now() > until) return;
+		try { const j = await api("/api/payments/" + pay.id); if (j.payment.status === "approved") { QRIS_WATCH++; done(); return; } } catch {}
+		// (checked while the page is open; closed, it's still added by itself, and shown next time)
+		setTimeout(poll, document.hidden ? 15000 : 5000);
+	};
+	setTimeout(poll, 4000);
 	$("#qrPaid").onclick = async () => {
 		const st = $("#qrStatus");
+		try { await api("/api/payments/qris", { method: "POST", body: JSON.stringify({ id: pay.id, reference: ($("#qrRef") && $("#qrRef").value) || "" }) }); } catch {}
 		st.className = "status";
-		st.textContent = "Sending…";
-		try {
-			await api("/api/payments/qris", { method: "POST", body: JSON.stringify({ ...(plan ? { plan: pack.id } : { pack: pack.id }), reference: $("#qrRef").value }) });
-			openModal("<h2>Thanks, that's in</h2><p class=\"sub\">" + (plan ? "Your month of " + esc(pack.name) + " starts" : "Your " + creditsText(total) + " credits are added") + " as soon as the payment is confirmed, usually within a few hours. You'll see it in your account.</p><div class=\"row\" style=\"justify-content:flex-end\"><button class=\"btn dark\" data-open-account>See my account</button></div>");
-			refreshMe();
-		} catch (e) { st.className = "status bad"; st.textContent = e.message; }
+		st.innerHTML = '<span class="spin"></span> <b>Payment pending: please hold.</b> It\'s added the moment it arrives, usually within a minute. You can close this: if it hasn\'t come in an hour, we check it by hand.';
+		$("#qrPaid").disabled = true;
 	};
 }
 
