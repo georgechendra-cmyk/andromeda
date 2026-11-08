@@ -3041,7 +3041,7 @@ async function lemonWebhook(req, env) {
 // A request gets a number at once. The owner gets an email with everything needed to answer (and a link that opens a
 // reply to the customer); the customer gets a copy with the number, and can answer that email to add more. Signed in or
 // not (not being able to sign in is a common reason to write), kept from flooding by a few an hour from one place.
-const SUPPORT_KINDS = ["Payments and refunds", "Credits and packs", "Celestin Together", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
+const SUPPORT_KINDS = ["Payments", "Credits and packs", "Celestin Together", "Signing in", "Something isn't working", "An answer was wrong", "Privacy and my data", "Other"];
 async function optionalUser(req, env) {
 	try { return bearer(req) ? await authUser(req, env) : null; } catch { return null; }
 }
@@ -3101,7 +3101,10 @@ async function supportSolved(env, user, tid) {
 // its share used since (a plan: what's been charged since it started, against its month of credits; a pack: what's left of
 // its credits). What it bought ends at once; the owner gets a request with exactly what to send back and to whom.
 const REFUND_EVERY = 90 * 864e5;
+// (the owner, Nov 8: no refunds. Payments are final; something that didn't work as described is put right through support)
+const REFUNDS_ON = false;
 async function refundAsk(req, env, user) {
+	if (!REFUNDS_ON) throw fail(400, "Payments are final. If something you paid for didn't work as it should, write to us in Help and support and we'll put it right.");
 	const c = await config(env), b = await body(req);
 	const pay = await env.DB.prepare("SELECT * FROM payments WHERE id = ? AND user_id = ?").bind(String(b.payment || ""), user.id).first();
 	if (!pay) throw fail(404, "That payment isn't on your account.");
@@ -3136,7 +3139,7 @@ async function refundAsk(req, env, user) {
 	const what = plan ? plan.name + " (a month)" : (c.packs.find((x) => x.id === pay.pack) || {}).name + " pack";
 	const money = (pay.currency === "IDR" ? "Rp" + Number(pay.amount).toLocaleString("id-ID") : pay.amount + " " + pay.currency);
 	const how = pay.method === "card" ? "Refund it in Lemon Squeezy (Orders, find this order, Refund)." : "Send " + money + " back to the account it was paid from (it was paid as: " + (pay.note || "no name given") + "), then reply to the customer that it's on its way.";
-	const t = await openTicket(env, { user, email: user.email, category: "Payments and refunds", message: "Refund request: " + what + ", " + money + " (" + pay.method.toUpperCase() + ").\n\nTO DO: " + how, details: "Payment " + pay.id + ", paid " + new Date(since).toISOString().slice(0, 16).replace("T", " ") + " UTC. What it bought has been taken off the account already.", ip: null });
+	const t = await openTicket(env, { user, email: user.email, category: "Payments", message: "Refund request: " + what + ", " + money + " (" + pay.method.toUpperCase() + ").\n\nTO DO: " + how, details: "Payment " + pay.id + ", paid " + new Date(since).toISOString().slice(0, 16).replace("T", " ") + " UTC. What it bought has been taken off the account already.", ip: null });
 	return json({ ok: true, ticket: t.id, me: await meOf(env, user) });
 }
 
