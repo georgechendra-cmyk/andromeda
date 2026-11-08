@@ -16,7 +16,8 @@ const DEFAULT_CONFIG = {
 	creditUsd: 0.01,
 	// films animated in code (Claude writes every frame): "owner" = only on the owner's account (the owner, Nov 6: to test
 	// it), true = for everyone, false = off
-	drawn: "owner",
+	// films drawn in code: for everyone (the owner, Nov 8: whenever coded is the best way for the video)
+	drawn: true,
 	// the order the gateways are asked in, by number (GATEWAY_URL is 1, GATEWAY2_URL is 2). The owner's demo tries MarkasAI
 	// first, with Flaz behind it. A gateway that's busy or out of balance hands the request on
 	gatewayOrder: ["1", "2"],
