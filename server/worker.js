@@ -174,6 +174,7 @@ async function route(req, env, ctx, url) {
 		return json({ ok: true });
 	}
 	if (p === "/api/me" && m === "GET") return json(await meOf(env, user));
+	if (p === "/api/owner/stats" && m === "GET") return ownerStats(env, user);
 	if (p === "/api/me" && m === "DELETE") return deleteMe(env, user);
 	if (p === "/api/chat/completions" && m === "POST") return chat(req, env, ctx, user);
 	if (p === "/api/videos" && m === "POST") return videoSubmit(req, env, user);
@@ -771,6 +772,31 @@ async function ownerSpend(env, userId, c) {
 		.bind(userId, t - 864e5, t - 7 * 864e5, t - 30 * 864e5).first().catch(() => null);
 	const idr = (usd) => Math.round((Number(usd) || 0) * rate);
 	return { day: idr(r && r.d), week: idr(r && r.w), month: idr(r && r.m) };
+}
+// the owner's own view: read-only, the owner's account with the owner key only
+async function ownerStats(env, user) {
+	if (!user.owner) throw fail(403, "Only the owner sees this.");
+	const c = await config(env), t = now(), day = t - 864e5, rate = Number(c.free.usdIdr) || 18000, idr = (usd) => Math.round((Number(usd) || 0) * rate);
+	const one = (sql, ...a) => env.DB.prepare(sql).bind(...a).first().catch(() => null);
+	const [users, fresh, active, use, free, pending, why] = await Promise.all([
+		one("SELECT COUNT(*) AS n FROM users"),
+		one("SELECT COUNT(*) AS n FROM users WHERE created_at > ?", day),
+		one("SELECT COUNT(DISTINCT user_id) AS n FROM usage WHERE created_at > ?", day),
+		one("SELECT COUNT(*) AS n, COALESCE(SUM(cost_usd), 0) AS usd, COALESCE(SUM(charged_mc), 0) AS mc FROM usage WHERE created_at > ?", day),
+		one("SELECT mc FROM free_days WHERE day = ?", spentKey()),
+		one("SELECT COUNT(*) AS n FROM payments WHERE status = 'pending'"),
+		one("SELECT v FROM config WHERE k = 'search-why'"),
+	]);
+	const top = ((await env.DB.prepare("SELECT model, COUNT(*) AS n, COALESCE(SUM(cost_usd), 0) AS usd FROM usage WHERE created_at > ? GROUP BY model ORDER BY usd DESC LIMIT 6").bind(day).all().catch(() => ({ results: [] }))).results || []).map((r) => ({ model: r.model, n: r.n, idr: idr(r.usd) }));
+	let search = null;
+	try { search = why && JSON.parse(why.v); } catch {}
+	return json({
+		spend: await ownerSpend(env, user.id, c),
+		free: { usedIdr: Math.round(((free && free.mc) || 0) / 1e6 * rate), budgetIdr: Number(c.free.budgetIdr) || 0 },
+		people: { total: (users && users.n) || 0, newToday: (fresh && fresh.n) || 0, activeToday: (active && active.n) || 0 },
+		today: { requests: (use && use.n) || 0, costIdr: idr(use && use.usd), credits: Math.round(((use && use.mc) || 0) / 1000) },
+		top, pendingPayments: (pending && pending.n) || 0, search,
+	});
 }
 async function meOf(env, user) {
 	const c = await config(env);

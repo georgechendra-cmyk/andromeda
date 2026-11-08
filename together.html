@@ -12023,6 +12023,23 @@ function openSettings() {
 }
 // ---------------------------------------------------------------- credits: account, pricing
 const creditUsd = () => (pricing && pricing.creditUsd) || 0.01;
+// the owner's own view, in Your account: what Celestin is doing and costing right now
+async function drawOwnerStats() {
+	const box = $("#ownerStats");
+	if (!box) return;
+	let j;
+	try { j = await api("/api/owner/stats"); } catch (e) { box.textContent = "Couldn't load: " + (e.message || e); return; }
+	const rp = (n) => "Rp" + Math.round(Number(n) || 0).toLocaleString("id-ID");
+	const freePct = j.free.budgetIdr ? Math.min(100, Math.round((j.free.usedIdr / j.free.budgetIdr) * 100)) : 0;
+	box.innerHTML = [
+		"<b>Today (24 h):</b> " + j.today.requests + " requests, cost " + rp(j.today.costIdr) + ", charged " + creditsText(j.today.credits) + " credits",
+		"<b>Free use today:</b> " + rp(j.free.usedIdr) + " of " + rp(j.free.budgetIdr) + " (" + freePct + "%)" + (freePct >= 100 ? " · frozen until tomorrow" : ""),
+		"<b>People:</b> " + j.people.total + " accounts · " + j.people.newToday + " new today · " + j.people.activeToday + " active today",
+		j.pendingPayments ? "<b>Payments waiting for you:</b> " + j.pendingPayments : "",
+		j.top.length ? "<b>Where the money went (24 h):</b> " + j.top.map((x) => esc(x.model.replace(/^[^/]+\//, "")) + " " + rp(x.idr) + " (" + x.n + ")").join(" · ") : "",
+		j.search && j.search.why && j.search.why.length ? "<b>Web search last failed</b> " + esc(new Date(j.search.at).toLocaleString()) + ": " + esc(String(j.search.why[0]).slice(0, 140)) : "",
+	].filter(Boolean).join("<br>");
+}
 function creditsText(n) {
 	const v = Number(n) || 0;
 	return Math.abs(v) >= 100 ? Math.floor(v).toLocaleString() : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
@@ -12384,9 +12401,11 @@ function openAccount() {
 			'<div class="row" style="justify-content:space-between;align-items:flex-end;margin-bottom:' + (lines.length || plan ? 8 : 18) + 'px"><div><div class="acct-bal">' + (me ? (me.owner ? "Unlimited" : creditsText(me.credits)) : "…") + '</div><div class="help" style="font-size:13px;color:var(--faint)">' + (me && me.owner ? "no limits on your account" : "credits you can use now") + '</div></div><div class="row"><button class="btn" id="acRefresh">Refresh</button><button class="btn dark" data-open-pricing>' + "Get more" + "</button></div></div>" +
 			(plan ? '<div class="help" style="font-size:13px;margin-bottom:4px"><b style="color:var(--text)">' + esc(plan.name) + "</b>" + (plan.paid && plan.until ? " · until " + new Date(plan.until).toLocaleDateString() : "") + "</div>" : "") +
 			(lines.length ? '<div class="help" style="font-size:13px;margin-bottom:18px;line-height:1.6">' + lines.join("<br>") + "</div>" : "") +
+			(me && me.owner ? '<div class="field"><label>Owner</label><div class="help" id="ownerStats" style="font-size:13px;line-height:1.65">Loading…</div></div>' : "") +
 			(pays.length ? '<div class="field"><label>Payments</label><table class="ptable"><tr><th>When</th><th>For</th><th>Paid</th><th>Credits</th><th></th></tr>' + pays.map((p) => "<tr><td>" + new Date(p.created_at).toLocaleDateString() + "</td><td>" + esc(planName(p.pack) || p.method) + "</td><td>" + money(p.amount, p.currency) + "</td><td>" + (p.credits ? creditsText(p.credits) : "") + '</td><td><span class="badge-s ' + esc(p.status) + '">' + esc(p.status === "pending" ? "waiting for confirmation" : p.status === "refund_requested" ? "refund on its way" : p.status) + "</span>" + "</td></tr>").join("") + "</table></div>" : "") +
 			'<div class="row" style="justify-content:space-between;align-items:center;margin-top:6px"><button class="btn" id="acOut">Sign out</button><span class="legal-links">' + LEGAL_LINKS + ' · <a href="#" id="acDelete">Delete account</a></span><button class="btn" id="acDone">Done</button></div>');
 		$("#acRefresh").onclick = async () => { await refreshMe(); draw(); };
+		if (me && me.owner) drawOwnerStats();
 		// deleting the account: everything the server keeps for it goes (payments stay, as the law requires, without the
 		// payer's name); the chats here are the browser's, deleted too if they say so
 		$("#acDelete").onclick = (e) => {
