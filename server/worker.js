@@ -180,10 +180,11 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
 	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
 	if (p === "/api/conns" && m === "POST") return connSave(req, env, user);
-	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x|twilio)$/)) && m === "DELETE") return connDelete(env, user, fd[1]);
-	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x)\/test$/)) && m === "POST") return connTest(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x|twilio|gmail)$/)) && m === "DELETE") return connDelete(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x|gmail)\/test$/)) && m === "POST") return connTest(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/agents\/log\/([a-f0-9]{24})\/(send|discard)$/)) && m === "POST") return agentApprove(req, env, user, fd[1], fd[2]);
 	if (p === "/api/agents" && m === "GET") return agentsOf(env, user, url);
-	if (p === "/api/agents" && m === "POST") return agentSave(req, env, user);
+	if (p === "/api/agents" && m === "POST") return agentSave(req, env, user, ctx);
 	if (p === "/api/agents/seen" && m === "POST") return agentSeen(req, env, user);
 	if ((fd = p.match(/^\/api\/agents\/([a-f0-9]{24})$/)) && m === "DELETE") return agentDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/agents\/([a-f0-9]{24})\/run$/)) && m === "POST") return agentRunNow(env, ctx, user, fd[1]);
@@ -3041,6 +3042,8 @@ async function skillsGet(env, url) {
 // Something to do by itself on a schedule (like ChatGPT's tasks): "every weekday at 7, the AI news that matters". Each run
 // is an ordinary request made for the person (their credits, the models Celestin picked for it, a live web search),
 // and its answer waits for them in the app.
+// a time zone as sent (minutes from UTC, 0 included); none at all: Jakarta's
+const tzIn = (x, d = 420) => { const n = Number(x); return x !== null && x !== undefined && x !== "" && Number.isFinite(n) ? Math.max(-840, Math.min(840, Math.round(n))) : d; };
 const EVERY = ["once", "hour", "day", "weekdays", "week"];
 function nextRun(t, after) {
 	const off = (Number(t.tz) || 0) * 60e3, local = after + off, day = 864e5;
@@ -3151,7 +3154,29 @@ async function runDueTasks(env, ctx) {
 }
 
 // ------------------------------------------------------------------ connected accounts
-const CONN_KINDS = ["telegram", "discord", "bluesky", "x"], CONN_ALL = [...CONN_KINDS, "twilio"];
+const CONN_KINDS = ["telegram", "discord", "bluesky", "x"], CONN_ALL = [...CONN_KINDS, "twilio", "gmail"];
+// their Gmail, through the script they put in their own Google account (it answers only to its key)
+async function gmailCall(c, b) {
+	let j = null;
+	try {
+		const r = await fetch(c.url, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ key: c.key, ...b }), redirect: "follow", signal: AbortSignal.timeout(30000) });
+		j = await r.json().catch(() => null);
+	} catch {}
+	if (!j) throw fail(502, "Your Gmail script didn't answer. Check it's deployed as a web app that anyone can reach.");
+	if (!j.ok) throw fail(400, "Gmail said: " + (j.error || "no"));
+	return j;
+}
+const EMAIL_RE = /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i;
+async function gmailOf(env, userId) {
+	const row = await env.DB.prepare("SELECT secret, meta FROM conns WHERE user_id = ? AND kind = 'gmail'").bind(userId).first();
+	if (!row) throw fail(404, "No Gmail is connected.");
+	return { c: await unseal(env, row.secret), meta: JSON.parse(row.meta || "{}") };
+}
+async function emailSend(env, userId, m) {
+	const { c } = await gmailOf(env, userId);
+	if (!m.threadId && !EMAIL_RE.test(String(m.to || ""))) throw fail(400, "That isn't an email address: " + m.to);
+	await gmailCall(c, { action: "send", to: m.to, subject: String(m.subject || "").slice(0, 200), body: String(m.body || "").slice(0, 20000), threadId: m.threadId || undefined });
+}
 const b64e = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 const b64d = (x) => Uint8Array.from(atob(x), (c) => c.charCodeAt(0));
 async function connKey(env) {
@@ -3218,6 +3243,13 @@ async function connCheck(kind, b) {
 		if (Object.values(c).some((x) => x.length < 10)) throw fail(400, "All four: the API key and secret, and the access token and secret (with Read and write), from your app on developer.x.com.");
 		const me = await xFetch(c, "GET", "https://api.x.com/2/users/me");
 		return { secret: c, name: "@" + ((me.data && me.data.username) || "your account"), meta: { username: me.data && me.data.username } };
+	}
+	if (kind === "gmail") {
+		const c = { url: v("url"), key: v("key") };
+		if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(c.url)) throw fail(400, "That isn't your script's web app link: it looks like https://script.google.com/macros/s/…/exec");
+		if (c.key.length < 16) throw fail(400, "The key is missing: it's in the script you copied.");
+		const me = await gmailCall(c, { action: "whoami" });
+		return { secret: c, name: me.email || "Your Gmail", meta: { email: me.email || "", left: me.left } };
 	}
 	if (kind === "twilio") {
 		const c = { sid: v("sid"), token: v("token"), from: v("from").replace(/[^\d+]/g, "") };
@@ -3339,28 +3371,30 @@ async function connDelete(env, user, kind) {
 	return json({ ok: true });
 }
 async function connTest(env, user, kind) {
+	if (kind === "gmail") { const { meta } = await gmailOf(env, user.id); await emailSend(env, user.id, { to: meta.email, subject: "Celestin Together is connected", body: "Your agents can read and send email from this Gmail now. You choose, for each agent, whether it sends by itself or asks you first.\n\n— Celestin Together" }); return json({ ok: true, url: null }); }
 	const r = await connPost(env, user.id, kind, kind === "x" || kind === "bluesky" ? "Connected to Celestin Together: my AI team can post here now. ✨" : "✅ Connected to Celestin Together. Your agents and jobs can send things here now.");
 	return json({ ok: true, url: r.url || null });
 }
 
 // ------------------------------------------------------------------ Celestin Together's agents
-const AGENT_MAX = 30, AGENT_TICK = 8, AGENT_EVERY = [10, 30, 60, 180, 360, 720, 1440];
-const AGENT_SOURCES = ["url", "news", "rss", "hn"];
-const agentOut = (a) => { const j = (x, d) => { try { return JSON.parse(x || "") ?? d; } catch { return d; } }; const st = j(a.state, {}), act = j(a.act, {}); return { id: a.id, name: a.name, goal: a.goal, every: a.every_min, sources: j(a.sources, []), notify: a.notify || "", email: !!a.email, send: act.send || [], posts: act.posts || [], active: !!a.active, next_at: a.next_at, last_at: a.last_at, spent: Math.round((a.spent_mc || 0) / 100) / 10, runs: a.runs || 0, memory: st.memory || "", lastLook: st.look || "", created_at: a.created_at }; };
+const AGENT_MAX = 30, AGENT_TICK = 8, AGENT_EVERY = [0, 10, 30, 60, 180, 360, 720, 1440];
+const AGENT_SOURCES = ["url", "news", "rss", "hn", "gmail"];
+const agentOut = (a) => { const j = (x, d) => { try { return JSON.parse(x || "") ?? d; } catch { return d; } }; const st = j(a.state, {}), act = j(a.act, {}); return { id: a.id, name: a.name, goal: a.goal, every: a.every_min, sources: j(a.sources, []), notify: a.notify || "", email: !!a.email, send: act.send || [], posts: act.posts || [], emails: act.email || "", active: !!a.active, next_at: a.next_at, last_at: a.last_at, spent: Math.round((a.spent_mc || 0) / 100) / 10, runs: a.runs || 0, memory: st.memory || "", lastLook: st.look || "", created_at: a.created_at }; };
 async function agentsOf(env, user, url) {
 	const agents = (await env.DB.prepare("SELECT * FROM agents WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()).results || [];
 	const log = (await env.DB.prepare("SELECT id, agent_id, kind, text, created_at, seen FROM agent_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 80").bind(user.id).all()).results || [];
 	return json({ agents: agents.map(agentOut), log: log.map((l) => ({ id: l.id, agent: l.agent_id, kind: l.kind, text: l.text, at: l.created_at, seen: !!l.seen })) });
 }
-async function agentSave(req, env, user) {
+async function agentSave(req, env, user, ctx) {
 	const b = await body(req);
 	const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60), goal = String(b.goal || "").trim().slice(0, 4000);
 	if (!name || goal.length < 10) throw fail(400, "Give your agent a name and say what it should do.");
 	const every = AGENT_EVERY.includes(Number(b.every)) ? Number(b.every) : 60;
+	if (every === 0 && !(b.id)) { const n1 = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ? AND every_min = 0 AND active = 1").bind(user.id).first(); if (n1 && n1.n >= 5) throw fail(429, "Five one-off jobs are running already: wait for one to finish."); }
 	const sources = (Array.isArray(b.sources) ? b.sources : []).map((x) => ({ type: String(x && x.type || ""), value: String(x && x.value || "").trim().slice(0, 300) })).filter((x) => AGENT_SOURCES.includes(x.type) && x.value && (x.type !== "url" && x.type !== "rss" || /^https?:\/\//i.test(x.value))).slice(0, 8);
 	const kinds = (x) => [...new Set((Array.isArray(x) ? x : []).filter((k) => CONN_KINDS.includes(k)))];
-	const act = JSON.stringify({ send: kinds(b.send).filter((k) => k === "telegram" || k === "discord"), posts: kinds(b.posts) });
-	const notify = String(b.notify || "").trim().slice(0, 600), email = b.email ? 1 : 0, tz = Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 420)));
+	const act = JSON.stringify({ send: kinds(b.send).filter((k) => k === "telegram" || k === "discord"), posts: kinds(b.posts), email: b.emails === "auto" || b.emails === "ask" ? b.emails : "" });
+	const notify = String(b.notify || "").trim().slice(0, 600), email = b.email ? 1 : 0, tz = tzIn(b.tz);
 	const models = JSON.stringify({ quick: (Array.isArray(b.quick) ? b.quick : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 2), work: (Array.isArray(b.work) ? b.work : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3) });
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
 		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, act = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, act, b.active === false ? 0 : 1, b.id, user.id).run();
@@ -3369,9 +3403,25 @@ async function agentSave(req, env, user) {
 	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ?").bind(user.id).first();
 	if (n && n.n >= AGENT_MAX) throw fail(429, "You have " + AGENT_MAX + " agents already: delete one to add another.");
 	const aid = id(), t = now();
-	// (its first look: now)
+	// (its first look: now; a one-off starts at once, in the background)
 	await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, act, state, next_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 1, ?)").bind(aid, user.id, name, goal, every, JSON.stringify(sources), notify, email, models, tz, act, t, t).run();
-	return json({ agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first()) });
+	const made = await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first();
+	if (every === 0 && ctx) ctx.waitUntil(runAgent(env, ctx, made, false).catch(() => {}));
+	return json({ agent: agentOut(made) });
+}
+// an email an agent wrote, waiting for its owner: sent, or thrown away
+async function agentApprove(req, env, user, lid, what) {
+	const l = await env.DB.prepare("SELECT * FROM agent_log WHERE id = ? AND user_id = ? AND kind = 'approve'").bind(lid, user.id).first();
+	if (!l) throw fail(404, "That's already been dealt with.");
+	let m = {};
+	try { m = JSON.parse(l.text); } catch {}
+	if (what === "discard") { await env.DB.prepare("UPDATE agent_log SET kind = 'note', text = ?, seen = 1 WHERE id = ?").bind("Not sent (you threw it away): " + (m.subject || "an email") + " to " + (m.to || "a reply"), lid).run(); return json({ ok: true }); }
+	const b = await body(req);
+	if (typeof b.body === "string" && b.body.trim()) m.body = b.body.trim().slice(0, 20000);
+	if (typeof b.subject === "string" && b.subject.trim()) m.subject = b.subject.trim().slice(0, 200);
+	await emailSend(env, user.id, m);
+	await env.DB.prepare("UPDATE agent_log SET kind = 'action', text = ?, seen = 1 WHERE id = ?").bind("Emailed " + (m.to || "a reply in the thread") + (m.subject ? ": " + m.subject : "") + " (you approved it)\n\n" + String(m.body || "").slice(0, 3000), lid).run();
+	return json({ ok: true });
 }
 async function agentDelete(env, user, aid) {
 	await env.DB.batch([env.DB.prepare("DELETE FROM agents WHERE id = ? AND user_id = ?").bind(aid, user.id), env.DB.prepare("DELETE FROM agent_log WHERE agent_id = ? AND user_id = ?").bind(aid, user.id)]);
@@ -3424,9 +3474,17 @@ function feedItems(x) {
 // a short fingerprint of a line or a link, to know what's new since the last look
 const fp = async (x) => (await sha256hex(String(x))).slice(0, 12);
 // what's new in each thing it watches since the last look (nothing new: nothing to read, nothing spent)
-async function agentLook(src, st, env) {
+async function agentLook(src, st, env, uid) {
 	const key = await fp(src.type + ":" + src.value), was = new Set(st.seen && st.seen[key] || []), first = !st.seen || !st.seen[key];
 	let items = [], keep = [];
+	if (src.type === "gmail") {
+		let list = [];
+		try { const { c } = await gmailOf(env, uid); list = (await gmailCall(c, { action: "list", query: src.value || "is:unread newer_than:2d", max: 15 })).list || []; }
+		catch (e) { return { key, error: "Gmail: " + (e.message || e), fresh: [], keep: [...was] }; }
+		const ids = list.map((m) => String(m.id));
+		// (its first look: what's there now is known, and only what comes after is new; unless it's a one-off)
+		return { key, label: "your Gmail (" + (src.value || "unread") + ")", fresh: list.filter((m) => !was.has(String(m.id))).slice(0, 10).map((m) => ({ title: "Email from " + m.from + ": " + m.subject, text: "[thread " + m.threadId + ", " + m.date + "] " + String(m.text || "").slice(0, 1500) })), keep: [...new Set([...ids, ...was])].slice(0, 400), mail: true, first };
+	}
 	if (src.type === "url") {
 		const p = await pageText(src.value, 60000);
 		if (!p || p.error) return { key, error: src.value + ": " + ((p && p.error) || "not a page"), fresh: [], keep: [...was] };
@@ -3464,44 +3522,62 @@ async function runAgent(env, ctx, a, manual) {
 	let sources = [], models = {}, act = {};
 	try { sources = JSON.parse(a.sources || "[]"); } catch {}
 	try { act = JSON.parse(a.act || "{}") || {}; } catch {}
-	const posts = (act.posts || []).filter((k) => CONN_KINDS.includes(k)), send = (act.send || []).filter((k) => k === "telegram" || k === "discord");
+	const posts = (act.posts || []).filter((k) => CONN_KINDS.includes(k)), send = (act.send || []).filter((k) => k === "telegram" || k === "discord"), mail = act.email === "auto" || act.email === "ask" ? act.email : "";
 	try { models = JSON.parse(a.models || "{}"); } catch {}
 	const quick = (models.quick || []).length ? models.quick : ["deepseek/deepseek-v4.1-flash"], work = (models.work || []).length ? models.work : quick;
-	// moved on first, so a slow look never runs twice
-	if (!manual) await env.DB.prepare("UPDATE agents SET next_at = ?, last_at = ? WHERE id = ?").bind(t + a.every_min * 60e3, t, a.id).run();
+	const once = Number(a.every_min) === 0;
+	// moved on first, so a slow look never runs twice (a one-off: done after this)
+	if (!manual) await env.DB.prepare("UPDATE agents SET next_at = ?, last_at = ?" + (once ? ", active = 0" : "") + " WHERE id = ?").bind(t + Math.max(10, a.every_min) * 60e3, t, a.id).run();
 	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(a.user_id).first();
 	if (!row) return null;
 	const owner = await readyUser(env, row, await config(env));
 	const spent = { mc: 0, broke: false }, logs = [];
-	const looks = await Promise.all(sources.map((x) => agentLook(x, st, env)));
+	const looks = await Promise.all(sources.map((x) => agentLook(x, st, env, a.user_id)));
 	st.seen = Object.fromEntries(looks.map((l) => [l.key, l.keep]));
-	const fresh = looks.filter((l) => l.fresh.length), errors = looks.filter((l) => l.error).map((l) => l.error);
+	// (an inbox's first look: what's there is new for a one-off; for a standing agent, only what comes after)
+	const fresh = looks.filter((l) => l.fresh.length && (!l.mail || !l.first || once)), errors = looks.filter((l) => l.error).map((l) => l.error);
 	const firstPages = looks.filter((l) => l.first && l.all);
-	const local = new Date(t + (Number(a.tz) || 420) * 60e3).toISOString().slice(0, 16).replace("T", " ");
+	const local = new Date(t + tzIn(a.tz) * 60e3).toISOString().slice(0, 16).replace("T", " ");
 	const what = "Your job, as " + a.name + ", working for its owner by yourself: " + a.goal + (a.notify ? "\n\nTell the owner when: " + a.notify : "") + "\n\nWhat you know so far (your memory): " + (st.memory || "(nothing yet: this is your first look)");
-	const newText = fresh.map((l) => "From " + l.label + ":\n" + l.fresh.map((x) => "- " + [x.title, x.text, x.url].filter(Boolean).join(" · ")).join("\n")).join("\n\n").slice(0, 12000) +
+	const newText = fresh.map((l) => "From " + l.label + ":\n" + l.fresh.map((x) => "- " + [x.title, x.text, x.url].filter(Boolean).join(" · ")).join("\n")).join("\n\n").slice(0, 14000) +
 		(firstPages.length ? "\n\n" + firstPages.map((l) => "The page " + l.label + " as it is now (your first look at it):\n" + l.all).join("\n\n").slice(0, 9000) : "");
 	let look = "";
 	// nothing to watch: it works every time; something to watch: only when there's something new (or on its first look)
-	const due = !sources.length || fresh.length || firstPages.length || manual;
+	const due = !sources.length || fresh.length || firstPages.length || manual || once;
 	if (!due) look = errors.length ? "Couldn't look: " + errors[0] : "Looked: nothing new";
 	else {
-		let go = !sources.length || manual || firstPages.length, read = [];
+		let go = !sources.length || manual || once || firstPages.length, read = [];
 		if (!go) {
 			// the quick look: is any of this what the owner wants? (most looks end here, for a fraction of a credit)
-			const q = jsonIn(await agentAsk(env, ctx, owner, quick, [{ role: "user", content: what + "\n\nNew since your last look:\n" + newText + "\n\nDoes any of this matter for your job (worth acting on or telling the owner)? Reply with ONLY JSON: {\"act\": true or false, \"why\": \"a few words\", \"read\": [up to 3 links worth reading in full first]}" }], 300, spent));
+			const q = jsonIn(await agentAsk(env, ctx, owner, quick, [{ role: "user", content: what + "\n\nNew since your last look:\n" + newText + "\n\nDoes any of this matter for your job (worth acting on, answering, or telling the owner)? Reply with ONLY JSON: {\"act\": true or false, \"why\": \"a few words\", \"read\": [up to 3 links worth reading in full first]}" }], 300, spent));
 			go = !!(q && q.act);
 			read = q && Array.isArray(q.read) ? q.read.filter((x) => /^https?:\/\//.test(String(x))).slice(0, 3) : [];
 			look = go ? "New: " + String((q && q.why) || "worth a look").slice(0, 140) : "Looked: " + fresh.reduce((n, l) => n + l.fresh.length, 0) + " new, nothing that matters" + (q && q.why ? " (" + String(q.why).slice(0, 100) + ")" : "");
 		}
 		if (go && !spent.broke) {
-			const pages = (await Promise.all(read.map((u) => pageText(u, 8000)))).map((p, i) => p && !p.error ? "Read in full, " + read[i] + ":\n" + p.text : "").filter(Boolean).join("\n\n");
-			const out = await agentAsk(env, ctx, owner, work, [
-				{ role: "system", content: "You are an AI agent that works by itself, day and night, for its owner, on Celestin. Be useful and concrete: real findings, numbers, names, links, and what to do about it. Never make anything up; say what you couldn't find out. Write in the language the job is written in." },
-				{ role: "user", content: what + (newText ? "\n\nNew since your last look:\n" + newText : "") + (pages ? "\n\n" + pages.slice(0, 20000) : "") + (errors.length ? "\n\n(Couldn't look at: " + errors.join("; ") + ")" : "") + (posts.length ? "\n\nYou can post for the owner, as them, to: " + posts.join(", ") + " (x and bluesky: under 280 characters; telegram: their channel or chat; discord: their server). Post only when posting is part of your job, in their voice, and never anything made up." : "") + "\n\nIt's " + local + " where your owner is. Do your job now. Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already reported, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"" + (posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}] (empty when there's nothing to post)" : "") + "}" },
-			], 2500, spent);
-			const j = jsonIn(out) || (out ? { report: out } : null);
-			if (j) {
+			let found = (await Promise.all(read.map((u) => pageText(u, 8000)))).map((p, i) => p && !p.error ? "Read in full, " + read[i] + ":\n" + p.text : "").filter(Boolean).join("\n\n");
+			const can = [
+				posts.length ? "post for the owner, as them, to: " + posts.join(", ") + " (x and bluesky: under 280 characters; telegram: their channel or chat; discord: their server). Only when posting is part of your job, in their voice, never anything made up" : "",
+				mail ? "write and send email from the owner's Gmail (" + (mail === "ask" ? "each one waits for the owner to approve it before it goes" : "it goes out at once") + "): new emails to real addresses you know, or replies in a thread from their inbox (use its thread id). Sign as the owner's business, in the reader's language, and never promise what the owner didn't say" : "",
+			].filter(Boolean);
+			const ask = (extra) => agentAsk(env, ctx, owner, work, [
+				{ role: "system", content: "You are an AI agent that works by itself, in the background, day and night, for its owner, on Celestin. Do the job completely, like a capable assistant would: real findings, numbers, names, links, and what to do about it. Never make anything up; say what you couldn't find out. Write in the language the job is written in." },
+				{ role: "user", content: what + (newText ? "\n\nNew since your last look:\n" + newText : "") + (found ? "\n\nWhat you've read and found:\n" + found.slice(0, 24000) : "") + (errors.length ? "\n\n(Couldn't look at: " + errors.join("; ") + ")" : "") +
+					(can.length ? "\n\nWhat you can do besides reporting:\n- " + can.join("\n- ") : "") +
+					"\n\nIt's " + local + " where your owner is. " + (extra ? "Research is done: finish the job now." : "If you need to read pages or look things up first to do this well, reply with ONLY {\"more\": {\"read\": [up to 4 links], \"news\": [up to 2 news searches], \"wiki\": [up to 2 encyclopedia searches]}}. Otherwise do the job now.") +
+					" Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already done, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"" +
+					(posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}]" : "") + (mail ? ", \"emails\": [{\"to\": \"an address, or empty for a reply\", \"thread\": \"the thread id when it's a reply\", \"subject\": \"...\", \"body\": \"the whole email\"}]" : "") + "}" },
+			], 3000, spent);
+			let j = jsonIn(await ask(false));
+			// (research first, when it asks for it: two more rounds at most)
+			for (let round = 0; round < 2 && j && j.more && !j.report && !spent.broke; round++) {
+				const mo = j.more || {}, urls = (Array.isArray(mo.read) ? mo.read : []).filter((x) => /^https?:\/\//.test(String(x))).slice(0, 4);
+				const [pages, news, wiki] = await Promise.all([Promise.all(urls.map((u) => pageText(u, 7000))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiSearch(String(q), 3)))]);
+				found += "\n\n" + [...pages.map((p, i) => p && !p.error ? "Read " + urls[i] + ":\n" + p.text : "Couldn't read " + urls[i]), ...news.flat().map((x) => "- " + x.title + " · " + x.url + " · " + x.text), ...wiki.flat().map((x) => "- " + x.title + " · " + x.url + "\n" + x.text)].join("\n\n");
+				look = "Researched (" + (round + 1) + ")";
+				j = jsonIn(await ask(round === 1));
+			}
+			if (j && !j.more) {
 				if (typeof j.memory === "string" && j.memory.trim()) st.memory = j.memory.trim().slice(0, 2000);
 				if (j.report && String(j.report).trim()) logs.push({ kind: "report", text: String(j.report).trim().slice(0, 12000) });
 				// (its posts, to the accounts its owner let it post to: each one's link in its log)
@@ -3510,23 +3586,33 @@ async function runAgent(env, ctx, a, manual) {
 					try { const r = await connPost(env, a.user_id, p.to, String(p.text)); logs.push({ kind: "action", text: "Posted to " + p.to + (r.url ? " (" + r.url + ")" : "") + ":\n\n" + String(p.text).slice(0, 2000) }); }
 					catch (e) { logs.push({ kind: "note", text: "Couldn't post to " + p.to + ": " + (e.message || e) }); }
 				}
+				// (its emails: sent from their Gmail, or up for their approval)
+				for (const e of mail ? (Array.isArray(j.emails) ? j.emails : []).slice(0, 10) : []) {
+					const m = { to: String((e && e.to) || "").trim(), threadId: String((e && (e.thread || e.threadId)) || "").trim() || undefined, subject: String((e && e.subject) || "").trim(), body: String((e && e.body) || "").trim() };
+					if (!m.body || (!m.threadId && !EMAIL_RE.test(m.to))) continue;
+					if (mail === "ask") { logs.push({ kind: "approve", text: JSON.stringify(m) }); continue; }
+					try { await emailSend(env, a.user_id, m); logs.push({ kind: "action", text: "Emailed " + (m.to || "a reply in the thread") + (m.subject ? ": " + m.subject : "") + "\n\n" + m.body.slice(0, 3000) }); }
+					catch (err) { logs.push({ kind: "note", text: "Couldn't send the email to " + (m.to || "the thread") + ": " + (err.message || err) }); }
+				}
 				look = String(j.look || look || (j.report ? "Reported" : "Worked: nothing to report")).slice(0, 160);
-			} else if (!spent.broke) look = "Couldn't think it through this time: tries again next look";
+			} else if (!spent.broke) look = "Couldn't finish it this time: tries again next look";
 		}
 	}
 	if (spent.broke) { look = "Paused: out of credits (it carries on when there are more)"; if (st.broke !== true) logs.push({ kind: "note", text: "Out of credits: I'll carry on as soon as there are more." }); st.broke = true; } else st.broke = false;
+	if (once && !manual) look = "Done: " + look;
 	st.look = look + " · " + new Date(t).toISOString();
 	const qs = [env.DB.prepare("UPDATE agents SET state = ?, spent_mc = spent_mc + ?, runs = runs + 1, last_at = ? WHERE id = ?").bind(JSON.stringify(st), spent.mc, t, a.id)];
 	for (const l of logs) qs.push(env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at, seen) VALUES (?, ?, ?, ?, ?, ?, 0)").bind(id(), a.id, a.user_id, l.kind, l.text, now()));
 	await env.DB.batch(qs);
-	const report = logs.find((l) => l.kind === "report");
+	const report = logs.find((l) => l.kind === "report"), waiting = logs.filter((l) => l.kind === "approve").length;
+	const tell = report ? report.text : waiting ? waiting + " email" + (waiting > 1 ? "s are" : " is") + " waiting for your OK in Celestin Together." : "";
 	// (to their Telegram or Discord too, when its owner asked)
-	if (report) for (const k of send) { try { await connPost(env, a.user_id, k, "🤖 " + a.name + "\n\n" + report.text); } catch {} }
+	if (tell) for (const k of send) { try { await connPost(env, a.user_id, k, "🤖 " + a.name + "\n\n" + tell + (report && waiting ? "\n\n(" + waiting + " email" + (waiting > 1 ? "s" : "") + " waiting for your OK)" : "")); } catch {} }
 	// (by email too, when its owner asked)
 	if (report && a.email && mailOn(env) && row.email) {
 		try { await sendMail(env, row.email, a.name + ": " + report.text.replace(/[#*_>\[\]]/g, "").replace(/\s+/g, " ").slice(0, 70), report.text + "\n\n— " + a.name + ", your agent on Celestin Together (https://celestin.pages.dev/together)", '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#111;white-space:pre-wrap">' + report.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]) + '</div><p style="color:#777;font-size:13px">— ' + a.name.replace(/[&<>]/g, "") + ', your agent on <a href="https://celestin.pages.dev/together">Celestin Together</a></p>'); } catch {}
 	}
-	return { look, reported: !!report, spent: spent.mc / 1000 };
+	return { look, reported: !!report, waiting, spent: spent.mc / 1000 };
 }
 
 // ------------------------------------------------------------------ Celestin Together's jobs
@@ -3558,7 +3644,7 @@ async function jobSave(req, env, user) {
 	const c = b.config || {};
 	const config = {
 		brief: String(c.brief || "").trim().slice(0, 6000), goal: String(c.goal || "").trim().slice(0, 1000), lang: String(c.lang || "").slice(0, 30), link: String(c.link || "").slice(0, 300),
-		tz: Math.max(-840, Math.min(840, Math.round(Number(c.tz) || 420))),
+		tz: tzIn(c.tz),
 	};
 	if (config.brief.length < 20) throw fail(400, "Tell it about your business first: what you do, who for, your voice.");
 	if (kind === "winback") {
@@ -3718,7 +3804,7 @@ async function runJob(env, ctx, j, manual) {
 	if (calling) {
 		// (by phone: 9:00 to 19:00 where the business is, three at a time, never anyone who asked not to be called)
 		const every = (cfg.every || 30) * 864e5, sent = state.sent || {}, dnc = new Set(state.dnc || []);
-		const hour = new Date(t + (cfg.tz || 420) * 60e3).getUTCHours();
+		const hour = new Date(t + tzIn(cfg.tz) * 60e3).getUTCHours();
 		const due = (cfg.customers || []).filter((c) => c.phone && !dnc.has(c.phone) && !(sent[c.phone] > t - every));
 		if (hour >= 9 && hour < 19 && due.length) {
 			const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(j.user_id).first();
@@ -3857,7 +3943,7 @@ async function deskSave(req, env, user) {
 	const name = String(b.name || "").trim().slice(0, 60), brief = String(b.brief || "").trim().slice(0, 8000);
 	if (!name) throw fail(400, "Give your front desk a name (your business's, say).");
 	if (brief.length < 20) throw fail(400, "Tell it about your business first: what you do, hours, prices, how bookings work.");
-	const cap = Number(b.cap) > 0 ? Math.max(5, Math.min(100000, Math.round(Number(b.cap)))) * 1000 : 0, tz = Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 420)));
+	const cap = Number(b.cap) > 0 ? Math.max(5, Math.min(100000, Math.round(Number(b.cap)))) * 1000 : 0, tz = tzIn(b.tz);
 	const models = JSON.stringify((Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3));
 	const intro = String(b.intro || "").trim().slice(0, 300);
 	const slots = b.slots ? slotsCfg({ slots: b.slots }) : null;
