@@ -5980,18 +5980,56 @@ function lightenOld(messages, keep = KEEP_TOOLS) {
 // (then it wraps up, so what's made works), the reviewer has nothing big left, or the credits run low
 const LONG_MAX_MS = 24 * 3600e3, LONG_ROUNDS = 12, LONG_WRAP_STEPS = 12;
 const LONG_NUM = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12, half: 0.5, satu: 1, dua: 2, tiga: 3, empat: 4, lima: 5, setengah: 0.5 };
-const LONG_RE = /\b(?:(?:work|keep (?:going|working|at it)|continue|go on|kerjakan|kerja)\b[^.!?\n]{0,30}?\b(?:for|selama)|spend|take|selama)\s+(?:about |around |up to |at least |roughly |sekitar )?(\d+(?:[.,]\d+)?|half an?|an?|one|two|three|four|five|six|seven|eight|nine|ten|twelve|setengah|satu|dua|tiga|empat|lima)\s*(hours?|hrs?|h|minutes?|mins?|jam|menit)\b/i;
+const LONG_RE = /\b(?:(?:work|keep (?:going|working|at it)|continue|go on|kerjakan|kerja)\b[^.!?\n]{0,30}?\b(?:for|selama)|spend|take|selama)\s+(?:about |around |up to |at least |roughly |sekitar )?(\d+(?:[.,]\d+)?|half an?|an?|one|two|three|four|five|six|seven|eight|nine|ten|twelve|setengah|satu|dua|tiga|empat|lima)\s*(hours?|hrs?|h|minutes?|mins?|jam|menit|days?|hari|weeks?|minggu|months?|bulan)\b/i;
 // { ms } for a set time (0: "all the time it needs", until the reviewer has nothing big left), or null
 function longRunOf(text) {
 	const t = String(text || ""), m = t.match(LONG_RE);
 	if (m) {
 		const w = m[1].toLowerCase().replace(/ an?$/, ""), n = /^\d/.test(w) ? parseFloat(w.replace(",", ".")) : LONG_NUM[w] ?? 1;
-		const ms = n * (/^(h|hrs?|hours?|jam)$/i.test(m[2]) ? 3600e3 : 60e3);
-		if (ms >= 60e3) return { ms: Math.min(ms, LONG_MAX_MS) };
+		const u = m[2].toLowerCase(), unit = /^(h|hrs?|hours?|jam)$/.test(u) ? 3600e3 : /^(days?|hari)$/.test(u) ? 864e5 : /^(weeks?|minggu)$/.test(u) ? 7 * 864e5 : /^(months?|bulan)$/.test(u) ? 30 * 864e5 : 60e3;
+		const ms = n * unit;
+		// (one run goes up to LONG_MAX_MS: asked is what they asked for, said back to them when it's more)
+		if (ms >= 60e3) return { ms: Math.min(ms, LONG_MAX_MS), asked: ms };
 	}
 	return deepWanted(t) ? { ms: 0 } : null;
 }
-const longMins = (ms) => { const m = Math.max(1, Math.round(ms / 60e3)); return m >= 90 ? (m / 60).toFixed(1).replace(/\.0$/, "") + " hours" : m + " minute" + (m === 1 ? "" : "s"); };
+// What a long run will likely cost, from the models the routing would use for it: building (an app made better round
+// after round: about a build's worth each round, about 12 rounds an hour, or DEEP_ROUNDS with no set time) or working
+// through a project with tools (about 40 steps an hour, each reading the job so far). A range: it often ends sooner
+const LONG_WAYS = ["app", "project", "act", "research"], LONG_ROUND_MS = 5 * 60e3, AGENT_STEPS_HOUR = 40;
+function longEstimate(way, lr) {
+	const hours = lr.ms ? lr.ms / 3600e3 : 0;
+	if (way === "app") {
+		const b = bestFor("app", speed() === "max" ? undefined : "xhigh")[0];
+		if (!b) return null;
+		const round = appCredits(b, speed() === "max" ? undefined : "xhigh", 8000, 15000) * 1.15;
+		const rounds = lr.ms ? Math.min(60, Math.max(1, Math.round(lr.ms / LONG_ROUND_MS))) : DEEP_ROUNDS;
+		return { lo: Math.round(round * Math.max(1, Math.round(rounds / 3))), hi: Math.round(round * rounds), by: b };
+	}
+	const m = bestFirst(quarkFirst(arenaRank("code", { "agent:overall": 0.3, "text:coding": 0.7 })))[0];
+	if (!m) return null;
+	const step = appCredits(m.m || m, "high", 1200, 25000), steps = Math.round((hours || 2) * AGENT_STEPS_HOUR);
+	return { lo: Math.round(step * steps * 0.4), hi: Math.round(step * steps), by: m.m || m };
+}
+function confirmLong(way, text) {
+	const lr = longRunOf(text), est = lr && longEstimate(way, lr);
+	if (!est) return Promise.resolve(true);
+	return new Promise((res) => {
+		const rp = (c) => "Rp" + Math.round(c * OWNER_RP_PER_CREDIT).toLocaleString("id-ID");
+		const owner = !!(me && me.owner), have = me && !me.owner ? me.credits : null;
+		// (an app is made better in rounds, at most 60 however long it's given: said, so a day isn't promised when it's done sooner)
+		const capped = way === "app" && lr.ms > 60 * LONG_ROUND_MS;
+		const when = lr.ms ? "for " + (capped ? "up to " : "about ") + longMins(lr.ms) + (lr.ms >= 3 * 3600e3 ? " (until " + new Date(Date.now() + lr.ms).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + ")" : "") + (capped ? ", in up to 60 rounds of improvements (usually done well before)" : "") : "until it's really done (it stops itself when a lead from another lab has nothing big left to add)";
+		openModal("<h2>A long run</h2><p class=\"sub\">Celestin will keep working on this " + esc(when) + ", with this tab open, checking and improving it as it goes.</p>" +
+			(lr.asked && lr.asked > lr.ms ? '<div class="field"><div class="help">One run goes up to ' + longMins(LONG_MAX_MS) + ": you asked for " + longMins(lr.asked) + ", so it does the first " + longMins(LONG_MAX_MS) + ". Then ask it to carry on.</div></div>" : "") +
+			'<div class="field"><div class="help"><b>Likely cost: about ' + creditsText(est.lo) + "–" + creditsText(est.hi) + " credits</b>" + (owner ? " (≈ " + rp(est.lo) + "–" + rp(est.hi) + ")" : "") + ", mostly " + esc(shortName(est.by)) + ". It shows what it has spent as it works, stops when the time's up" + (owner ? "" : " or your credits run low") + ", and you can stop it any time." + (have != null && have < est.hi ? " You have " + creditsText(Math.max(0, Math.floor(have))) + " credits now, so it may stop early." : "") + "</div></div>" +
+			'<div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="longNo">Cancel</button><button class="btn dark" id="longGo">Start</button></div>');
+		modalClose = () => res(false);
+		$("#longGo").onclick = () => { modalClose = null; closeModal(); res(true); };
+		$("#longNo").onclick = () => closeModal();
+	});
+}
+const longMins = (ms) => { const m = Math.max(1, Math.round(ms / 60e3)); if (m >= 2880) { const d = Math.round(m / 1440); return d + " days"; } if (m === 1440) return "1 day"; return m >= 90 ? (m / 60).toFixed(1).replace(/\.0$/, "") + " hours" : m + " minute" + (m === 1 ? "" : "s"); };
 function longStart(text) {
 	const r = longRunOf(text);
 	return r ? { start: Date.now(), until: r.ms ? Date.now() + r.ms : 0, rounds: 0, wrap: 0, ask: String(text || "").slice(0, 3000) } : null;
@@ -7160,6 +7198,15 @@ async function serve(text, atts, tool, o = {}) {
 	if (PROFILE && o.check) PROFILE.check = true;
 	// (a team's piece the Reviewer checks at the end anyway: no check of its own, unless it's code, run and fixed as it's made)
 	if (PROFILE && o.check === false && PROFILE.kind !== "code" && speed() !== "max") PROFILE.check = false;
+	// a long run: what it'll likely cost, and a go-ahead, before anything is spent (not for Max's own extra rounds: only
+	// when they gave it time, or all the time it needs)
+	if (plan && !LANE && LONG_WAYS.includes(plan.way)) {
+		const lr = longRunOf(text);
+		if (lr && (lr.ms > 0 || DEEP_RE.test(text)) && !(await confirmLong(plan.way, text))) {
+			current.msgs.push({ role: "assistant", text: "Not started, and nothing was spent on it. Ask again whenever you want it done." });
+			return;
+		}
+	}
 	if (plan) {
 		const tried = [];
 		for (let round = 0; ; round++) {
