@@ -1748,6 +1748,8 @@ html[data-app="together"] .welcome.together .greet { font-size: clamp(30px, 4vw,
 html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-weight: 500; color: var(--muted); letter-spacing: -.01em; }
 html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
+.convos .bring { display: block; margin: 2px 10px 8px; padding: 0; border: 0; background: none; color: var(--brand); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.convos .bring:hover { text-decoration: underline; }
 html[data-app="together"] .sug { border-radius: 18px; background: var(--bg2); border-color: transparent; padding: 10px 14px; }
 @media (max-width: 560px) { html[data-app="together"] .sugs { grid-template-columns: 1fr; } }
 /* its rail: the jobs first, each with what's waiting */
@@ -4442,7 +4444,8 @@ function renderConvoList() {
 	const sp = spaces().filter((s) => !q || s.name.toLowerCase().includes(q)), here = SPACE_VIEW || (current && current.msgs.length && current.space);
 	const projects = q && !sp.length ? "" : '<div class="convo-group">Projects</div>' + (q ? "" : '<button class="sp-i sp-new" data-spacenew>' + svgOf(FOLDER_D + '<path d="M12 10.5v5M9.5 13h5"/>', 17) + '<span class="t">New project</span></button>') +
 		sp.map((s) => '<button class="sp-i' + (here === s.id ? " active" : "") + '" data-space="' + esc(s.id) + '">' + svgOf(FOLDER_D, 17) + '<span class="t">' + esc(s.name) + "</span></button>").join("");
-	$("#convos").innerHTML = projects + (html || '<div class="convo-group">No chats yet</div>');
+	$("#convos").innerHTML = projects + (html || '<div class="convo-group">No chats yet</div><button class="bring" id="bringChats">Bring your chats from ChatGPT or Claude</button>');
+	if ($("#bringChats")) $("#bringChats").onclick = bringChats;
 }
 // what to try, by kind of thing: a row of topics, four ideas under the chosen one
 const ico = (d) => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + "</svg>";
@@ -12114,7 +12117,7 @@ function openSettings() {
 		'<div class="field"><label>Safety</label><label class="chk"><input type="checkbox" id="safeChk"' + (settings.safelock !== false ? " checked" : "") + '> Safelock: keep every answer suitable for everyone</label><div class="help">Filters sexual, graphic and hateful content in answers, pictures and videos.</div></div>' +
 		'<div class="field"><label>Keyboard</label><div class="keys"><kbd>Enter</kbd><span>send (Shift+Enter: a new line)</span><kbd>⌘K / Ctrl+K</kbd><span>new chat</span><kbd>↑</kbd><span>in an empty box: edit your last message</span><kbd>Esc</kbd><span>stop the answer that\'s coming</span><kbd>/</kbd><span>go to the message box</span></div></div>' +
 		(installAsk ? '<div class="field"><label>App</label><button class="btn" id="installBtn">Install Celestin</button><div class="help">Its own window and icon, on your home screen or desktop.</div></div>' : "") +
-		'<div class="field"><label>Your data</label><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="exportChats">Export everything</button><button class="btn" id="importAll">Import</button><button class="btn" id="wipeChats">Delete all chats</button></div><input type="file" id="importFile" accept=".json,application/json" hidden><div class="help">Everything stays in this browser. The export is one file with your chats, projects and their files, memory and settings: keep it as a backup, or import it in another browser.</div></div>' +
+		'<div class="field"><label>Your data</label><div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn" id="exportChats">Export everything</button><button class="btn" id="importAll">Import</button><button class="btn" id="wipeChats">Delete all chats</button></div><input type="file" id="importFile" accept=".json,.zip,application/json,application/zip" hidden><div class="help">Everything stays in this browser. The export is one file with your chats, projects and their files, memory and settings: keep it as a backup, or import it in another browser. Import also takes your ChatGPT or Claude export (the .zip they email you): your chats, and Claude\'s projects, come over as they were.</div></div>' +
 		'<div class="row" style="justify-content:space-between;margin-top:8px">' + (creditsMode() ? '<button class="btn" data-open-account>Credits and account</button>' : "<span></span>") + '<button class="btn dark" id="closeSettings">Done</button></div>', "wide");
 	$$("[data-theme-pick]").forEach((x) => x.onclick = () => { settings.theme = x.dataset.themePick; saveSettings(); morph(applyTheme); $$("[data-theme-pick]").forEach((y) => y.classList.toggle("on", y === x)); });
 	$$("[data-bg]").forEach((x) => x.onclick = async () => {
@@ -14214,13 +14217,84 @@ async function exportAll() {
 	download("celestin-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(data, null, 1));
 	toast("Exported");
 }
+// for someone coming from ChatGPT or Claude: how to get their export, then pick it
+function bringChats() {
+	openModal('<h2>Bring your chats</h2><p class="sub">Everything you talked about in ChatGPT or Claude, here, so you can pick up where you left off. It\'s read in this browser; nothing is uploaded.</p>' +
+		'<div class="field"><label>1. Ask for your export</label><div class="help"><b>ChatGPT:</b> Settings → Data controls → Export data.<br><b>Claude:</b> Settings → Privacy → Export data.<br>A link comes by email in a few minutes; download the .zip.</div></div>' +
+		'<div class="field"><label>2. Pick it here</label><div class="row" style="gap:8px"><button class="btn dark" id="bringPick">Choose the .zip</button></div><input type="file" id="bringFile" accept=".zip,.json,application/zip,application/json" hidden><div class="help">Or the conversations.json inside it. Your chats (and Claude\'s projects, with their files) come over as they were.</div></div>');
+	$("#bringPick").onclick = () => $("#bringFile").click();
+	$("#bringFile").onchange = async (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) { $("#bringPick").disabled = true; $("#bringPick").textContent = "Reading…"; await importAll(f); } };
+}
 async function importAll(f) {
-	let d;
-	try { d = JSON.parse(await f.text()); } catch { toast("That file isn't a Celestin export"); return; }
+	let d, projects = null;
+	try {
+		if (/\.zip$/i.test(f.name) || f.type === "application/zip" || f.type === "application/x-zip-compressed") {
+			await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+			const zip = await JSZip.loadAsync(await f.arrayBuffer());
+			const pick = (re) => Object.keys(zip.files).filter((x) => re.test(x) && !zip.files[x].dir).sort((a, b) => a.length - b.length)[0];
+			const conv = pick(/(^|\/)conversations\.json$/i), proj = pick(/(^|\/)projects\.json$/i), mine = pick(/\.json$/i);
+			if (!conv && !mine) { toast("There's no conversations.json in that .zip"); return; }
+			d = JSON.parse(await zip.file(conv || mine).async("string"));
+			if (proj) try { projects = JSON.parse(await zip.file(proj).async("string")); } catch {}
+		} else d = JSON.parse(await f.text());
+	} catch { toast("That file couldn't be read: pick your export's .zip, or the conversations.json inside it"); return; }
+	const other = fromOtherApps(d, projects);
+	if (other) { await importData(other.data, other.from); return; }
 	await importData(d);
 }
+// ChatGPT's and Claude's exports, as Celestin's chats (and Claude's projects as projects). null: neither
+function fromOtherApps(d, projects) {
+	const list = Array.isArray(d) ? d : null;
+	if (!list || !list.length) return null;
+	const add = (msgs, role, text) => { text = String(text || "").trim(); if (!text) return; const last = msgs[msgs.length - 1]; if (last && last.role === role) last.text += "\n\n" + text; else msgs.push({ role, text }); };
+	if (list.some((c) => c && c.mapping && typeof c.mapping === "object")) {
+		const convos = list.filter((c) => c && c.mapping).map((c) => {
+			// (a chat's messages are a tree, its edits and regenerations the branches: the one it ended on is the chat)
+			const chain = [], seen = new Set();
+			let n = c.current_node && c.mapping[c.current_node];
+			if (!n) { n = Object.values(c.mapping).find((x) => x && !x.parent); while (n && n.children && n.children.length) { const next = c.mapping[n.children[n.children.length - 1]]; if (!next) break; n = next; } }
+			while (n && !seen.has(n.id)) { seen.add(n.id); chain.push(n); n = n.parent ? c.mapping[n.parent] : null; }
+			const msgs = [];
+			for (const x of chain.reverse()) {
+				const m = x.message;
+				if (!m || !m.author || (m.recipient && m.recipient !== "all") || (m.metadata && m.metadata.is_visually_hidden_from_conversation)) continue;
+				const role = m.author.role === "user" ? "user" : m.author.role === "assistant" ? "assistant" : null;
+				if (!role) continue;
+				const ct = m.content || {};
+				if (ct.content_type && !/^(text|multimodal_text)$/.test(ct.content_type)) continue;
+				add(msgs, role, Array.isArray(ct.parts) ? ct.parts.map((p) => (typeof p === "string" ? p : p && typeof p.text === "string" ? p.text : p && /image/.test(p.content_type || "") ? "[a picture]" : "")).filter(Boolean).join("\n") : ct.text);
+			}
+			return { id: "chatgpt-" + String(c.conversation_id || c.id || uid()).replace(/[^\w-]/g, "").slice(0, 60), title: String(c.title || "A chat from ChatGPT").slice(0, 120), at: Math.round(Number(c.update_time || c.create_time) * 1000) || Date.now(), msgs, from: "ChatGPT" };
+		}).filter((c) => c.msgs.length);
+		return { from: "ChatGPT", data: { convos } };
+	}
+	if (list.some((c) => c && Array.isArray(c.chat_messages))) {
+		const convos = list.filter((c) => c && Array.isArray(c.chat_messages)).map((c) => {
+			const msgs = [];
+			for (const m of c.chat_messages) {
+				const role = m.sender === "human" ? "user" : m.sender === "assistant" ? "assistant" : null;
+				if (!role) continue;
+				let text = Array.isArray(m.content) && m.content.some((x) => x && x.type === "text") ? m.content.filter((x) => x && x.type === "text" && typeof x.text === "string").map((x) => x.text).join("\n\n") : m.text;
+				const files = [...(m.attachments || []), ...(m.files || [])].map((a) => a && (a.file_name || a.name)).filter(Boolean);
+				if (files.length && role === "user") text = (text ? text + "\n\n" : "") + "[attached: " + files.join(", ") + "]";
+				add(msgs, role, text);
+			}
+			return { id: "claude-" + String(c.uuid || uid()).replace(/[^\w-]/g, "").slice(0, 60), title: String(c.name || "A chat from Claude").slice(0, 120), at: Date.parse(c.updated_at || c.created_at) || Date.now(), msgs, from: "Claude" };
+		}).filter((c) => c.msgs.length);
+		const spaces = [], spaceFiles = {};
+		for (const p of Array.isArray(projects) ? projects : []) {
+			if (!p || !p.name || p.is_starter_project) continue;
+			const id = "claude-" + String(p.uuid || uid()).replace(/[^\w-]/g, "").slice(0, 60);
+			spaces.push({ id, name: String(p.name).slice(0, 60), about: String(p.prompt_template || p.description || "").slice(0, 8000), at: Date.parse(p.updated_at || p.created_at) || Date.now() });
+			let total = 0;
+			spaceFiles[id] = (p.docs || []).filter((x) => x && x.filename && typeof x.content === "string").map((x) => ({ name: String(x.filename).slice(0, 120), data: x.content.slice(0, 400000), at: Date.parse(x.created_at) || Date.now() })).filter((x) => (total += x.data.length) <= 800000);
+		}
+		return { from: "Claude", data: { convos, spaces, spaceFiles } };
+	}
+	return null;
+}
 // (an export file's contents, or the chats brought from the copy on this computer)
-async function importData(d) {
+async function importData(d, from) {
 	// an older export is just the list of chats
 	if (Array.isArray(d)) d = { convos: d };
 	if (!d || typeof d !== "object" || (!Array.isArray(d.convos) && !Array.isArray(d.spaces))) { toast("That file isn't a Celestin export"); return; }
@@ -14240,11 +14314,12 @@ async function importData(d) {
 	save();
 	render();
 	closeModal();
-	toast("Imported " + chats.length + " chat" + (chats.length === 1 ? "" : "s") + (sps.length ? ", " + sps.length + " project" + (sps.length === 1 ? "" : "s") : "") + (mem ? ", " + mem + " memor" + (mem === 1 ? "y" : "ies") : ""));
+	toast((from ? "Brought over from " + from + ": " : "Imported ") + chats.length + " chat" + (chats.length === 1 ? "" : "s") + (sps.length ? ", " + sps.length + " project" + (sps.length === 1 ? "" : "s") : "") + (mem ? ", " + mem + " memor" + (mem === 1 ? "y" : "ies") : "") + (from ? ". Pick up any of them where you left off." : ""));
 }
 
 // ---------------------------------------------------------------- what's new: shown once after an update, so nothing new goes unnoticed
-const WHATS_NEW = { v: "2026-11-08", items: [
+const WHATS_NEW = { v: "2026-11-08b", items: [
+	['<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>', "Bring your chats", "Coming from ChatGPT or Claude? Pick their export (Settings → Your data → Import) and every chat, and Claude's projects, come over as they were. Read in your browser, never uploaded."],
 	['<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 20c0-3 2.5-5 5-5s5 2 5 5M11 20c0-3 2.5-5 5-5s5 2 5 5"/>', "Celestin Together", "Your own AI team in one chat: six teammates, each the model measured best at their job, working at the same time. Same credits."],
 	['<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9Z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>', "3D models you can use", "Ask for a 3D model and download it as .glb, .stl or .obj: for games, Blender, 3D printing or selling."],
 	['<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/>', "Animations, made in code", "Explainers and animated videos drawn shot by shot in code, cut into a real MP4. Send a link or a clip of a style and it studies it first."],
