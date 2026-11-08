@@ -3098,6 +3098,7 @@ async function jobSave(req, env, user) {
 		if (!config.platforms.length) config.platforms = ["x"];
 		config.topic = String(c.topic || "").trim().slice(0, 120);
 		config.perDay = Math.max(1, Math.min(6, Math.round(Number(c.perDay) || 1)));
+		config.critic = typeof c.critic === "string" && c.critic.length < 120 ? c.critic : "";
 	}
 	const models = JSON.stringify((Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3));
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
@@ -3118,7 +3119,8 @@ async function jobDelete(env, user, jid) {
 }
 async function jobItem(req, env, user, iid) {
 	const b = await body(req);
-	const r = await env.DB.prepare("UPDATE team_job_items SET status = ? WHERE id = ? AND user_id = ?").bind(["done", "skipped", "ready"].includes(b.status) ? b.status : "done", iid, user.id).run();
+	const text = typeof b.text === "string" && b.text.trim() ? b.text.trim().slice(0, 4000) : null;
+	const r = await env.DB.prepare("UPDATE team_job_items SET status = ?, text = COALESCE(?, text), why = CASE WHEN ? IS NULL THEN why ELSE COALESCE(why, '') || ' (edited by you)' END WHERE id = ? AND user_id = ?").bind(["done", "skipped", "ready"].includes(b.status) ? b.status : "done", text, text, iid, user.id).run();
 	if (!(r.meta && r.meta.changes)) throw fail(404, "That isn't in your inbox.");
 	return json({ ok: true });
 }
@@ -3131,6 +3133,20 @@ async function jobRunNow(env, ctx, user, jid) {
 async function runDueJobs(env, ctx) {
 	const due = (await env.DB.prepare("SELECT * FROM team_jobs WHERE active = 1 AND next_at <= ? ORDER BY next_at LIMIT ?").bind(now(), JOB_RUN_TICK).all()).results || [];
 	for (const j of due) { try { await runJob(env, ctx, j, false); } catch {} }
+}
+// what the owner did with what a job made: used (as they edited it) and skipped, the latest few: its examples
+async function jobTaste(env, j, kind) {
+	const rows = ((await env.DB.prepare("SELECT text, status, why FROM team_job_items WHERE job_id = ? AND kind = ? AND status IN ('done', 'skipped') ORDER BY created_at DESC LIMIT 12").bind(j.id, kind).all().catch(() => ({ results: [] }))).results || []);
+	const used = rows.filter((x) => x.status === "done").slice(0, 4), skipped = rows.filter((x) => x.status === "skipped").slice(0, 3);
+	return (used.length ? "\n\nWhat the owner used before (write like these; ones marked edited are exactly how they wanted it):\n" + used.map((x) => "- " + String(x.text).slice(0, 300) + (/edited by you/.test(x.why || "") ? " (edited)" : "")).join("\n") : "") +
+		(skipped.length ? "\n\nWhat the owner skipped (don't write like these):\n" + skipped.map((x) => "- " + String(x.text).slice(0, 200)).join("\n") : "");
+}
+// a critic from another lab reads a post before it's ready: true to the brief, on brand, a real hook; fixed if not
+async function jobCritic(env, ctx, j, cfg, post, plat) {
+	if (!cfg.critic) return post;
+	const raw = await jobAsk(env, ctx, { ...j, models: JSON.stringify([cfg.critic]) }, [{ role: "user", content: "You review marketing posts for " + j.name + " before they go out. About it, from the owner:\n" + cfg.brief + "\n\nThe post, for " + plat + ":\n" + post + "\n\nCheck: is every claim true to what the owner gave (no made-up offers, numbers or features)? Does it sound like this brand? Does the first line make someone stop scrolling? Is it right for " + plat + "? If it's good, reply with exactly: OK. If not, reply with ONLY the fixed post." }], 600);
+	const v = String(raw || "").trim();
+	return !v || /^ok\.?$/i.test(v) ? post : v.replace(/^"|"$/g, "");
 }
 // one model call for a job, on the owner's credits (like a scheduled task); "" when it couldn't (no credits: it waits)
 async function jobAsk(env, ctx, j, messages, maxTokens) {
@@ -3207,7 +3223,7 @@ async function runJob(env, ctx, j, manual) {
 		const every = (cfg.every || 30) * 864e5, sent = state.sent || {};
 		const due = (cfg.customers || []).filter((c) => !(sent[c.phone || c.name] > t - every)).slice(0, 12);
 		if (due.length) {
-			const ask = "You write for " + j.name + ". About the business, from its owner:\n" + cfg.brief + "\n\nWhat these messages are for: " + (cfg.goal || "invite each customer back to book again, warmly") + (cfg.link ? "\nWhere they can book or ask (put it in each message): " + cfg.link : "") + "\n\nWrite one WhatsApp message for each customer below: warm, welcoming and persuasive the way a favourite local business would be, never pushy or salesy; personal (use their name and what's noted about them); short (2 to 4 sentences); in " + (cfg.lang || "the language that fits the business and the customer's name") + "; with one clear, easy next step. No made-up offers: only what the owner gave.\n\nCustomers:\n" + due.map((c, k) => (k + 1) + ". " + (c.name || "(no name)") + (c.notes ? " (" + c.notes + ")" : "")).join("\n") + "\n\nReply with ONLY a JSON array, one per customer, in order: [{\"n\": 1, \"message\": \"...\"}]";
+			const ask = "You write for " + j.name + ". About the business, from its owner:\n" + cfg.brief + "\n\nWhat these messages are for: " + (cfg.goal || "invite each customer back to book again, warmly") + (cfg.link ? "\nWhere they can book or ask (put it in each message): " + cfg.link : "") + "\n\nWrite one WhatsApp message for each customer below: warm, welcoming and persuasive the way a favourite local business would be, never pushy or salesy; personal (use their name and what's noted about them); short (2 to 4 sentences); in " + (cfg.lang || "the language that fits the business and the customer's name") + "; with one clear, easy next step. No made-up offers: only what the owner gave." + (await jobTaste(env, j, "message")) + "\n\nCustomers:\n" + due.map((c, k) => (k + 1) + ". " + (c.name || "(no name)") + (c.notes ? " (" + c.notes + ")" : "")).join("\n") + "\n\nReply with ONLY a JSON array, one per customer, in order: [{\"n\": 1, \"message\": \"...\"}]";
 			const out = await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 2600);
 			let list = [];
 			try { list = JSON.parse(out.replace(/^[\s\S]*?(\[[\s\S]*\])[\s\S]*$/, "$1")); } catch {}
@@ -3233,8 +3249,9 @@ async function runJob(env, ctx, j, manual) {
 		if (manual || spike || onTime) {
 			const talk = await talkedAbout();
 			const recent = (state.recent || []).slice(-6);
-			const ask = "You run marketing for " + j.name + ". About it, from the owner:\n" + cfg.brief + (cfg.goal ? "\n\nWhat they want from it: " + cfg.goal : "") + "\n\nWrite ONE post for " + plat + " to go out now" + (cfg.topic ? ", about or around " + cfg.topic + (heat >= 1.3 ? " (it's hot in the news right now: " + heat + "x its usual coverage, so join that conversation)" : "") : "") + ". What people are talking about online right now (use one only if it truly fits):\n- " + (talk.join("\n- ") || "(unknown)") + "\n\nRecent posts (don't repeat them):\n- " + (recent.join("\n- ") || "(none)") + "\n\nWrite it like the best accounts on " + plat + ": a hook in the first line, specific and true (nothing the owner didn't give), in the brand's own voice, " + (plat === "x" || plat === "threads" ? "under 270 characters, at most one hashtag" : "with a short caption and 3 to 5 fitting hashtags") + ", in " + (cfg.lang || "the language of the audience") + ". Reply with ONLY the post.";
-			const post = (await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 700)).trim().replace(/^"|"$/g, "");
+			const ask = "You run marketing for " + j.name + ". About it, from the owner:\n" + cfg.brief + (cfg.goal ? "\n\nWhat they want from it: " + cfg.goal : "") + "\n\nWrite ONE post for " + plat + " to go out now" + (cfg.topic ? ", about or around " + cfg.topic + (heat >= 1.3 ? " (it's hot in the news right now: " + heat + "x its usual coverage, so join that conversation)" : "") : "") + ". What people are talking about online right now (use one only if it truly fits):\n- " + (talk.join("\n- ") || "(unknown)") + "\n\nRecent posts (don't repeat them):\n- " + (recent.join("\n- ") || "(none)") + (await jobTaste(env, j, "post")) + "\n\nWrite it like the best accounts on " + plat + ": a hook in the first line, specific and true (nothing the owner didn't give), in the brand's own voice, " + (plat === "x" || plat === "threads" ? "under 270 characters, at most one hashtag" : "with a short caption and 3 to 5 fitting hashtags") + ", in " + (cfg.lang || "the language of the audience") + ". Reply with ONLY the post.";
+			const draft = (await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 700)).trim().replace(/^"|"$/g, "");
+			const post = draft ? await jobCritic(env, ctx, j, cfg, draft, plat) : "";
 			if (post) {
 				const why = spike ? cfg.topic + " is spiking in the news right now (" + heat + "x its usual): posting now" : "Now (" + String(local).padStart(2, "0") + ":00 where your audience is) is when most of them are on " + plat + (heat > 1.1 ? ", and " + cfg.topic + " is hotter than usual (" + heat + "x)" : "");
 				await put("post", plat, post, (POST_LINK[plat] || POST_LINK.x)(post), why).run();
@@ -3301,6 +3318,17 @@ async function deskItem(req, env, user, iid) {
 	const reply = String(b.reply || "").trim().slice(0, 2000);
 	const qs = [env.DB.prepare("UPDATE bot_items SET status = ? WHERE id = ?").bind(b.status === "new" ? "new" : "done", iid)];
 	if (reply) qs.push(env.DB.prepare("INSERT INTO bot_msgs (id, bot_id, visitor, role, text, created_at) VALUES (?, ?, ?, 'owner', ?, ?)").bind(id(), it.bot_id, it.visitor, reply, now()));
+	// (what the owner answered to a question it couldn't, it knows from now on: kept in its brief, the latest 30, visible
+	// and editable like the rest of it)
+	if (reply && it.kind === "question" && b.learn !== false) {
+		const bot = await env.DB.prepare("SELECT brief FROM bots WHERE id = ?").bind(it.bot_id).first();
+		if (bot) {
+			const MARK = "\n\nLearned from the owner's answers:\n", brief = String(bot.brief || ""), at = brief.indexOf(MARK);
+			const lines = at >= 0 ? brief.slice(at + MARK.length).split("\n").filter(Boolean) : [];
+			lines.push("- Asked: " + String(it.summary || "").replace(/\s+/g, " ").slice(0, 160) + " → The owner said: " + reply.replace(/\s+/g, " ").slice(0, 300));
+			qs.push(env.DB.prepare("UPDATE bots SET brief = ? WHERE id = ?").bind(((at >= 0 ? brief.slice(0, at) : brief) + MARK + lines.slice(-30).join("\n")).slice(0, 12000), it.bot_id));
+		}
+	}
 	await env.DB.batch(qs);
 	return json({ ok: true });
 }

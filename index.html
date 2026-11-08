@@ -13919,6 +13919,15 @@ const jobReady = (kind) => JOBS.items.filter((x) => x.status === "ready" && (!ki
 function jobModels() {
 	try { return pinFirst(diversify(bestFirst(quarkFirst(arenaRank("write", { "text:creative_writing": 0.6, "text:instruction_following": 0.4 }), undefined, null, (x, c) => callCost(x, c, 600, 2500)))), "write").slice(0, 3).map((m) => m.id); } catch { return []; }
 }
+// who checks a post before it's ready: measured best at following a brief exactly and keeping facts right, by the same
+// rules as everything else, and from another lab than the one that wrote it (a second pair of eyes, not the same habits)
+function jobCriticModel(writers) {
+	try {
+		const own = new Set((writers || []).slice(0, 1).map((id) => provider(id)));
+		const data = bestFirst(quarkFirst(arenaRank("write", { "text:instruction_following": 0.6, "factuality:overall": 0.4 }).filter((x) => !own.has(provider(x.m.id))), undefined, null, (x, c) => callCost(x, c, 300, 1500)));
+		return (data[0] && data[0].m.id) || "";
+	} catch { return ""; }
+}
 async function syncJobs(quiet) {
 	if (!TOGETHER_APP || !creditsMode() || !account) return;
 	let j;
@@ -13961,6 +13970,7 @@ function drawJob(kind, edit, pre) {
 	// (what the Lead filled in stays with the form; a refresh never redraws a form being filled in)
 	if (pre) box._pre = pre; else pre = box._pre;
 	if (!edit && $("#jbSave") && JOBS.jobs.some((j) => j.kind === kind) === false) return;
+	if (!edit && document.activeElement && document.activeElement.matches && document.activeElement.matches("[data-jbtext]")) return;
 	const mine = JOBS.jobs.filter((j) => j.kind === kind), ed = edit === "new" ? {} : edit ? mine.find((j) => j.id === edit) : null;
 	if (ed || !mine.length) {
 		box.innerHTML = jobForm(kind, ed, pre);
@@ -13970,8 +13980,10 @@ function drawJob(kind, edit, pre) {
 			const config = { brief: $("#jbBrief").value, goal: $("#jbGoal").value, lang: $("#jbLang").value, tz: -new Date().getTimezoneOffset() };
 			if (kind === "winback") Object.assign(config, { customers: $("#jbList").value, every: +$("#jbEvery").value, link: $("#jbLink").value });
 			else Object.assign(config, { topic: $("#jbTopic").value, perDay: +$("#jbPer").value, platforms: $$("[data-plat]").filter((x) => x.checked).map((x) => x.dataset.plat) });
+			const models = jobModels();
+			if (kind === "marketing") config.critic = jobCriticModel(models);
 			try {
-				await api("/api/jobs", { method: "POST", body: JSON.stringify({ id: ed && ed.id, kind, name: $("#jbName").value, config, models: jobModels() }) });
+				await api("/api/jobs", { method: "POST", body: JSON.stringify({ id: ed && ed.id, kind, name: $("#jbName").value, config, models }) });
 				try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch {}
 				await syncJobs(true);
 				drawJob(kind);
@@ -13984,13 +13996,22 @@ function drawJob(kind, edit, pre) {
 	box.innerHTML = mine.map((j) => '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(j.name) + '</b><span class="help">' + (kind === "marketing" ? j.posted + " posted · next look " + new Date(j.next_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : j.sent + " of " + ((j.config.customers || []).length) + " customers messaged") + "</span></div>" +
 		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-jbrun="' + j.id + '">' + (kind === "marketing" ? "Write a post now" : "Write the next ones now") + '</button><button class="btn" data-jbedit="' + j.id + '">Edit</button><button class="btn" data-jbdel="' + j.id + '">Delete</button></div></div>').join("") +
 		'<div class="field"><label>' + (kind === "marketing" ? "Posts" : "Messages") + (jobReady(kind) ? " · " + jobReady(kind) + " ready" : "") + "</label>" + (items.length ? items.map((it) => '<div class="desk-it' + (it.status === "ready" ? " new" : "") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(it.kind === "post" ? "For " + ({ x: "X", instagram: "Instagram", tiktok: "TikTok", linkedin: "LinkedIn", threads: "Threads", facebook: "Facebook" }[it.title] || it.title) : it.title) + '</b><span class="help">' + (it.status === "ready" ? "ready" : it.status) + " · " + new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + "</span></div>" +
-			'<div style="white-space:pre-wrap;margin:4px 0">' + esc(it.text) + "</div>" + (it.why ? '<div class="help">' + esc(it.why) + "</div>" : "") +
-			'<div class="row" style="gap:8px;margin-top:6px">' + (it.link ? '<a class="btn dark" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-jbgo="' + it.id + '">' + (it.kind === "post" ? (it.title === "x" ? "Post on X" : it.title === "threads" ? "Post on Threads" : "Open " + it.title) : "Send on WhatsApp") + "</a>" : "") + '<button class="btn" data-jbcopy="' + it.id + '">Copy</button>' + (it.status === "ready" ? '<button class="btn" data-jbdone="' + it.id + '">' + (it.kind === "post" ? "Posted" : "Sent") + "</button>" : "") + "</div></div>").join("") : '<div class="help">' + (kind === "marketing" ? "The first post comes at the next good moment, or press Write a post now." : "The first messages come in a minute or two.") + "</div>") + "</div>" +
+			'<div class="jb-text" style="white-space:pre-wrap;margin:4px 0"' + (it.status === "ready" ? ' contenteditable="plaintext-only" spellcheck="true" role="textbox" aria-multiline="true" aria-label="Change it before it goes out" data-jbtext="' + it.id + '"' : "") + ">" + esc(it.text) + "</div>" + (it.why ? '<div class="help">' + esc(it.why) + "</div>" : "") +
+			'<div class="row" style="gap:8px;margin-top:6px">' + (it.link ? '<a class="btn dark" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-jbgo="' + it.id + '">' + (it.kind === "post" ? (it.title === "x" ? "Post on X" : it.title === "threads" ? "Post on Threads" : "Open " + it.title) : "Send on WhatsApp") + "</a>" : "") + '<button class="btn" data-jbcopy="' + it.id + '">Copy</button>' + (it.status === "ready" ? '<button class="btn" data-jbdone="' + it.id + '">' + (it.kind === "post" ? "Posted" : "Sent") + '</button><button class="btn" data-jbskip="' + it.id + '" title="Not this one: it learns what you don\'t want">Skip</button>' : "") + "</div></div>").join("") : '<div class="help">' + (kind === "marketing" ? "The first post comes at the next good moment, or press Write a post now." : "The first messages come in a minute or two.") + "</div>") + "</div>" +
+		(jobReady(kind) ? '<div class="help" style="margin:-4px 0 10px">Tap any of them to change the words first. It learns from what you change, what you use and what you skip.</div>' : "") +
 		'<div class="row" style="justify-content:flex-end"><button class="btn" data-jbedit="new">Add another</button></div>';
-	const act = async (iid, status) => { await api("/api/jobs/items/" + iid, { method: "POST", body: JSON.stringify({ status }) }).catch(() => {}); await syncJobs(true); };
+	// (your words, if you changed them: what the link carries, what's copied, and what it learns from)
+	const edited = (iid) => { const el = $('[data-jbtext="' + iid + '"]'), it = JOBS.items.find((y) => y.id === iid); const t = el ? el.innerText.trim() : ""; return t && it && t !== String(it.text).trim() ? t : null; };
+	const act = async (iid, status) => { const text = edited(iid); await api("/api/jobs/items/" + iid, { method: "POST", body: JSON.stringify(text ? { status, text } : { status }) }).catch(() => {}); await syncJobs(true); };
+	$$("[data-jbtext]").forEach((el) => el.addEventListener("input", () => {
+		const a = $('[data-jbgo="' + el.dataset.jbtext + '"]');
+		if (!a) return;
+		try { const u = new URL(a.href); if (u.searchParams.has("text")) { u.searchParams.set("text", el.innerText.trim()); a.href = u.toString(); } } catch {}
+	}));
 	$$("[data-jbgo]").forEach((x) => x.addEventListener("click", () => setTimeout(() => act(x.dataset.jbgo, "done"), 400)));
 	$$("[data-jbdone]").forEach((x) => (x.onclick = () => act(x.dataset.jbdone, "done")));
-	$$("[data-jbcopy]").forEach((x) => (x.onclick = () => { const it = JOBS.items.find((y) => y.id === x.dataset.jbcopy); if (it) navigator.clipboard.writeText(it.text).then(() => toast("Copied"), () => {}); }));
+	$$("[data-jbskip]").forEach((x) => (x.onclick = () => act(x.dataset.jbskip, "skipped").then(() => toast("Skipped: it'll write less like that"))));
+	$$("[data-jbcopy]").forEach((x) => (x.onclick = () => { const it = JOBS.items.find((y) => y.id === x.dataset.jbcopy); if (it) navigator.clipboard.writeText(edited(it.id) || it.text).then(() => toast("Copied"), () => {}); }));
 	$$("[data-jbedit]").forEach((x) => (x.onclick = () => drawJob(kind, x.dataset.jbedit)));
 	$$("[data-jbdel]").forEach((x) => (x.onclick = async () => { if (!confirm("Delete this job and what it made?")) return; await api("/api/jobs/" + x.dataset.jbdel, { method: "DELETE" }).catch(() => {}); await syncJobs(true); drawJob(kind); }));
 	$$("[data-jbrun]").forEach((x) => (x.onclick = async () => { x.disabled = true; x.textContent = "Working…"; try { await api("/api/jobs/" + x.dataset.jbrun + "/run", { method: "POST" }); } catch (e) { toast(e.message || String(e)); } await syncJobs(true); }));
@@ -14069,7 +14090,7 @@ function drawDesks(edit) {
 	$$("[data-dkedit]").forEach((x) => (x.onclick = () => drawDesks(x.dataset.dkedit)));
 	$$("[data-dkdel]").forEach((x) => (x.onclick = async () => { if (!confirm("Delete this front desk, its chats and its inbox? Its link stops working.")) return; await api("/api/bots/" + x.dataset.dkdel, { method: "DELETE" }).catch(() => {}); await syncDesks(true); drawDesks(); }));
 	const act = async (iid, body) => { await api("/api/bots/items/" + iid, { method: "POST", body: JSON.stringify(body) }).catch((e) => toast(e.message || String(e))); await syncDesks(true); };
-	$$("[data-dksend]").forEach((x) => (x.onclick = () => { const v = $('[data-dkreply="' + x.dataset.dksend + '"]').value.trim(); if (v) act(x.dataset.dksend, { status: "done", reply: v }).then(() => toast("Sent: they'll see it in their chat")); }));
+	$$("[data-dksend]").forEach((x) => (x.onclick = () => { const v = $('[data-dkreply="' + x.dataset.dksend + '"]').value.trim(); if (v) { const q = (DESKS.items.find((y) => y.id === x.dataset.dksend) || {}).kind === "question"; act(x.dataset.dksend, { status: "done", reply: v }).then(() => toast(q ? "Sent, and your front desk knows the answer from now on" : "Sent: they'll see it in their chat")); } }));
 	$$("[data-dkdone]").forEach((x) => (x.onclick = () => act(x.dataset.dkdone, { status: "done" })));
 	$$("[data-dkchat]").forEach((x) => (x.onclick = async () => {
 		const [bot, visitor] = x.dataset.dkchat.split("|"), box2 = x.closest(".desk-it").querySelector(".dk-chat");
