@@ -160,6 +160,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/pay/notify" && m === "POST") return payNotify(req, env);
 	let cl;
 	if ((cl = p.match(/^\/api\/call\/([a-f0-9]{24})\/(turn|status)$/)) && m === "POST") return callHook(req, env, ctx, cl[1], cl[2]);
+	if ((cl = p.match(/^\/api\/voice\/([a-f0-9]{24})\/(in|turn)(?:\/([a-f0-9]{24}))?$/)) && m === "POST") return voiceHook(req, env, ctx, cl[1], cl[2], cl[3]);
 	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env, ownerKeyOk(req, env) ? undefined : (await config(env)).publicGateways)));
 	// a shared chat: anyone with its link can read it; a picture shared with an app, anyone with its link can fetch
 	let sh, up;
@@ -192,6 +193,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/bots" && m === "POST") return deskSave(req, env, user);
 	if ((fd = p.match(/^\/api\/bots\/([a-f0-9]{24})$/)) && m === "DELETE") return deskDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/bots\/items\/([a-f0-9]{24})$/)) && m === "POST") return deskItem(req, env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/bots\/([a-f0-9]{24})\/phone$/)) && m === "POST") return deskPhone(req, env, user, fd[1]);
 	if (p === "/api/bots/convo" && m === "GET") return deskConvo(env, user, url.searchParams.get("bot"), url.searchParams.get("visitor"));
 	if (p === "/api/shares" && m === "POST") return shareMake(req, env, user);
 	if (sh && m === "DELETE") return shareDel(env, user, sh[1]);
@@ -654,6 +656,7 @@ function columns(env) {
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS bot_items_user ON bot_items (user_id, status, created_at)").run();
 		// (a front desk's booking hours; a booking's time, there and as an instant, and whether its reminder is made)
 		const bcols = new Set(((await env.DB.prepare("PRAGMA table_info(bots)").all()).results || []).map((r) => r.name));
+		if (!bcols.has("voice")) { try { await env.DB.prepare("ALTER TABLE bots ADD COLUMN voice TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		if (!bcols.has("cc")) { try { await env.DB.prepare("ALTER TABLE bots ADD COLUMN cc TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		if (!bcols.has("slots")) { try { await env.DB.prepare("ALTER TABLE bots ADD COLUMN slots TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		const icols = new Set(((await env.DB.prepare("PRAGMA table_info(bot_items)").all()).results || []).map((r) => r.name));
@@ -3247,7 +3250,7 @@ async function connCheck(kind, b) {
 	}
 	if (kind === "gmail") {
 		const c = { url: v("url"), key: v("key") };
-		if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(c.url)) throw fail(400, "That isn't your script's web app link: it looks like https://script.google.com/macros/s/…/exec");
+		if (!/^https:\/\/script\.google\.com\/(a\/macros\/[\w.-]+|macros)\/s\/[\w-]+\/exec$/.test(c.url)) throw fail(400, "That isn't your script's web app link: it looks like https://script.google.com/macros/s/…/exec");
 		if (c.key.length < 16) throw fail(400, "The key is missing: it's in the script you copied.");
 		const me = await gmailCall(c, { action: "whoami" });
 		return { secret: c, name: me.email || "Your Gmail", meta: { email: me.email || "", left: me.left } };
@@ -3299,7 +3302,7 @@ async function placeCall(env, ctx, owner, { to, name, purpose, lang, models, job
 	const open = jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You're about to phone " + (name || "a customer") + " for " + biz + ", as " + (assistant ? assistant + ", " : "") + "its virtual assistant. " + purpose + "\n\nWrite what you say the moment they pick up: greet them by name, say it's " + me + " (" + possW(biz) + " virtual assistant) and why you're calling, in one or two short, warm, natural sentences, in " + v.name + ". Reply with ONLY JSON: {\"say\": \"...\"}" }], 200, spent));
 	const say = (open && open.say) || (v.lang === "id-ID" ? "Halo" + (name ? " " + name : "") + ", ini " + me + ", asisten virtual " + biz + ". Ada waktu sebentar?" : "Hi" + (name ? " " + name : "") + ", it's " + me + ", " + possW(biz) + " virtual assistant. Do you have a moment?");
 	await env.DB.prepare("INSERT INTO calls (id, user_id, job_id, to_num, name, purpose, lang, models, turns, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'calling', ?)").bind(cid, owner.id, jobId || null, to, name || null, "You are " + me + ", " + possW(biz) + " virtual assistant. " + purpose, v.lang, JSON.stringify(models), JSON.stringify([{ who: "ai", text: say }]), now()).run();
-	const call = await twilioApi(c, "POST", "/Calls.json", { To: to, From: c.from, Twiml: twiml(say, v, cid, false), StatusCallback: WORKER_URL + "/api/call/" + cid + "/status", StatusCallbackMethod: "POST", Timeout: "25" });
+	const call = await twilioApi(c, "POST", "/Calls.json", { To: to, From: c.from, Twiml: twiml(say, v, cid, false), StatusCallback: WORKER_URL + "/api/call/" + cid + "/status", StatusCallbackMethod: "POST", Timeout: "25", MachineDetection: "DetectMessageEnd" });
 	await env.DB.prepare("UPDATE calls SET sid = ? WHERE id = ?").bind(call.sid || null, cid).run();
 	return cid;
 }
@@ -3332,6 +3335,78 @@ async function callHook(req, env, ctx, cid, kind) {
 	turns.push({ who: "ai", text: say });
 	await env.DB.prepare("UPDATE calls SET turns = ?, outcome = COALESCE(?, outcome), updated_at = ? WHERE id = ?").bind(JSON.stringify(turns), j && j.outcome ? String(j.outcome).slice(0, 300) + (j.dnc ? " [do not call]" : "") : null, now(), cid).run();
 	return xml(twiml(say, v, cid, end));
+}
+// ---- the business's own phone number, answered by its front desk (the owner, Nov 8: "the reason for many jobs: Celestin
+// can answer the phone"). Turned on here: its Twilio number then sends its calls to us. The caller hears the business (and
+// its assistant's name), as its virtual assistant; it answers from the desk's brief, books a free time (checked like the
+// chat), takes messages, and puts the caller through to the owner's own phone when they ask for a person
+async function deskPhone(req, env, user, bid) {
+	const b = await body(req), bot = await env.DB.prepare("SELECT * FROM bots WHERE id = ? AND user_id = ?").bind(bid, user.id).first();
+	if (!bot) throw fail(404, "That front desk isn't yours.");
+	const row = await env.DB.prepare("SELECT secret FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(user.id).first();
+	if (!row) throw fail(400, "Connect phone calls (Twilio) in Accounts first.");
+	const c = await unseal(env, row.secret), on = b.on !== false;
+	const nums = await twilioApi(c, "GET", "/IncomingPhoneNumbers.json?PhoneNumber=" + encodeURIComponent(c.from));
+	const num = (nums.incoming_phone_numbers || [])[0];
+	if (!num) throw fail(400, c.from + " isn't a number you bought on Twilio, so its calls can't come here.");
+	await twilioApi(c, "POST", "/IncomingPhoneNumbers/" + num.sid + ".json", { VoiceUrl: on ? WORKER_URL + "/api/voice/" + bid + "/in" : "", VoiceMethod: "POST" });
+	const forward = String(b.forward || "").trim() ? e164(b.forward, bot.cc) : "";
+	const models = (Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3);
+	await env.DB.prepare("UPDATE bots SET voice = ? WHERE id = ?").bind(JSON.stringify({ on, forward, number: c.from, models }), bid).run();
+	return json({ phone: { on, forward, number: c.from } });
+}
+async function voiceHook(req, env, ctx, bid, step, cid) {
+	const xml = (x) => new Response('<?xml version="1.0" encoding="UTF-8"?><Response>' + x + "</Response>", { headers: { "Content-Type": "text/xml" } });
+	const bot = await env.DB.prepare("SELECT * FROM bots WHERE id = ?").bind(bid).first();
+	if (!bot) return xml("<Hangup/>");
+	const params = Object.fromEntries(new URLSearchParams(await req.text()));
+	const conn = await env.DB.prepare("SELECT secret FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(bot.user_id).first();
+	const c = conn && (await unseal(env, conn.secret));
+	if (!c || !(await twilioSigOk(c.token, WORKER_URL + "/api/voice/" + bid + "/" + step + (cid ? "/" + cid : ""), params, req.headers.get("X-Twilio-Signature")))) throw fail(403, "Not from Twilio.");
+	let vc = {};
+	try { vc = JSON.parse(bot.voice || "{}") || {}; } catch {}
+	const callRow = cid ? await env.DB.prepare("SELECT to_num FROM calls WHERE id = ?").bind(cid).first() : null, caller = String(params.From || (callRow && callRow.to_num) || ""), v = callVoice("", caller || "+" + (bot.cc || "1")), t = now();
+	const asst = ((String(bot.brief).match(/Your name is ([^,.\n]{1,40})/) || [])[1] || "").trim(), me = asst ? asst + " from " + bot.name : bot.name;
+	const gather = (say, id) => '<Gather input="speech" language="' + v.lang + '" speechTimeout="auto" actionOnEmptyResult="true" method="POST" action="' + WORKER_URL + "/api/voice/" + bid + "/turn/" + id + '"><Say language="' + v.lang + '" voice="' + v.voice + '">' + xmlEsc(say) + "</Say></Gather>";
+	if (step === "in") {
+		const id2 = id();
+		const hello = v.lang === "id-ID" ? "Halo, " + bot.name + ", dengan " + (asst || "asisten virtual") + ". Panggilan ini ditranskripsi. Ada yang bisa dibantu?" : "Hi, thanks for calling " + bot.name + ", this is " + (asst ? asst + ", the" : "the") + " virtual assistant. This call is transcribed. How can I help?";
+		await env.DB.prepare("INSERT INTO calls (id, user_id, job_id, to_num, name, purpose, lang, models, turns, status, created_at) VALUES (?, ?, NULL, ?, NULL, ?, ?, ?, ?, 'in', ?)").bind(id2, bot.user_id, caller, "in:" + bid, v.lang, JSON.stringify(vc.models || []), JSON.stringify([{ who: "ai", text: hello }]), t).run();
+		return xml(gather(hello, id2));
+	}
+	const cl = cid && (await env.DB.prepare("SELECT * FROM calls WHERE id = ? AND purpose = ?").bind(cid, "in:" + bid).first());
+	if (!cl) return xml("<Hangup/>");
+	const turns = JSON.parse(cl.turns || "[]"), heard = String(params.SpeechResult || "").trim();
+	turns.push({ who: "them", text: heard || "(silence)" });
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(bot.user_id).first();
+	const owner = row && (await readyUser(env, row, await config(env)));
+	const sc = slotsCfg(bot), free = sc ? await freeSlots(env, bot, t) : null;
+	const local = new Date(t + tzIn(bot.tz) * 60e3).toISOString().slice(0, 16).replace("T", " ");
+	let models = vc.models || [];
+	if (!models.length) try { models = JSON.parse(bot.models || "[]"); } catch {}
+	const spent = { mc: 0 };
+	const j = owner ? jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You answer the phone for " + bot.name + " as " + me + ", its virtual assistant (if asked, say honestly you're its virtual assistant). What the owner told you (all you know):\n" + bot.brief + "\n\nNow: " + local + " there. Caller's number: " + caller + "." + (sc ? "\nFree times for bookings (book only one of these):\n" + slotsText(free, sc) : "\nBookings: take their name and wanted time, and say the team will confirm by text.") +
+		"\n\nThe call so far:\n" + turns.map((x) => (x.who === "ai" ? "You: " : "Caller: ") + x.text).join("\n") +
+		"\n\nSay your next line: short, warm, natural, in " + v.name + ". Never make up prices, times or promises. Reply with ONLY JSON: {\"say\": \"...\", \"end\": true or false, \"book\": null or {\"slot\": \"YYYY-MM-DD HH:MM from the free times\", \"name\": \"\"}, \"message\": null or \"one line for the owner (a message, a question you couldn't answer, a complaint)\", \"transfer\": true only if they want to talk to a person now}" }], 220, spent)) : null;
+	let say = (j && j.say) || (v.lang === "id-ID" ? "Maaf, ada gangguan. Tim kami akan menghubungi Anda kembali. Terima kasih!" : "Sorry, something went wrong on our side. The team will call you back. Thank you!"), end = !j || !!j.end || turns.filter((x) => x.text === "(silence)").length >= 2 || turns.length > 30;
+	const qs = [];
+	// (a booking: only at a time still free)
+	if (j && j.book && sc) {
+		const want = String(j.book.slot || "").trim().slice(0, 16), now2 = await freeSlots(env, bot, t);
+		if (SLOT_RE.test(want) && now2 && now2.some((d) => d.free.includes(want))) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, slot, slot_at, created_at) VALUES (?, ?, ?, ?, 'booking', ?, ?, 'new', ?, ?, ?)").bind(id(), bid, bot.user_id, "phone_" + caller.replace(/\D/g, "").padEnd(16, "0").slice(0, 24), "Booked by phone: " + want, JSON.stringify({ name: String(j.book.name || "").slice(0, 80), contact: caller, when: want, booked: true }), want, slotAt(want, bot.tz), now()));
+		else { say = v.lang === "id-ID" ? "Maaf, waktu itu sudah tidak tersedia. Mau waktu lain?" : "Sorry, that time isn't free anymore. Would another time work?"; end = false; }
+	}
+	turns.push({ who: "ai", text: say });
+	const done = end || (j && j.transfer);
+	if (done) {
+		const what = [j && j.message, j && j.transfer && !vc.forward ? "wanted to talk to you" : ""].filter(Boolean).join("; ");
+		qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, created_at) VALUES (?, ?, ?, ?, 'message', ?, ?, 'new', ?)").bind(id(), bid, bot.user_id, "phone_" + caller.replace(/\D/g, "").padEnd(16, "0").slice(0, 24), ("📞 " + caller + (what ? ": " + what : ": called")).slice(0, 200), JSON.stringify({ contact: caller, transcript: turns.map((x) => (x.who === "ai" ? "AI: " : "Caller: ") + x.text).join("\n").slice(0, 6000) }), now()));
+	} else if (j && j.message) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, created_at) VALUES (?, ?, ?, ?, 'question', ?, ?, 'new', ?)").bind(id(), bid, bot.user_id, "phone_" + caller.replace(/\D/g, "").padEnd(16, "0").slice(0, 24), String(j.message).slice(0, 200), JSON.stringify({ contact: caller }), now()));
+	qs.push(env.DB.prepare("UPDATE calls SET turns = ?, status = ?, updated_at = ? WHERE id = ?").bind(JSON.stringify(turns), done ? "done" : "in", now(), cid));
+	await env.DB.batch(qs);
+	const sayX = '<Say language="' + v.lang + '" voice="' + v.voice + '">' + xmlEsc(say) + "</Say>";
+	if (j && j.transfer && vc.forward) return xml(sayX + '<Dial timeout="25">' + xmlEsc(vc.forward) + "</Dial>");
+	return xml(done ? sayX + "<Hangup/>" : gather(say, cid));
 }
 // a call over: its outcome where the owner looks (the job's items), and anyone who asked not to be called, never again
 async function callDone(env, cl, turns, outcome) {
@@ -3394,19 +3469,28 @@ const AGENT_SOURCES = ["url", "news", "rss", "hn", "gmail"];
 const agentOut = (a) => { const j = (x, d) => { try { return JSON.parse(x || "") ?? d; } catch { return d; } }; const st = j(a.state, {}), act = j(a.act, {}); return { id: a.id, name: a.name, goal: a.goal, every: a.every_min, sources: j(a.sources, []), notify: a.notify || "", email: !!a.email, send: act.send || [], posts: act.posts || [], emails: act.email || "", active: !!a.active, next_at: a.next_at, last_at: a.last_at, spent: Math.round((a.spent_mc || 0) / 100) / 10, runs: a.runs || 0, memory: st.memory || "", lastLook: st.look || "", created_at: a.created_at }; };
 async function agentsOf(env, user, url) {
 	const agents = (await env.DB.prepare("SELECT * FROM agents WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()).results || [];
-	const log = (await env.DB.prepare("SELECT id, agent_id, kind, text, created_at, seen FROM agent_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 80").bind(user.id).all()).results || [];
+	const log = (await env.DB.prepare("SELECT id, agent_id, kind, text, created_at, seen FROM agent_log WHERE user_id = ? AND (kind = 'approve' OR id IN (SELECT id FROM agent_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 80)) ORDER BY created_at DESC").bind(user.id, user.id).all()).results || [];
 	return json({ agents: agents.map(agentOut), log: log.map((l) => ({ id: l.id, agent: l.agent_id, kind: l.kind, text: l.text, at: l.created_at, seen: !!l.seen })) });
 }
 async function agentSave(req, env, user, ctx) {
 	const b = await body(req);
 	const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 60), goal = String(b.goal || "").trim().slice(0, 4000);
 	if (!name || goal.length < 10) throw fail(400, "Give your agent a name and say what it should do.");
-	const every = AGENT_EVERY.includes(Number(b.every)) ? Number(b.every) : 60;
+	let every = AGENT_EVERY.includes(Number(b.every)) ? Number(b.every) : 60;
 	if (every === 0 && !(b.id)) { const n1 = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ? AND every_min = 0 AND active = 1").bind(user.id).first(); if (n1 && n1.n >= 5) throw fail(429, "Five one-off jobs are running already: wait for one to finish."); }
 	const sources = (Array.isArray(b.sources) ? b.sources : []).map((x) => ({ type: String(x && x.type || ""), value: String(x && x.value || "").trim().slice(0, 300) })).filter((x) => AGENT_SOURCES.includes(x.type) && x.value && (x.type !== "url" && x.type !== "rss" || /^https?:\/\//i.test(x.value))).slice(0, 8);
 	const kinds = (x) => [...new Set((Array.isArray(x) ? x : []).filter((k) => CONN_KINDS.includes(k)))];
 	const act = JSON.stringify({ send: kinds(b.send).filter((k) => k === "telegram" || k === "discord"), posts: kinds(b.posts), email: b.emails === "auto" || b.emails === "ask" ? b.emails : "" });
 	const notify = String(b.notify || "").trim().slice(0, 600), email = b.email ? 1 : 0, tz = tzIn(b.tz);
+	// (nothing to watch: it works every time, so never more often than hourly; a free account runs one background agent,
+	// hourly at most: the free budget is everyone's)
+	if (every > 0 && every < 60 && !sources.length) every = 60;
+	const paid = !!user.owner || Number(((await env.DB.prepare("SELECT balance_mc FROM users WHERE id = ?").bind(user.id).first()) || {}).balance_mc) > 0;
+	if (!paid) {
+		if (every > 0 && every < 60) every = 60;
+		const others = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ? AND active = 1 AND id != ?").bind(user.id, String(b.id || "")).first();
+		if (others && others.n >= 1 && b.active !== false) throw fail(402, "Free accounts run one agent in the background at a time. Pause the other one, or add credits to run more.");
+	}
 	const models = JSON.stringify({ quick: (Array.isArray(b.quick) ? b.quick : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 2), work: (Array.isArray(b.work) ? b.work : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3) });
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
 		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, act = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, act, b.active === false ? 0 : 1, b.id, user.id).run();
@@ -3451,6 +3535,13 @@ async function agentRunNow(env, ctx, user, aid) {
 	const r = await runAgent(env, ctx, a, true);
 	return json({ ran: r, agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first()) });
 }
+// (reports through the owner's Gmail: at most 40 a day, so sign-in codes always get through)
+async function reportMailOk(env) {
+	const k = "rmail:" + new Date().toISOString().slice(0, 10), r = await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind(k).first(), n = Number(r && r.v) || 0;
+	if (n >= 40) return false;
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(k, String(n + 1)).run();
+	return true;
+}
 async function runDueAgents(env, ctx) {
 	const due = (await env.DB.prepare("SELECT * FROM agents WHERE active = 1 AND next_at <= ? ORDER BY next_at LIMIT ?").bind(now(), AGENT_TICK).all()).results || [];
 	for (const a of due) { try { await runAgent(env, ctx, a, false); } catch {} }
@@ -3484,6 +3575,7 @@ function feedItems(x) {
 	return out;
 }
 // a short fingerprint of a line or a link, to know what's new since the last look
+const VOLATILE = /^\W*(\d{1,2}[:.]\d{2}([:.]\d{2})?\s*(am|pm|wib|utc|gmt)?|\d{4}-\d{2}-\d{2}[t\s\d:.z+-]*|\d+\s*(sec|second|min|minute|hour|day|detik|menit|jam|hari)s?\s*(ago|lalu)|(last\s+)?updated\b.*|diperbarui\b.*|©.*|copyright\b.*|page generated.*|\d+\s*(views|online|visitors))\W*$/i;
 const fp = async (x) => (await sha256hex(String(x))).slice(0, 12);
 // what's new in each thing it watches since the last look (nothing new: nothing to read, nothing spent)
 async function agentLook(src, st, env, uid) {
@@ -3491,7 +3583,7 @@ async function agentLook(src, st, env, uid) {
 	let items = [], keep = [];
 	if (src.type === "gmail") {
 		let list = [];
-		try { const { c } = await gmailOf(env, uid); list = (await gmailCall(c, { action: "list", query: src.value || "is:unread newer_than:2d", max: 15 })).list || []; }
+		try { const g = await gmailOf(env, uid), me = String(g.meta.email || "").toLowerCase(); list = ((await gmailCall(g.c, { action: "list", query: src.value || "is:unread newer_than:2d", max: 15 })).list || []).filter((m) => !me || String(m.from || "").toLowerCase().indexOf(me) < 0); }
 		catch (e) { return { key, error: "Gmail: " + (e.message || e), fresh: [], keep: [...was] }; }
 		const ids = list.map((m) => String(m.id));
 		// (its first look: what's there now is known, and only what comes after is new; unless it's a one-off)
@@ -3503,7 +3595,7 @@ async function agentLook(src, st, env, uid) {
 		const lines = p.text.split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3);
 		const hashes = await Promise.all(lines.map(fp));
 		keep = [...new Set(hashes)].slice(0, 1500);
-		items = lines.filter((l, i) => !was.has(hashes[i])).slice(0, 80).map((l) => ({ text: l.slice(0, 400) }));
+		items = lines.filter((l, i) => !was.has(hashes[i]) && !VOLATILE.test(l)).slice(0, 80).map((l) => ({ text: l.slice(0, 400) }));
 		return { key, label: p.title || src.value, fresh: first ? [] : items, first, all: first ? lines.slice(0, 120).join("\n").slice(0, 6000) : "", keep };
 	}
 	if (src.type === "news") items = await newsSearch(src.value, 15, 2, env);
@@ -3580,7 +3672,8 @@ async function runAgent(env, ctx, a, manual) {
 					" Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already done, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"" +
 					(posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}]" : "") + (mail ? ", \"emails\": [{\"to\": \"an address, or empty for a reply\", \"thread\": \"the thread id when it's a reply\", \"subject\": \"...\", \"body\": \"the whole email\"}]" : "") + "}" },
 			], 3000, spent);
-			let j = jsonIn(await ask(false));
+			// (research rounds for one-offs and looks asked for; a standing agent works from what it was given)
+			let j = jsonIn(await ask(!(once || manual)));
 			// (research first, when it asks for it: two more rounds at most)
 			for (let round = 0; round < 2 && j && j.more && !j.report && !spent.broke; round++) {
 				const mo = j.more || {}, urls = (Array.isArray(mo.read) ? mo.read : []).filter((x) => /^https?:\/\//.test(String(x))).slice(0, 4);
@@ -3621,8 +3714,10 @@ async function runAgent(env, ctx, a, manual) {
 	// (to their Telegram or Discord too, when its owner asked)
 	if (tell) for (const k of send) { try { await connPost(env, a.user_id, k, "🤖 " + a.name + "\n\n" + tell + (report && waiting ? "\n\n(" + waiting + " email" + (waiting > 1 ? "s" : "") + " waiting for your OK)" : "")); } catch {} }
 	// (by email too, when its owner asked)
-	if (report && a.email && mailOn(env) && row.email) {
-		try { await sendMail(env, row.email, a.name + ": " + report.text.replace(/[#*_>\[\]]/g, "").replace(/\s+/g, " ").slice(0, 70), report.text + "\n\n— " + a.name + ", your agent on Celestin Together (https://celestin.pages.dev/together)", '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#111;white-space:pre-wrap">' + report.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]) + '</div><p style="color:#777;font-size:13px">— ' + a.name.replace(/[&<>]/g, "") + ', your agent on <a href="https://celestin.pages.dev/together">Celestin Together</a></p>'); } catch {}
+	if (report && a.email && row.email) {
+		let own = false;
+		try { await emailSend(env, a.user_id, { to: row.email, subject: (a.name + ": " + report.text.replace(/[#*_>\[\]]/g, "").replace(/\s+/g, " ")).slice(0, 120), body: report.text + "\n\n— " + a.name + ", your agent on Celestin Together" }); own = true; } catch {}
+		if (!own && mailOn(env) && (await reportMailOk(env))) try { await sendMail(env, row.email, a.name + ": " + report.text.replace(/[#*_>\[\]]/g, "").replace(/\s+/g, " ").slice(0, 70), report.text + "\n\n— " + a.name + ", your agent on Celestin Together (https://celestin.pages.dev/together)", '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#111;white-space:pre-wrap">' + report.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]) + '</div><p style="color:#777;font-size:13px">— ' + a.name.replace(/[&<>]/g, "") + ', your agent on <a href="https://celestin.pages.dev/together">Celestin Together</a></p>'); } catch {}
 	}
 	return { look, reported: !!report, waiting, spent: spent.mc / 1000 };
 }
@@ -3661,6 +3756,8 @@ async function jobSave(req, env, user) {
 		type: c.type === "online" ? "online" : "place",
 		assistant: String(c.assistant || "").replace(/\s+/g, " ").trim().slice(0, 40),
 		country: String(c.country || "").replace(/\D/g, "").slice(0, 4),
+		callModels: (Array.isArray(c.callModels) ? c.callModels : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3),
+		callCap: Math.max(1, Math.min(200, Math.round(Number(c.callCap) || 20))),
 	};
 	if (c.hours && typeof c.hours === "object") { const h = slotsCfg({ slots: { days: c.hours.days, open: c.hours.open, close: c.hours.close, minutes: 60, per: 1 } }); if (h) config.hours = { days: h.days, open: h.open, close: h.close }; }
 	if (config.brief.length < 20) throw fail(400, "Tell it about your business first: what you do, who for, your voice.");
@@ -3884,17 +3981,19 @@ async function runJob(env, ctx, j, manual) {
 			const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(j.user_id).first();
 			const owner = row && (await readyUser(env, row, await config(env)));
 			let models = [];
-			try { models = JSON.parse(cfg.callModels ? JSON.stringify(cfg.callModels) : j.models || "[]"); } catch {}
+			try { models = (cfg.callModels || []).length ? cfg.callModels : JSON.parse(j.models || "[]"); } catch {}
 			let placed = 0;
+			const cap = Number(cfg.callCap) > 0 ? Number(cfg.callCap) : 20, today = (((await env.DB.prepare("SELECT COUNT(*) AS n FROM calls WHERE user_id = ? AND created_at > ?").bind(j.user_id, t - 864e5).first()) || {}).n || 0);
 			for (const c of owner ? calls : []) {
 				if (!callTime(cfg, c.phone, t)) { waiting++; continue; }
-				if (placed >= 3) { waiting++; continue; }
+				if (placed >= 3 || today + placed >= cap) { waiting++; continue; }
 				try { await placeCall(env, ctx, owner, { to: c.phone, name: c.name, lang: cfg.lang, models, jobId: j.id, business: j.name, assistant: cfg.assistant, purpose: "You're calling for " + j.name + ". About the business, from its owner: " + cfg.brief + "\nWhy you call: " + (cfg.goal || "to ask if they'd like to come back and book again, warmly") + (c.notes ? "\nWhat's known about them: " + c.notes : "") + (cfg.link ? "\nIf they'd like to book, offer to send them the booking link by text or email (" + cfg.link + ")." : "") }); placed++; made++; }
 				catch (e) { await put("note", c.name || c.phone, "Couldn't call " + (c.name || c.phone) + ": " + (e.message || e), null, "").run(); }
 				sent[key(c)] = t;
 			}
 		}
 		// emails and WhatsApp messages: written for each person, in one go
+		if (due.some((c) => c.how === "note") && !state.noGmail) { state.noGmail = t; await put("note", "Email", "Connect Gmail in Accounts so it can email your customers.", null, "").run(); }
 		const writes = due.filter((c) => c.how === "email" || c.how === "whatsapp").slice(0, 12);
 		if (writes.length) {
 			const ask = "You write for " + j.name + (cfg.assistant ? " (sign as " + cfg.assistant + " from " + j.name + ")" : "") + ". About the business, from its owner:\n" + cfg.brief + "\n\nWhat these are for: " + (cfg.goal || "ask each customer, warmly, if they'd like to come back and book again") + (cfg.link ? "\nWhere they can book or ask (put it in each one): " + cfg.link : "") + "\n\nWrite one for each customer below, personal (their name, what's known about them), warm, welcoming and persuasive without pressure, in " + (cfg.lang || "the language that suits them") + ". A WhatsApp one: short, like a friend texting. An email: a subject line and a short email." + (await jobTaste(env, j, "message")) + "\n\nCustomers:\n" + writes.map((c, k) => (k + 1) + ". " + (c.name || "(no name)") + " (" + (c.how === "email" ? "email" : "WhatsApp") + ")" + (c.notes ? ": " + c.notes : "")).join("\n") + "\n\nReply with ONLY a JSON array, one per customer: [{\"n\": 1, \"subject\": \"for an email\", \"message\": \"...\"}]";
@@ -3961,7 +4060,7 @@ async function runJob(env, ctx, j, manual) {
 const DESK_MAX = 5, DESK_VISITOR_DAY = 40, DESK_IP_HOUR = 60, DESK_HISTORY = 16;
 const VISITOR_RE = /^[A-Za-z0-9_-]{16,64}$/;
 const deskDay = () => new Date().toISOString().slice(0, 10);
-const deskOut = (b) => ({ id: b.id, name: b.name, intro: b.intro || "", brief: b.brief, cap: Math.round((b.cap_mc || 0) / 1000), today: b.day === deskDay() ? Math.round((b.day_mc || 0) / 1000) : 0, tz: b.tz, active: !!b.active, slots: slotsCfg(b), created_at: b.created_at });
+const deskOut = (b) => ({ phone: (() => { try { const v = JSON.parse(b.voice || "null"); return v ? { on: !!v.on, forward: v.forward || "", number: v.number || "" } : null; } catch { return null; } })(), id: b.id, name: b.name, intro: b.intro || "", brief: b.brief, cap: Math.round((b.cap_mc || 0) / 1000), today: b.day === deskDay() ? Math.round((b.day_mc || 0) / 1000) : 0, tz: b.tz, active: !!b.active, slots: slotsCfg(b), created_at: b.created_at });
 // ---- bookings it confirms itself: the days it takes them (0 Sunday … 6 Saturday), open and close where the business is,
 // how long each one takes, how many at once. A time is "YYYY-MM-DD HH:MM" there
 function slotsCfg(b) {
@@ -4103,6 +4202,9 @@ async function deskChat(req, env, ctx, bid) {
 		]);
 		return json({ reply, kept: true });
 	};
+	// (a flood far beyond any shop's hour: kept for the owner, no model asked, until it passes)
+	const flood = await env.DB.prepare("SELECT COUNT(*) AS n FROM bot_msgs WHERE bot_id = ? AND role = 'customer' AND created_at > ?").bind(bid, t - 3600e3).first();
+	if (flood && flood.n > 300) return keep("unusual traffic");
 	// (a limit only if the owner set one: none by default, it runs on their credits)
 	if (Number(bot.cap_mc) > 0 && spent >= Number(bot.cap_mc)) return keep("daily limit");
 	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(bot.user_id).first();
@@ -4140,7 +4242,9 @@ async function deskChat(req, env, ctx, bid) {
 	if (sc && pass && pass.kind === "booking" && pass.slot) {
 		const want = String(pass.slot).trim().replace("T", " ").slice(0, 16);
 		const now2 = await freeSlots(env, bot, t);
-		if (SLOT_RE.test(want) && now2 && now2.some((d) => d.free.includes(want))) slot = want;
+		const ahead = await env.DB.prepare("SELECT COUNT(*) AS n FROM bot_items WHERE bot_id = ? AND visitor = ? AND kind = 'booking' AND slot_at > ? AND status != 'cancelled'").bind(bid, visitor, t).first();
+		if (ahead && ahead.n >= 2) { reply = "You already have two bookings coming up with us, so the team will help with another one: they'll reply here."; pass = { kind: "message", summary: "Wants a third booking (" + want + ")", name: pass.name, contact: pass.contact }; }
+		else if (SLOT_RE.test(want) && now2 && now2.some((d) => d.free.includes(want))) slot = want;
 		else {
 			const near = (now2 || []).flatMap((d) => d.free.map((x) => d.name + " " + x.slice(5, 10).split("-").reverse().join("/") + " " + x.slice(11))).slice(0, 6);
 			reply = "Sorry, that time isn't free anymore." + (near.length ? " These are: " + near.join(", ") + ". Which works for you?" : " The team will get back to you here with another time.");

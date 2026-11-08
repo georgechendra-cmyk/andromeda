@@ -1749,6 +1749,12 @@ html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-w
 html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
 .desk-it.off { opacity: .6; }
+.tcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 10px 0; }
+.tcard { border-radius: 16px; padding: 12px 14px; background: var(--bg2); border: 1px solid var(--line); }
+.tcard .tct { font-weight: 650; margin-bottom: 6px; }
+.tcard .tcr { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 3px 0; }
+.tcard .tcr span { color: var(--muted); }
+.tcard .tcr b { font-weight: 550; text-align: right; }
 .su-acc { display: inline-block; margin: 0 6px 4px 0; padding: 3px 9px; border-radius: 999px; background: var(--bg2); font-size: 12px; color: var(--muted); }
 .su-acc.on { color: #1a7f37; background: color-mix(in srgb, #34c759 14%, transparent); }
 .status .spin { display: inline-block; width: 11px; height: 11px; margin-right: 4px; vertical-align: -1px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
@@ -3233,7 +3239,7 @@ async function profileTask(text, atts, kind) {
 const WAYS = {
 	answer: "a written answer in the chat: explaining, advising, researching with live web search, writing, maths, planning, and code or scripts for any other program (Blender, Excel, Unity, Unreal, Photoshop, Premiere, shell, a game mod...) with exact steps to use them",
 	app: "something built and running right here in the browser with a live preview: a game, app, website, tool, calculator, dashboard, 3D scene or model (three.js), visualisation or animation",
-	sim: "an interactive simulation or visual model of a concept in science, maths or engineering, running right here",
+	sim: "an interactive simulation or visual model of a concept in science, maths or engineering, running right here, with controls to change it; the way whenever someone wants to learn, understand or be taught how something works that moves, changes or can be tweaked (particles, waves, orbits, forces, circuits, populations, markets): a live model they can play with teaches better than any text",
 	project: "real software engineering across many files, kept as a project in this browser (or in the folder or repo the user opened): set it up, build features, fix, refactor",
 	image: "pictures: photos, art, illustrations, posters, logos, thumbnails, product shots, or changes to an attached picture",
 	video: "a video: an ad, a short film, a clip, made of shots with voiceover, music and captions",
@@ -3494,7 +3500,7 @@ async function conduct(text, atts, tried, only, team) {
 		+ "\n\nThink for yourself. Nobody listed what people may ask for: if no way does it directly (a rollercoaster in Blender, a song in a style, a mod for a game, a business plan with charts), choose the way that gets them closest to the real thing, and say exactly what you'll deliver in \"how\" (for Blender: a complete Blender Python script that builds it, with how to run it; or a 3D version running right here). Ask yourself what they actually want to end up with.\n"
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
-		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or an agent: ANY other job they want done by itself in the background, once or again and again, while they're away (answer or write emails; watch prices, pages, tickets, competitors or their inbox; follow news; research something and email or report it; post for them; write something every day; anything else). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for an agent, what: the job in their words). When they ask for several of these for their business at once (a front desk that also calls or emails customers to rebook, answers email, markets…), kind setup, with kinds listing the parts (desk, winback, email, marketing), type place (customers come to it: a shop, salon, clinic) or online, assistant (a name they gave it, if any) and everything else they told you.\n" : "")
+		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or an agent: ANY other job they want done by itself in the background, once or again and again, while they're away (answer or write emails; watch prices, pages, tickets, competitors or their inbox; follow news; research something and email or report it; post for them; write something every day; anything else). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for an agent, what: the job in their words). When they ask for several of these for their business at once (a front desk that also calls or emails customers to rebook, answers email, markets…), kind setup, with kinds listing the parts (desk, winback, email, marketing), type place (customers come to it: a shop, salon, clinic) or online, assistant (a name they gave it, if any) and everything else they told you. Never ask them what you can decide yourself: fill in anything missing with the most likely choice and say in one line what you assumed; ask only when nothing useful can be done without the answer.\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
 		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup\", \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
@@ -14155,7 +14161,7 @@ function drawJob(kind, edit, pre) {
 		$("#jbSave").onclick = async () => {
 			$("#jbSave").disabled = true;
 			const config = { brief: $("#jbBrief").value, goal: $("#jbGoal").value, lang: $("#jbLang").value || LOC.lang, tz: -new Date().getTimezoneOffset(), country: LOC.call };
-			if (kind === "winback") Object.assign(config, { customers: $("#jbList").value, every: +$("#jbEvery").value, link: $("#jbLink").value, via: (($$('[name="jbVia"]').find((x) => x.checked) || {}).value) || "whatsapp" });
+			if (kind === "winback") Object.assign(config, { customers: $("#jbList").value, every: +$("#jbEvery").value, link: $("#jbLink").value, via: (($$('[name="jbVia"]').find((x) => x.checked) || {}).value) || "whatsapp", callModels: bestFor("reader").slice(0, 2).map((m) => m.id) });
 			else Object.assign(config, { topic: $("#jbTopic").value, perDay: +$("#jbPer").value, platforms: $$("[data-plat]").filter((x) => x.checked).map((x) => x.dataset.plat), auto: !!($("#jbAuto") && $("#jbAuto").checked) });
 			const models = jobModels();
 			if (kind === "marketing") config.critic = jobCriticModel(models);
@@ -14200,6 +14206,8 @@ async function runJobWay(plan, text) {
 		current.msgs.push({ role: "assistant", member: "lead", text: "I'll set up " + (j.name ? poss(j.name) : "your business's") + " team: everything you asked for, working by itself day and night and speaking as " + (j.name || "your business") + ". Check it and press Start." });
 		updateLast();
 		openSetup({ ...j, kinds: Array.isArray(j.kinds) && j.kinds.length ? j.kinds : ["desk", "winback", "email", "marketing"] });
+		// (enough to go on: started at once, no questions; every part can be changed after)
+		if (String(j.name || "").trim() && String(j.brief || "").trim().length >= 20) { let k = 0; const go = () => { if ($("#suGo")) startSetup(); else if (++k < 20) setTimeout(go, 250); }; setTimeout(go, 250); }
 		return;
 	}
 	if (kind === "agent") {
@@ -14214,6 +14222,27 @@ async function runJobWay(plan, text) {
 	if (kind === "desk") { openDesks("new"); setTimeout(() => { if ($("#dkName") && j.name) $("#dkName").value = j.name; if ($("#dkBrief") && j.brief) $("#dkBrief").value = j.brief; }, 50); return; }
 	openJob(kind, { name: j.name, brief: j.brief, goal: j.goal, topic: j.topic, platforms: j.platforms, lang: j.lang });
 }
+// tables don't get read: in an answer, each row becomes a card (its first column the title, the rest label and value)
+function untable(h) {
+	const tp = document.createElement("template");
+	tp.innerHTML = h;
+	tp.content.querySelectorAll("table").forEach((tb) => {
+		const rows = [...tb.querySelectorAll("tr")];
+		if (rows.length < 2) return;
+		const head = [...rows[0].querySelectorAll("th,td")].map((c) => c.textContent.trim());
+		const box = document.createElement("div");
+		box.className = "tcards";
+		for (const r of rows.slice(1)) {
+			const cells = [...r.querySelectorAll("td,th")], card = document.createElement("div");
+			card.className = "tcard";
+			card.innerHTML = cells.map((c, i) => (i === 0 ? '<div class="tct">' + c.innerHTML + "</div>" : c.textContent.trim() ? '<div class="tcr"><span>' + esc(head[i] || "") + "</span><b>" + c.innerHTML + "</b></div>" : "")).join("");
+			box.appendChild(card);
+		}
+		tb.replaceWith(box);
+	});
+	return tp.innerHTML;
+}
+{ const mdTables = md; md = function (text, live) { const h = mdTables(text, live); return typeof h === "string" && h.includes("<table") ? untable(h) : h; }; }
 // ---- connected accounts: each person's own Telegram, Discord, Bluesky and X (see connSave on the server)
 var CONNS = { on: false, conns: [] };
 const POST_KINDS = ["telegram", "discord", "bluesky", "x"];
@@ -14238,8 +14267,8 @@ async function openConns(kind) {
 const gmailScript = (key) => "// Celestin Together: lets your agents read and send your Gmail. Only this key can use it.\nconst KEY = \"" + key + "\";\n" +
 	"function doPost(e) {\n  var b = JSON.parse((e.postData && e.postData.contents) || \"{}\");\n  if (b.key !== KEY) return out({ ok: false, error: \"wrong key\" });\n  try {\n" +
 	"    if (b.action === \"whoami\") return out({ ok: true, email: Session.getActiveUser().getEmail(), left: MailApp.getRemainingDailyQuota() });\n" +
-	"    if (b.action === \"send\") {\n      if (b.threadId) GmailApp.getThreadById(b.threadId).reply(b.body);\n      else GmailApp.sendEmail(b.to, b.subject || \"\", b.body || \"\");\n      return out({ ok: true });\n    }\n" +
-	"    if (b.action === \"list\") {\n      var list = [];\n      GmailApp.search(b.query || \"is:unread newer_than:2d\", 0, Math.min(20, b.max || 10)).forEach(function (t) {\n        var m = t.getMessages().pop();\n        list.push({ id: m.getId(), threadId: t.getId(), from: m.getFrom(), to: m.getTo(), subject: m.getSubject(), date: m.getDate().toISOString(), text: m.getPlainBody().slice(0, 3000) });\n      });\n      return out({ ok: true, list: list });\n    }\n" +
+	"    if (b.action === \"send\") {\n      if (b.threadId) { var th = GmailApp.getThreadById(b.threadId), me = Session.getActiveUser().getEmail(), ms = th.getMessages().filter(function (x) { return x.getFrom().indexOf(me) < 0; }); (ms.length ? ms[ms.length - 1] : th).reply(b.body); }\n      else GmailApp.sendEmail(b.to, b.subject || \"\", b.body || \"\");\n      return out({ ok: true });\n    }\n" +
+	"    if (b.action === \"list\") {\n      var list = [];\n      GmailApp.search(b.query || \"is:unread newer_than:2d\", 0, Math.min(20, b.max || 10)).forEach(function (t) {\n        var all = t.getMessages(), me2 = Session.getActiveUser().getEmail(), others = all.filter(function (x) { return x.getFrom().indexOf(me2) < 0; }), m = others.length ? others[others.length - 1] : all[all.length - 1];\n        list.push({ id: m.getId(), threadId: t.getId(), from: m.getFrom(), to: m.getTo(), subject: m.getSubject(), date: m.getDate().toISOString(), text: m.getPlainBody().slice(0, 3000) });\n      });\n      return out({ ok: true, list: list });\n    }\n" +
 	"    return out({ ok: false, error: \"unknown action\" });\n  } catch (err) { return out({ ok: false, error: String(err) }); }\n}\nfunction out(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }\n";
 function drawConns(kind) {
 	const box = $("#cnBox");
@@ -14335,23 +14364,25 @@ async function startSetup() {
 	const tz = -new Date().getTimezoneOffset(), place = d.type !== "online", made = [];
 	const brief = d.brief.trim() + (d.assistant ? "\n\nYour name is " + d.assistant + ", " + poss(d.name) + " virtual assistant." : "");
 	try {
-		let bot = null;
-		if (parts.includes("desk")) {
+		d.done = d.done || {};
+		let bot = d.done.desk || null;
+		if (parts.includes("desk") && !bot) {
 			bot = (await api("/api/bots", { method: "POST", body: JSON.stringify({ name: d.name, intro: d.assistant ? "Hi! I'm " + d.assistant + " from " + d.name + ". How can I help?" : "Hi! Welcome to " + d.name + ". How can I help?", brief, cap: 0, tz, country: LOC.call, models: deskModels(), slots: place && d.hours.days.length ? { ...d.hours, minutes: d.minutes || 30, per: 1 } : null }) })).bot;
-			made.push("Front desk: " + deskLink(bot.id));
+			d.done.desk = bot;
 		}
+		if (bot) made.push("Front desk: " + deskLink(bot.id));
 		const base = { brief: d.brief, lang: d.lang || LOC.lang, tz, country: LOC.call, type: place ? "place" : "online", assistant: d.assistant || "", ...(place && d.hours.days.length ? { hours: d.hours } : {}) };
-		if (parts.includes("winback") && (bot || String(d.customers || "").trim())) {
-			await api("/api/jobs", { method: "POST", body: JSON.stringify({ kind: "winback", name: d.name, models: jobModels(), config: { ...base, goal: "ask each recent customer, warmly, if they'd like to come back and book again", customers: d.customers || "", every: d.every || 30, via: "auto", fromDesk: bot ? bot.id : "", link: bot ? deskLink(bot.id) : "" } }) });
-			made.push("Bringing customers back");
+		if (parts.includes("winback") && !d.done.winback && (bot || String(d.customers || "").trim())) {
+			await api("/api/jobs", { method: "POST", body: JSON.stringify({ kind: "winback", name: d.name, models: jobModels(), config: { ...base, goal: "ask each recent customer, warmly, if they'd like to come back and book again", customers: d.customers || "", every: d.every || 30, via: "auto", fromDesk: bot ? bot.id : "", link: bot ? deskLink(bot.id) : "", callModels: bestFor("reader").slice(0, 2).map((m) => m.id) } }) });
+			made.push("Bringing customers back"); d.done.winback = 1;
 		}
-		if (parts.includes("email")) {
+		if (parts.includes("email") && !d.done.email) {
 			await api("/api/agents", { method: "POST", body: JSON.stringify({ name: d.name + " inbox", goal: "Answer emails from " + d.name + "'s customers and follow up on them, as " + (d.assistant ? d.assistant + " from " + d.name : d.name) + ": questions, bookings, complaints, in the customer's language, warm and clear, only from what's known about the business. About it: " + d.brief + (bot ? " Bookings are made on " + deskLink(bot.id) + "." : ""), every: 10, sources: [{ type: "gmail", value: "is:unread newer_than:3d -category:promotions -category:social" }], notify: "a customer is unhappy, or something only the owner can decide", emails: d.mail === "auto" ? "auto" : "ask", send: ["telegram"].filter((k) => connOf(k)), tz, ...agentModels() }) });
-			made.push("Your inbox" + (connOf("gmail") ? "" : " (connect Gmail in Accounts so it can start)"));
+			made.push("Your inbox" + (connOf("gmail") ? "" : " (connect Gmail in Accounts so it can start)")); d.done.email = 1;
 		}
-		if (parts.includes("marketing")) {
+		if (parts.includes("marketing") && !d.done.marketing) {
 			await api("/api/jobs", { method: "POST", body: JSON.stringify({ kind: "marketing", name: d.name, models: jobModels(), config: { ...base, goal: "more customers", topic: d.topic || d.name, platforms: (d.platforms && d.platforms.length ? d.platforms : ["x"]), perDay: 1, auto: true, critic: jobCriticModel(jobModels()) } }) });
-			made.push("Marketing");
+			made.push("Marketing"); d.done.marketing = 1;
 		}
 		SETUP_DRAFT = null;
 		await Promise.all([syncDesks(true), syncJobs(true), syncAgents(true)]);
@@ -14403,7 +14434,7 @@ function agentForm(a) {
 	return '<div class="field"><label for="agName">Its name</label><input class="inp" id="agName" maxlength="60" value="' + esc(a.name || "") + '"></div>' +
 		'<div class="field"><label for="agGoal">Its job</label><textarea class="inp" id="agGoal" rows="5" maxlength="4000">' + esc(a.goal || "") + "</textarea></div>" +
 		'<div class="field"><label>What it keeps an eye on</label><div id="agSrcs">' + (a.sources || []).map(srcRow).join("") + '</div><button class="btn" id="agAddSrc">Add something to watch</button><div class="help">Nothing here: it just does its job every time. Something here: it works only when there\'s something new, so quiet hours cost nothing.</div></div>' +
-		'<div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:180px"><label for="agEvery">How often it looks</label><select class="inp" id="agEvery">' + AGENT_EVERY.map(([k, v]) => '<option value="' + k + '"' + (Number(a.every || 60) === k ? " selected" : "") + ">" + v + "</option>").join("") + '</select></div><div class="field" style="flex:2;min-width:220px"><label for="agNotify">Tell me when</label><input class="inp" id="agNotify" maxlength="600" placeholder="e.g. a price drops, anything important" value="' + esc(a.notify || "") + '"></div></div>' +
+		'<div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:180px"><label for="agEvery">How often it looks</label><select class="inp" id="agEvery">' + AGENT_EVERY.map(([k, v]) => '<option value="' + k + '"' + (Number(a.every ?? 60) === k ? " selected" : "") + ">" + v + "</option>").join("") + '</select></div><div class="field" style="flex:2;min-width:220px"><label for="agNotify">Tell me when</label><input class="inp" id="agNotify" maxlength="600" placeholder="e.g. a price drops, anything important" value="' + esc(a.notify || "") + '"></div></div>' +
 		'<label class="chk" style="margin:2px 0 6px"><input type="checkbox" id="agEmail"' + (a.email ? " checked" : "") + "> Email me its reports too (" + esc((account && account.email) || "your email") + ")</label>" +
 		'<div class="field" style="margin-top:6px"><label>Send its reports to</label><div class="row" style="gap:12px;flex-wrap:wrap">' + ["telegram", "discord"].map((k) => '<label class="chk"><input type="checkbox" data-agsend="' + k + '"' + ((a.send || []).includes(k) ? " checked" : "") + (connOf(k) ? "" : " disabled") + "> " + CONN_INFO[k].name + (connOf(k) ? "" : ' <a href="#" data-agconn="' + k + '">connect</a>') + "</label>").join("") + "</div></div>" +
 		'<div class="field"><label>Email</label><div class="row" style="gap:14px;flex-wrap:wrap">' + [["", "It doesn\'t email"], ["ask", "It writes emails, I approve each one"], ["auto", "It sends emails by itself"]].map(([v, l]) => '<label class="chk"><input type="radio" name="agMail" value="' + v + '"' + ((a.emails || "") === v ? " checked" : "") + (v && !connOf("gmail") ? " disabled" : "") + "> " + l + "</label>").join("") + (connOf("gmail") ? "" : ' <a href="#" data-agconn="gmail">connect Gmail</a>') + '</div><div class="help">From your own Gmail' + (connOf("gmail") ? " (" + esc(connOf("gmail").name) + ")" : "") + ". It can also read your inbox: add My Gmail to what it keeps an eye on.</div></div>" +
@@ -14472,6 +14503,8 @@ function drawAgentForm(a) {
 }
 // ---- Celestin Together's Front desk: a receptionist on a link you share (the server answers customers; see deskChat)
 var DESKS = { bots: [], items: [], at: 0 };
+// its phone: on its Twilio number it answers calls as the business, books, takes messages, puts callers through
+const deskPhoneRow = (b) => connOf("twilio") ? '<div class="row" style="gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap"><label class="chk"><input type="checkbox" data-dkphone="' + b.id + '"' + (b.phone && b.phone.on ? " checked" : "") + "> It answers my phone (" + esc(connOf("twilio").meta.from || "") + ')</label><input class="inp" data-dkfwd="' + b.id + '" placeholder="Put callers through to (your own phone, optional)" value="' + esc((b.phone && b.phone.forward) || "") + '" style="flex:1;min-width:200px"></div>' : '<div class="help" style="margin-top:6px"><a href="#" data-dkconn="twilio">Connect phone calls</a> and it answers your business phone too: books, takes messages, puts callers through to you.</div>';
 const deskLink = (id) => location.origin + location.pathname.replace(/[^/]*$/, "") + "talk.html#" + id;
 const deskNew = () => DESKS.items.filter((x) => x.status === "new").length;
 // what a desk did this week, in a few words ("34 people · 112 answers · 6 booked")
@@ -14501,6 +14534,7 @@ function openDesks(edit) {
 	openModal('<h2>Front desk</h2><p class="sub">A receptionist for your business on a link you share (your WhatsApp, Instagram or website): it answers your customers day and night from what you tell it, books them at the times you\'re free (set its hours), and passes messages and anything it can\'t answer to you here. Your answer reaches them in the same chat.</p><div id="deskBox"></div>', "wide");
 	drawDesks(edit);
 	syncDesks(true);
+	if (!CONNS.at) syncConns().then(() => { if ($("#deskBox") && !$("#dkSave")) drawDesks(); });
 }
 // its booking hours: the days (Monday first), open and close, how long each booking takes, how many at once
 const DESK_DAYS = [[1, "Mon"], [2, "Tue"], [3, "Wed"], [4, "Thu"], [5, "Fri"], [6, "Sat"], [0, "Sun"]];
@@ -14546,12 +14580,14 @@ function drawDesks(edit) {
 	const head = (it) => it.kind === "booking" && it.slot ? (it.status === "cancelled" ? "Cancelled · " : "Booked · ") + slotText(it.slot) : kind[it.kind] || "Message";
 	box.innerHTML = DESKS.bots.map((b) => '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(b.name) + '</b><span class="help">' + creditsText(b.today) + " credits today</span></div>" + (deskWeek(b) ? '<div class="help" style="margin-top:2px">This week: ' + esc(deskWeek(b)) + "</div>" : "") +
 		'<div class="row" style="gap:8px;margin-top:6px"><input class="inp" readonly value="' + esc(deskLink(b.id)) + '" aria-label="Its link" style="flex:1;min-width:0"><button class="btn" data-dkcopy="' + b.id + '">Copy link</button><a class="btn" href="' + esc(deskLink(b.id)) + '" target="_blank" rel="noopener">Open</a></div>' +
-		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-dkedit="' + b.id + '">Edit</button><button class="btn" data-dkdel="' + b.id + '">Delete</button></div></div>').join("") +
+		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-dkedit="' + b.id + '">Edit</button><button class="btn" data-dkdel="' + b.id + '">Delete</button></div>' + deskPhoneRow(b) + "</div>").join("") +
 		'<div class="field"><label>Inbox' + (deskNew() ? " · " + deskNew() + " new" : "") + "</label>" + (DESKS.items.length ? DESKS.items.slice(0, 40).map((it) => '<div class="desk-it' + (it.status === "new" ? " new" : "") + (it.status === "cancelled" ? " off" : "") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(head(it)) + "</b><span class=\"help\">" + esc(it.botName) + " · " + new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + '</span></div><div>' + esc(it.summary || "") + "</div>" + (it.details && (it.details.name || it.details.contact || it.details.when) ? '<div class="help">' + esc([it.details.name, it.details.contact, it.details.when].filter(Boolean).join(" · ")) + "</div>" : "") +
 			(it.kind === "reminder"
 				? '<div style="white-space:pre-wrap;margin:4px 0">' + esc(it.details.text || "") + '</div><div class="row" style="gap:8px;margin-top:6px">' + (it.details.link ? '<a class="btn dark" href="' + esc(it.details.link) + '" target="_blank" rel="noopener" data-dkrem="' + it.id + '">Send on WhatsApp</a>' : "") + (it.status === "new" ? '<button class="btn" data-dkdone="' + it.id + '">Done</button>' : "") + "</div></div>"
 				: '<div class="row" style="gap:8px;margin-top:6px"><input class="inp" placeholder="Reply to them…" data-dkreply="' + it.id + '" style="flex:1;min-width:0"><button class="btn dark" data-dksend="' + it.id + '">Send</button>' + (it.status === "new" ? '<button class="btn" data-dkdone="' + it.id + '">Done</button>' : "") + (it.kind === "booking" && it.slot && it.status !== "cancelled" ? '<button class="btn" data-dkcancel="' + it.id + '">Cancel booking</button>' : "") + '<button class="btn" data-dkchat="' + it.bot + "|" + it.visitor + '">See chat</button></div><div class="dk-chat" id="dkc-' + it.id + '"></div></div>')).join("") : '<div class="help">Nothing yet. Share its link, and what it passes on shows up here.</div>') + "</div>" +
 		'<div class="row" style="justify-content:flex-end"><button class="btn" data-dkedit="new">Add another front desk</button></div>';
+	$$("[data-dkphone]").forEach((x) => (x.onchange = async () => { try { await api("/api/bots/" + x.dataset.dkphone + "/phone", { method: "POST", body: JSON.stringify({ on: x.checked, forward: ($('[data-dkfwd="' + x.dataset.dkphone + '"]') || {}).value || "", models: bestFor("reader").slice(0, 2).map((m) => m.id) }) }); toast(x.checked ? "It answers your phone now" : "Your phone rings as before"); } catch (e) { x.checked = !x.checked; toast(e.message || String(e)); } await syncDesks(true); }));
+	$$("[data-dkconn]").forEach((x) => (x.onclick = (e) => { e.preventDefault(); openConns(x.dataset.dkconn); }));
 	$$("[data-dkcopy]").forEach((x) => (x.onclick = () => { navigator.clipboard.writeText(deskLink(x.dataset.dkcopy)).then(() => toast("Link copied: share it with your customers"), () => {}); }));
 	$$("[data-dkedit]").forEach((x) => (x.onclick = () => drawDesks(x.dataset.dkedit)));
 	$$("[data-dkdel]").forEach((x) => (x.onclick = async () => { if (!confirm("Delete this front desk, its chats and its inbox? Its link stops working.")) return; await api("/api/bots/" + x.dataset.dkdel, { method: "DELETE" }).catch(() => {}); await syncDesks(true); drawDesks(); }));
