@@ -1748,6 +1748,7 @@ html[data-app="together"] .welcome.together .greet { font-size: clamp(30px, 4vw,
 html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-weight: 500; color: var(--muted); letter-spacing: -.01em; }
 html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
+.desk-it.off { opacity: .6; }
 .convos .bring { display: block; margin: 2px 10px 8px; padding: 0; border: 0; background: none; color: var(--brand); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .convos .bring:hover { text-decoration: underline; }
 html[data-app="together"] .sug { border-radius: 18px; background: var(--bg2); border-color: transparent; padding: 10px 14px; }
@@ -7181,7 +7182,7 @@ function renderTogetherWelcome() {
 	const sugs = [["Team", "Plan and build a landing page for my coffee shop"], ["@Researcher", "Every weekday at 7, the AI news that matters, with sources"], ["@Analyst", "Make a monthly budget for a student with Rp2jt"], ["Team", "Research the best study methods, then make me flashcards"]];
 	// (always on: what the teammates keep doing by themselves, from the last look at the tasks)
 	const on = TEAM_TASKS.slice(0, 4).map((t) => '<button class="aon" data-tasks="1"><i style="--c:' + MATE[t.member].c + '"></i><b>' + esc(MATE[t.member].name) + "</b> " + esc(t.title.length > 48 ? t.title.slice(0, 46).trimEnd() + "…" : t.title) + ' <span class="when">' + esc(whenText(t)) + "</span></button>").join("");
-	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night") : "A receptionist on a link you share: answers customers day and night, passes bookings to you") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
+	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night") : "A receptionist on a link you share: answers customers day and night and books them at your free times") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
 	const jobsHtml = Object.entries(JOB_INFO).map(([k, x]) => { const mine = JOBS.jobs.filter((j) => j.kind === k), r = jobReady(k); return '<button class="tw-job" data-job="' + k + '"><span class="tav" style="--c:' + x.c + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + x.icon + '</svg></span><span class="twj"><b>' + esc(x.name) + "</b><span>" + esc(mine.length ? (r ? r + " ready for you" : "On, working by itself") : x.what) + '</span></span><span class="twgo">' + (mine.length ? (r ? "Open" : "Open") : "Set it up") + "</span></button>"; }).join("");
 	$("#view").innerHTML = '<section class="welcome together"><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1><div class="tw-team">' + cards + "</div>" +
 		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + desk + jobsHtml + "</div></section>";
@@ -14083,15 +14084,29 @@ async function syncDesks(quiet) {
 }
 function openDesks(edit) {
 	if (!creditsMode() || !account) { openAccount(); return; }
-	openModal('<h2>Front desk</h2><p class="sub">A receptionist for your business on a link you share (your WhatsApp, Instagram or website): it answers your customers day and night from what you tell it, and passes bookings, messages and anything it can\'t answer to you here. Your answer reaches them in the same chat.</p><div id="deskBox"></div>', "wide");
+	openModal('<h2>Front desk</h2><p class="sub">A receptionist for your business on a link you share (your WhatsApp, Instagram or website): it answers your customers day and night from what you tell it, books them at the times you\'re free (set its hours), and passes messages and anything it can\'t answer to you here. Your answer reaches them in the same chat.</p><div id="deskBox"></div>', "wide");
 	drawDesks(edit);
 	syncDesks(true);
 }
+// its booking hours: the days (Monday first), open and close, how long each booking takes, how many at once
+const DESK_DAYS = [[1, "Mon"], [2, "Tue"], [3, "Wed"], [4, "Thu"], [5, "Fri"], [6, "Sat"], [0, "Sun"]];
+function deskSlotsForm(sl) {
+	const on = !!sl, c = sl || { days: [1, 2, 3, 4, 5, 6], open: "10:00", close: "20:00", minutes: 60, per: 1 };
+	return '<div class="field"><label class="chk"><input type="checkbox" id="dkBook"' + (on ? " checked" : "") + '> It books by itself, at the times you\'re free</label>' +
+		'<div id="dkSlots"' + (on ? "" : " hidden") + ' style="margin-top:8px"><div class="row" style="gap:10px;flex-wrap:wrap;margin-bottom:8px">' + DESK_DAYS.map(([n, l]) => '<label class="chk"><input type="checkbox" data-dkday="' + n + '"' + (c.days.includes(n) ? " checked" : "") + "> " + l + "</label>").join("") + "</div>" +
+		'<div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:110px"><label for="dkOpen">Opens</label><input class="inp" type="time" id="dkOpen" value="' + esc(c.open) + '"></div><div class="field" style="flex:1;min-width:110px"><label for="dkClose">Closes</label><input class="inp" type="time" id="dkClose" value="' + esc(c.close) + '"></div>' +
+		'<div class="field" style="flex:1;min-width:130px"><label for="dkMin">Each booking (minutes)</label><input class="inp" type="number" id="dkMin" min="10" max="480" step="5" value="' + c.minutes + '"></div><div class="field" style="flex:1;min-width:110px"><label for="dkPer">At the same time</label><input class="inp" type="number" id="dkPer" min="1" max="50" value="' + c.per + '"></div></div>' +
+		'<div class="help">It offers only times that are still free, confirms them itself and never double-books. The day before each one, a reminder is ready here for you to send on WhatsApp.</div></div></div>';
+}
+const deskSlotsValue = () => $("#dkBook") && $("#dkBook").checked ? { days: $$("[data-dkday]").filter((x) => x.checked).map((x) => +x.dataset.dkday), open: $("#dkOpen").value, close: $("#dkClose").value, minutes: +$("#dkMin").value, per: +$("#dkPer").value } : null;
+// a booked time, the way people say it ("Mon 9 Nov, 10:00")
+const slotText = (x) => { const d = new Date(String(x).replace(" ", "T") + ":00Z"); return isNaN(d) ? String(x) : d.toLocaleDateString([], { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }) + ", " + String(x).slice(11); };
 function deskForm(d) {
 	d = d || {};
 	return '<div class="field"><label for="dkName">Your business</label><input class="inp" id="dkName" maxlength="60" placeholder="e.g. Kopi Senja" value="' + esc(d.name || "") + '"></div>' +
 		'<div class="field"><label for="dkIntro">How it says hello</label><input class="inp" id="dkIntro" maxlength="300" placeholder="Hi! I\'m Kopi Senja\'s front desk. How can I help?" value="' + esc(d.intro || "") + '"></div>' +
 		'<div class="field"><label for="dkBrief">What it should know</label><textarea class="inp" id="dkBrief" rows="7" maxlength="8000" placeholder="What you do and where. Opening hours. Services or menu with prices. How bookings or orders work (how far ahead, how many people, deposits). Delivery, payment, parking. What it must never promise.">' + esc(d.brief || "") + "</textarea></div>" +
+		deskSlotsForm(d.slots) +
 		'<div class="help" style="margin:-4px 0 12px">It runs on your credits, day and night, with no daily limit: about one credit for every few customer messages.</div>' +
 		'<div class="status" id="dkStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px">' + (d.id ? '<button class="btn" id="dkCancel">Cancel</button>' : "") + '<button class="btn dark" id="dkSave">' + (d.id ? "Save" : "Open the front desk") + "</button></div>";
 }
@@ -14102,22 +14117,26 @@ function drawDesks(edit) {
 	if (ed || !DESKS.bots.length) {
 		box.innerHTML = deskForm(ed || {});
 		if ($("#dkCancel")) $("#dkCancel").onclick = () => drawDesks();
+		$("#dkBook").onchange = () => { $("#dkSlots").hidden = !$("#dkBook").checked; };
 		$("#dkSave").onclick = async () => {
 			$("#dkSave").disabled = true;
 			try {
-				await api("/api/bots", { method: "POST", body: JSON.stringify({ id: ed && ed.id, name: $("#dkName").value, intro: $("#dkIntro").value, brief: $("#dkBrief").value, cap: 0, tz: -new Date().getTimezoneOffset(), models: deskModels() }) });
+				await api("/api/bots", { method: "POST", body: JSON.stringify({ id: ed && ed.id, name: $("#dkName").value, intro: $("#dkIntro").value, brief: $("#dkBrief").value, cap: 0, tz: -new Date().getTimezoneOffset(), models: deskModels(), slots: deskSlotsValue() }) });
 				await syncDesks(true);
 				drawDesks();
 			} catch (e) { $("#dkStatus").className = "status bad"; $("#dkStatus").textContent = e.message || String(e); $("#dkSave").disabled = false; }
 		};
 		return;
 	}
-	const kind = { booking: "Booking", message: "Message", question: "Question" };
+	const kind = { booking: "Booking", message: "Message", question: "Question", reminder: "Reminder" };
+	const head = (it) => it.kind === "booking" && it.slot ? (it.status === "cancelled" ? "Cancelled · " : "Booked · ") + slotText(it.slot) : kind[it.kind] || "Message";
 	box.innerHTML = DESKS.bots.map((b) => '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(b.name) + '</b><span class="help">' + creditsText(b.today) + " credits today</span></div>" +
 		'<div class="row" style="gap:8px;margin-top:6px"><input class="inp" readonly value="' + esc(deskLink(b.id)) + '" aria-label="Its link" style="flex:1;min-width:0"><button class="btn" data-dkcopy="' + b.id + '">Copy link</button><a class="btn" href="' + esc(deskLink(b.id)) + '" target="_blank" rel="noopener">Open</a></div>' +
 		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-dkedit="' + b.id + '">Edit</button><button class="btn" data-dkdel="' + b.id + '">Delete</button></div></div>').join("") +
-		'<div class="field"><label>Inbox' + (deskNew() ? " · " + deskNew() + " new" : "") + "</label>" + (DESKS.items.length ? DESKS.items.slice(0, 40).map((it) => '<div class="desk-it' + (it.status === "new" ? " new" : "") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(kind[it.kind] || "Message") + "</b><span class=\"help\">" + esc(it.botName) + " · " + new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + '</span></div><div>' + esc(it.summary || "") + "</div>" + (it.details && (it.details.name || it.details.contact || it.details.when) ? '<div class="help">' + esc([it.details.name, it.details.contact, it.details.when].filter(Boolean).join(" · ")) + "</div>" : "") +
-			'<div class="row" style="gap:8px;margin-top:6px"><input class="inp" placeholder="Reply to them…" data-dkreply="' + it.id + '" style="flex:1;min-width:0"><button class="btn dark" data-dksend="' + it.id + '">Send</button>' + (it.status === "new" ? '<button class="btn" data-dkdone="' + it.id + '">Done</button>' : "") + '<button class="btn" data-dkchat="' + it.bot + "|" + it.visitor + '">See chat</button></div><div class="dk-chat" id="dkc-' + it.id + '"></div></div>').join("") : '<div class="help">Nothing yet. Share its link, and what it passes on shows up here.</div>') + "</div>" +
+		'<div class="field"><label>Inbox' + (deskNew() ? " · " + deskNew() + " new" : "") + "</label>" + (DESKS.items.length ? DESKS.items.slice(0, 40).map((it) => '<div class="desk-it' + (it.status === "new" ? " new" : "") + (it.status === "cancelled" ? " off" : "") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(head(it)) + "</b><span class=\"help\">" + esc(it.botName) + " · " + new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + '</span></div><div>' + esc(it.summary || "") + "</div>" + (it.details && (it.details.name || it.details.contact || it.details.when) ? '<div class="help">' + esc([it.details.name, it.details.contact, it.details.when].filter(Boolean).join(" · ")) + "</div>" : "") +
+			(it.kind === "reminder"
+				? '<div style="white-space:pre-wrap;margin:4px 0">' + esc(it.details.text || "") + '</div><div class="row" style="gap:8px;margin-top:6px">' + (it.details.link ? '<a class="btn dark" href="' + esc(it.details.link) + '" target="_blank" rel="noopener" data-dkrem="' + it.id + '">Send on WhatsApp</a>' : "") + (it.status === "new" ? '<button class="btn" data-dkdone="' + it.id + '">Done</button>' : "") + "</div></div>"
+				: '<div class="row" style="gap:8px;margin-top:6px"><input class="inp" placeholder="Reply to them…" data-dkreply="' + it.id + '" style="flex:1;min-width:0"><button class="btn dark" data-dksend="' + it.id + '">Send</button>' + (it.status === "new" ? '<button class="btn" data-dkdone="' + it.id + '">Done</button>' : "") + (it.kind === "booking" && it.slot && it.status !== "cancelled" ? '<button class="btn" data-dkcancel="' + it.id + '">Cancel booking</button>' : "") + '<button class="btn" data-dkchat="' + it.bot + "|" + it.visitor + '">See chat</button></div><div class="dk-chat" id="dkc-' + it.id + '"></div></div>')).join("") : '<div class="help">Nothing yet. Share its link, and what it passes on shows up here.</div>') + "</div>" +
 		'<div class="row" style="justify-content:flex-end"><button class="btn" data-dkedit="new">Add another front desk</button></div>';
 	$$("[data-dkcopy]").forEach((x) => (x.onclick = () => { navigator.clipboard.writeText(deskLink(x.dataset.dkcopy)).then(() => toast("Link copied: share it with your customers"), () => {}); }));
 	$$("[data-dkedit]").forEach((x) => (x.onclick = () => drawDesks(x.dataset.dkedit)));
@@ -14125,6 +14144,9 @@ function drawDesks(edit) {
 	const act = async (iid, body) => { await api("/api/bots/items/" + iid, { method: "POST", body: JSON.stringify(body) }).catch((e) => toast(e.message || String(e))); await syncDesks(true); };
 	$$("[data-dksend]").forEach((x) => (x.onclick = () => { const v = $('[data-dkreply="' + x.dataset.dksend + '"]').value.trim(); if (v) { const q = (DESKS.items.find((y) => y.id === x.dataset.dksend) || {}).kind === "question"; act(x.dataset.dksend, { status: "done", reply: v }).then(() => toast(q ? "Sent, and your front desk knows the answer from now on" : "Sent: they'll see it in their chat")); } }));
 	$$("[data-dkdone]").forEach((x) => (x.onclick = () => act(x.dataset.dkdone, { status: "done" })));
+	$$("[data-dkrem]").forEach((x) => x.addEventListener("click", () => setTimeout(() => act(x.dataset.dkrem, { status: "done" }), 400)));
+	// (its time is free again; what's written in the reply box goes to them with it)
+	$$("[data-dkcancel]").forEach((x) => (x.onclick = () => { if (!confirm("Cancel this booking? Its time becomes free again.")) return; const v = ($('[data-dkreply="' + x.dataset.dkcancel + '"]') || {}).value || ""; act(x.dataset.dkcancel, { status: "cancelled", ...(v.trim() ? { reply: v.trim() } : {}) }).then(() => toast(v.trim() ? "Cancelled, and they've been told" : "Cancelled: the time is free again")); }));
 	$$("[data-dkchat]").forEach((x) => (x.onclick = async () => {
 		const [bot, visitor] = x.dataset.dkchat.split("|"), box2 = x.closest(".desk-it").querySelector(".dk-chat");
 		try { const j = await api("/api/bots/convo?bot=" + bot + "&visitor=" + encodeURIComponent(visitor)); box2.innerHTML = j.msgs.map((m) => '<div class="dk-m ' + m.role + '">' + esc(m.text) + "</div>").join(""); } catch (e) { box2.textContent = e.message || String(e); }
