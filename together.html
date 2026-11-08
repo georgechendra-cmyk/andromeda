@@ -1990,6 +1990,7 @@ html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-
 			<button class="icon" id="artReload" title="Start it again" aria-label="Start it again"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
 			<button class="icon" id="artCopy" title="Copy the code" aria-label="Copy the code"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/><rect x="3" y="8" width="13" height="13" rx="2"/></svg></button>
 			<button class="icon" id="artDl" title="Download" aria-label="Download"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
+			<button class="icon" id="art3d" title="Download the 3D model" aria-label="Download the 3D model" hidden><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9Z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
 			<button class="icon" id="artTab" title="Open in a new tab" aria-label="Open in a new tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></button>
 			<button class="icon" id="artFull" title="Full screen" aria-label="Full screen"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 			<button class="icon" id="artClose" title="Close" aria-label="Close"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
@@ -8999,6 +9000,7 @@ async function buildApp(text, atts, pick) {
 		"- Design it like a top product studio (Apple's restraint, Emil Kowalski's craft), never the generic AI look. Never: Roboto, Arial, or plain Inter or an unstyled system font as the whole look; purple or blue gradients; glowing or neon buttons; glass blur everywhere; gradient text; emoji as icons; a centred hero over three equal feature cards; stock phrases (unlock, seamless, elevate, supercharge). Instead: a type pairing chosen for this subject (a characterful display face and a quiet text face) on a real type scale; a restrained palette taken from the subject (neutrals and one accent), light or dark as fits it; a layout built for the content (asymmetry where it helps, varied section rhythm, clear hierarchy, generous whitespace, edges that line up on an 8px grid); the details done properly (hover and pressed states without glows, visible keyboard focus, empty, loading and error states); motion with a purpose: 150 to 300 ms, ease-out, transform and opacity only, nothing looping for no reason, and prefers-reduced-motion respected. Responsive down to a phone; keyboard support where it makes sense. A game: one consistent art style and a clean, readable HUD.\n" +
 		"- A game or simulation: play it through in your head before you finish. Every computer-controlled player or character acts in every state (one holding the ball passes, shoots or runs on; none just stands there), every timer and cooldown really runs out (never reset or counted back every frame), starting positions and rules follow the real thing (at a football kick-off each team is in its own half), and every control does what it says.\n" +
 		"- A game feels right: movement works with both WASD and the arrow keys unless asked otherwise; players and vehicles speed up and slow down (never full speed or a dead stop at once) and a ball rolls on with momentum and slows with friction; computer players think for themselves, each keeping its own position and job, reacting to the ball after a short delay and sometimes getting it wrong (difficulty changes how often), and never copying or mirroring the person's moves; it never restarts, resets or pauses by itself (only a goal, the clock or a key the person presses does that).\n" +
+		(MODEL3D_RE.test(text) ? "- It's a 3D model they'll use elsewhere (to sell, print or put in a game): they download what's on screen as .glb, .stl or .obj, so build it as a real object: real-world size in metres, its parts as separate meshes with clear names, MeshStandardMaterial with real colours, roughness and metalness, smooth enough geometry (enough segments), and nothing else in the scene that would end up in the file (no ground, grid, helpers or text); show it on a turntable with good studio lighting.\n" : "") +
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
 		"- Don't store anything the app can't lose (no localStorage needed).\n" +
 		"OUTPUT FORMAT, exactly, nothing before or after:\n=== FILE: index.html ===\n(full file)\n=== FILE: style.css ===\n(full file)\n=== NOTES ===\n(2-4 short plain sentences: what you built or changed and how to use it)\n" +
@@ -13129,6 +13131,51 @@ function loadArtNext() {
 	ART_NEXT = null;
 	drawArt();
 }
+// ---- 3D models out of an app: three.js's own exporters (r128, as THREE_SRC) and a hook keeping the scene it draws
+// a request for a 3D model to use elsewhere (not a game or a scene to explore)
+const MODEL3D_RE = /\b(3d|three\.?js)\b[^.?!]{0,40}\b(model|object|product|asset|mesh|print|printable)\b|\b(model|asset|mesh)\b[^.?!]{0,30}\b(3d|glb|gltf|stl|obj|blender)\b|\b(glb|gltf|stl)\b/i;
+const THREE_SCRIPT_RE = /<script[^>]+three(?:\.min)?\.js[^>]*>\s*<\/script>/i;
+let EXPORT3D = null, EXPORT3D_LOADING = null;
+function loadExport3d() {
+	if (EXPORT3D || EXPORT3D_LOADING) return EXPORT3D_LOADING;
+	const base = "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/exporters/";
+	EXPORT3D_LOADING = Promise.all(["GLTFExporter.js", "STLExporter.js", "OBJExporter.js"].map((f) => fetch(base + f).then((r) => { if (!r.ok) throw new Error(f); return r.text(); })))
+		.then((src) => {
+			const bridge = "(function(){if(!window.THREE||!THREE.WebGLRenderer)return;var W=THREE.WebGLRenderer;THREE.WebGLRenderer=function(p){var r=new W(p),R=r.render;r.render=function(s,c){if(s&&s.isScene)window.__celestinScene=s;return R.apply(this,arguments)};return r};THREE.WebGLRenderer.prototype=W.prototype;var S=THREE.Scene;try{THREE.Scene=function(){var x=new S();window.__celestinLast=x;return x};THREE.Scene.prototype=S.prototype}catch(e){};addEventListener('message',function(e){var d=e.data||{};if(!d.celestinExport)return;var s=window.__celestinScene||window.__celestinLast,reply=function(x){x.celestinModel=d.celestinExport;parent.postMessage(x,'*')};if(!s)return reply({error:'no-scene'});try{if(d.celestinExport==='glb')new THREE.GLTFExporter().parse(s,function(r){reply({data:r})},{binary:true,onlyVisible:true});else if(d.celestinExport==='stl')reply({data:new THREE.STLExporter().parse(s,{binary:true}).buffer});else reply({data:new THREE.OBJExporter().parse(s)})}catch(err){reply({error:String(err&&err.message||err)})}})})();";
+			EXPORT3D = "<script>" + src.join("\n").replace(/<\/script/gi, "<\\/script") + "\n" + bridge + "<\/script>";
+			return EXPORT3D;
+		})
+		.catch(() => { EXPORT3D_LOADING = null; return null; });
+	return EXPORT3D_LOADING;
+}
+const isThreeApp = (a) => !!(a && a.kind === "app" && THREE_SCRIPT_RE.test(String(a.doc || "")));
+const withExport3d = (doc) => (EXPORT3D && THREE_SCRIPT_RE.test(doc) ? doc.replace(THREE_SCRIPT_RE, (x) => x + EXPORT3D) : doc);
+function export3d(fmt) {
+	const f = $("#artBody .art-frame");
+	if (!f || !f.contentWindow) return;
+	const name = (String((ART && ART.title) || "model").replace(/[^\w -]+/g, "").trim().replace(/\s+/g, "-").slice(0, 40) || "model") + "." + fmt;
+	let done = false;
+	const on = (e) => {
+		if (e.source !== f.contentWindow || !e.data || e.data.celestinModel !== fmt) return;
+		done = true;
+		removeEventListener("message", on);
+		if (e.data.error || !e.data.data) { toast(e.data.error === "no-scene" ? "There's no 3D model on screen yet: let it load, then try again" : "That model couldn't be saved as ." + fmt); return; }
+		saveBlob(new Blob([e.data.data], { type: fmt === "glb" ? "model/gltf-binary" : fmt === "stl" ? "model/stl" : "text/plain" }), name);
+		toast("Saved " + name);
+	};
+	addEventListener("message", on);
+	f.contentWindow.postMessage({ celestinExport: fmt }, "*");
+	setTimeout(() => { if (!done) { removeEventListener("message", on); toast("This app didn't hand over a 3D model"); } }, 12000);
+}
+$("#art3d").onclick = () => {
+	openModal('<h2>Download the 3D model</h2><p class="sub">What\'s on screen now, as a file you own: use it, edit it, print it or sell it.</p>' +
+		'<div class="field"><button class="btn dark" data-x3d="glb" style="width:100%;justify-content:space-between"><span>.glb</span><small>games, AR, Blender, online stores and marketplaces</small></button></div>' +
+		'<div class="field"><button class="btn" data-x3d="stl" style="width:100%;justify-content:space-between"><span>.stl</span><small>3D printing</small></button></div>' +
+		'<div class="field"><button class="btn" data-x3d="obj" style="width:100%;justify-content:space-between"><span>.obj</span><small>most 3D apps</small></button></div>' +
+		'<div class="row" style="justify-content:flex-end"><button class="btn" id="x3dNo">Close</button></div>');
+	$$("[data-x3d]").forEach((b) => (b.onclick = () => { closeModal(); export3d(b.dataset.x3d); }));
+	$("#x3dNo").onclick = () => closeModal();
+};
 function drawArt() {
 	const a = ART;
 	$("#artNext").hidden = !(a && ART_NEXT);
@@ -13147,6 +13194,7 @@ function drawArt() {
 	$("#artTab").hidden = isDoc || building;
 	$("#artCopy").hidden = $("#artDl").hidden = building;
 	$("#artReload").hidden = $("#artFull").hidden = isDoc || building || a.view !== "preview";
+	$("#art3d").hidden = !isThreeApp(a) || a.view !== "preview";
 	if (isDoc) { $("#artViews").hidden = true; drawCanvas(); return; }
 	const body = $("#artBody");
 	if (a.view === "preview") {
@@ -13155,7 +13203,9 @@ function drawArt() {
 		f.setAttribute("sandbox", a.sandbox || "allow-scripts");
 		f.setAttribute("allow", "fullscreen; clipboard-write");
 		f.setAttribute("title", a.title);
-		f.srcdoc = a.doc || "<p style='font-family:sans-serif;padding:20px'>Nothing to show yet.</p>";
+		// (a three.js app: its 3D model can be downloaded; the exporters load the first time, then it starts again with them)
+		if (isThreeApp(a) && !EXPORT3D) loadExport3d().then((x) => { if (x && ART === a && a.view === "preview") drawArt(); });
+		f.srcdoc = a.doc ? (isThreeApp(a) ? withExport3d(a.doc) : a.doc) : "<p style='font-family:sans-serif;padding:20px'>Nothing to show yet.</p>";
 	} else {
 		const file = artFile(), k = a.files.indexOf(file);
 		body.innerHTML = (a.files.length > 1 ? '<div class="app-tabs art-files">' + a.files.map((x, n) => '<button class="app-tab' + (n === k ? " on" : "") + '" data-artfile="' + n + '">' + esc(x.name) + "</button>").join("") + "</div>" : "") + '<pre class="art-code"><code class="hljs"></code></pre>';
