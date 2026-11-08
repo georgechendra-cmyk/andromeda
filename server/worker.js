@@ -2017,7 +2017,11 @@ async function chat(req, env, ctx, user) {
 		} finally {
 			// cut off before a word came, after a long wait: too slow at this level (unless it was the person who went away)
 			if (!gone && !outChars && !used() && now() - started >= 80e3) await tooSlow(env, b.model, effort);
-			await settle(outChars || used() ? way : null, used(), outChars);
+			// (the person stopped it, or went away, while the model was still thinking: the gateway took the request and bills
+			// what it read, so that much is charged, like the labs' own APIs. Found Nov 8: a stop before the first word charged
+			// nothing, and the owner paid the input of every one: each Stop, each stalled retry, six at once in a Together run)
+			// (with no count from the gateway: about 4 characters a token, the usual, not the reserve's cautious 3)
+			await settle(outChars || used() || gone ? way : null, used() || (gone && !outChars ? { prompt_tokens: Math.ceil(inTokens * 0.75) } : null), outChars);
 			try { await writer.close(); } catch {}
 		}
 	})());
