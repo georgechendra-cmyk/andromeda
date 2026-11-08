@@ -1999,6 +1999,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<button class="nav-i tg-only" id="tgDeskNav" style="--c:#30b0c7" data-tip="Front desk: your receptionist on a link" aria-label="Front desk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg><span class="lbl">Front desk</span><span class="nb" id="tgDeskNb"></span></button>
 			<button class="nav-i tg-only" id="tgMarketNav" style="--c:#ff9500" data-tip="Marketing: posts at the right moment" aria-label="Marketing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="lbl">Marketing</span><span class="nb" id="tgMarketNb"></span></button>
 			<button class="nav-i tg-only" id="tgBackNav" style="--c:#34c759" data-tip="Bring customers back: messages ready to send" aria-label="Bring customers back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Customers</span><span class="nb" id="tgBackNb"></span></button>
+			<button class="nav-i tg-only" id="tgConnNav" style="--c:#0a84ff" data-tip="Accounts: Telegram, Discord, Bluesky, X: post and message by itself" aria-label="Accounts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span class="lbl">Accounts</span></button>
 			<button class="nav-i" id="togetherNav" data-tip="Celestin Together: a team in your chat" aria-label="Celestin Together"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/></svg><span class="lbl">Together</span></button>
 			<button class="nav-i nav-search" id="searchNav" data-tip="Search chats" aria-label="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="lbl">Search chats</span></button>
 			<button class="nav-i" id="chatsNav" data-tip="Your chats" aria-label="Your chats" aria-expanded="false" aria-controls="sbPanel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span class="lbl">Chats</span></button>
@@ -13106,6 +13107,7 @@ if (TOGETHER_APP) {
 	$(".brand-link").title = "Celestin Together's home page";
 	$("#tgDeskNav").onclick = () => { openSidebar(false); openDesks(); };
 	$("#tgAgentNav").onclick = () => { openSidebar(false); openAgents(); };
+	$("#tgConnNav").onclick = () => { openSidebar(false); openConns(); };
 	$("#tgMarketNav").onclick = () => { openSidebar(false); openJob("marketing"); };
 	$("#tgBackNav").onclick = () => { openSidebar(false); openJob("winback"); };
 }
@@ -14100,14 +14102,14 @@ function openJob(kind, prefill) {
 function jobForm(kind, d, pre) {
 	d = d || {}; const c = d.config || {}; pre = pre || {};
 	const desk = DESKS.bots[0], v = (x, y) => esc(x != null && x !== "" ? x : y || "");
-	const plats = ["x", "instagram", "tiktok", "linkedin", "threads", "facebook"], on = c.platforms || pre.platforms || ["x"];
+	const plats = ["x", "bluesky", "telegram", "discord", "instagram", "tiktok", "linkedin", "threads", "facebook"], on = c.platforms || pre.platforms || ["x"];
 	return '<div class="field"><label for="jbName">' + (kind === "marketing" ? "Your brand" : "Your business") + '</label><input class="inp" id="jbName" maxlength="60" value="' + v(d.name, pre.name || (desk && desk.name)) + '"></div>' +
 		'<div class="field"><label for="jbBrief">About it</label><textarea class="inp" id="jbBrief" rows="5" maxlength="6000" placeholder="What you do, for whom, what makes you different, your prices and offers, how you talk (friendly, premium, playful…)">' + v(c.brief, pre.brief || (desk && desk.brief)) + "</textarea></div>" +
 		'<div class="field"><label for="jbGoal">' + (kind === "marketing" ? "What you want from it" : "What the messages are for") + '</label><input class="inp" id="jbGoal" maxlength="1000" placeholder="' + (kind === "marketing" ? "More sign-ups from students; launch week for our new menu" : "Invite them back to book; 10% off this month for regulars") + '" value="' + v(c.goal, pre.goal) + '"></div>' +
 		(kind === "winback" ? '<div class="field"><label for="jbList">Your customers</label><textarea class="inp" id="jbList" rows="6" placeholder="One per line: name, phone, and anything worth remembering&#10;Rina, 0812-3456-7890, short bob, last came 6 weeks ago&#10;Budi, 0813-1111-2222, always orders kopi susu">' + v((c.customers || []).map((x) => [x.name, x.phone, x.notes].filter(Boolean).join(", ")).join("\n")) + '</textarea><div class="help">Each one gets their own message, written for them. Nobody gets another within the days below.</div></div>' +
 			'<div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:160px"><label for="jbEvery">Again after (days)</label><input class="inp" id="jbEvery" type="number" min="7" max="180" value="' + (c.every || 30) + '"></div><div class="field" style="flex:2;min-width:220px"><label for="jbLink">Where they book or reply</label><input class="inp" id="jbLink" placeholder="Your front desk link, or your booking page" value="' + v(c.link, desk ? deskLink(desk.id) : "") + '"></div></div>'
 			: '<div class="field"><label for="jbTopic">The topic to ride</label><input class="inp" id="jbTopic" maxlength="120" placeholder="e.g. artificial intelligence, coffee, skincare" value="' + v(c.topic, pre.topic) + '"><div class="help">When it spikes in the news, a post goes out right then.</div></div>' +
-			'<div class="field"><label>Where</label><div class="row" style="gap:12px;flex-wrap:wrap">' + plats.map((p) => '<label class="chk"><input type="checkbox" data-plat="' + p + '"' + (on.includes(p) ? " checked" : "") + "> " + { x: "X", instagram: "Instagram", tiktok: "TikTok", linkedin: "LinkedIn", threads: "Threads", facebook: "Facebook" }[p] + "</label>").join("") + '</div></div><div class="field"><label for="jbPer">Posts a day</label><input class="inp" id="jbPer" type="number" min="1" max="6" value="' + (c.perDay || 1) + '" style="max-width:120px"></div>') +
+			'<div class="field"><label>Where</label><div class="row" style="gap:12px;flex-wrap:wrap">' + plats.map((p) => '<label class="chk"><input type="checkbox" data-plat="' + p + '"' + (on.includes(p) ? " checked" : "") + "> " + { x: "X", bluesky: "Bluesky", telegram: "Telegram", discord: "Discord", instagram: "Instagram", tiktok: "TikTok", linkedin: "LinkedIn", threads: "Threads", facebook: "Facebook" }[p] + "</label>").join("") + '</div><label class="chk" style="margin-top:8px"><input type="checkbox" id="jbAuto"' + (c.auto ? " checked" : "") + '> Post it for me, by itself, to my connected accounts</label><div class="help">' + ((CONNS.conns || []).length ? "Connected: " + CONNS.conns.map((x) => (CONN_INFO[x.kind] || { name: x.kind }).name).join(", ") + ". " : "") + '<a href="#" id="jbConn">Connect X, Bluesky, Telegram or Discord</a>. The others stay one tap.</div></div><div class="field"><label for="jbPer">Posts a day</label><input class="inp" id="jbPer" type="number" min="1" max="6" value="' + (c.perDay || 1) + '" style="max-width:120px"></div>') +
 		'<div class="field"><label for="jbLang">Language</label><input class="inp" id="jbLang" maxlength="30" placeholder="Bahasa Indonesia, English…" value="' + v(c.lang, pre.lang) + '"></div>' +
 		'<div class="status" id="jbStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px">' + (d.id ? '<button class="btn" id="jbCancel">Cancel</button>' : "") + '<button class="btn dark" id="jbSave">' + (d.id ? "Save" : "Start it") + "</button></div>";
 }
@@ -14122,11 +14124,12 @@ function drawJob(kind, edit, pre) {
 	if (ed || !mine.length) {
 		box.innerHTML = jobForm(kind, ed, pre);
 		if ($("#jbCancel")) $("#jbCancel").onclick = () => drawJob(kind);
+		if ($("#jbConn")) $("#jbConn").onclick = (e) => { e.preventDefault(); openConns(); };
 		$("#jbSave").onclick = async () => {
 			$("#jbSave").disabled = true;
 			const config = { brief: $("#jbBrief").value, goal: $("#jbGoal").value, lang: $("#jbLang").value, tz: -new Date().getTimezoneOffset() };
 			if (kind === "winback") Object.assign(config, { customers: $("#jbList").value, every: +$("#jbEvery").value, link: $("#jbLink").value });
-			else Object.assign(config, { topic: $("#jbTopic").value, perDay: +$("#jbPer").value, platforms: $$("[data-plat]").filter((x) => x.checked).map((x) => x.dataset.plat) });
+			else Object.assign(config, { topic: $("#jbTopic").value, perDay: +$("#jbPer").value, platforms: $$("[data-plat]").filter((x) => x.checked).map((x) => x.dataset.plat), auto: !!($("#jbAuto") && $("#jbAuto").checked) });
 			const models = jobModels();
 			if (kind === "marketing") config.critic = jobCriticModel(models);
 			try {
@@ -14178,6 +14181,47 @@ async function runJobWay(plan, text) {
 	if (kind === "desk") { openDesks("new"); setTimeout(() => { if ($("#dkName") && j.name) $("#dkName").value = j.name; if ($("#dkBrief") && j.brief) $("#dkBrief").value = j.brief; }, 50); return; }
 	openJob(kind, { name: j.name, brief: j.brief, goal: j.goal, topic: j.topic, platforms: j.platforms, lang: j.lang });
 }
+// ---- connected accounts: each person's own Telegram, Discord, Bluesky and X (see connSave on the server)
+var CONNS = { on: false, conns: [] };
+const CONN_INFO = {
+	telegram: { name: "Telegram", c: "#2aabee", what: "Your agents' reports on your phone the moment they find something, and posts to your channel.", how: "In Telegram, open @BotFather, send /newbot and copy the token it gives you. For messages to you: send any message to your new bot. For a channel: add the bot as an admin and write the channel's @name below.", fields: [["token", "Bot token", "123456789:AA…"], ["chat", "Channel (optional)", "@yourchannel, or empty for messages to you"]] },
+	discord: { name: "Discord", c: "#5865f2", what: "Posts and reports in a channel of your server.", how: "In Discord: Server settings → Integrations → Webhooks → New webhook, pick the channel, then Copy webhook URL.", fields: [["webhook", "Webhook URL", "https://discord.com/api/webhooks/…"]] },
+	bluesky: { name: "Bluesky", c: "#1185fe", what: "Marketing posts go out by themselves at the best moment.", how: "In Bluesky: Settings → Privacy and security → App passwords → Add app password. Use it here with your handle (never your real password).", fields: [["handle", "Handle", "yourname.bsky.social"], ["appPassword", "App password", "xxxx-xxxx-xxxx-xxxx"]] },
+	x: { name: "X", c: "#000000", what: "Marketing posts go out by themselves at the best moment.", how: "On developer.x.com: sign up for the free plan, open your app → Settings → User authentication: Read and write. Then Keys and tokens: copy the API key and secret, and generate an access token and secret.", fields: [["apiKey", "API key", ""], ["apiSecret", "API key secret", ""], ["accessToken", "Access token", ""], ["accessSecret", "Access token secret", ""]] },
+};
+const connOf = (k) => (CONNS.conns || []).find((c) => c.kind === k);
+async function syncConns() { if (!creditsMode() || !account) return; try { const j = await api("/api/conns"); CONNS = { on: !!(j && j.on), conns: j && Array.isArray(j.conns) ? j.conns : [], at: Date.now() }; } catch {} }
+async function openConns(kind) {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	openModal('<h2>Accounts</h2><p class="sub">Connect your own accounts once, and your team posts and messages for you by itself: marketing posts go out at the right moment, and agents send what they find to your phone. Kept encrypted; never shown again.</p><div id="cnBox"><p class="help">Loading…</p></div>', "wide");
+	await syncConns();
+	drawConns(kind);
+}
+function drawConns(kind) {
+	const box = $("#cnBox");
+	if (!box) return;
+	if (!CONNS.on) { box.innerHTML = '<p class="help">Connected accounts are being switched on. Try again in a little while.</p>'; return; }
+	if (kind) {
+		const k = CONN_INFO[kind];
+		box.innerHTML = "<h3 style=\"margin:0 0 6px\">" + esc(k.name) + '</h3><p class="help" style="margin:0 0 12px">' + esc(k.how) + "</p>" + k.fields.map(([f, l, ph]) => '<div class="field"><label for="cn_' + f + '">' + esc(l) + '</label><input class="inp" id="cn_' + f + '" autocomplete="off" spellcheck="false" placeholder="' + esc(ph) + '"' + (/secret|password/i.test(f) ? ' type="password"' : "") + "></div>").join("") +
+			'<div class="status" id="cnStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="cnBack">Back</button><button class="btn dark" id="cnGo">Connect</button></div>';
+		$("#cnBack").onclick = () => drawConns();
+		$("#cnGo").onclick = async () => {
+			const st = $("#cnStatus"); st.className = "status"; st.innerHTML = '<span class="spin"></span> Checking it…'; $("#cnGo").disabled = true;
+			const b = { kind };
+			k.fields.forEach(([f]) => (b[f] = $("#cn_" + f).value.trim()));
+			try { await api("/api/conns", { method: "POST", body: JSON.stringify(b) }); await syncConns(); drawConns(); toast(k.name + " connected"); }
+			catch (e) { st.className = "status bad"; st.textContent = e.message || String(e); $("#cnGo").disabled = false; }
+		};
+		return;
+	}
+	box.innerHTML = Object.entries(CONN_INFO).map(([k, x]) => { const c = connOf(k); return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div class="row" style="gap:10px;align-items:center"><span class="tav" style="--c:' + x.c + ';--s:30px"><b style="color:#fff;font-size:13px">' + esc(x.name[0]) + "</b></span><div><b>" + esc(x.name) + '</b><div class="help">' + esc(c ? "Connected: " + c.name : x.what) + "</div></div></div>" +
+		'<div class="row" style="gap:8px">' + (c ? '<button class="btn" data-cntest="' + k + '">Send a test</button><button class="btn" data-cnoff="' + k + '">Disconnect</button>' : '<button class="btn dark" data-cnon="' + k + '">Connect</button>') + "</div></div></div>"; }).join("") +
+		'<p class="help">Instagram, TikTok, Facebook, LinkedIn and Threads stay one tap for now: they only let apps they have approved post for you.</p>';
+	$$("[data-cnon]").forEach((b) => (b.onclick = () => drawConns(b.dataset.cnon)));
+	$$("[data-cnoff]").forEach((b) => (b.onclick = async () => { if (!confirm("Disconnect " + CONN_INFO[b.dataset.cnoff].name + "?")) return; await api("/api/conns/" + b.dataset.cnoff, { method: "DELETE" }).catch(() => {}); await syncConns(); drawConns(); }));
+	$$("[data-cntest]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { const j = await api("/api/conns/" + b.dataset.cntest + "/test", { method: "POST" }); toast("Sent: look on " + CONN_INFO[b.dataset.cntest].name); if (j.url) window.open(j.url, "_blank", "noopener"); } catch (e) { toast(e.message || String(e)); } b.disabled = false; }));
+}
 // ---- Celestin Together's agents: any job, run by the server (see runAgent there)
 var AGENTS = { agents: [], log: [] };
 const agentUnseen = () => AGENTS.log.filter((l) => !l.seen && l.kind === "report").length;
@@ -14188,6 +14232,7 @@ const everyText = (m) => (AGENT_EVERY.find(([k]) => k === m) || [0, "every " + m
 const agentModels = () => { try { return { quick: bestFor("reader").slice(0, 2).map((m) => m.id), work: bestFor("agent").slice(0, 3).map((m) => m.id) }; } catch { return { quick: [], work: [] }; } };
 async function syncAgents(quiet) {
 	if (!TOGETHER_APP || !creditsMode() || !account) return;
+	if (!CONNS.at) { CONNS.at = 1; syncConns(); }
 	let j;
 	try { j = await api("/api/agents"); } catch { return; }
 	const before = agentUnseen();
@@ -14220,7 +14265,9 @@ function agentForm(a) {
 		'<div class="field"><label for="agGoal">Its job</label><textarea class="inp" id="agGoal" rows="5" maxlength="4000">' + esc(a.goal || "") + "</textarea></div>" +
 		'<div class="field"><label>What it keeps an eye on</label><div id="agSrcs">' + (a.sources || []).map(srcRow).join("") + '</div><button class="btn" id="agAddSrc">Add something to watch</button><div class="help">Nothing here: it just does its job every time. Something here: it works only when there\'s something new, so quiet hours cost nothing.</div></div>' +
 		'<div class="row" style="gap:12px;flex-wrap:wrap"><div class="field" style="flex:1;min-width:180px"><label for="agEvery">How often it looks</label><select class="inp" id="agEvery">' + AGENT_EVERY.map(([k, v]) => '<option value="' + k + '"' + (Number(a.every || 60) === k ? " selected" : "") + ">" + v + "</option>").join("") + '</select></div><div class="field" style="flex:2;min-width:220px"><label for="agNotify">Tell me when</label><input class="inp" id="agNotify" maxlength="600" placeholder="e.g. a price drops, anything important" value="' + esc(a.notify || "") + '"></div></div>' +
-		'<label class="chk" style="margin:2px 0 10px"><input type="checkbox" id="agEmail"' + (a.email ? " checked" : "") + "> Email me its reports too (" + esc((account && account.email) || "your email") + ")</label>" +
+		'<label class="chk" style="margin:2px 0 6px"><input type="checkbox" id="agEmail"' + (a.email ? " checked" : "") + "> Email me its reports too (" + esc((account && account.email) || "your email") + ")</label>" +
+		'<div class="field" style="margin-top:6px"><label>Send its reports to</label><div class="row" style="gap:12px;flex-wrap:wrap">' + ["telegram", "discord"].map((k) => '<label class="chk"><input type="checkbox" data-agsend="' + k + '"' + ((a.send || []).includes(k) ? " checked" : "") + (connOf(k) ? "" : " disabled") + "> " + CONN_INFO[k].name + (connOf(k) ? "" : ' <a href="#" data-agconn="' + k + '">connect</a>') + "</label>").join("") + "</div></div>" +
+		'<div class="field"><label>It may post for me to</label><div class="row" style="gap:12px;flex-wrap:wrap">' + Object.keys(CONN_INFO).map((k) => '<label class="chk"><input type="checkbox" data-agpost="' + k + '"' + ((a.posts || []).includes(k) ? " checked" : "") + (connOf(k) ? "" : " disabled") + "> " + CONN_INFO[k].name + (connOf(k) ? "" : ' <a href="#" data-agconn="' + k + '">connect</a>') + "</label>").join("") + '</div><div class="help">Only when posting is part of its job. Everything it posts is in its log.</div></div>' +
 		'<div class="help" style="margin-bottom:12px">On your credits: a look that finds nothing new is free, a quick check of something new is a fraction of a credit, and a full report is a few credits.</div>' +
 		'<div class="status" id="agStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="agCancel">Cancel</button><button class="btn dark" id="agSave">' + (a.id ? "Save" : "Start it") + "</button></div>";
 }
@@ -14265,6 +14312,7 @@ function drawAgentForm(a) {
 	const box = $("#agBox");
 	if (!box) return;
 	box.innerHTML = agentForm(a);
+	$$("[data-agconn]").forEach((x) => (x.onclick = (e) => { e.preventDefault(); openConns(x.dataset.agconn); }));
 	const wire = () => $$("[data-agx]").forEach((x) => (x.onclick = () => x.closest(".ag-src").remove()));
 	wire();
 	$("#agAddSrc").onclick = () => { $("#agSrcs").insertAdjacentHTML("beforeend", agentForm({ sources: [{ type: "url", value: "" }] }).match(/<div class="row ag-src"[\s\S]*?<\/button><\/div>/)[0]); wire(); };
@@ -14273,7 +14321,7 @@ function drawAgentForm(a) {
 		$("#agSave").disabled = true;
 		const sources = $$(".ag-src").map((r) => ({ type: r.querySelector("[data-agt]").value, value: r.querySelector("[data-agv]").value.trim() })).filter((x) => x.value);
 		try {
-			await api("/api/agents", { method: "POST", body: JSON.stringify({ id: a.id, name: $("#agName").value, goal: $("#agGoal").value, every: +$("#agEvery").value, sources, notify: $("#agNotify").value, email: $("#agEmail").checked, tz: -new Date().getTimezoneOffset(), active: a.id ? a.active !== false : true, ...agentModels() }) });
+			await api("/api/agents", { method: "POST", body: JSON.stringify({ id: a.id, name: $("#agName").value, goal: $("#agGoal").value, every: +$("#agEvery").value, sources, notify: $("#agNotify").value, email: $("#agEmail").checked, send: $$("[data-agsend]").filter((x) => x.checked).map((x) => x.dataset.agsend), posts: $$("[data-agpost]").filter((x) => x.checked).map((x) => x.dataset.agpost), tz: -new Date().getTimezoneOffset(), active: a.id ? a.active !== false : true, ...agentModels() }) });
 			await syncAgents(true);
 			drawAgents();
 			toast(a.id ? "Saved" : "It's working: its first look is in a minute or two");

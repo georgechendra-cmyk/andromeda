@@ -176,6 +176,10 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})$/)) && m === "DELETE") return jobDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/run$/)) && m === "POST") return jobRunNow(env, ctx, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
+	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
+	if (p === "/api/conns" && m === "POST") return connSave(req, env, user);
+	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x)$/)) && m === "DELETE") return connDelete(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x)\/test$/)) && m === "POST") return connTest(env, user, fd[1]);
 	if (p === "/api/agents" && m === "GET") return agentsOf(env, user, url);
 	if (p === "/api/agents" && m === "POST") return agentSave(req, env, user);
 	if (p === "/api/agents/seen" && m === "POST") return agentSeen(req, env, user);
@@ -663,6 +667,10 @@ function columns(env) {
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS agent_log (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS agent_log_user ON agent_log (user_id, created_at)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS agent_log_agent ON agent_log (agent_id, created_at)").run();
+		// (what an agent may do besides reporting: where it sends its reports, where it may post)
+		const acols = new Set(((await env.DB.prepare("PRAGMA table_info(agents)").all()).results || []).map((r) => r.name));
+		if (!acols.has("act")) { try { await env.DB.prepare("ALTER TABLE agents ADD COLUMN act TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT, secret TEXT NOT NULL, meta TEXT, created_at INTEGER NOT NULL, UNIQUE (user_id, kind))").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
 	})().catch((e) => { COLS = null; throw e; });
@@ -3138,10 +3146,121 @@ async function runDueTasks(env, ctx) {
 	}
 }
 
+// ------------------------------------------------------------------ connected accounts
+const CONN_KINDS = ["telegram", "discord", "bluesky", "x"];
+const b64e = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+const b64d = (x) => Uint8Array.from(atob(x), (c) => c.charCodeAt(0));
+async function connKey(env) {
+	if (!env.CONN_KEY) throw fail(503, "Connected accounts aren't switched on on the server yet.");
+	return crypto.subtle.importKey("raw", b64d(String(env.CONN_KEY).trim()), "AES-GCM", false, ["encrypt", "decrypt"]);
+}
+async function seal(env, obj) { const iv = crypto.getRandomValues(new Uint8Array(12)); return b64e(iv) + "." + b64e(new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, await connKey(env), enc.encode(JSON.stringify(obj))))); }
+async function unseal(env, x) { const [iv, ct] = String(x).split("."); return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64d(iv) }, await connKey(env), b64d(ct)))); }
+const plainText = (t) => String(t || "").replace(/\*\*([^*]+)\*\*/g, "$1").replace(/__([^_]+)__/g, "$1").replace(/^#{1,6}\s+/gm, "").replace(/\[([^\]]+)\]\((https?:[^)]+)\)/g, "$1 ($2)").trim();
+// ---- each kind: check it, post with it
+async function tgCall(token, method, b) {
+	const r = await fetch("https://api.telegram.org/bot" + token + "/" + method, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b || {}), signal: AbortSignal.timeout(15000) });
+	const j = await r.json().catch(() => ({}));
+	if (!j.ok) throw fail(400, "Telegram said: " + (j.description || r.status));
+	return j.result;
+}
+// (x: OAuth 1.0a with the person's own app keys and access token, HMAC-SHA1 signed)
+const pe = (x) => encodeURIComponent(x).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+async function xFetch(c, method, url, body) {
+	const o = { oauth_consumer_key: c.apiKey, oauth_nonce: [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join(""), oauth_signature_method: "HMAC-SHA1", oauth_timestamp: String(Math.floor(Date.now() / 1000)), oauth_token: c.accessToken, oauth_version: "1.0" };
+	const base = method + "&" + pe(url) + "&" + pe(Object.keys(o).sort().map((k) => pe(k) + "=" + pe(o[k])).join("&"));
+	const key = await crypto.subtle.importKey("raw", enc.encode(pe(c.apiSecret) + "&" + pe(c.accessSecret)), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+	o.oauth_signature = b64e(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(base))));
+	const r = await fetch(url, { method, headers: { Authorization: "OAuth " + Object.keys(o).sort().map((k) => pe(k) + '="' + pe(o[k]) + '"').join(", "), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000) });
+	const j = await r.json().catch(() => ({}));
+	if (!r.ok) throw fail(r.status === 429 ? 429 : 400, "X said: " + (j.detail || j.title || (j.errors && j.errors[0] && j.errors[0].message) || r.status));
+	return j;
+}
+async function bskySession(c) {
+	const r = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier: c.handle, password: c.appPassword }), signal: AbortSignal.timeout(15000) });
+	const j = await r.json().catch(() => ({}));
+	if (!j.accessJwt) throw fail(400, "Bluesky said: " + (j.message || "that handle and app password didn't work"));
+	return j;
+}
+// what a person types to connect one → what's kept (secret, checked) and what's shown (not secret)
+async function connCheck(kind, b) {
+	const v = (k) => String(b[k] || "").trim();
+	if (kind === "telegram") {
+		const token = v("token");
+		if (!/^\d{5,}:[\w-]{20,}$/.test(token)) throw fail(400, "That doesn't look like a bot token: it's what @BotFather gave you, like 123456789:AA…");
+		const me = await tgCall(token, "getMe");
+		let chat = v("chat");
+		// (no chat given: the last one that messaged the bot, which is them)
+		if (!chat) { const ups = await tgCall(token, "getUpdates", { limit: 20 }); const last = [...ups].reverse().map((u) => (u.message || u.channel_post || u.my_chat_member || {}).chat).find(Boolean); if (!last) throw fail(400, "Send any message to @" + me.username + " first (or write your channel's @name), then connect again."); chat = String(last.id); }
+		const ch = await tgCall(token, "getChat", { chat_id: chat });
+		return { secret: { token, chat }, name: "@" + me.username + " → " + (ch.title || ch.username || ch.first_name || chat), meta: { bot: me.username, chat: ch.username ? "@" + ch.username : chat, kind: ch.type } };
+	}
+	if (kind === "discord") {
+		const hook = v("webhook");
+		if (!/^https:\/\/(discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(hook)) throw fail(400, "That isn't a Discord webhook link (Server settings → Integrations → Webhooks → Copy URL).");
+		const r = await fetch(hook, { signal: AbortSignal.timeout(15000) });
+		const j = await r.json().catch(() => ({}));
+		if (!r.ok || !j.id) throw fail(400, "Discord didn't accept that webhook.");
+		return { secret: { hook }, name: (j.name || "Webhook") + (j.channel_id ? " → #" + j.channel_id : ""), meta: { channel: j.channel_id || "" } };
+	}
+	if (kind === "bluesky") {
+		const c = { handle: v("handle").replace(/^@/, ""), appPassword: v("appPassword") };
+		if (!c.handle || !c.appPassword) throw fail(400, "Your handle and an app password (Settings → Privacy and security → App passwords).");
+		const s = await bskySession(c);
+		return { secret: c, name: "@" + (s.handle || c.handle), meta: { handle: s.handle || c.handle } };
+	}
+	if (kind === "x") {
+		const c = { apiKey: v("apiKey"), apiSecret: v("apiSecret"), accessToken: v("accessToken"), accessSecret: v("accessSecret") };
+		if (Object.values(c).some((x) => x.length < 10)) throw fail(400, "All four: the API key and secret, and the access token and secret (with Read and write), from your app on developer.x.com.");
+		const me = await xFetch(c, "GET", "https://api.x.com/2/users/me");
+		return { secret: c, name: "@" + ((me.data && me.data.username) || "your account"), meta: { username: me.data && me.data.username } };
+	}
+	throw fail(400, "Unknown account.");
+}
+// post or send with one: what came out (a link to it, when there is one)
+async function connPost(env, userId, kind, text) {
+	const row = await env.DB.prepare("SELECT * FROM conns WHERE user_id = ? AND kind = ?").bind(userId, kind).first();
+	if (!row) throw fail(404, "No " + kind + " account is connected.");
+	const c = await unseal(env, row.secret);
+	const t = plainText(text);
+	if (kind === "telegram") { const m = await tgCall(c.token, "sendMessage", { chat_id: c.chat, text: t.slice(0, 4000) }); const meta = JSON.parse(row.meta || "{}"); return { url: /^@/.test(meta.chat || "") ? "https://t.me/" + meta.chat.slice(1) + "/" + m.message_id : null }; }
+	if (kind === "discord") { const r = await fetch(c.hook + "?wait=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: t.slice(0, 1900), allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(15000) }); if (!r.ok) throw fail(400, "Discord said " + r.status); return { url: null }; }
+	if (kind === "bluesky") {
+		const ses = await bskySession(c), body = t.slice(0, 300), facets = [];
+		for (const m of body.matchAll(/https?:\/\/[^\s)]+/g)) { const start = enc.encode(body.slice(0, m.index)).length; facets.push({ index: { byteStart: start, byteEnd: start + enc.encode(m[0]).length }, features: [{ $type: "app.bsky.richtext.facet#link", uri: m[0] }] }); }
+		const r = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", { method: "POST", headers: { Authorization: "Bearer " + ses.accessJwt, "Content-Type": "application/json" }, body: JSON.stringify({ repo: ses.did, collection: "app.bsky.feed.post", record: { $type: "app.bsky.feed.post", text: body, createdAt: new Date().toISOString(), ...(facets.length ? { facets } : {}) } }), signal: AbortSignal.timeout(15000) });
+		const j = await r.json().catch(() => ({}));
+		if (!j.uri) throw fail(400, "Bluesky said: " + (j.message || r.status));
+		return { url: "https://bsky.app/profile/" + (ses.handle || c.handle) + "/post/" + j.uri.split("/").pop() };
+	}
+	if (kind === "x") { const j = await xFetch(c, "POST", "https://api.x.com/2/tweets", { text: t.slice(0, 280) }); return { url: "https://x.com/i/web/status/" + (j.data && j.data.id) }; }
+	throw fail(400, "Unknown account.");
+}
+async function connsOf(env, user) {
+	const rows = (await env.DB.prepare("SELECT kind, name, meta, created_at FROM conns WHERE user_id = ?").bind(user.id).all()).results || [];
+	return json({ on: !!env.CONN_KEY, conns: rows.map((r) => ({ kind: r.kind, name: r.name, meta: JSON.parse(r.meta || "{}"), at: r.created_at })) });
+}
+async function connSave(req, env, user) {
+	const b = await body(req), kind = String(b.kind || "");
+	if (!CONN_KINDS.includes(kind)) throw fail(400, "Pick an account to connect.");
+	await connKey(env);
+	const c = await connCheck(kind, b);
+	await env.DB.prepare("INSERT INTO conns (id, user_id, kind, name, secret, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, kind) DO UPDATE SET name = excluded.name, secret = excluded.secret, meta = excluded.meta, created_at = excluded.created_at").bind(id(), user.id, kind, c.name, await seal(env, c.secret), JSON.stringify(c.meta || {}), now()).run();
+	return json({ conn: { kind, name: c.name, meta: c.meta } });
+}
+async function connDelete(env, user, kind) {
+	await env.DB.prepare("DELETE FROM conns WHERE user_id = ? AND kind = ?").bind(user.id, kind).run();
+	return json({ ok: true });
+}
+async function connTest(env, user, kind) {
+	const r = await connPost(env, user.id, kind, kind === "x" || kind === "bluesky" ? "Connected to Celestin Together: my AI team can post here now. ✨" : "✅ Connected to Celestin Together. Your agents and jobs can send things here now.");
+	return json({ ok: true, url: r.url || null });
+}
+
 // ------------------------------------------------------------------ Celestin Together's agents
 const AGENT_MAX = 30, AGENT_TICK = 8, AGENT_EVERY = [10, 30, 60, 180, 360, 720, 1440];
 const AGENT_SOURCES = ["url", "news", "rss", "hn"];
-const agentOut = (a) => { const j = (x, d) => { try { return JSON.parse(x || "") ?? d; } catch { return d; } }; const st = j(a.state, {}); return { id: a.id, name: a.name, goal: a.goal, every: a.every_min, sources: j(a.sources, []), notify: a.notify || "", email: !!a.email, active: !!a.active, next_at: a.next_at, last_at: a.last_at, spent: Math.round((a.spent_mc || 0) / 100) / 10, runs: a.runs || 0, memory: st.memory || "", lastLook: st.look || "", created_at: a.created_at }; };
+const agentOut = (a) => { const j = (x, d) => { try { return JSON.parse(x || "") ?? d; } catch { return d; } }; const st = j(a.state, {}), act = j(a.act, {}); return { id: a.id, name: a.name, goal: a.goal, every: a.every_min, sources: j(a.sources, []), notify: a.notify || "", email: !!a.email, send: act.send || [], posts: act.posts || [], active: !!a.active, next_at: a.next_at, last_at: a.last_at, spent: Math.round((a.spent_mc || 0) / 100) / 10, runs: a.runs || 0, memory: st.memory || "", lastLook: st.look || "", created_at: a.created_at }; };
 async function agentsOf(env, user, url) {
 	const agents = (await env.DB.prepare("SELECT * FROM agents WHERE user_id = ? ORDER BY created_at DESC").bind(user.id).all()).results || [];
 	const log = (await env.DB.prepare("SELECT id, agent_id, kind, text, created_at, seen FROM agent_log WHERE user_id = ? ORDER BY created_at DESC LIMIT 80").bind(user.id).all()).results || [];
@@ -3153,17 +3272,19 @@ async function agentSave(req, env, user) {
 	if (!name || goal.length < 10) throw fail(400, "Give your agent a name and say what it should do.");
 	const every = AGENT_EVERY.includes(Number(b.every)) ? Number(b.every) : 60;
 	const sources = (Array.isArray(b.sources) ? b.sources : []).map((x) => ({ type: String(x && x.type || ""), value: String(x && x.value || "").trim().slice(0, 300) })).filter((x) => AGENT_SOURCES.includes(x.type) && x.value && (x.type !== "url" && x.type !== "rss" || /^https?:\/\//i.test(x.value))).slice(0, 8);
+	const kinds = (x) => [...new Set((Array.isArray(x) ? x : []).filter((k) => CONN_KINDS.includes(k)))];
+	const act = JSON.stringify({ send: kinds(b.send).filter((k) => k === "telegram" || k === "discord"), posts: kinds(b.posts) });
 	const notify = String(b.notify || "").trim().slice(0, 600), email = b.email ? 1 : 0, tz = Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 420)));
 	const models = JSON.stringify({ quick: (Array.isArray(b.quick) ? b.quick : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 2), work: (Array.isArray(b.work) ? b.work : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3) });
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
-		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, b.active === false ? 0 : 1, b.id, user.id).run();
+		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, act = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, act, b.active === false ? 0 : 1, b.id, user.id).run();
 		if (r.meta && r.meta.changes) return json({ agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(b.id).first()) });
 	}
 	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ?").bind(user.id).first();
 	if (n && n.n >= AGENT_MAX) throw fail(429, "You have " + AGENT_MAX + " agents already: delete one to add another.");
 	const aid = id(), t = now();
 	// (its first look: now)
-	await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, state, next_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 1, ?)").bind(aid, user.id, name, goal, every, JSON.stringify(sources), notify, email, models, tz, t, t).run();
+	await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, act, state, next_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 1, ?)").bind(aid, user.id, name, goal, every, JSON.stringify(sources), notify, email, models, tz, act, t, t).run();
 	return json({ agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first()) });
 }
 async function agentDelete(env, user, aid) {
@@ -3254,8 +3375,10 @@ async function runAgent(env, ctx, a, manual) {
 	const t = now();
 	let st = {};
 	try { st = JSON.parse(a.state || "{}") || {}; } catch {}
-	let sources = [], models = {};
+	let sources = [], models = {}, act = {};
 	try { sources = JSON.parse(a.sources || "[]"); } catch {}
+	try { act = JSON.parse(a.act || "{}") || {}; } catch {}
+	const posts = (act.posts || []).filter((k) => CONN_KINDS.includes(k)), send = (act.send || []).filter((k) => k === "telegram" || k === "discord");
 	try { models = JSON.parse(a.models || "{}"); } catch {}
 	const quick = (models.quick || []).length ? models.quick : ["deepseek/deepseek-v4.1-flash"], work = (models.work || []).length ? models.work : quick;
 	// moved on first, so a slow look never runs twice
@@ -3289,12 +3412,18 @@ async function runAgent(env, ctx, a, manual) {
 			const pages = (await Promise.all(read.map((u) => pageText(u, 8000)))).map((p, i) => p && !p.error ? "Read in full, " + read[i] + ":\n" + p.text : "").filter(Boolean).join("\n\n");
 			const out = await agentAsk(env, ctx, owner, work, [
 				{ role: "system", content: "You are an AI agent that works by itself, day and night, for its owner, on Celestin. Be useful and concrete: real findings, numbers, names, links, and what to do about it. Never make anything up; say what you couldn't find out. Write in the language the job is written in." },
-				{ role: "user", content: what + (newText ? "\n\nNew since your last look:\n" + newText : "") + (pages ? "\n\n" + pages.slice(0, 20000) : "") + (errors.length ? "\n\n(Couldn't look at: " + errors.join("; ") + ")" : "") + "\n\nIt's " + local + " where your owner is. Do your job now. Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already reported, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"}" },
+				{ role: "user", content: what + (newText ? "\n\nNew since your last look:\n" + newText : "") + (pages ? "\n\n" + pages.slice(0, 20000) : "") + (errors.length ? "\n\n(Couldn't look at: " + errors.join("; ") + ")" : "") + (posts.length ? "\n\nYou can post for the owner, as them, to: " + posts.join(", ") + " (x and bluesky: under 280 characters; telegram: their channel or chat; discord: their server). Post only when posting is part of your job, in their voice, and never anything made up." : "") + "\n\nIt's " + local + " where your owner is. Do your job now. Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already reported, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"" + (posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}] (empty when there's nothing to post)" : "") + "}" },
 			], 2500, spent);
 			const j = jsonIn(out) || (out ? { report: out } : null);
 			if (j) {
 				if (typeof j.memory === "string" && j.memory.trim()) st.memory = j.memory.trim().slice(0, 2000);
 				if (j.report && String(j.report).trim()) logs.push({ kind: "report", text: String(j.report).trim().slice(0, 12000) });
+				// (its posts, to the accounts its owner let it post to: each one's link in its log)
+				for (const p of (Array.isArray(j.posts) ? j.posts : []).slice(0, 4)) {
+					if (!p || !posts.includes(p.to) || !String(p.text || "").trim()) continue;
+					try { const r = await connPost(env, a.user_id, p.to, String(p.text)); logs.push({ kind: "action", text: "Posted to " + p.to + (r.url ? " (" + r.url + ")" : "") + ":\n\n" + String(p.text).slice(0, 2000) }); }
+					catch (e) { logs.push({ kind: "note", text: "Couldn't post to " + p.to + ": " + (e.message || e) }); }
+				}
 				look = String(j.look || look || (j.report ? "Reported" : "Worked: nothing to report")).slice(0, 160);
 			} else if (!spent.broke) look = "Couldn't think it through this time: tries again next look";
 		}
@@ -3304,8 +3433,10 @@ async function runAgent(env, ctx, a, manual) {
 	const qs = [env.DB.prepare("UPDATE agents SET state = ?, spent_mc = spent_mc + ?, runs = runs + 1, last_at = ? WHERE id = ?").bind(JSON.stringify(st), spent.mc, t, a.id)];
 	for (const l of logs) qs.push(env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at, seen) VALUES (?, ?, ?, ?, ?, ?, 0)").bind(id(), a.id, a.user_id, l.kind, l.text, now()));
 	await env.DB.batch(qs);
-	// (by email too, when its owner asked)
 	const report = logs.find((l) => l.kind === "report");
+	// (to their Telegram or Discord too, when its owner asked)
+	if (report) for (const k of send) { try { await connPost(env, a.user_id, k, "🤖 " + a.name + "\n\n" + report.text); } catch {} }
+	// (by email too, when its owner asked)
 	if (report && a.email && mailOn(env) && row.email) {
 		try { await sendMail(env, row.email, a.name + ": " + report.text.replace(/[#*_>\[\]]/g, "").replace(/\s+/g, " ").slice(0, 70), report.text + "\n\n— " + a.name + ", your agent on Celestin Together (https://celestin.pages.dev/together)", '<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.5;color:#111;white-space:pre-wrap">' + report.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]) + '</div><p style="color:#777;font-size:13px">— ' + a.name.replace(/[&<>]/g, "") + ', your agent on <a href="https://celestin.pages.dev/together">Celestin Together</a></p>'); } catch {}
 	}
@@ -3349,7 +3480,8 @@ async function jobSave(req, env, user) {
 		if (!config.customers.length) throw fail(400, "Paste your customers, one per line: name, phone, and anything worth remembering (their usual, their last visit).");
 		config.every = Math.max(7, Math.min(180, Math.round(Number(c.every) || 30)));
 	} else {
-		config.platforms = (Array.isArray(c.platforms) ? c.platforms : ["x"]).filter((p) => ["x", "instagram", "tiktok", "linkedin", "facebook", "threads"].includes(p)).slice(0, 4);
+		config.platforms = (Array.isArray(c.platforms) ? c.platforms : ["x"]).filter((p) => ["x", "instagram", "tiktok", "linkedin", "facebook", "threads", "bluesky", "telegram", "discord"].includes(p)).slice(0, 6);
+		config.auto = !!c.auto;
 		if (!config.platforms.length) config.platforms = ["x"];
 		config.topic = String(c.topic || "").trim().slice(0, 120);
 		config.perDay = Math.max(1, Math.min(6, Math.round(Number(c.perDay) || 1)));
@@ -3435,7 +3567,7 @@ async function jobAsk(env, ctx, j, messages, maxTokens) {
 	return "";
 }
 const waLink = (phone, text) => { let p = String(phone || "").replace(/[^\d+]/g, ""); if (p.startsWith("+")) p = p.slice(1); else if (p.startsWith("0")) p = "62" + p.slice(1); return p.length >= 8 ? "https://wa.me/" + p + "?text=" + encodeURIComponent(text) : ""; };
-const POST_LINK = { x: (t) => "https://x.com/intent/post?text=" + encodeURIComponent(t), threads: (t) => "https://www.threads.net/intent/post?text=" + encodeURIComponent(t), linkedin: () => "https://www.linkedin.com/feed/?shareActive=true", facebook: () => "https://www.facebook.com/", instagram: () => "https://www.instagram.com/", tiktok: () => "https://www.tiktok.com/upload" };
+const POST_LINK = { bluesky: (t) => "https://bsky.app/intent/compose?text=" + encodeURIComponent(t), telegram: (t) => "https://t.me/share/url?url=%20&text=" + encodeURIComponent(t), discord: () => "https://discord.com/app", x: (t) => "https://x.com/intent/post?text=" + encodeURIComponent(t), threads: (t) => "https://www.threads.net/intent/post?text=" + encodeURIComponent(t), linkedin: () => "https://www.linkedin.com/feed/?shareActive=true", facebook: () => "https://www.facebook.com/", instagram: () => "https://www.instagram.com/", tiktok: () => "https://www.tiktok.com/upload" };
 // when people are on each platform, by the hour where the audience is (0 to 1; from the platforms' own published
 // engagement studies, rounded): the hours a post is most likely to be seen
 const ACTIVE = {
@@ -3446,6 +3578,8 @@ const ACTIVE = {
 	facebook: [.15, .1, .05, .05, .05, .1, .25, .45, .6, .7, .75, .8, .85, .8, .7, .65, .65, .7, .8, .9, .95, .8, .55, .3],
 	threads: [.2, .1, .05, .05, .05, .1, .25, .45, .65, .8, .8, .75, .8, .75, .65, .6, .6, .7, .8, .95, 1, .85, .6, .3],
 };
+// (people on Bluesky keep X's hours; Telegram channels are read like Facebook; Discord comes alive in the evening)
+ACTIVE.bluesky = ACTIVE.x; ACTIVE.telegram = ACTIVE.facebook; ACTIVE.discord = ACTIVE.tiktok;
 // how hot the topic is in the news right now against its last 3 days (the publishers' feeds; one look an hour per topic;
 // 1 = usual)
 async function topicHeat(env, topic) {
@@ -3528,7 +3662,12 @@ async function runJob(env, ctx, j, manual) {
 			const post = draft ? await jobCritic(env, ctx, j, cfg, draft, plat) : "";
 			if (post) {
 				const why = spike ? cfg.topic + " is spiking in the news right now (" + heat + "x its usual): posting now" : "Now (" + String(local).padStart(2, "0") + ":00 where your audience is) is when most of them are on " + plat + (heat > 1.1 ? ", and " + cfg.topic + " is hotter than usual (" + heat + "x)" : "");
-				await put("post", plat, post, (POST_LINK[plat] || POST_LINK.x)(post), why).run();
+				// (posted by itself to the connected ones among its places, when the owner turned that on)
+				const out = [];
+				if (cfg.auto) for (const p of cfg.platforms || [plat]) { if (!CONN_KINDS.includes(p)) continue; try { const r = await connPost(env, j.user_id, p, post); out.push({ p, url: r.url }); } catch (e) { if (e.status !== 404) out.push({ p, err: String(e.message || e).slice(0, 120) }); } }
+				const ok = out.filter((x) => !x.err);
+				const itemId = id();
+				await env.DB.prepare("INSERT INTO team_job_items (id, job_id, user_id, kind, title, text, link, why, status, created_at) VALUES (?, ?, ?, 'post', ?, ?, ?, ?, ?, ?)").bind(itemId, j.id, j.user_id, plat, post, (ok.find((x) => x.p === plat && x.url) || {}).url || (POST_LINK[plat] || POST_LINK.x)(post), why + (ok.length ? ". Posted by itself to " + ok.map((x) => x.p + (x.url ? " (" + x.url + ")" : "")).join(", ") : "") + (out.some((x) => x.err) ? ". Couldn't post to " + out.filter((x) => x.err).map((x) => x.p + ": " + x.err).join("; ") : ""), ok.length ? "done" : "ready", now()).run();
 				made++;
 				state.lastPost = t;
 				state.posted = (state.posted || 0) + 1;

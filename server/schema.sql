@@ -186,9 +186,12 @@ CREATE TABLE IF NOT EXISTS team_job_items (id TEXT PRIMARY KEY, job_id TEXT NOT 
 CREATE INDEX IF NOT EXISTS team_job_items_user ON team_job_items (user_id, status, created_at);
 
 -- Celestin Together's agents: any job, described in words, run by the server on a schedule
-CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, goal TEXT NOT NULL, every_min INTEGER NOT NULL DEFAULT 60, sources TEXT, notify TEXT, email INTEGER NOT NULL DEFAULT 0, models TEXT, state TEXT, next_at INTEGER NOT NULL, last_at INTEGER, active INTEGER NOT NULL DEFAULT 1, spent_mc INTEGER NOT NULL DEFAULT 0, runs INTEGER NOT NULL DEFAULT 0, tz INTEGER NOT NULL DEFAULT 420, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS agents (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, goal TEXT NOT NULL, every_min INTEGER NOT NULL DEFAULT 60, sources TEXT, notify TEXT, email INTEGER NOT NULL DEFAULT 0, models TEXT, state TEXT, next_at INTEGER NOT NULL, last_at INTEGER, active INTEGER NOT NULL DEFAULT 1, spent_mc INTEGER NOT NULL DEFAULT 0, runs INTEGER NOT NULL DEFAULT 0, tz INTEGER NOT NULL DEFAULT 420, act TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS agents_due ON agents (active, next_at);
 CREATE INDEX IF NOT EXISTS agents_user ON agents (user_id);
 CREATE TABLE IF NOT EXISTS agent_log (id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, user_id TEXT NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, created_at INTEGER NOT NULL, seen INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS agent_log_user ON agent_log (user_id, created_at);
 CREATE INDEX IF NOT EXISTS agent_log_agent ON agent_log (agent_id, created_at);
+
+-- accounts each person connected (Telegram, Discord, Bluesky, X): their own, encrypted with the server's CONN_KEY
+CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT, secret TEXT NOT NULL, meta TEXT, created_at INTEGER NOT NULL, UNIQUE (user_id, kind));
