@@ -1754,6 +1754,26 @@ html[data-app="together"] .sugs { grid-template-columns: repeat(2, minmax(0, 1fr
 html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-weight: 600; color: var(--brand); min-width: 0; }
 @media (max-width: 760px) { .tw-team { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
+/* the front page's Celestin Together section: a preview of its own look */
+.tgl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 28px; align-items: center; margin: 30px 0 26px; }
+.tgl-team { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 10px; }
+.tgl-m { display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+.tgl-m b { font-size: 14px; font-weight: 600; letter-spacing: -.01em; }
+.tgl-m span { font-size: 12px; color: var(--muted); }
+.tgl-m .tav { box-shadow: 0 8px 22px -8px color-mix(in srgb, var(--c) 70%, transparent); }
+.tgl-chat { --tgb: #26262a; --you: #0a84ff; border-radius: 26px; padding: 18px; background: #000; border: 1px solid rgba(84,84,88,.36); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Tight", "Segoe UI", system-ui, sans-serif; color: #fff; display: flex; flex-direction: column; gap: 10px; }
+:root[data-theme="light"] .tgl-chat { --tgb: #e9e9eb; --you: #007aff; background: #fff; color: #000; border-color: rgba(60,60,67,.13); box-shadow: 0 24px 60px -30px rgba(0,0,0,.25); }
+.tgl-you { align-self: flex-end; max-width: 80%; }
+.tgl-you p { margin: 0; background: var(--you); color: #fff; padding: 9px 14px; border-radius: 20px 20px 6px 20px; font-size: 14.5px; line-height: 1.4; }
+.tgl-row { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: end; max-width: 92%; }
+.tgl-row small { display: block; font-size: 11px; color: rgba(127,127,135,.95); margin: 0 0 2px 12px; }
+.tgl-row p { margin: 0; background: var(--tgb); padding: 8px 13px; border-radius: 20px 20px 20px 6px; font-size: 14px; line-height: 1.4; }
+.tgl-feats { margin-top: 6px; }
+.tgl-cta { display: flex; justify-content: center; margin-top: 26px; }
+.tgl-cta a, .tgl-cta a:hover { text-decoration: none; }
+#together .tav, #together .tav svg { color: #fff !important; stroke: #fff; }
+@media (max-width: 860px) { .tgl { grid-template-columns: 1fr; } }
+
 </style>
 </head>
 <body>
@@ -1765,7 +1785,7 @@ html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-
 	<header class="nav" id="nav">
 		<div class="wrap">
 			<a class="logo" href="#" data-go-home><svg class="mark"><use href="#logo"/></svg>Celestin</a>
-			<nav class="nav-links"><a href="#product">Product</a><a href="#how">How it decides</a><a href="#models">Models</a><a href="#faq">FAQ</a></nav>
+			<nav class="nav-links"><a href="#product">Product</a><a href="#together">Together</a><a href="#how">How it decides</a><a href="#models">Models</a><a href="#faq">FAQ</a></nav>
 			<span class="sp"></span>
 			<button class="b ghost" data-theme-toggle title="Light or dark" aria-label="Switch light or dark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
 			<a class="b ghost gh" href="https://github.com/georgechendra-cmyk/andromeda" target="_blank" rel="noopener" id="ghLink">GitHub</a>
@@ -1775,7 +1795,7 @@ html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-
 
 	<section class="hero">
 		<div class="wrap">
-			<a class="pill" href="#product"><span class="tag">NEW</span><span class="pill-t">A team on every answer: each piece by the model measured best at exactly that</span></a>
+			<a class="pill" href="#together"><span class="tag">NEW</span><span class="pill-t">Celestin Together: your own AI team, working at the same time</span></a>
 			<h1>Every AI's best,<br><em>working as one.</em></h1>
 			<p class="lead">Celestin splits what you ask into its most specific pieces and gives each one to the model measured best at exactly that piece, then puts it together and checks it.</p>
 			<div class="ctas"><button class="b pri lg" data-open-app>Try Celestin</button><a class="b sec lg" href="#how">How it decides</a></div>
@@ -1820,6 +1840,24 @@ html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-
 				<div class="card"><h3>Each piece goes to the model best at exactly that</h3><p>Weighed on 101 measured skills from millions of real votes, re-ranked every day, plus Celestin's own record of which model's work holds up at what.</p></div>
 				<div class="card"><h3>It's put together, checked and fixed</h3><p>The best writer for the answer combines the pieces, the model best at that field checks every fact, and what it finds is fixed before you see it.</p></div>
 			</div>
+		</div>
+	</section>
+
+	<section class="block reveal" id="together">
+		<div class="wrap">
+			<div class="eyebrow">New · Celestin Together</div>
+			<h2>Meet your team.</h2>
+			<p class="sub2">Six AI teammates in one chat, each the model measured best at their job right now. Ask the team, or @ one of them: they split the work, do it at the same time, hand parts to each other, and one from another lab checks it all.</p>
+			<div class="tgl">
+				<div class="tgl-team"><div class="tgl-m"><span class="tav" style="--c:#0a84ff;--s:48px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span><b>Researcher</b><span>Facts, with sources</span></div><div class="tgl-m"><span class="tav" style="--c:#30d158;--s:48px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M14 6l4 4M3 21l9.5-9.5M13 3l8 8-3 3-8-8Z"/></svg></span><b>Builder</b><span>Apps, games, sites</span></div><div class="tgl-m"><span class="tav" style="--c:#ff9f0a;--s:48px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M19 3c-4 1-8 6-9.5 9.5L12 15c3.5-1.5 8.5-5.5 9.5-9.5Z"/><path d="M9.5 12.5C7 12.5 5 14.5 5 17c0 1.5-1 2.5-2 3 4 1 8-1 8.5-4.5"/></svg></span><b>Designer</b><span>How it looks and feels</span></div><div class="tgl-m"><span class="tav" style="--c:#bf5af2;--s:48px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span><b>Writer</b><span>Words of every kind</span></div><div class="tgl-m"><span class="tav" style="--c:#64d2ff;--s:48px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11M10 20V5M16 20v-7M21 20H3"/></svg></span><b>Analyst</b><span>Numbers and data</span></div><div class="tgl-m"><span class="tav" style="--c:#ff375f;--s:48px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6Z"/><path d="M9 12l2 2 4-4"/></svg></span><b>Reviewer</b><span>Checks the work</span></div></div>
+				<div class="tgl-chat" aria-label="A Celestin Together chat"><div class="tgl-you"><p>Plan my Tokyo trip in May: flights and a budget</p></div><div class="tgl-row"><span class="tav" style="--c:#8e8e93;--s:26px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.2 5.6L20 9.3l-4.4 3.8 1.4 5.9L12 16l-5 3 1.4-5.9L4 9.3l5.8-.7Z"/></svg></span><div><small>Lead</small><p>The Researcher finds flights while the Analyst does the budget.</p></div></div><div class="tgl-row"><span class="tav" style="--c:#0a84ff;--s:26px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5.5 5.5"/></svg></span><div><small>Researcher</small><p>Garuda GA874, about Rp6.2jt return, with the cheapest dates.</p></div></div><div class="tgl-row"><span class="tav" style="--c:#64d2ff;--s:26px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11M10 20V5M16 20v-7M21 20H3"/></svg></span><div><small>Analyst</small><p>Seven days for one: about Rp9.8jt, day by day.</p></div></div><div class="tgl-row"><span class="tav" style="--c:#ff375f;--s:26px" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v6c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6Z"/><path d="M9 12l2 2 4-4"/></svg></span><div><small>Reviewer</small><p>Checked it all. One fix: add airport transfers, about Rp300k.</p></div></div></div>
+			</div>
+			<div class="feats tgl-feats">
+				<div><b>The same credits</b><span>No extra for the team: the Lead's planning is part of reading your message, and teammates working at once cost the same as one after another.</span></div>
+				<div><b>Works while you're away</b><span>"@Researcher every weekday at 7, the AI news that matters": it keeps doing it with the page closed.</span></div>
+				<div><b>Each one your way</b><span>Tell the Writer to write in casual Indonesian, the Designer your brand colour: they follow it in everything.</span></div>
+			</div>
+			<div class="tgl-cta"><a class="btn dark" href="together.html#app">Open Celestin Together</a></div>
 		</div>
 	</section>
 

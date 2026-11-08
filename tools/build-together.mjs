@@ -9,5 +9,9 @@ s = s.replace(/<title>[^<]*<\/title>/, "<title>Celestin Together — your AI tea
 s = s.replace(/(<meta property="og:title" content=")[^"]*"/, '$1Celestin Together: your AI team, every part by whoever does it best"');
 s = s.replace(/(<meta name="twitter:title" content=")[^"]*"/, '$1Celestin Together: your AI team, every part by whoever does it best"');
 swap('<link rel="manifest" href="manifest.webmanifest">', '<link rel="manifest" href="together.webmanifest">');
+s = s.split("docs/og.png").join("docs/og-together.png");
+s = s.replace(/(<meta property="og:image:alt" content=")[^"]*"/, '$1Celestin Together: your AI team, each the model measured best at its job."');
+s = s.replace(/(<meta name="description" content=")[^"]*"/, '$1Celestin Together: six AI teammates in one chat, each the model measured best at their job. They split the work, do it at the same time, and check it."');
+s = s.replace(/(<meta property="og:description" content=")[^"]*"/, '$1Six AI teammates in one chat, each the model measured best at their job. They split the work, do it at the same time, and check it."');
 writeFileSync(new URL("together.html", dir), s);
 console.log("together.html built");
