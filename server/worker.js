@@ -1522,7 +1522,13 @@ async function modelSearch(env, q, n, order) {
 					r = await fetch(w.base + "/chat/completions", { method: "POST", headers: { Authorization: "Bearer " + w.key, "Content-Type": "application/json" }, body: JSON.stringify({ model: name, messages: [{ role: "user", content: ask }], max_tokens: 2000, temperature: 0, ...extra }), signal: AbortSignal.timeout(40000) });
 				} catch (e) { why.push(w.id + " " + model + ": no answer (" + String((e && e.name) || e).slice(0, 40) + ")"); continue models; }
 				// a model it doesn't have: the next one; settings it doesn't take: the plainer form
-				if (r.status === 400 || r.status === 422) { why.push(w.id + " " + model + ": " + r.status + " to " + Object.keys(extra).join("+") + " " + (await r.text().catch(() => "")).replace(/\s+/g, " ").slice(0, 160)); continue; }
+				if (r.status === 400 || r.status === 422) {
+					const said = (await r.text().catch(() => "")).replace(/\s+/g, " ");
+					why.push(w.id + " " + model + ": " + r.status + " to " + Object.keys(extra).join("+") + " " + said.slice(0, 160));
+					// (a gateway that says it has no web search at all, as Flaz does (tested Nov 8): not asked again for 6 hours)
+					if (/(isn.t|not) available on this gateway/i.test(said)) { SEARCH_OFF.set(w.id, Date.now() + 5 * 3600e3); break models; }
+					continue;
+				}
 				if (!r.ok) { why.push(w.id + " " + model + ": " + r.status); continue models; }
 				const j = await r.json().catch(() => null);
 				const cited = (j?.choices?.[0]?.message?.annotations || []).length + (Array.isArray(j?.citations) ? j.citations.length : 0);
@@ -1550,6 +1556,21 @@ async function modelSearch(env, q, n, order) {
 	if (why.length) await env.DB.prepare("INSERT INTO config (k, v) VALUES ('search-why', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify({ at: new Date().toISOString(), why: why.slice(0, 30) })).run().catch(() => {});
 	return { results: [], usd };
 }
+// Wikipedia, when nothing else could search: free and open to apps that say who they are (its rules ask for a User-Agent
+// with a contact). Encyclopedic only, never news; Indonesian first when the question is
+async function wikiSearch(q, n) {
+	const ua = "Celestin/1.0 (https://celestin.pages.dev/; celestinsupportai@gmail.com)";
+	const langs = /\b(yang|dan|untuk|apa|bagaimana|terbaru|adalah|dengan|siapa|kenapa)\b/i.test(q) ? ["id", "en"] : ["en"];
+	for (const lang of langs) {
+		try {
+			const r = await fetch("https://" + lang + ".wikipedia.org/w/api.php?action=query&generator=search&gsrsearch=" + encodeURIComponent(String(q).slice(0, 250)) + "&gsrlimit=" + n + "&prop=extracts|info&exintro=1&explaintext=1&exsentences=6&exlimit=" + n + "&inprop=url&format=json&formatversion=2", { headers: { "User-Agent": ua, "Api-User-Agent": ua }, signal: AbortSignal.timeout(10000) });
+			if (!r.ok) continue;
+			const pages = (((await r.json()).query || {}).pages || []).filter((p) => p.extract).sort((a, b) => (a.index || 0) - (b.index || 0));
+			if (pages.length) return pages.slice(0, n).map((p) => ({ title: p.title + " (Wikipedia)", url: p.fullurl, text: String(p.extract).slice(0, 1500) }));
+		} catch {}
+	}
+	return [];
+}
 // what a search finds: the search key's results, or (with none) a model's own search, held and charged to the person
 async function searchFor(env, user, q, n) {
 	const keyed = await searchWeb(env, q, n);
@@ -1560,7 +1581,8 @@ async function searchFor(env, user, q, n) {
 	let got = { results: [], usd: 0 };
 	try { got = await modelSearch(env, q, n, orderFor(c, user.owner)); }
 	finally { await charge(env, user.id, "web-search" + (got.model ? ": " + got.model : ""), held, got.usd, mt); }
-	return got.results;
+	// (nothing could search the web: Wikipedia, which is free, rather than nothing)
+	return got.results.length ? got.results : await wikiSearch(q, n);
 }
 // the search results go in front of the newest message (not the system prompt), so the cached start of the
 // conversation stays the same
