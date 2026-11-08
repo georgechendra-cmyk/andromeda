@@ -1749,6 +1749,12 @@ html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-w
 html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
 html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
 .desk-it.off { opacity: .6; }
+.tw-needs { display: flex; justify-content: space-between; align-items: center; width: min(720px, 100%); margin: 0 auto 18px; padding: 12px 16px; border: 0; border-radius: 16px; font: inherit; cursor: pointer; color: #fff; background: linear-gradient(135deg, #ff3b30, #ff6b3d); box-shadow: 0 10px 24px -14px #ff3b30; }
+.tw-needs span { opacity: .9; font-size: 14px; }
+.nd-y { font-size: 13.5px; color: var(--muted); margin-bottom: 12px; }
+.nd-it { padding: 12px 14px; border-radius: 16px; background: var(--bg2); border: 1px solid var(--line); margin-bottom: 10px; }
+.nd-h { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; margin-bottom: 4px; }
+.nd-none { text-align: center; color: var(--muted); padding: 28px 10px; }
 .tcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 10px; margin: 10px 0; }
 .tcard { border-radius: 16px; padding: 12px 14px; background: var(--bg2); border: 1px solid var(--line); }
 .tcard .tct { font-weight: 650; margin-bottom: 6px; }
@@ -2003,6 +2009,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 		</div>
 		<nav class="sb-nav" aria-label="Celestin">
 			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
+			<button class="nav-i tg-only" id="tgNeedsNav" style="--c:#ff3b30" data-tip="Needs you: everything waiting for your decision" aria-label="Needs you"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="lbl">Needs you</span><span class="nb" id="tgNeedsNb"></span></button>
 			<button class="nav-i tg-only" id="tgAgentNav" style="--c:#5e5ce6" data-tip="Agents: any job, done by itself day and night" aria-label="Agents"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/><circle cx="12" cy="4" r="1"/></svg><span class="lbl">Agents</span><span class="nb" id="tgAgentNb"></span></button>
 			<button class="nav-i tg-only" id="tgDeskNav" style="--c:#30b0c7" data-tip="Front desk: your receptionist on a link" aria-label="Front desk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg><span class="lbl">Front desk</span><span class="nb" id="tgDeskNb"></span></button>
 			<button class="nav-i tg-only" id="tgMarketNav" style="--c:#ff9500" data-tip="Marketing: posts at the right moment" aria-label="Marketing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="lbl">Marketing</span><span class="nb" id="tgMarketNb"></span></button>
@@ -7203,7 +7210,7 @@ function renderTogetherWelcome() {
 	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : (() => { const t = DESKS.bots.reduce((a, b) => ({ people: a.people + ((b.week && b.week.people) || 0), answered: a.answered + ((b.week && b.week.answered) || 0), booked: a.booked + ((b.week && b.week.booked) || 0) }), { people: 0, answered: 0, booked: 0 }); return deskWeek({ week: t }) ? "This week: " + deskWeek({ week: t }) : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night"; })()) : "A receptionist on a link you share: answers customers day and night and books them at your free times") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
 	const un = agentUnseen(), agentCard = '<button class="tw-job" id="twAgents"><span class="tav" style="--c:#5e5ce6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/></svg></span><span class="twj"><b>Agents</b><span>' + (AGENTS.agents.length ? (un ? un + " new report" + (un > 1 ? "s" : "") + " for you" : AGENTS.agents.filter((a) => a.active).length + " working by themselves, day and night") : "Any job, done by itself day and night: describe it, and it starts") + '</span></span><span class="twgo">' + (AGENTS.agents.length ? "Open" : "Make one") + "</span></button>";
 	const jobsHtml = Object.entries(JOB_INFO).map(([k, x]) => { const mine = JOBS.jobs.filter((j) => j.kind === k), r = jobReady(k); return '<button class="tw-job" data-job="' + k + '"><span class="tav" style="--c:' + x.c + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + x.icon + '</svg></span><span class="twj"><b>' + esc(x.name) + "</b><span>" + esc(mine.length ? (r ? r + " ready for you" : "On, working by itself") : x.what) + '</span></span><span class="twgo">' + (mine.length ? (r ? "Open" : "Open") : "Set it up") + "</span></button>"; }).join("");
-	$("#view").innerHTML = '<section class="welcome together"><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1><div class="tw-team">' + cards + "</div>" +
+	$("#view").innerHTML = '<section class="welcome together">' + (NEEDS.items.length ? '<button class="tw-needs" id="twNeeds"><b>' + NEEDS.items.length + (NEEDS.items.length === 1 ? " thing needs you" : " things need you") + "</b><span>Open</span></button>" : "") + '<h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1><div class="tw-team">' + cards + "</div>" +
 		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + agentCard + desk + jobsHtml + "</div></section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
@@ -7216,6 +7223,7 @@ function renderTogetherWelcome() {
 	$$("[data-tasks]").forEach((b) => (b.onclick = () => openTasks()));
 	if ($("#twDesk")) $("#twDesk").onclick = () => openDesks();
 	if ($("#twAgents")) $("#twAgents").onclick = () => openAgents();
+	if ($("#twNeeds")) $("#twNeeds").onclick = () => openNeeds();
 	$$("[data-job]").forEach((b) => (b.onclick = () => openJob(b.dataset.job)));
 	// (no sky here: the Together app is Apple-plain; the team is the picture)
 }
@@ -12823,6 +12831,7 @@ const LOC = (() => {
 	try { name = new Intl.DisplayNames(["en"], { type: "language" }).of(lang.split("-")[0]) || "English"; } catch {}
 	return { country: c, call: CALL[c] || "1", currency: CUR[c] || "USD", lang: name, id: c === "ID" };
 })();
+const TZ_NAME = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; } })();
 let payCur = store.get("payCur", "") || LOC.currency || (/^id\b/i.test(navigator.language || "") || /Jakarta|Makassar|Jayapura|Pontianak/.test(Intl.DateTimeFormat().resolvedOptions().timeZone || "") ? "IDR" : "USD");
 async function openPricing() {
 	await loadPricing();
@@ -13132,6 +13141,7 @@ if (TOGETHER_APP) {
 	$(".brand-link").title = "Celestin Together's home page";
 	$("#tgDeskNav").onclick = () => { openSidebar(false); openDesks(); };
 	$("#tgAgentNav").onclick = () => { openSidebar(false); openAgents(); };
+	$("#tgNeedsNav").onclick = () => { openSidebar(false); openNeeds(); };
 	$("#tgConnNav").onclick = () => { openSidebar(false); openConns(); };
 	$("#tgMarketNav").onclick = () => { openSidebar(false); openJob("marketing"); };
 	$("#tgBackNav").onclick = () => { openSidebar(false); openJob("winback"); };
@@ -14057,7 +14067,7 @@ function taskModels(prompt) {
 	} catch { return []; }
 }
 async function makeTask(t) {
-	const j = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...t, tz: -new Date().getTimezoneOffset(), models: t.models || taskModels(t.prompt) }) });
+	const j = await api("/api/tasks", { method: "POST", body: JSON.stringify({ ...t, tz: -new Date().getTimezoneOffset(), tzName: TZ_NAME, models: t.models || taskModels(t.prompt) }) });
 	try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch {}
 	return j.task;
 }
@@ -14086,6 +14096,7 @@ function railBadges() {
 	const put = (id, n) => { const el = $(id); if (el) el.textContent = n > 0 ? (n > 99 ? "99+" : String(n)) : ""; };
 	put("#tgDeskNb", deskNew());
 	put("#tgAgentNb", agentUnseen());
+	put("#tgNeedsNb", NEEDS.items.length);
 	put("#tgMarketNb", jobReady("marketing"));
 	put("#tgBackNb", jobReady("winback"));
 }
@@ -14160,7 +14171,7 @@ function drawJob(kind, edit, pre) {
 		$$("[data-jbconn]").forEach((x) => (x.onclick = (e) => { e.preventDefault(); openConns(x.dataset.jbconn); }));
 		$("#jbSave").onclick = async () => {
 			$("#jbSave").disabled = true;
-			const config = { brief: $("#jbBrief").value, goal: $("#jbGoal").value, lang: $("#jbLang").value || LOC.lang, tz: -new Date().getTimezoneOffset(), country: LOC.call };
+			const config = { brief: $("#jbBrief").value, goal: $("#jbGoal").value, lang: $("#jbLang").value || LOC.lang, tz: -new Date().getTimezoneOffset(), tzName: TZ_NAME, country: LOC.call };
 			if (kind === "winback") Object.assign(config, { customers: $("#jbList").value, every: +$("#jbEvery").value, link: $("#jbLink").value, via: (($$('[name="jbVia"]').find((x) => x.checked) || {}).value) || "whatsapp", callModels: bestFor("reader").slice(0, 2).map((m) => m.id) });
 			else Object.assign(config, { topic: $("#jbTopic").value, perDay: +$("#jbPer").value, platforms: $$("[data-plat]").filter((x) => x.checked).map((x) => x.dataset.plat), auto: !!($("#jbAuto") && $("#jbAuto").checked) });
 			const models = jobModels();
@@ -14334,7 +14345,7 @@ function drawConns(kind) {
 	const back = SETUP_DRAFT ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn dark" id="cnSetup">Back to setting up ' + esc(SETUP_DRAFT.name || "your business") + "</button></div>" : "";
 	box.innerHTML = back + '<div class="field desk"><label class="chk" style="font-weight:600"><input type="checkbox" id="cnAuto"' + (PREFS.auto ? " checked" : "") + '> Act without asking</label><div class="help" style="margin:2px 0 0 24px">Emails and replies go out without waiting for your OK. Everything it does is in its log, and it never spends money.</div></div>' +
 		(Object.keys(CONN_INFO).some((k) => !connOf(k)) ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn dark" id="cnAll">Connect everything, one after another</button></div>' : "") + Object.entries(CONN_INFO).map(([k, x]) => { const c = connOf(k); return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div class="row" style="gap:10px;align-items:center"><span class="tav" style="--c:' + x.c + ';--s:30px"><b style="color:#fff;font-size:13px">' + esc(x.name[0]) + "</b></span><div><b>" + esc(x.name) + '</b><div class="help">' + esc(c ? "Connected: " + c.name : x.what) + "</div></div></div>" +
-		'<div class="row" style="gap:8px">' + (c ? (POST_KINDS.includes(k) || k === "gmail" ? '<button class="btn" data-cntest="' + k + '">Send a test</button>' : "") + '<button class="btn" data-cnoff="' + k + '">Disconnect</button>' : '<button class="btn dark" data-cnon="' + k + '">Connect</button>') + "</div></div></div>"; }).join("") +
+		'<div class="row" style="gap:8px">' + (c ? (k === "gmail" && !((c.meta || {}).version >= 2) ? '<button class="btn dark" data-cnon="gmail">Update its script</button>' : "") + (POST_KINDS.includes(k) || k === "gmail" ? '<button class="btn" data-cntest="' + k + '">Send a test</button>' : "") + '<button class="btn" data-cnoff="' + k + '">Disconnect</button>' : '<button class="btn dark" data-cnon="' + k + '">Connect</button>') + "</div></div></div>"; }).join("") +
 		'<p class="help">Instagram, TikTok, Facebook, LinkedIn and Threads stay one tap for now: they only let apps they have approved post for you.</p>';
 	$$("[data-cnon]").forEach((b) => (b.onclick = () => drawConns(b.dataset.cnon)));
 	if ($("#cnSetup")) $("#cnSetup").onclick = () => openSetup();
@@ -14398,17 +14409,17 @@ async function startSetup() {
 		d.done = d.done || {};
 		let bot = d.done.desk || null;
 		if (parts.includes("desk") && !bot) {
-			bot = (await api("/api/bots", { method: "POST", body: JSON.stringify({ name: d.name, intro: d.assistant ? "Hi! I'm " + d.assistant + " from " + d.name + ". How can I help?" : "Hi! Welcome to " + d.name + ". How can I help?", brief, cap: 0, tz, country: LOC.call, models: deskModels(), slots: place && d.hours.days.length ? { ...d.hours, minutes: d.minutes || 30, per: 1 } : null }) })).bot;
+			bot = (await api("/api/bots", { method: "POST", body: JSON.stringify({ name: d.name, intro: d.assistant ? "Hi! I'm " + d.assistant + " from " + d.name + ". How can I help?" : "Hi! Welcome to " + d.name + ". How can I help?", brief, cap: 0, tz, tzName: TZ_NAME, country: LOC.call, models: deskModels(), slots: place && d.hours.days.length ? { ...d.hours, minutes: d.minutes || 30, per: 1 } : null }) })).bot;
 			d.done.desk = bot;
 		}
 		if (bot) made.push("Front desk: " + deskLink(bot.id));
-		const base = { brief: d.brief, lang: d.lang || LOC.lang, tz, country: LOC.call, type: place ? "place" : "online", assistant: d.assistant || "", ...(place && d.hours.days.length ? { hours: d.hours } : {}) };
+		const base = { brief: d.brief, lang: d.lang || LOC.lang, tz, tzName: TZ_NAME, country: LOC.call, type: place ? "place" : "online", assistant: d.assistant || "", ...(place && d.hours.days.length ? { hours: d.hours } : {}) };
 		if (parts.includes("winback") && !d.done.winback && (bot || String(d.customers || "").trim())) {
 			await api("/api/jobs", { method: "POST", body: JSON.stringify({ kind: "winback", name: d.name, models: jobModels(), config: { ...base, goal: "ask each recent customer, warmly, if they'd like to come back and book again", customers: d.customers || "", every: d.every || 30, via: "auto", fromDesk: bot ? bot.id : "", link: bot ? deskLink(bot.id) : "", callModels: bestFor("reader").slice(0, 2).map((m) => m.id) } }) });
 			made.push("Bringing customers back"); d.done.winback = 1;
 		}
 		if (parts.includes("email") && !d.done.email) {
-			await api("/api/agents", { method: "POST", body: JSON.stringify({ name: d.name + " inbox", goal: "Answer emails from " + d.name + "'s customers and follow up on them, as " + (d.assistant ? d.assistant + " from " + d.name : d.name) + ": questions, bookings, complaints, in the customer's language, warm and clear, only from what's known about the business. About it: " + d.brief + (bot ? " Bookings are made on " + deskLink(bot.id) + "." : ""), every: 10, sources: [{ type: "gmail", value: "is:unread newer_than:3d -category:promotions -category:social" }], notify: "a customer is unhappy, or something only the owner can decide", emails: d.mail === "auto" ? "auto" : "ask", send: ["telegram"].filter((k) => connOf(k)), tz, ...agentModels() }) });
+			await api("/api/agents", { method: "POST", body: JSON.stringify({ name: d.name + " inbox", goal: "Answer emails from " + d.name + "'s customers and follow up on them, as " + (d.assistant ? d.assistant + " from " + d.name : d.name) + ": questions, bookings, complaints, in the customer's language, warm and clear, only from what's known about the business. About it: " + d.brief + (bot ? " Bookings are made on " + deskLink(bot.id) + "." : ""), every: 10, sources: [{ type: "gmail", value: "is:unread newer_than:3d -category:promotions -category:social" }], notify: "a customer is unhappy, or something only the owner can decide", emails: d.mail === "auto" ? "auto" : "ask", send: ["telegram"].filter((k) => connOf(k)), tz, tzName: TZ_NAME, ...agentModels() }) });
 			made.push("Your inbox" + (connOf("gmail") ? "" : " (connect Gmail in Accounts so it can start)")); d.done.email = 1;
 		}
 		if (parts.includes("marketing") && !d.done.marketing) {
@@ -14510,7 +14521,7 @@ function drawAgents(edit, ask) {
 	$$("[data-agdiscard]").forEach((b) => (b.onclick = async () => { await api("/api/agents/log/" + b.dataset.agdiscard + "/discard", { method: "POST" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
 	$$("[data-agedit]").forEach((b) => (b.onclick = () => drawAgents(b.dataset.agedit)));
 	$$("[data-agdel]").forEach((b) => (b.onclick = async () => { if (!confirm("Delete this agent and what it found?")) return; await api("/api/agents/" + b.dataset.agdel, { method: "DELETE" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
-	$$("[data-agpause]").forEach((b) => (b.onclick = async () => { const a = AGENTS.agents.find((x) => x.id === b.dataset.agpause); if (!a) return; await api("/api/agents", { method: "POST", body: JSON.stringify({ ...a, ...agentModels(), tz: -new Date().getTimezoneOffset(), active: !a.active }) }).catch((e) => toast(e.message)); await syncAgents(true); drawAgents(); }));
+	$$("[data-agpause]").forEach((b) => (b.onclick = async () => { const a = AGENTS.agents.find((x) => x.id === b.dataset.agpause); if (!a) return; await api("/api/agents", { method: "POST", body: JSON.stringify({ ...a, ...agentModels(), tz: -new Date().getTimezoneOffset(), tzName: TZ_NAME, active: !a.active }) }).catch((e) => toast(e.message)); await syncAgents(true); drawAgents(); }));
 	$$("[data-agrun]").forEach((b) => (b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Looking…'; try { const j = await api("/api/agents/" + b.dataset.agrun + "/run", { method: "POST" }); toast(j.ran && j.ran.reported ? "It found something: it's below" : (j.ran && j.ran.look) || "Done"); } catch (e) { toast(e.message || String(e)); } await syncAgents(true); drawAgents(); }));
 	// (shown: seen)
 	if (un.length) api("/api/agents/seen", { method: "POST", body: JSON.stringify({ ids: un.map((l) => l.id) }) }).then(() => { un.forEach((l) => (l.seen = true)); railBadges(); }).catch(() => {});
@@ -14528,7 +14539,7 @@ function drawAgentForm(a) {
 		$("#agSave").disabled = true;
 		const sources = $$(".ag-src").map((r) => ({ type: r.querySelector("[data-agt]").value, value: r.querySelector("[data-agv]").value.trim() })).filter((x) => x.value);
 		try {
-			await api("/api/agents", { method: "POST", body: JSON.stringify({ id: a.id, name: $("#agName").value, goal: $("#agGoal").value, every: +$("#agEvery").value, sources, notify: $("#agNotify").value, email: $("#agEmail").checked, send: $$("[data-agsend]").filter((x) => x.checked).map((x) => x.dataset.agsend), emails: (($$('[name="agMail"]').find((x) => x.checked) || {}).value) || "", posts: $$("[data-agpost]").filter((x) => x.checked).map((x) => x.dataset.agpost), tz: -new Date().getTimezoneOffset(), active: a.id ? a.active !== false : true, ...agentModels() }) });
+			await api("/api/agents", { method: "POST", body: JSON.stringify({ id: a.id, name: $("#agName").value, goal: $("#agGoal").value, every: +$("#agEvery").value, sources, notify: $("#agNotify").value, email: $("#agEmail").checked, send: $$("[data-agsend]").filter((x) => x.checked).map((x) => x.dataset.agsend), emails: (($$('[name="agMail"]').find((x) => x.checked) || {}).value) || "", posts: $$("[data-agpost]").filter((x) => x.checked).map((x) => x.dataset.agpost), tz: -new Date().getTimezoneOffset(), tzName: TZ_NAME, active: a.id ? a.active !== false : true, ...agentModels() }) });
 			await syncAgents(true);
 			drawAgents();
 			toast(a.id ? "Saved" : "It's working: its first look is in a minute or two");
@@ -14537,6 +14548,52 @@ function drawAgentForm(a) {
 }
 // ---- Celestin Together's Front desk: a receptionist on a link you share (the server answers customers; see deskChat)
 var DESKS = { bots: [], items: [], at: 0 };
+// ---- Needs you: every decision waiting, from every part of the team, with its button; the rest it handled
+var NEEDS = { items: [], yesterday: {} };
+async function syncNeeds() {
+	if (!TOGETHER_APP || !creditsMode() || !account) return;
+	const before = NEEDS.items.length;
+	try { NEEDS = { items: [], yesterday: {}, ...(await api("/api/needs")) }; } catch { return; }
+	railBadges();
+	if ($("#ndBox")) drawNeeds();
+	else if (current && !current.msgs.length && before !== NEEDS.items.length) renderTogetherWelcome();
+}
+function openNeeds() {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	openModal('<h2>Needs you</h2><p class="sub">Everything waiting for your decision, from your whole team, in one place. Everything else it handled.</p><div id="ndBox"><p class="help">Loading…</p></div>', "wide");
+	drawNeeds();
+	syncNeeds();
+}
+function needRow(it) {
+	const head = (t) => '<div class="nd-h"><b>' + t + '</b><span class="help">' + esc(it.from || "") + " · " + esc(new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })) + "</span></div>";
+	const btns = (x) => '<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">' + x + "</div>";
+	if (it.type === "approve") return head("An email for your OK") + '<div class="help">' + esc(it.to ? "To " + it.to : "A reply in the thread") + (it.subject ? " · " + esc(it.subject) : "") + '</div><textarea class="inp" rows="4" data-ndbody style="margin-top:6px">' + esc(it.text) + "</textarea>" + btns('<button class="btn dark" data-ndsend>Send</button><button class="btn" data-nddiscard>Discard</button>');
+	if (it.type === "desk" && it.kind === "reminder") return head("A reminder to send") + '<div style="white-space:pre-wrap">' + esc(it.reminder || it.text) + "</div>" + btns((it.link ? '<a class="btn dark" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-ndgo>Send on WhatsApp</a>' : "") + '<button class="btn" data-nddone>Done</button>');
+	if (it.type === "desk") return head(it.kind === "question" ? "A customer asked" : it.kind === "booking" ? "A booking request" : "A customer message") + "<div>" + esc(it.text) + "</div>" + (it.who ? '<div class="help">' + esc(it.who) + "</div>" : "") + btns('<input class="inp" data-ndreply placeholder="' + (it.kind === "question" ? "Your answer (it reaches them, and your desk learns it)" : "Your reply (it reaches them)") + '" style="flex:1;min-width:200px"><button class="btn dark" data-ndanswer>Send</button><button class="btn" data-nddone>Done</button>');
+	if (it.type === "job") return head(it.kind === "post" ? "A post, ready" : it.kind === "message" ? "A message to send" + (it.title ? " to " + esc(it.title) : "") : it.kind === "call" ? "A call result" : "From " + esc(it.from)) + '<div class="md">' + md(it.text) + "</div>" + btns((it.link && it.kind !== "call" ? '<a class="btn dark" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-ndgo>' + (it.kind === "post" ? "Post it" : "Send on WhatsApp") + "</a>" : "") + '<button class="btn" data-nddone>Done</button>' + (it.kind === "post" ? '<button class="btn" data-ndskip>Skip</button>' : ""));
+	return head("Your agent found something") + '<div class="md">' + md(it.text) + "</div>" + btns('<button class="btn" data-ndseen>Got it</button>');
+}
+function drawNeeds() {
+	const box = $("#ndBox");
+	if (!box) return;
+	const y = NEEDS.yesterday || {}, done = [y.chats && y.chats + " chats answered", y.booked && y.booked + " booked", y.mailed && y.mailed + " emails sent", y.posted && y.posted + " posted", y.calls && y.calls + " calls"].filter(Boolean);
+	const top = done.length ? '<div class="nd-y">Yesterday your team: ' + done.map(esc).join(" · ") + "</div>" : "";
+	if (!NEEDS.items.length) { box.innerHTML = top + '<div class="nd-none">Nothing needs you right now. Your team has it.</div>'; return; }
+	box.innerHTML = top + NEEDS.items.map((it, k) => '<div class="nd-it" data-ndk="' + k + '">' + needRow(it) + "</div>").join("");
+	const gone = (it) => { NEEDS.items = NEEDS.items.filter((x) => x !== it); railBadges(); drawNeeds(); };
+	const act = async (it, path, bodyObj, okText) => { try { await api(path, { method: "POST", body: JSON.stringify(bodyObj || {}) }); if (okText) toast(okText); gone(it); } catch (e) { toast(e.message || String(e)); } };
+	$$(".nd-it").forEach((el) => {
+		const it = NEEDS.items[+el.dataset.ndk], q = (x) => el.querySelector(x);
+		const itemPath = it.type === "desk" ? "/api/bots/items/" + it.id : "/api/jobs/items/" + it.id;
+		if (q("[data-ndsend]")) q("[data-ndsend]").onclick = () => act(it, "/api/agents/log/" + it.id + "/send", { body: q("[data-ndbody]").value }, "Sent");
+		if (q("[data-nddiscard]")) q("[data-nddiscard]").onclick = () => act(it, "/api/agents/log/" + it.id + "/discard", {}, "Thrown away");
+		if (q("[data-ndanswer]")) q("[data-ndanswer]").onclick = () => { const v = q("[data-ndreply]").value.trim(); if (v) act(it, itemPath, { status: "done", reply: v }, it.kind === "question" ? "Sent, and your desk knows it now" : "Sent"); };
+		if (q("[data-nddone]")) q("[data-nddone]").onclick = () => act(it, itemPath, { status: "done" });
+		if (q("[data-ndskip]")) q("[data-ndskip]").onclick = () => act(it, itemPath, { status: "skipped" });
+		if (q("[data-ndgo]")) q("[data-ndgo]").addEventListener("click", () => setTimeout(() => act(it, itemPath, { status: "done" }), 400));
+		if (q("[data-ndseen]")) q("[data-ndseen]").onclick = () => act(it, "/api/agents/seen", { ids: [it.id] });
+	});
+}
 // its phone: on its Twilio number it answers calls as the business, books, takes messages, puts callers through
 const deskPhoneRow = (b) => connOf("twilio") ? '<div class="row" style="gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap"><label class="chk"><input type="checkbox" data-dkphone="' + b.id + '"' + (b.phone && b.phone.on ? " checked" : "") + "> It answers my phone (" + esc(connOf("twilio").meta.from || "") + ')</label><input class="inp" data-dkfwd="' + b.id + '" placeholder="Put callers through to (your own phone, optional)" value="' + esc((b.phone && b.phone.forward) || "") + '" style="flex:1;min-width:200px"></div>' : '<div class="help" style="margin-top:6px"><a href="#" data-dkconn="twilio">Connect phone calls</a> and it answers your business phone too: books, takes messages, puts callers through to you.</div>';
 const deskLink = (id) => location.origin + location.pathname.replace(/[^/]*$/, "") + "talk.html#" + id;
@@ -14603,7 +14660,7 @@ function drawDesks(edit) {
 		$("#dkSave").onclick = async () => {
 			$("#dkSave").disabled = true;
 			try {
-				await api("/api/bots", { method: "POST", body: JSON.stringify({ id: ed && ed.id, name: $("#dkName").value, intro: $("#dkIntro").value, brief: $("#dkBrief").value, cap: 0, tz: -new Date().getTimezoneOffset(), country: LOC.call, models: deskModels(), slots: deskSlotsValue() }) });
+				await api("/api/bots", { method: "POST", body: JSON.stringify({ id: ed && ed.id, name: $("#dkName").value, intro: $("#dkIntro").value, brief: $("#dkBrief").value, cap: 0, tz: -new Date().getTimezoneOffset(), tzName: TZ_NAME, country: LOC.call, models: deskModels(), slots: deskSlotsValue() }) });
 				await syncDesks(true);
 				drawDesks();
 			} catch (e) { $("#dkStatus").className = "status bad"; $("#dkStatus").textContent = e.message || String(e); $("#dkSave").disabled = false; }
@@ -14669,10 +14726,10 @@ async function syncTasks(quiet) {
 	}
 	return j;
 }
-setInterval(() => { syncTasks(); syncDesks(); syncJobs(); syncAgents(); }, 5 * 60e3);
-addEventListener("focus", () => { syncTasks(); syncDesks(); syncJobs(); syncAgents(); });
+setInterval(() => { syncTasks(); syncDesks(); syncJobs(); syncAgents(); syncNeeds(); }, 5 * 60e3);
+addEventListener("focus", () => { syncTasks(); syncDesks(); syncJobs(); syncAgents(); syncNeeds(); });
 // (what's waiting, as soon as the app is open: the rail's counts and the welcome)
-setTimeout(() => { syncDesks(true); syncJobs(true); syncAgents(true); }, 2500);
+setTimeout(() => { syncDesks(true); syncJobs(true); syncAgents(true); syncNeeds(); if (/needs/.test(location.hash) && TOGETHER_APP && account) openNeeds(); }, 2500);
 async function openTasks() {
 	if (!creditsMode() || !account) { openAccount(); return; }
 	openModal('<h2>Tasks</h2><p class="sub">Things Celestin does by itself on a schedule, even with this page closed. Each run uses your credits like a message, and its answer waits in your Tasks chat.</p>' +

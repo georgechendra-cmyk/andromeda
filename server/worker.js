@@ -135,6 +135,8 @@ export default {
 			.then(() => runDueJobs(env, ctx)).catch(() => {})
 			.then(() => deskReminders(env)).catch(() => {})
 			.then(() => runDueAgents(env, ctx)).catch(() => {})
+			.then(() => warmFeeds(env)).catch(() => {})
+			.then(() => runBriefs(env)).catch(() => {})
 			.then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3)])).catch(() => {}));
 	},
 };
@@ -179,6 +181,7 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})$/)) && m === "DELETE") return jobDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/run$/)) && m === "POST") return jobRunNow(env, ctx, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
+	if (p === "/api/needs" && m === "GET") return json(await needsOf(env, user.id));
 	if (p === "/api/prefs" && m === "GET") return prefsGet(env, user);
 	if (p === "/api/prefs" && m === "POST") return prefsSet(req, env, user);
 	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
@@ -683,6 +686,10 @@ function columns(env) {
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS calls_user ON calls (user_id, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS prefs (user_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT, secret TEXT NOT NULL, meta TEXT, created_at INTEGER NOT NULL, UNIQUE (user_id, kind))").run();
+		for (const tb of ["bots", "agents", "tasks"]) {
+			const cols = new Set(((await env.DB.prepare("PRAGMA table_info(" + tb + ")").all()).results || []).map((r) => r.name));
+			if (cols.size && !cols.has("tzname")) { try { await env.DB.prepare("ALTER TABLE " + tb + " ADD COLUMN tzname TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		}
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
 	})().catch((e) => { COLS = null; throw e; });
@@ -1714,6 +1721,13 @@ async function newsItems(env, q, days) {
 	return all.map((x) => { const h = (x.title + " " + x.text).toLowerCase(); return { x, hit: res.filter((r) => r.test(h)).length }; })
 		.filter((o) => o.hit >= need && (!o.x.at || o.x.at >= since) && !seen.has(o.x.url) && seen.add(o.x.url))
 		.sort((a, b) => b.hit - a.hit || (b.x.at || 0) - (a.x.at || 0)).map((o) => o.x);
+}
+// (eight a tick, the stalest first: every feed fresh within the half hour, whether or not anyone searched)
+async function warmFeeds(env) {
+	const used = await env.DB.prepare("SELECT 1 AS x FROM agents WHERE active = 1 AND sources LIKE '%\"news\"%' UNION SELECT 1 FROM team_jobs WHERE active = 1 AND kind = 'marketing' LIMIT 1").first().catch(() => null);
+	if (!used) return;
+	const budget = { left: 8 };
+	for (const [n, u] of [...NEWS_FEEDS.id, ...NEWS_FEEDS.en]) { if (budget.left <= 0) break; await feedCached(env, n, u, budget).catch(() => []); }
 }
 async function newsSearch(q, n, days = 3, env) {
 	const query = String(q || "").replace(/\s+/g, " ").trim().slice(0, 200);
@@ -3050,10 +3064,25 @@ async function skillsGet(env, url) {
 // is an ordinary request made for the person (their credits, the models Celestin picked for it, a live web search),
 // and its answer waits for them in the app.
 // a time zone as sent (minutes from UTC, 0 included); none at all: Jakarta's
+// a time zone's offset now (minutes from UTC), from its name; a name it doesn't know: the offset saved with it
+const tzName = (x) => (/^[A-Za-z_]+(\/[A-Za-z0-9_+-]+){0,2}$/.test(String(x || "")) ? String(x) : "");
+const TZ_FMT = new Map();
+function tzLive(name, stored, d = 420) {
+	if (name) {
+		try {
+			let f = TZ_FMT.get(name);
+			if (!f) TZ_FMT.set(name, (f = new Intl.DateTimeFormat("en-US", { timeZone: name, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })));
+			const t = Math.floor(Date.now() / 60000) * 60000, p = Object.fromEntries(f.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+			return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute) - t) / 60000);
+		} catch {}
+	}
+	return tzIn(stored, d);
+}
+const botTz = (b) => tzLive(b.tzname, b.tz, 0), cfgTz = (c) => tzLive(c.tzname, c.tz);
 const tzIn = (x, d = 420) => { const n = Number(x); return x !== null && x !== undefined && x !== "" && Number.isFinite(n) ? Math.max(-840, Math.min(840, Math.round(n))) : d; };
 const EVERY = ["once", "hour", "day", "weekdays", "week"];
 function nextRun(t, after) {
-	const off = (Number(t.tz) || 0) * 60e3, local = after + off, day = 864e5;
+	const off = tzLive(t.tzname, t.tz, 0) * 60e3, local = after + off, day = 864e5;
 	const m = Math.max(0, Math.min(1439, Number(t.minute) || 0)) * 60e3;
 	if (t.every === "hour") {
 		const h = 3600e3;
@@ -3083,22 +3112,22 @@ async function taskSave(req, env, user) {
 	const t = {
 		title: String(b.title || prompt).replace(/\s+/g, " ").trim().slice(0, 80), prompt, every,
 		minute: Math.max(0, Math.min(1439, (hh || 0) * 60 + (mm || 0))), dow: Math.max(0, Math.min(6, Number(b.dow) || 0)),
-		tz: Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 0))), web: b.web === false ? 0 : 1,
+		tz: Math.max(-840, Math.min(840, Math.round(Number(b.tz) || 0))), tzname: tzName(b.tzName), web: b.web === false ? 0 : 1,
 		models: JSON.stringify((Array.isArray(b.models) ? b.models : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 4)),
 		active: b.active === false ? 0 : 1,
 		member: /^(researcher|builder|designer|writer|analyst|reviewer)$/.test(String(b.member || "")) ? String(b.member) : null,
 	};
 	t.next_at = nextRun(t, now());
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
-		const r = await env.DB.prepare("UPDATE tasks SET title = ?, prompt = ?, every = ?, minute = ?, dow = ?, tz = ?, web = ?, models = ?, active = ?, next_at = ? WHERE id = ? AND user_id = ?")
-			.bind(t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.web, t.models, t.active, t.next_at, b.id, user.id).run();
+		const r = await env.DB.prepare("UPDATE tasks SET title = ?, prompt = ?, every = ?, minute = ?, dow = ?, tz = ?, tzname = ?, web = ?, models = ?, active = ?, next_at = ? WHERE id = ? AND user_id = ?")
+			.bind(t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.tzname, t.web, t.models, t.active, t.next_at, b.id, user.id).run();
 		if (r.meta && r.meta.changes) { const k = await env.DB.prepare("SELECT member FROM tasks WHERE id = ?").bind(b.id).first(); return json({ task: taskOut({ ...t, id: b.id, member: k && k.member }) }); }
 	}
 	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM tasks WHERE user_id = ?").bind(user.id).first();
 	if (n && n.n >= 20) throw fail(429, "You have 20 tasks already: delete one to add another.");
 	const tid = id();
-	await env.DB.prepare("INSERT INTO tasks (id, user_id, title, prompt, every, minute, dow, tz, web, models, active, next_at, created_at, member) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-		.bind(tid, user.id, t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.web, t.models, t.active, t.next_at, now(), t.member).run();
+	await env.DB.prepare("INSERT INTO tasks (id, user_id, title, prompt, every, minute, dow, tz, tzname, web, models, active, next_at, created_at, member) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+		.bind(tid, user.id, t.title, t.prompt, t.every, t.minute, t.dow, t.tz, t.tzname, t.web, t.models, t.active, t.next_at, now(), t.member).run();
 	return json({ task: taskOut({ ...t, id: tid }) });
 }
 async function taskDel(env, user, tid) {
@@ -3128,7 +3157,7 @@ async function runTask(env, ctx, t) {
 	let models = [];
 	try { models = JSON.parse(t.models || "[]"); } catch {}
 	if (!models.length) models = ["anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol", "google/gemini-3.8-flash"];
-	const when = new Date(now() + (Number(t.tz) || 0) * 60e3).toISOString().slice(0, 16).replace("T", " ");
+	const when = new Date(now() + tzLive(t.tzname, t.tz, 0) * 60e3).toISOString().slice(0, 16).replace("T", " ");
 	const messages = [
 		{ role: "system", content: "You are Celestin. This is a task the user set up to run by itself on a schedule, and it's running now: " + when + " in their time. Do it completely, as a finished message to them: what matters first, no preamble, and no questions back (they aren't here to answer). Use Markdown." },
 		{ role: "user", content: t.prompt },
@@ -3212,7 +3241,15 @@ async function xFetch(c, method, url, body) {
 	if (!r.ok) throw fail(r.status === 429 ? 429 : 400, "X said: " + (j.detail || j.title || (j.errors && j.errors[0] && j.errors[0].message) || r.status));
 	return j;
 }
+const BSKY = new Map();
 async function bskySession(c) {
+	const bk = c.handle + ":" + c.appPassword, kept = BSKY.get(bk);
+	if (kept && Date.now() - kept.at < 60 * 60e3) return kept.s;
+	const s1 = await bskySignIn(c);
+	BSKY.set(bk, { s: s1, at: Date.now() });
+	return s1;
+}
+async function bskySignIn(c) {
 	const r = await fetch("https://bsky.social/xrpc/com.atproto.server.createSession", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ identifier: c.handle, password: c.appPassword }), signal: AbortSignal.timeout(15000) });
 	const j = await r.json().catch(() => ({}));
 	if (!j.accessJwt) throw fail(400, "Bluesky said: " + (j.message || "that handle and app password didn't work"));
@@ -3256,7 +3293,7 @@ async function connCheck(kind, b) {
 		if (!/^https:\/\/script\.google\.com\/(a\/macros\/[\w.-]+|macros)\/s\/[\w-]+\/exec$/.test(c.url)) throw fail(400, "That isn't your script's web app link: it looks like https://script.google.com/macros/s/…/exec");
 		if (c.key.length < 16) throw fail(400, "The key is missing: it's in the script you copied.");
 		const me = await gmailCall(c, { action: "whoami" });
-		return { secret: c, name: me.email || "Your Gmail", meta: { email: me.email || "", left: me.left } };
+		return { secret: c, name: me.email || "Your Gmail", meta: { email: me.email || "", left: me.left, version: Number(me.version) || 1 } };
 	}
 	if (kind === "twilio") {
 		const c = { sid: v("sid"), token: v("token"), from: v("from").replace(/[^\d+]/g, "") };
@@ -3384,7 +3421,7 @@ async function voiceHook(req, env, ctx, bid, step, cid) {
 	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(bot.user_id).first();
 	const owner = row && (await readyUser(env, row, await config(env)));
 	const sc = slotsCfg(bot), free = sc ? await freeSlots(env, bot, t) : null;
-	const local = new Date(t + tzIn(bot.tz) * 60e3).toISOString().slice(0, 16).replace("T", " ");
+	const local = new Date(t + tzIn(botTz(bot)) * 60e3).toISOString().slice(0, 16).replace("T", " ");
 	let models = vc.models || [];
 	if (!models.length) try { models = JSON.parse(bot.models || "[]"); } catch {}
 	const spent = { mc: 0 };
@@ -3396,7 +3433,7 @@ async function voiceHook(req, env, ctx, bid, step, cid) {
 	// (a booking: only at a time still free)
 	if (j && j.book && sc) {
 		const want = String(j.book.slot || "").trim().slice(0, 16), now2 = await freeSlots(env, bot, t);
-		if (SLOT_RE.test(want) && now2 && now2.some((d) => d.free.includes(want))) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, slot, slot_at, created_at) VALUES (?, ?, ?, ?, 'booking', ?, ?, 'new', ?, ?, ?)").bind(id(), bid, bot.user_id, "phone_" + caller.replace(/\D/g, "").padEnd(16, "0").slice(0, 24), "Booked by phone: " + want, JSON.stringify({ name: String(j.book.name || "").slice(0, 80), contact: caller, when: want, booked: true }), want, slotAt(want, bot.tz), now()));
+		if (SLOT_RE.test(want) && now2 && now2.some((d) => d.free.includes(want))) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, slot, slot_at, created_at) VALUES (?, ?, ?, ?, 'booking', ?, ?, 'new', ?, ?, ?)").bind(id(), bid, bot.user_id, "phone_" + caller.replace(/\D/g, "").padEnd(16, "0").slice(0, 24), "Booked by phone: " + want, JSON.stringify({ name: String(j.book.name || "").slice(0, 80), contact: caller, when: want, booked: true }), want, slotAt(want, botTz(bot)), now()));
 		else { say = v.lang === "id-ID" ? "Maaf, waktu itu sudah tidak tersedia. Mau waktu lain?" : "Sorry, that time isn't free anymore. Would another time work?"; end = false; }
 	}
 	turns.push({ who: "ai", text: say });
@@ -3471,6 +3508,49 @@ async function connTest(env, user, kind) {
 async function calendarAdd(env, userId, e) { const { c } = await gmailOf(env, userId); await gmailCall(c, { action: "event", title: e.title, start: new Date(e.start).toISOString(), minutes: e.minutes || 30, details: e.details || "" }); }
 // "act without asking": emails and replies go out without waiting for an OK (nothing here ever spends money)
 async function prefsOf(env, uid) { const r = await env.DB.prepare("SELECT state FROM prefs WHERE user_id = ?").bind(uid).first().catch(() => null); try { return JSON.parse((r && r.state) || "{}") || {}; } catch { return {}; } }
+// everything waiting for its owner's decision, from every part of the team, and what got done yesterday
+async function needsOf(env, uid) {
+	const day = now() - 864e5, all = async (sql, ...a) => (await env.DB.prepare(sql).bind(...a).all().catch(() => ({ results: [] }))).results || [], one = (sql, ...a) => env.DB.prepare(sql).bind(...a).first().catch(() => null);
+	const [approve, reports, desk, jobs, chats, booked, mailed, posted, calls] = await Promise.all([
+		all("SELECT l.id, l.text, l.created_at, a.name FROM agent_log l JOIN agents a ON a.id = l.agent_id WHERE l.user_id = ? AND l.kind = 'approve' ORDER BY l.created_at DESC LIMIT 20", uid),
+		all("SELECT l.id, l.text, l.created_at, a.name FROM agent_log l JOIN agents a ON a.id = l.agent_id WHERE l.user_id = ? AND l.kind = 'report' AND l.seen = 0 ORDER BY l.created_at DESC LIMIT 10", uid),
+		all("SELECT i.id, i.kind, i.summary, i.details, i.slot, i.created_at, b.name AS bot_name FROM bot_items i JOIN bots b ON b.id = i.bot_id WHERE i.user_id = ? AND i.status = 'new' AND NOT (i.kind = 'booking' AND i.slot IS NOT NULL) ORDER BY i.created_at DESC LIMIT 20", uid),
+		all("SELECT i.id, i.kind, i.title, i.text, i.link, i.created_at, j.name AS job_name FROM team_job_items i JOIN team_jobs j ON j.id = i.job_id WHERE i.user_id = ? AND i.status = 'ready' ORDER BY i.created_at DESC LIMIT 20", uid),
+		one("SELECT COUNT(*) AS n FROM bot_msgs m JOIN bots b ON b.id = m.bot_id WHERE b.user_id = ? AND m.role = 'bot' AND m.created_at > ?", uid, day),
+		one("SELECT COUNT(*) AS n FROM bot_items WHERE user_id = ? AND kind = 'booking' AND slot IS NOT NULL AND created_at > ?", uid, day),
+		one("SELECT COUNT(*) AS n FROM agent_log WHERE user_id = ? AND kind = 'action' AND text LIKE 'Emailed%' AND created_at > ?", uid, day),
+		one("SELECT COUNT(*) AS n FROM team_job_items WHERE user_id = ? AND kind IN ('post', 'email') AND status = 'done' AND created_at > ?", uid, day),
+		one("SELECT COUNT(*) AS n FROM calls WHERE user_id = ? AND created_at > ?", uid, day),
+	]);
+	const items = [
+		...approve.map((l) => { let m = {}; try { m = JSON.parse(l.text); } catch {} return { type: "approve", id: l.id, from: l.name, to: m.to || "", subject: m.subject || "", text: m.body || "", at: l.created_at }; }),
+		...desk.map((i) => { let d = {}; try { d = JSON.parse(i.details || "{}"); } catch {} return { type: "desk", id: i.id, kind: i.kind, from: i.bot_name, text: i.summary || "", who: [d.name, d.contact, d.when].filter(Boolean).join(" · "), link: d.link || "", reminder: d.text || "", at: i.created_at }; }),
+		...jobs.map((i) => ({ type: "job", id: i.id, kind: i.kind, from: i.job_name, title: i.title || "", text: i.text || "", link: i.link || "", at: i.created_at })),
+		...reports.map((l) => ({ type: "report", id: l.id, from: l.name, text: l.text, at: l.created_at })),
+	];
+	const n = (x) => Number(x && x.n) || 0;
+	return { items, yesterday: { chats: n(chats), booked: n(booked), mailed: n(mailed), posted: n(posted), calls: n(calls) } };
+}
+// the morning brief: at 8 where they are, once a day, on Telegram, only when something needs them
+async function runBriefs(env) {
+	const t = now(), users = (await env.DB.prepare("SELECT DISTINCT user_id FROM conns WHERE kind = 'telegram' LIMIT 300").all().catch(() => ({ results: [] }))).results || [];
+	for (const { user_id } of users) {
+		const z = await env.DB.prepare("SELECT tz, tzname FROM bots WHERE user_id = ? UNION ALL SELECT tz, tzname FROM agents WHERE user_id = ? LIMIT 1").bind(user_id, user_id).first().catch(() => null);
+		const local = new Date(t + (z ? tzLive(z.tzname, z.tz) : 420) * 60e3), today = local.toISOString().slice(0, 10);
+		if (local.getUTCHours() !== 8) continue;
+		const p = await prefsOf(env, user_id);
+		if (p.brief === today) continue;
+		p.brief = today;
+		await env.DB.prepare("INSERT INTO prefs (user_id, state, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at").bind(user_id, JSON.stringify(p), now()).run();
+		const nd = await needsOf(env, user_id);
+		if (!nd.items.length) continue;
+		const c = (type, kind) => nd.items.filter((x) => x.type === type && (!kind || x.kind === kind)).length;
+		const plural = (k, one, many) => k + " " + (k === 1 ? one : many);
+		const lines = [c("approve") && plural(c("approve"), "email waiting for your OK", "emails waiting for your OK"), c("desk", "question") && plural(c("desk", "question"), "question from a customer", "questions from customers"), c("desk", "message") + c("desk", "booking") && plural(c("desk", "message") + c("desk", "booking"), "customer message", "customer messages"), c("desk", "reminder") && plural(c("desk", "reminder"), "reminder to send", "reminders to send"), c("job", "post") && plural(c("job", "post"), "post ready", "posts ready"), c("job", "message") && plural(c("job", "message"), "rebooking message to send", "rebooking messages to send"), c("job", "call") && plural(c("job", "call"), "call result", "call results"), c("report") && plural(c("report"), "thing your agents found", "things your agents found")].filter(Boolean);
+		const y = nd.yesterday, done = [y.chats && y.chats + " chats answered", y.booked && y.booked + " booked", y.mailed && y.mailed + " emails sent", y.posted && y.posted + " posted", y.calls && y.calls + " calls"].filter(Boolean);
+		try { await connPost(env, user_id, "telegram", "☀️ Good morning. " + plural(nd.items.length, "thing needs you", "things need you") + ":\n• " + lines.join("\n• ") + (done.length ? "\n\nYesterday: " + done.join(" · ") : "") + "\n\nOpen: https://celestin.pages.dev/together#needs"); } catch {}
+	}
+}
 async function prefsGet(env, user) { return json({ auto: !!(await prefsOf(env, user.id)).auto }); }
 async function prefsSet(req, env, user) {
 	const b = await body(req), st = await prefsOf(env, user.id);
@@ -3509,14 +3589,14 @@ async function agentSave(req, env, user, ctx) {
 	}
 	const models = JSON.stringify({ quick: (Array.isArray(b.quick) ? b.quick : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 2), work: (Array.isArray(b.work) ? b.work : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3) });
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
-		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, act = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, act, b.active === false ? 0 : 1, b.id, user.id).run();
+		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, tzname = ?, act = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, tzName(b.tzName), act, b.active === false ? 0 : 1, b.id, user.id).run();
 		if (r.meta && r.meta.changes) return json({ agent: agentOut(await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(b.id).first()) });
 	}
 	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ?").bind(user.id).first();
 	if (n && n.n >= AGENT_MAX) throw fail(429, "You have " + AGENT_MAX + " agents already: delete one to add another.");
 	const aid = id(), t = now();
 	// (its first look: now; a one-off starts at once, in the background)
-	await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, act, state, next_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 1, ?)").bind(aid, user.id, name, goal, every, JSON.stringify(sources), notify, email, models, tz, act, t, t).run();
+	await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, tzname, act, state, next_at, active, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}', ?, 1, ?)").bind(aid, user.id, name, goal, every, JSON.stringify(sources), notify, email, models, tz, tzName(b.tzName), act, t, t).run();
 	const made = await env.DB.prepare("SELECT * FROM agents WHERE id = ?").bind(aid).first();
 	if (every === 0 && ctx) ctx.waitUntil(runAgent(env, ctx, made, false).catch(() => {}));
 	return json({ agent: agentOut(made) });
@@ -3657,7 +3737,7 @@ async function runAgent(env, ctx, a, manual) {
 	// (an inbox's first look: what's there is new for a one-off; for a standing agent, only what comes after)
 	const fresh = looks.filter((l) => l.fresh.length && (!l.mail || !l.first || once)), errors = looks.filter((l) => l.error).map((l) => l.error);
 	const firstPages = looks.filter((l) => l.first && l.all);
-	const local = new Date(t + tzIn(a.tz) * 60e3).toISOString().slice(0, 16).replace("T", " ");
+	const local = new Date(t + tzLive(a.tzname, a.tz) * 60e3).toISOString().slice(0, 16).replace("T", " ");
 	const what = "Your job, as " + a.name + ", working for its owner by yourself: " + a.goal + (a.notify ? "\n\nTell the owner when: " + a.notify : "") + "\n\nWhat you know so far (your memory): " + (st.memory || "(nothing yet: this is your first look)");
 	const newText = fresh.map((l) => "From " + l.label + ":\n" + l.fresh.map((x) => "- " + [x.title, x.text, x.url].filter(Boolean).join(" · ")).join("\n")).join("\n\n").slice(0, 14000) +
 		(firstPages.length ? "\n\n" + firstPages.map((l) => "The page " + l.label + " as it is now (your first look at it):\n" + l.all).join("\n\n").slice(0, 9000) : "");
@@ -3767,7 +3847,7 @@ async function jobSave(req, env, user) {
 	const c = b.config || {};
 	const config = {
 		brief: String(c.brief || "").trim().slice(0, 6000), goal: String(c.goal || "").trim().slice(0, 1000), lang: String(c.lang || "").slice(0, 30), link: String(c.link || "").slice(0, 300),
-		tz: tzIn(c.tz),
+		tz: tzIn(c.tz), tzname: tzName(c.tzName),
 		// (who the business is to its customers: a place with hours, or online; its assistant's name; its country's calling code)
 		type: c.type === "online" ? "online" : "place",
 		assistant: String(c.assistant || "").replace(/\s+/g, " ").trim().slice(0, 40),
@@ -3888,12 +3968,12 @@ const ccOf = (num) => { const d = String(num || "").replace(/\D/g, ""); for (con
 // 19:00, Monday to Saturday); an online one in the customer's own daytime (10:00 to 19:00, Monday to Saturday); never
 // outside 8:00 to 21:00 for the customer, wherever in their country they are
 function callTime(cfg, num, t) {
-	const span = CC_TZ[ccOf(num)] || [tzIn(cfg.tz), tzIn(cfg.tz)];
+	const span = CC_TZ[ccOf(num)] || [cfgTz(cfg), cfgTz(cfg)];
 	const at = (off, from, to, days) => { const d = new Date(t + off * 60e3), m = d.getUTCHours() * 60 + d.getUTCMinutes(); return (!days || days.includes(d.getUTCDay())) && m >= from && m < to; };
 	const theirs = (from, to, days) => at(span[0], from, to, days) && at(span[1], from, to, days);
 	if (cfg.type === "online") return theirs(600, 1140, [1, 2, 3, 4, 5, 6]);
 	const h = cfg.hours || {}, open = hhmmMin(h.open) ?? 540, close = hhmmMin(h.close) ?? 1140, days = Array.isArray(h.days) && h.days.length ? h.days.map(Number) : [1, 2, 3, 4, 5, 6];
-	return at(tzIn(cfg.tz), open, Math.max(open + 30, close - 30), days) && theirs(480, 1260);
+	return at(cfgTz(cfg), open, Math.max(open + 30, close - 30), days) && theirs(480, 1260);
 }
 // everyone who booked through a front desk: their name, how to reach them, and when they last came
 async function deskCustomers(env, userId, botId) {
@@ -3961,7 +4041,7 @@ function nextSlot(cfg, last, heat) {
 	for (let h = 1; h <= 36; h++) {
 		const at = t0 + h * 3600e3 - (t0 % 3600e3) + 5 * 60e3;
 		if (last && at - last < gap) continue;
-		const local = new Date(at + (cfg.tz || 0) * 60e3).getUTCHours();
+		const local = new Date(at + cfgTz(cfg) * 60e3).getUTCHours();
 		const score = curve[local] * (1 + 0.25 * Math.max(0, heat - 1)) - h * 0.004;
 		if (!best || score > best.score) best = { at, score, local };
 	}
@@ -4034,7 +4114,7 @@ async function runJob(env, ctx, j, manual) {
 		const heatV = await topicHeat(env, cfg.topic), heat = heatV.heat || 1, last = state.lastPost || 0;
 		const plat = (cfg.platforms || ["x"])[0];
 		// a spike in the topic: post now (if the last post was more than 4 hours ago); else at the hour that's best
-		const local = new Date(t + (cfg.tz || 0) * 60e3).getUTCHours(), act = (ACTIVE[plat] || ACTIVE.x)[local];
+		const local = new Date(t + cfgTz(cfg) * 60e3).getUTCHours(), act = (ACTIVE[plat] || ACTIVE.x)[local];
 		const spike = heat >= 1.5 && t - last > 4 * 3600e3;
 		const onTime = !state.nextPost || t >= state.nextPost - 6 * 60e3;
 		if (manual || spike || onTime) {
@@ -4097,7 +4177,7 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 async function freeSlots(env, bot, t, days = 7) {
 	const c = slotsCfg(bot);
 	if (!c) return null;
-	const tz = Number(bot.tz) || 0, open = hhmmMin(c.open), close = hhmmMin(c.close);
+	const tz = Number(botTz(bot)) || 0, open = hhmmMin(c.open), close = hhmmMin(c.close);
 	const from = new Date(t + tz * 60e3).toISOString().slice(0, 10);
 	const taken = {};
 	for (const r of (await env.DB.prepare("SELECT slot, COUNT(*) AS n FROM bot_items WHERE bot_id = ? AND kind = 'booking' AND slot IS NOT NULL AND status != 'cancelled' AND slot >= ? GROUP BY slot").bind(bot.id, from).all()).results || []) taken[r.slot] = r.n;
@@ -4140,13 +4220,13 @@ async function deskSave(req, env, user) {
 	if (b.slots && !slots) throw fail(400, "Check the booking hours: at least one day, and closing after opening.");
 	const slotsJson = slots ? JSON.stringify(slots) : null, cc = String(b.country || "").replace(/\D/g, "").slice(0, 4) || null;
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
-		const r = await env.DB.prepare("UPDATE bots SET name = ?, intro = ?, brief = ?, models = ?, cap_mc = ?, tz = ?, active = ?, slots = ?, cc = COALESCE(?, cc) WHERE id = ? AND user_id = ?").bind(name, intro, brief, models, cap, tz, b.active === false ? 0 : 1, slotsJson, cc, b.id, user.id).run();
+		const r = await env.DB.prepare("UPDATE bots SET name = ?, intro = ?, brief = ?, models = ?, cap_mc = ?, tz = ?, tzname = ?, active = ?, slots = ?, cc = COALESCE(?, cc) WHERE id = ? AND user_id = ?").bind(name, intro, brief, models, cap, tz, tzName(b.tzName), b.active === false ? 0 : 1, slotsJson, cc, b.id, user.id).run();
 		if (r.meta && r.meta.changes) return json({ bot: deskOut(await env.DB.prepare("SELECT * FROM bots WHERE id = ?").bind(b.id).first()) });
 	}
 	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM bots WHERE user_id = ?").bind(user.id).first();
 	if (n && n.n >= DESK_MAX) throw fail(429, "You have " + DESK_MAX + " front desks already: delete one to add another.");
 	const did = id();
-	await env.DB.prepare("INSERT INTO bots (id, user_id, name, intro, brief, models, cap_mc, tz, active, slots, cc, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)").bind(did, user.id, name, intro, brief, models, cap, tz, slotsJson, cc, now()).run();
+	await env.DB.prepare("INSERT INTO bots (id, user_id, name, intro, brief, models, cap_mc, tz, tzname, active, slots, cc, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)").bind(did, user.id, name, intro, brief, models, cap, tz, tzName(b.tzName), slotsJson, cc, now()).run();
 	return json({ bot: deskOut(await env.DB.prepare("SELECT * FROM bots WHERE id = ?").bind(did).first()) });
 }
 async function deskDelete(env, user, bid) {
@@ -4226,7 +4306,7 @@ async function deskChat(req, env, ctx, bid) {
 	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(bot.user_id).first();
 	if (!row) return keep("no owner");
 	const owner = await readyUser(env, row, await config(env));
-	const localNow = new Date(t + (Number(bot.tz) || 0) * 60e3), local = localNow.toISOString().slice(0, 16).replace("T", " ") + " (" + DAY_NAMES[localNow.getUTCDay()] + ")";
+	const localNow = new Date(t + (Number(botTz(bot)) || 0) * 60e3), local = localNow.toISOString().slice(0, 16).replace("T", " ") + " (" + DAY_NAMES[localNow.getUTCDay()] + ")";
 	const sc = slotsCfg(bot), free = sc ? await freeSlots(env, bot, t) : null;
 	const booking = sc
 		? "Bookings: you confirm them yourself, but ONLY at one of the free times given with the newest message (nothing else is free; never promise another). Get their name, a phone or WhatsApp number, what it's for, and which free time. Once you have all of it, set pass.kind \"booking\" and pass.slot to that exact time as \"YYYY-MM-DD HH:MM\", and tell them it's booked. If the time they want isn't free, offer the nearest free ones. Also put in pass.remind a short, warm reminder to send them the day before, in their language, with the day and time. For an order (not a booking): get the same details and say the team will confirm it here."
@@ -4271,10 +4351,10 @@ async function deskChat(req, env, ctx, bid) {
 		env.DB.prepare("INSERT INTO bot_msgs (id, bot_id, visitor, role, text, created_at) VALUES (?, ?, ?, 'bot', ?, ?)").bind(id(), bid, visitor, reply, now()),
 		env.DB.prepare("UPDATE bots SET day = ?, day_mc = ? WHERE id = ?").bind(today, spent + Math.round(credits * 1000), bid),
 	];
-	if (pass && ["booking", "message", "question"].includes(pass.kind)) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, slot, slot_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)").bind(id(), bid, bot.user_id, visitor, pass.kind, String(pass.summary || text).slice(0, 200), JSON.stringify({ name: String(pass.name || "").slice(0, 80), contact: String(pass.contact || "").slice(0, 80), when: slot || String(pass.when || "").slice(0, 80), ...(slot ? { booked: true, remind: String(pass.remind || "").slice(0, 600) } : {}) }), slot, slot ? slotAt(slot, bot.tz) : null, now()));
+	if (pass && ["booking", "message", "question"].includes(pass.kind)) qs.push(env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, slot, slot_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?)").bind(id(), bid, bot.user_id, visitor, pass.kind, String(pass.summary || text).slice(0, 200), JSON.stringify({ name: String(pass.name || "").slice(0, 80), contact: String(pass.contact || "").slice(0, 80), when: slot || String(pass.when || "").slice(0, 80), ...(slot ? { booked: true, remind: String(pass.remind || "").slice(0, 600) } : {}) }), slot, slot ? slotAt(slot, botTz(bot)) : null, now()));
 	await env.DB.batch(qs);
-	if (slot && ctx) ctx.waitUntil(calendarAdd(env, bot.user_id, { title: "Booking: " + String(pass.name || "a customer").slice(0, 60), start: slotAt(slot, bot.tz), minutes: sc.minutes, details: String(pass.summary || "") + (pass.contact ? " · " + pass.contact : "") + " (booked by your front desk)" }).catch(() => {}));
-	return json({ reply, passed: pass ? pass.kind : null, ...(slot ? { booked: slot, at: slotAt(slot, bot.tz), minutes: sc.minutes } : {}) });
+	if (slot && ctx) ctx.waitUntil(calendarAdd(env, bot.user_id, { title: "Booking: " + String(pass.name || "a customer").slice(0, 60), start: slotAt(slot, botTz(bot)), minutes: sc.minutes, details: String(pass.summary || "") + (pass.contact ? " · " + pass.contact : "") + " (booked by your front desk)" }).catch(() => {}));
+	return json({ reply, passed: pass ? pass.kind : null, ...(slot ? { booked: slot, at: slotAt(slot, botTz(bot)), minutes: sc.minutes } : {}) });
 }
 
 // ------------------------------------------------------------------ payments
