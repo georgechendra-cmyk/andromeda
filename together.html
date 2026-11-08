@@ -12447,6 +12447,9 @@ const HELP = [
 	["Celestin Together", "Can my team work while I'm away?", "Yes. Ask a teammate for something on a schedule, like \"@Researcher every weekday at 7, the AI news that matters\", and they keep doing it even with the page closed. Each answer comes to Team updates, from them, and uses credits like a message. Change or stop it in Tasks."],
 	["Credits and packs", "What are credit packs?", "Credits you buy once that never expire. They're used once your free credits for now are gone, so you never have to wait. You only pay for what you use: there's no subscription."],
 	["Payments", "I paid with QRIS. When do my credits arrive?", "QRIS payments are checked by hand, usually within a few hours. Your credits are added as soon as it's confirmed. If it's been more than a day, write to us below with the name you paid from."],
+	["Celestin Together", "Can it make a video like a creator I like?", "Yes: say whose style, and send a link to one of their videos or attach a short clip. Celestin studies it first (look, colours, motion, pacing) and makes yours like it, never a copy of theirs. Animations are drawn in code and cut into a real MP4, and you see what it'll cost before it starts."],
+	["Celestin Together", "Can I download a 3D model it made?", "Yes. Open the 3D app it made and press the cube button above it: .glb for games, Blender, AR and online stores, .stl for 3D printing, .obj for most 3D apps. It's yours to use, edit, print or sell."],
+	["Credits and packs", "What does a long run cost?", "Before Celestin works on something for a long time (\"work on it for 2 hours\", or \"take all the time you need\"), it shows what it'll likely cost and waits for your go. While it works it shows what it has spent, and it stops when the time's up or your credits run low. One run goes up to 24 hours."],
 	["Payments", "Can I get a refund?", "No: payments are final, and credits can't be turned back into money, so buy only what you'll use (a smaller pack is always fine). If something you paid for didn't work as it should, write to us below and we'll put it right."],
 	["Signing in", "My sign-in code didn't arrive", "It comes from celestinsupportai@gmail.com within a minute. Look in Spam or Promotions, and check the email is spelled right. Still nothing? Press Send a new code, or write to us below."],
 	["Signing in", "I forgot my password", "On the sign-in page press Forgot your password?, type your email, and we'll send a code that lets you choose a new one."],
@@ -13885,7 +13888,10 @@ async function importData(d) {
 }
 
 // ---------------------------------------------------------------- what's new: shown once after an update, so nothing new goes unnoticed
-const WHATS_NEW = { v: "2026-11-06", items: [
+const WHATS_NEW = { v: "2026-11-08", items: [
+	['<circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M3 20c0-3 2.5-5 5-5s5 2 5 5M11 20c0-3 2.5-5 5-5s5 2 5 5"/>', "Celestin Together", "Your own AI team in one chat: six teammates, each the model measured best at their job, working at the same time. Same credits."],
+	['<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9Z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/>', "3D models you can use", "Ask for a 3D model and download it as .glb, .stl or .obj: for games, Blender, 3D printing or selling."],
+	['<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/>', "Animations, made in code", "Explainers and animated videos drawn shot by shot in code, cut into a real MP4. Send a link or a clip of a style and it studies it first."],
 	['<circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8.2 8.4 20 17M8.2 15.6 20 7"/>', "Edit your own videos", "Attach a clip and say what you want: cut, captions, music, vertical for Shorts, a GIF. It's edited right in your browser."],
 	['<rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9 5 3-5 3z"/>', "It watches videos", "Attach a video and ask about it, or ask for a site or game like the one it shows."],
 	['<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/>', "Made things open beside the chat", "Apps, games and pages open in a panel next to the conversation, with their code a click away."],
