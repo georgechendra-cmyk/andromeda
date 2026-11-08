@@ -3292,9 +3292,10 @@ async function conduct(text, atts, tried, only, team) {
 		+ "\nCelestin's expert playbooks, all switched on: pick every one that fits this request (in \"skills\"):\n" + Object.entries(SKILLBOOK).filter(([k]) => skillOn(k)).map(([k, v]) => k + ": " + v[0]).join("\n") + "\n"
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}]" + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
+		+ " \"refs\": only when the request asks for something like, in the style of, or replicating a specific named thing it should match (a creator or channel, a game, a film or show, a brand, a website, an artist, a particular video or page): each one's name as they wrote it, what it is, and exactly what to take from it; never for a plain topic (a video ABOUT black holes has none)."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
 		+ " \"tags\": 2 to 6 short lowercase words for exactly what the work involves (its language, library, framework, field, topic, kind of task), the most specific that are true: generic words only, never names or personal details."
@@ -3345,7 +3346,8 @@ async function conduct(text, atts, tried, only, team) {
 	return { way, request: String(j.request || "").slice(0, 3000), skills: (Array.isArray(j.skills) ? j.skills : []).map(String).filter((k) => SKILLBOOK[k] && skillOn(k)).slice(0, 4), edit: j.edit === true && made === way, how: String(j.how || "").slice(0, 400), qty: Number(j.qty) || 0, length: String(j.length || ""), topic: String(j.topic || "").slice(0, 200), name: String(j.name || ""), schedule: j.schedule && typeof j.schedule === "object" ? j.schedule : null, profile, remember: mem && Array.isArray(j.remember) ? j.remember.map(String).filter((t) => t.trim()).slice(0, 5) : [],
 		// (Together: who on the team does what, from this same read)
 		team: team ? (Array.isArray(j.team) ? j.team : []).filter((x) => x && MATE[String(x.to || "").toLowerCase()] && String(x.to).toLowerCase() !== "lead" && String(x.task || "").trim()).map((x, k) => ({ to: String(x.to).toLowerCase(), task: String(x.task).slice(0, 4000), after: Array.isArray(x.after) ? [...new Set(x.after.map((n) => Math.floor(Number(n)) - 1).filter((n) => n >= 0 && n < k))] : k ? [k - 1] : [] })).slice(0, 6) : null,
-		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader };
+		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader,
+		refs: (Array.isArray(j.refs) ? j.refs : []).filter((x) => x && String(x.name || "").trim()).slice(0, 2).map((x) => ({ name: String(x.name).trim().slice(0, 80), kind: String(x.kind || "").slice(0, 60), take: String(x.take || "").slice(0, 200) })) };
 }
 // the way it chose, done by the part of Celestin that does it
 async function runWay(plan, text, atts) {
@@ -7155,6 +7157,59 @@ async function teamReview(chat, text, parts, plan) {
 	Object.assign(msg, { streaming: false, by: c.id, at: Date.now(), used: [{ name: shortName(c), desc: "Reviewer: checked the team's work (another lab than whoever made most of it)" }] });
 	return true;
 }
+// ---- References: what a named thing the work should be like is really like, looked up before the work starts
+const YT_RE = /\bhttps?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)[\w-]{6,}[^\s)]*/gi;
+async function studyRefs(plan, text, atts) {
+	if (!plan || !plan.refs || !plan.refs.length || !creditsMode()) return null;
+	const hold = { role: "assistant", text: "", streaming: true, status: "Looking up " + plan.refs.map((r) => r.name).join(" and ") };
+	current.msgs.push(hold);
+	updateLast();
+	const found = [];
+	try {
+		const links = [...new Set(String(text).match(YT_RE) || [])].slice(0, 2);
+		for (const ref of plan.refs) {
+			const bits = [];
+			// a YouTube video they linked: its title, channel and thumbnail (YouTube's own oEmbed), the thumbnail read for its look
+			for (const link of links) {
+				try {
+					const o = JSON.parse((await toolCall("/api/tools/fetch", { url: "https://www.youtube.com/oembed?format=json&url=" + encodeURIComponent(link) }, 15000)).text || "{}");
+					if (!o.title) continue;
+					bits.push("A video of theirs: \"" + o.title + "\" by " + (o.author_name || "?") + " (" + link + ")");
+					const pic = o.thumbnail_url ? (await toolCall("/api/tools/fetch", { url: o.thumbnail_url, image: true }, 15000).catch(() => ({}))).image : "";
+					const eye = pic && bestFirst(quarkFirst(arenaRank("vision", { "vision:overall": 1 })))[0];
+					if (eye) {
+						const look = await stream((eye.m || eye).id, [{ role: "user", content: [{ type: "text", text: "This is the thumbnail of \"" + o.title + "\" by " + (o.author_name || "a creator") + ". Describe its visual style exactly, as an art director would brief an animator to match it: drawing style and line work, colours, characters, typography, composition, mood. Only what you can see; 120 words at most." }, { type: "image_url", image_url: { url: pic } }] }], () => {}, busy.signal, { max_tokens: 600, temperature: 0, ...effortFor((eye.m || eye).id, "low") }, hold);
+						if (String(look).trim()) bits.push("Its thumbnail's look: " + String(look).trim());
+					}
+				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			}
+			// the live web, when this server can search
+			let web = "";
+			try { web = ((await toolCall("/api/tools/search", { query: ref.name + " " + ref.kind + " " + ref.take, n: 5 }, 25000)).results || []).map((x, i) => "[" + (i + 1) + "] " + x.title + " (" + x.url + "): " + x.text).join("\n").slice(0, 6000); }
+			catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			// what the model best at getting facts right reliably knows (and says when it doesn't)
+			const sage = bestFirst(quarkFirst(arenaRank("research", { "factuality:overall": 0.7, "text:expert": 0.3 })))[0];
+			let known = "";
+			if (sage) {
+				known = String(await stream((sage.m || sage).id, [{ role: "user", content: "Someone wants work made like this: " + ref.name + (ref.kind ? " (" + ref.kind + ")" : "") + ". What to take from it: " + (ref.take || "what it's known for") + "." + (bits.length ? "\n\nFound so far:\n" + bits.join("\n") : "") + (web ? "\n\nLive web search results:\n" + web : "") + "\n\nDescribe exactly what it's like, as a brief for whoever makes the work: the concrete traits to match (for a creator: their visual style, format, pacing, voice and humour; for a game: its mechanics, controls, camera, look and feel; for a brand or site: its design language). Only what you reliably know or what the material above shows; nothing guessed. If you don't reliably know what this is and the material doesn't show it, reply with exactly: UNKNOWN" }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor((sage.m || sage).id, "low") }, hold)).trim();
+			}
+			const unknown = !known || /^UNKNOWN\b/i.test(known);
+			found.push({ ...ref, brief: unknown ? (bits.length ? bits.join("\n") : "") : known, unknown: unknown && !bits.length, from: [links.length && bits.length ? "the linked video" : "", web ? "the web" : "", !unknown && sage ? shortName(sage.m || sage) : ""].filter(Boolean) });
+		}
+	} finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+	return found;
+}
+// what's found goes with the request to whoever does the work (the request written out, and the note with the newest
+// message), and a reference nothing reliable was found on is said plainly, with what would let it be matched
+function useRefs(plan, text, found) {
+	if (!found || !found.length) return;
+	const known = found.filter((f) => f.brief), lost = found.filter((f) => f.unknown);
+	const note = (known.length ? "What they're referring to, looked up for this (match these traits closely; it's their reference, so make it like this, not a copy of any of its actual content):\n" + known.map((f) => "- " + f.name + (f.kind ? " (" + f.kind + ")" : "") + ": " + f.brief).join("\n") : "") +
+		(lost.length ? (known.length ? "\n" : "") + "Nothing reliable could be found about " + lost.map((f) => f.name).join(" or ") + ". Say so in one short line at the start, make it in the most likely reading of what they asked, and offer to match it exactly if they send a link to one of their videos or a short clip." : "");
+	plan.request = wholeRequest(plan, text) + "\n\n" + note;
+	PLAN_NOTE = (PLAN_NOTE ? PLAN_NOTE + "\n" : "") + note;
+	for (const f of found) noteTool("Looked up: " + f.name, f.unknown ? "Nothing reliable found: said so, and asked for a link or a clip" : "What it's like, from " + (f.from.join(" and ") || "what's known"));
+}
 // How Celestin serves one request: the conductor reads it and decides how (small talk needs no reading), then the part of
 // Celestin for that does it with the model measured best; a way that fails is told why and it chooses again. Celestin
 // Together's teammates are served exactly this way too, with their own field weighed in (o.weights)
@@ -7198,6 +7253,8 @@ async function serve(text, atts, tool, o = {}) {
 	if (PROFILE && o.check) PROFILE.check = true;
 	// (a team's piece the Reviewer checks at the end anyway: no check of its own, unless it's code, run and fixed as it's made)
 	if (PROFILE && o.check === false && PROFILE.kind !== "code" && speed() !== "max") PROFILE.check = false;
+	// a named reference to match: looked up first
+	if (plan && plan.refs && plan.refs.length && !LANE) useRefs(plan, text, await studyRefs(plan, text, atts));
 	// a long run: what it'll likely cost, and a go-ahead, before anything is spent (not for Max's own extra rounds: only
 	// when they gave it time, or all the time it needs)
 	if (plan && !LANE && LONG_WAYS.includes(plan.way)) {

@@ -2778,6 +2778,14 @@ async function toolFetch(req, env) {
 	} catch { throw fail(502, "That page didn't answer."); }
 	if (!r.ok) throw fail(502, "That page answered " + r.status + ".");
 	const type = r.headers.get("Content-Type") || "";
+	// (a picture, when asked for one: a video's thumbnail looked at for its style, say. At most 1.5 MB)
+	if (b.image && /^image\/(png|jpe?g|webp|gif)/i.test(type)) {
+		const buf = new Uint8Array(await r.arrayBuffer());
+		if (buf.length > 1_500_000) throw fail(413, "That picture is too big.");
+		let bin = "";
+		for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+		return json({ url: u.toString(), image: "data:" + type.split(";")[0] + ";base64," + btoa(bin) });
+	}
 	if (!/text|json|xml|javascript/.test(type)) return json({ url: u.toString(), title: "", text: "(not a text page: " + type + ")" });
 	let t = (await r.text()).slice(0, 2_000_000);
 	const title = (t.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
