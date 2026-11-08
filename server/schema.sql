@@ -195,3 +195,7 @@ CREATE INDEX IF NOT EXISTS agent_log_agent ON agent_log (agent_id, created_at);
 
 -- accounts each person connected (Telegram, Discord, Bluesky, X): their own, encrypted with the server's CONN_KEY
 CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT, secret TEXT NOT NULL, meta TEXT, created_at INTEGER NOT NULL, UNIQUE (user_id, kind));
+
+-- phone calls placed for a business through its own Twilio account, turn by turn
+CREATE TABLE IF NOT EXISTS calls (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, job_id TEXT, to_num TEXT NOT NULL, name TEXT, purpose TEXT NOT NULL, lang TEXT, models TEXT, turns TEXT, status TEXT NOT NULL DEFAULT 'calling', outcome TEXT, sid TEXT, created_at INTEGER NOT NULL, updated_at INTEGER);
+CREATE INDEX IF NOT EXISTS calls_user ON calls (user_id, created_at);

@@ -158,6 +158,8 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/auth/google" && m === "POST") return googleSignIn(req, env);
 	if (p === "/api/webhooks/lemonsqueezy" && m === "POST") return lemonWebhook(req, env);
 	if (p === "/api/pay/notify" && m === "POST") return payNotify(req, env);
+	let cl;
+	if ((cl = p.match(/^\/api\/call\/([a-f0-9]{24})\/(turn|status)$/)) && m === "POST") return callHook(req, env, ctx, cl[1], cl[2]);
 	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env, ownerKeyOk(req, env) ? undefined : (await config(env)).publicGateways)));
 	// a shared chat: anyone with its link can read it; a picture shared with an app, anyone with its link can fetch
 	let sh, up;
@@ -178,7 +180,7 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
 	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
 	if (p === "/api/conns" && m === "POST") return connSave(req, env, user);
-	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x)$/)) && m === "DELETE") return connDelete(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x|twilio)$/)) && m === "DELETE") return connDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/conns\/(telegram|discord|bluesky|x)\/test$/)) && m === "POST") return connTest(env, user, fd[1]);
 	if (p === "/api/agents" && m === "GET") return agentsOf(env, user, url);
 	if (p === "/api/agents" && m === "POST") return agentSave(req, env, user);
@@ -670,6 +672,8 @@ function columns(env) {
 		// (what an agent may do besides reporting: where it sends its reports, where it may post)
 		const acols = new Set(((await env.DB.prepare("PRAGMA table_info(agents)").all()).results || []).map((r) => r.name));
 		if (!acols.has("act")) { try { await env.DB.prepare("ALTER TABLE agents ADD COLUMN act TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS calls (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, job_id TEXT, to_num TEXT NOT NULL, name TEXT, purpose TEXT NOT NULL, lang TEXT, models TEXT, turns TEXT, status TEXT NOT NULL DEFAULT 'calling', outcome TEXT, sid TEXT, created_at INTEGER NOT NULL, updated_at INTEGER)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS calls_user ON calls (user_id, created_at)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, name TEXT, secret TEXT NOT NULL, meta TEXT, created_at INTEGER NOT NULL, UNIQUE (user_id, kind))").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS uploads (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, type TEXT NOT NULL, data BLOB NOT NULL, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS uploads_user ON uploads (user_id, created_at)").run();
@@ -3147,7 +3151,7 @@ async function runDueTasks(env, ctx) {
 }
 
 // ------------------------------------------------------------------ connected accounts
-const CONN_KINDS = ["telegram", "discord", "bluesky", "x"];
+const CONN_KINDS = ["telegram", "discord", "bluesky", "x"], CONN_ALL = [...CONN_KINDS, "twilio"];
 const b64e = (u8) => { let s = ""; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
 const b64d = (x) => Uint8Array.from(atob(x), (c) => c.charCodeAt(0));
 async function connKey(env) {
@@ -3215,7 +3219,89 @@ async function connCheck(kind, b) {
 		const me = await xFetch(c, "GET", "https://api.x.com/2/users/me");
 		return { secret: c, name: "@" + ((me.data && me.data.username) || "your account"), meta: { username: me.data && me.data.username } };
 	}
+	if (kind === "twilio") {
+		const c = { sid: v("sid"), token: v("token"), from: v("from").replace(/[^\d+]/g, "") };
+		if (!/^AC[a-f0-9]{32}$/i.test(c.sid) || c.token.length < 20 || !/^\+\d{8,15}$/.test(c.from)) throw fail(400, "Your Account SID (AC…), Auth token, and the Twilio number to call from, like +6221…");
+		const acc = await twilioApi(c, "GET", ".json");
+		const nums = await twilioApi(c, "GET", "/IncomingPhoneNumbers.json?PhoneNumber=" + encodeURIComponent(c.from));
+		const caller = (nums.incoming_phone_numbers || []).length ? null : await twilioApi(c, "GET", "/OutgoingCallerIds.json?PhoneNumber=" + encodeURIComponent(c.from));
+		if (!(nums.incoming_phone_numbers || []).length && !((caller && caller.outgoing_caller_ids) || []).length) throw fail(400, c.from + " isn't a number on that Twilio account.");
+		return { secret: c, name: c.from + " (" + (acc.friendly_name || "Twilio") + ")", meta: { from: c.from, trial: acc.type === "Trial" } };
+	}
 	throw fail(400, "Unknown account.");
+}
+async function twilioApi(c, method, path, form) {
+	const r = await fetch("https://api.twilio.com/2010-04-01/Accounts/" + c.sid + path, { method, headers: { Authorization: "Basic " + btoa(c.sid + ":" + c.token), ...(form ? { "Content-Type": "application/x-www-form-urlencoded" } : {}) }, body: form ? new URLSearchParams(form).toString() : undefined, signal: AbortSignal.timeout(15000) });
+	const j = await r.json().catch(() => ({}));
+	if (!r.ok) throw fail(400, "Twilio said: " + (j.message || r.status));
+	return j;
+}
+// ---- calls
+const WORKER_URL = "https://andromeda-credits.georgechendra.workers.dev";
+const xmlEsc = (t) => String(t).replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" })[c]);
+// a voice and a language Twilio speaks and hears it in
+const callVoice = (lang) => /indo|bahasa|^id\b/i.test(lang || "") ? { lang: "id-ID", voice: "Google.id-ID-Standard-A" } : { lang: "en-US", voice: "Google.en-US-Neural2-F" };
+const twiml = (say, v, id, end) => '<?xml version="1.0" encoding="UTF-8"?><Response>' + (end ? '<Say language="' + v.lang + '" voice="' + v.voice + '">' + xmlEsc(say) + "</Say><Hangup/>" : '<Gather input="speech" language="' + v.lang + '" speechTimeout="auto" actionOnEmptyResult="true" method="POST" action="' + WORKER_URL + "/api/call/" + id + '/turn"><Say language="' + v.lang + '" voice="' + v.voice + '">' + xmlEsc(say) + "</Say></Gather>") + "</Response>";
+async function twilioSigOk(token, url, params, sig) {
+	const data = url + Object.keys(params).sort().map((k) => k + params[k]).join("");
+	const key = await crypto.subtle.importKey("raw", enc.encode(token), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
+	return sameString(b64e(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(data)))), String(sig || ""));
+}
+// a call placed for someone: its opening written first (so the customer never waits in silence), then Twilio dials
+async function placeCall(env, ctx, owner, { to, name, purpose, lang, models, jobId }) {
+	const row = await env.DB.prepare("SELECT * FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(owner.id).first();
+	if (!row) throw fail(404, "No Twilio account is connected.");
+	const c = await unseal(env, row.secret), cid = id(), v = callVoice(lang), spent = { mc: 0 };
+	const open = jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You're about to phone " + (name || "a customer") + " for a business, as its AI assistant. " + purpose + "\n\nWrite what you say the moment they pick up: greet them by name, say you're the AI assistant of the business (always say you're an AI), and why you're calling, in one or two short, warm sentences, in " + (v.lang === "id-ID" ? "Indonesian" : "English") + ". Reply with ONLY JSON: {\"say\": \"...\"}" }], 200, spent));
+	const say = (open && open.say) || (v.lang === "id-ID" ? "Halo" + (name ? " " + name : "") + ", saya asisten AI. Ada waktu sebentar?" : "Hi" + (name ? " " + name : "") + ", this is an AI assistant calling. Do you have a moment?");
+	await env.DB.prepare("INSERT INTO calls (id, user_id, job_id, to_num, name, purpose, lang, models, turns, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'calling', ?)").bind(cid, owner.id, jobId || null, to, name || null, purpose, v.lang, JSON.stringify(models), JSON.stringify([{ who: "ai", text: say }]), now()).run();
+	const call = await twilioApi(c, "POST", "/Calls.json", { To: to, From: c.from, Twiml: twiml(say, v, cid, false), StatusCallback: WORKER_URL + "/api/call/" + cid + "/status", StatusCallbackMethod: "POST", Timeout: "25" });
+	await env.DB.prepare("UPDATE calls SET sid = ? WHERE id = ?").bind(call.sid || null, cid).run();
+	return cid;
+}
+// Twilio, each turn of a call (what they said) and at its end (how it ended)
+async function callHook(req, env, ctx, cid, kind) {
+	const cl = await env.DB.prepare("SELECT * FROM calls WHERE id = ?").bind(cid).first();
+	const xml = (x) => new Response(x, { headers: { "Content-Type": "text/xml" } });
+	if (!cl) return xml('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+	const params = Object.fromEntries(new URLSearchParams(await req.text()));
+	const conn = await env.DB.prepare("SELECT secret FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(cl.user_id).first();
+	const c = conn && (await unseal(env, conn.secret));
+	if (!c || !(await twilioSigOk(c.token, WORKER_URL + "/api/call/" + cid + "/" + kind, params, req.headers.get("X-Twilio-Signature")))) throw fail(403, "Not from Twilio.");
+	const v = callVoice(cl.lang), turns = JSON.parse(cl.turns || "[]");
+	if (kind === "status") {
+		const st = String(params.CallStatus || "");
+		if (/completed|busy|no-answer|failed|canceled/.test(st)) await callDone(env, cl, turns, cl.outcome || ({ busy: "Busy", "no-answer": "No answer", failed: "The call didn't go through", canceled: "Cancelled" }[st] || (turns.length > 1 ? "Talked" : "Hung up")));
+		return json({ ok: true });
+	}
+	const heard = String(params.SpeechResult || "").trim();
+	turns.push({ who: "them", text: heard || "(silence)" });
+	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(cl.user_id).first();
+	const owner = row && (await readyUser(env, row, await config(env)));
+	let models = [];
+	try { models = JSON.parse(cl.models || "[]"); } catch {}
+	const spent = { mc: 0 };
+	const j = owner ? jsonIn(await agentAsk(env, ctx, owner, models, [{ role: "user", content: "You're on the phone, as the AI assistant of a business, with " + (cl.name || "a customer") + ". Why you called: " + cl.purpose + "\n\nThe call so far:\n" + turns.map((t) => (t.who === "ai" ? "You: " : "Them: ") + t.text).join("\n") +
+		"\n\nSay your next line: short, warm, natural for a phone call, in " + (v.lang === "id-ID" ? "Indonesian" : "English") + ". Never pressure them. If they want to book, get the day and time and say the team will confirm by message. If they ask not to be called, apologise, promise they won't be, and end. End politely once it's settled (or after two silences). Reply with ONLY JSON: {\"say\": \"...\", \"end\": true or false, \"outcome\": \"when ending: one line for the owner (e.g. wants to rebook Sat 10:00; not interested; asked not to be called)\", \"dnc\": true only if they asked not to be called}" }], 220, spent)) : null;
+	const say = (j && j.say) || (v.lang === "id-ID" ? "Maaf, ada gangguan. Tim kami akan menghubungi Anda lewat pesan. Terima kasih!" : "Sorry, something went wrong on our side. The team will message you. Thank you!");
+	const end = !j || !!j.end || turns.filter((t) => t.who === "them" && t.text === "(silence)").length >= 2 || turns.length > 24;
+	turns.push({ who: "ai", text: say });
+	await env.DB.prepare("UPDATE calls SET turns = ?, outcome = COALESCE(?, outcome), updated_at = ? WHERE id = ?").bind(JSON.stringify(turns), j && j.outcome ? String(j.outcome).slice(0, 300) + (j.dnc ? " [do not call]" : "") : null, now(), cid).run();
+	return xml(twiml(say, v, cid, end));
+}
+// a call over: its outcome where the owner looks (the job's items), and anyone who asked not to be called, never again
+async function callDone(env, cl, turns, outcome) {
+	const ok = await env.DB.prepare("UPDATE calls SET status = 'done', outcome = ?, updated_at = ? WHERE id = ? AND status != 'done'").bind(String(outcome).slice(0, 300), now(), cl.id).run();
+	if (!(ok.meta && ok.meta.changes) || !cl.job_id) return;
+	const text = "📞 " + (cl.name || cl.to_num) + ": " + outcome + "\n\n" + turns.map((t) => (t.who === "ai" ? "AI: " : (cl.name || "Them") + ": ") + t.text).join("\n");
+	await env.DB.prepare("INSERT INTO team_job_items (id, job_id, user_id, kind, title, text, link, why, status, created_at) VALUES (?, ?, ?, 'call', ?, ?, ?, ?, 'ready', ?)").bind(id(), cl.job_id, cl.user_id, cl.name || cl.to_num, text.slice(0, 4000), "tel:" + cl.to_num, "Called " + cl.to_num, now()).run();
+	if (/do not call/.test(outcome)) {
+		const j = await env.DB.prepare("SELECT state FROM team_jobs WHERE id = ?").bind(cl.job_id).first();
+		let st = {};
+		try { st = JSON.parse((j && j.state) || "{}"); } catch {}
+		st.dnc = [...new Set([...(st.dnc || []), cl.to_num])];
+		await env.DB.prepare("UPDATE team_jobs SET state = ? WHERE id = ?").bind(JSON.stringify(st), cl.job_id).run();
+	}
 }
 // post or send with one: what came out (a link to it, when there is one)
 async function connPost(env, userId, kind, text) {
@@ -3242,7 +3328,7 @@ async function connsOf(env, user) {
 }
 async function connSave(req, env, user) {
 	const b = await body(req), kind = String(b.kind || "");
-	if (!CONN_KINDS.includes(kind)) throw fail(400, "Pick an account to connect.");
+	if (!CONN_ALL.includes(kind)) throw fail(400, "Pick an account to connect.");
 	await connKey(env);
 	const c = await connCheck(kind, b);
 	await env.DB.prepare("INSERT INTO conns (id, user_id, kind, name, secret, meta, created_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(user_id, kind) DO UPDATE SET name = excluded.name, secret = excluded.secret, meta = excluded.meta, created_at = excluded.created_at").bind(id(), user.id, kind, c.name, await seal(env, c.secret), JSON.stringify(c.meta || {}), now()).run();
@@ -3479,6 +3565,7 @@ async function jobSave(req, env, user) {
 		config.customers = parseCustomers(c.customers);
 		if (!config.customers.length) throw fail(400, "Paste your customers, one per line: name, phone, and anything worth remembering (their usual, their last visit).");
 		config.every = Math.max(7, Math.min(180, Math.round(Number(c.every) || 30)));
+		config.via = c.via === "call" ? "call" : "whatsapp";
 	} else {
 		config.platforms = (Array.isArray(c.platforms) ? c.platforms : ["x"]).filter((p) => ["x", "instagram", "tiktok", "linkedin", "facebook", "threads", "bluesky", "telegram", "discord"].includes(p)).slice(0, 6);
 		config.auto = !!c.auto;
@@ -3627,7 +3714,27 @@ async function runJob(env, ctx, j, manual) {
 	const t = now();
 	const put = (kind, title, text, link, why) => env.DB.prepare("INSERT INTO team_job_items (id, job_id, user_id, kind, title, text, link, why, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ready', ?)").bind(id(), j.id, j.user_id, kind, title, text, link || null, why || null, now());
 	let made = 0, next = t + 24 * 3600e3;
-	if (j.kind === "winback") {
+	const calling = j.kind === "winback" && cfg.via === "call" && !!(await env.DB.prepare("SELECT id FROM conns WHERE user_id = ? AND kind = 'twilio'").bind(j.user_id).first().catch(() => null));
+	if (calling) {
+		// (by phone: 9:00 to 19:00 where the business is, three at a time, never anyone who asked not to be called)
+		const every = (cfg.every || 30) * 864e5, sent = state.sent || {}, dnc = new Set(state.dnc || []);
+		const hour = new Date(t + (cfg.tz || 420) * 60e3).getUTCHours();
+		const due = (cfg.customers || []).filter((c) => c.phone && !dnc.has(c.phone) && !(sent[c.phone] > t - every));
+		if (hour >= 9 && hour < 19 && due.length) {
+			const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(j.user_id).first();
+			const owner = row && (await readyUser(env, row, await config(env)));
+			let models = [];
+			try { models = JSON.parse(cfg.callModels ? JSON.stringify(cfg.callModels) : j.models || "[]"); } catch {}
+			for (const c of owner ? due.slice(0, 3) : []) {
+				const to = waLink(c.phone, "x") ? "+" + waLink(c.phone, "x").slice(14).split("?")[0] : null;
+				if (!to) continue;
+				try { await placeCall(env, ctx, owner, { to, name: c.name, lang: cfg.lang, models, jobId: j.id, purpose: "You're calling for " + j.name + ". About the business, from its owner: " + cfg.brief + "\nWhy you call: " + (cfg.goal || "to invite them back to book again, warmly") + (c.notes ? "\nWhat's noted about them: " + c.notes : "") + (cfg.link ? "\nIf they'd like to book, offer to send them the booking link by message (" + cfg.link + ")." : "") }); sent[c.phone] = t; made++; }
+				catch (e) { await put("note", c.name || c.phone, "Couldn't call " + (c.name || c.phone) + ": " + (e.message || e), null, "").run(); sent[c.phone] = t; }
+			}
+			state.sent = sent;
+		}
+		next = hour < 9 ? t + (9 - hour) * 3600e3 : hour >= 19 ? t + (33 - hour) * 3600e3 : t + (due.length > 3 ? 1800e3 : 24 * 3600e3);
+	} else if (j.kind === "winback") {
 		const every = (cfg.every || 30) * 864e5, sent = state.sent || {};
 		const due = (cfg.customers || []).filter((c) => !(sent[c.phone || c.name] > t - every)).slice(0, 12);
 		if (due.length) {
