@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chat with us</title>
+<meta name="description" content="Chat with this business: answers day and night, bookings and messages passed to the team.">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<style>
+/* A business's front desk, as its customers meet it: one chat, Apple's Messages look, light or dark like their phone */
+:root { --bg: #f2f2f7; --bar: rgba(249,249,251,.86); --line: rgba(60,60,67,.13); --text: #000; --muted: rgba(60,60,67,.6); --them: #e9e9eb; --you: #007aff; --field: #fff; }
+@media (prefers-color-scheme: dark) { :root { --bg: #000; --bar: rgba(22,22,24,.86); --line: rgba(84,84,88,.4); --text: #fff; --muted: rgba(235,235,245,.6); --them: #26262a; --you: #0a84ff; --field: #1c1c1e; } }
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+body { display: flex; flex-direction: column; }
+header { position: sticky; top: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: calc(10px + env(safe-area-inset-top)) 16px 10px; background: var(--bar); backdrop-filter: blur(20px) saturate(180%); -webkit-backdrop-filter: blur(20px) saturate(180%); border-bottom: 1px solid var(--line); }
+.av { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(180deg, #a1a1aa, #71717a); color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 18px; }
+header b { font-size: 15px; font-weight: 600; }
+header small { font-size: 12px; color: var(--muted); }
+main { flex: 1; overflow-y: auto; padding: 16px 14px 8px; display: flex; flex-direction: column; gap: 6px; max-width: 720px; width: 100%; margin: 0 auto; }
+.m { max-width: 78%; padding: 8px 13px; border-radius: 19px; white-space: pre-wrap; word-wrap: break-word; font-size: 16px; line-height: 1.35; animation: in .2s ease-out; }
+.m.them { align-self: flex-start; background: var(--them); border-bottom-left-radius: 6px; }
+.m.you { align-self: flex-end; background: var(--you); color: #fff; border-bottom-right-radius: 6px; }
+.m.team { align-self: flex-start; background: var(--them); border-bottom-left-radius: 6px; box-shadow: inset 3px 0 0 #30d158; }
+.who { align-self: flex-start; font-size: 11px; color: var(--muted); margin: 6px 0 0 12px; }
+.typing { align-self: flex-start; background: var(--them); border-radius: 19px; padding: 11px 14px; display: flex; gap: 4px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: dot 1.2s infinite ease-in-out; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 60%, 100% { transform: none; opacity: .5; } 30% { transform: translateY(-3px); opacity: 1; } }
+@keyframes in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .m, .typing i { animation: none; } }
+form { position: sticky; bottom: 0; display: flex; gap: 8px; align-items: flex-end; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); background: var(--bar); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid var(--line); }
+form > div { flex: 1; max-width: 720px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+textarea { flex: 1; resize: none; max-height: 140px; min-height: 38px; padding: 8px 14px; border-radius: 19px; border: 1px solid var(--line); background: var(--field); color: var(--text); font: inherit; outline: none; }
+textarea:focus-visible { border-color: var(--you); }
+button { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; background: var(--you); color: #fff; display: grid; place-items: center; cursor: pointer; }
+button:disabled { opacity: .4; cursor: default; }
+button:focus-visible { outline: 2px solid var(--you); outline-offset: 2px; }
+.note { text-align: center; font-size: 12px; color: var(--muted); padding: 2px 0 10px; }
+.note a { color: inherit; }
+.err { align-self: center; font-size: 13px; color: #ff453a; text-align: center; padding: 6px 12px; }
+</style>
+</head>
+<body>
+<header><div class="av" id="av">?</div><b id="name">Loading…</b><small>Usually replies right away</small></header>
+<main id="log" aria-live="polite"></main>
+<div class="note">Answered by an AI front desk; bookings are confirmed by the team · <a href="./together.html" target="_blank" rel="noopener">Made with Celestin Together</a></div>
+<form id="f"><div><textarea id="t" rows="1" placeholder="Message" aria-label="Your message" maxlength="1000"></textarea><button id="go" aria-label="Send" disabled><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button></div></form>
+<script>
+const SERVER = "https://andromeda-credits.georgechendra.workers.dev";
+const id = (location.hash.match(/[a-f0-9]{24}/) || [])[0] || "";
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+let visitor = "";
+try { visitor = localStorage.getItem("fd-visitor") || ""; } catch {}
+if (!/^[A-Za-z0-9_-]{16,64}$/.test(visitor)) { visitor = "v_" + Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join(""); try { localStorage.setItem("fd-visitor", visitor); } catch {} }
+let intro = "", shown = 0, busy = false;
+const draw = (msgs, typing) => {
+	const html = (intro ? '<div class="m them">' + esc(intro) + "</div>" : "") + msgs.map((m) => m.role === "customer" ? '<div class="m you">' + esc(m.text) + "</div>" : m.role === "owner" ? '<div class="who">The team</div><div class="m team">' + esc(m.text) + "</div>" : '<div class="m them">' + esc(m.text) + "</div>").join("") + (typing ? '<div class="typing" aria-label="Typing"><i></i><i></i><i></i></div>' : "");
+	$("#log").innerHTML = html;
+	$("#log").scrollTop = $("#log").scrollHeight;
+	shown = msgs.length;
+};
+let msgs = [];
+async function load() {
+	try { const r = await fetch(SERVER + "/api/r/" + id + "/msgs?visitor=" + visitor); if (r.ok) { const j = await r.json(); if (j.msgs.length !== shown && !busy) { msgs = j.msgs; draw(msgs); } } } catch {}
+}
+async function start() {
+	if (!id) { $("#name").textContent = "This link isn't complete"; return; }
+	try {
+		const r = await fetch(SERVER + "/api/r/" + id), j = await r.json();
+		if (!r.ok) throw new Error((j.error && j.error.message) || "This front desk isn't open.");
+		$("#name").textContent = j.name; document.title = "Chat with " + j.name; $("#av").textContent = (j.name.trim()[0] || "?").toUpperCase();
+		intro = j.intro || "Hi! How can we help?";
+		draw([]);
+		await load();
+		setInterval(load, 15000);
+	} catch (e) { $("#name").textContent = "Unavailable"; $("#log").innerHTML = '<div class="err">' + esc(e.message || e) + "</div>"; }
+}
+$("#t").addEventListener("input", () => { $("#go").disabled = !$("#t").value.trim() || busy; $("#t").style.height = "auto"; $("#t").style.height = Math.min(140, $("#t").scrollHeight) + "px"; });
+$("#t").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#f").requestSubmit(); } });
+$("#f").addEventListener("submit", async (e) => {
+	e.preventDefault();
+	const text = $("#t").value.trim();
+	if (!text || busy) return;
+	busy = true; $("#go").disabled = true; $("#t").value = ""; $("#t").style.height = "auto";
+	msgs.push({ role: "customer", text }); draw(msgs, true);
+	try {
+		const r = await fetch(SERVER + "/api/r/" + id + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visitor, text }) });
+		const j = await r.json();
+		if (!r.ok) throw new Error((j.error && j.error.message) || "It didn't go through. Try again.");
+		msgs.push({ role: "bot", text: j.reply }); draw(msgs);
+	} catch (err) { draw(msgs); $("#log").insertAdjacentHTML("beforeend", '<div class="err">' + esc(err.message || err) + "</div>"); }
+	busy = false; $("#go").disabled = !$("#t").value.trim(); $("#t").focus();
+});
+start();
+</script>
+</body>
+</html>

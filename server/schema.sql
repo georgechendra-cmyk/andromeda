@@ -168,3 +168,12 @@ CREATE INDEX IF NOT EXISTS payments_user ON payments (user_id, created_at);
 CREATE INDEX IF NOT EXISTS payments_status ON payments (status, created_at);
 CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS usage_user ON usage (user_id, created_at);
+
+-- Celestin Together's Front desk: a receptionist on a link the owner shares, its chats, and what it passes on
+CREATE TABLE IF NOT EXISTS bots (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, intro TEXT, brief TEXT NOT NULL, models TEXT, cap_mc INTEGER NOT NULL DEFAULT 200000, day TEXT, day_mc INTEGER NOT NULL DEFAULT 0, tz INTEGER NOT NULL DEFAULT 420, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS bots_user ON bots (user_id);
+CREATE TABLE IF NOT EXISTS bot_msgs (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, visitor TEXT NOT NULL, role TEXT NOT NULL, text TEXT NOT NULL, ip TEXT, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS bot_msgs_v ON bot_msgs (bot_id, visitor, created_at);
+CREATE INDEX IF NOT EXISTS bot_msgs_ip ON bot_msgs (bot_id, ip, created_at);
+CREATE TABLE IF NOT EXISTS bot_items (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, user_id TEXT NOT NULL, visitor TEXT NOT NULL, kind TEXT NOT NULL, summary TEXT, details TEXT, status TEXT NOT NULL DEFAULT 'new', created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS bot_items_user ON bot_items (user_id, status, created_at);

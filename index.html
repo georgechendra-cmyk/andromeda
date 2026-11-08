@@ -1774,6 +1774,28 @@ html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-
 #together .tav, #together .tav svg { color: #fff !important; stroke: #fff; }
 @media (max-width: 860px) { .tgl { grid-template-columns: 1fr; } }
 
+/* Celestin Together's jobs: the Front desk */
+.tw-jobs { max-width: 720px; margin: -10px auto 22px; animation: rise .5s .05s var(--ease) both; }
+.tw-job { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 0; border-radius: 18px; background: var(--bg2); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background .2s var(--ease), transform .15s var(--ease); }
+.tw-job:hover { background: var(--bg3); }
+.tw-job:active { transform: scale(.99); }
+.tw-job:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.tw-job .tav { --s: 40px; }
+.tw-job .twj { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tw-job .twj b { font-size: 15px; font-weight: 600; }
+.tw-job .twj span { font-size: 13px; color: var(--muted); }
+.tw-job .twgo { flex: none; font-size: 14px; font-weight: 600; color: var(--brand); }
+.desk { padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; }
+html[data-app="together"] .btn.dark { background: var(--brand); color: #fff; border-color: transparent; }
+a.btn, a.btn:hover { text-decoration: none; }
+.desk-it { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
+.desk-it.new { border-color: var(--brand); }
+.dk-chat:not(:empty) { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; max-height: 260px; overflow-y: auto; }
+.dk-m { max-width: 80%; padding: 6px 11px; border-radius: 15px; font-size: 13.5px; white-space: pre-wrap; }
+.dk-m.customer { align-self: flex-end; background: var(--brand); color: #fff; }
+.dk-m.bot { align-self: flex-start; background: var(--bg3); }
+.dk-m.owner { align-self: flex-start; background: var(--bg3); box-shadow: inset 3px 0 0 #30d158; }
+
 </style>
 </head>
 <body>
@@ -7088,7 +7110,8 @@ function renderTogetherWelcome() {
 	const sugs = [["Team", "Plan and build a landing page for my coffee shop"], ["@Researcher", "Every weekday at 7, the AI news that matters, with sources"], ["@Analyst", "Make a monthly budget for a student with Rp2jt"], ["Team", "Research the best study methods, then make me flashcards"]];
 	// (always on: what the teammates keep doing by themselves, from the last look at the tasks)
 	const on = TEAM_TASKS.slice(0, 4).map((t) => '<button class="aon" data-tasks="1"><i style="--c:' + MATE[t.member].c + '"></i><b>' + esc(MATE[t.member].name) + "</b> " + esc(t.title.length > 48 ? t.title.slice(0, 46).trimEnd() + "…" : t.title) + ' <span class="when">' + esc(whenText(t)) + "</span></button>").join("");
-	$("#view").innerHTML = '<section class="welcome together"><div class="tw-team">' + cards + '</div><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1>' +
+	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night") : "A receptionist on a link you share: answers customers day and night, passes bookings to you") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
+	$("#view").innerHTML = '<section class="welcome together"><div class="tw-team">' + cards + '</div><div class="tw-jobs">' + desk + '</div><h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1>' +
 		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + "</div></section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
@@ -7099,6 +7122,7 @@ function renderTogetherWelcome() {
 	$$("[data-mate]").forEach((b) => (b.onclick = () => { const inp = $("#input"), tag = "@" + MATE[b.dataset.mate].name + " "; if (!inp.value.startsWith(tag)) inp.value = tag + inp.value.replace(MATE_RE, "").trimStart(); inp.focus(); autosize(); }));
 	$$("[data-tsug]").forEach((b) => (b.onclick = () => { $("#input").value = b.dataset.tsug; autosize(); send(); }));
 	$$("[data-tasks]").forEach((b) => (b.onclick = () => openTasks()));
+	if ($("#twDesk")) $("#twDesk").onclick = () => openDesks();
 	// (no sky here: the Together app is Apple-plain; the team is the picture)
 }
 // one teammate's piece, served the Celestin way with the teammate's field weighed in. o.brief: a piece the Lead gave out
@@ -13826,6 +13850,78 @@ async function runTaskWay(plan, text) {
 	current.msgs.push({ role: "assistant", text: "Done. **" + whenText(task) + "** I'll: " + task.prompt + "\n\n" + (mate ? "Each answer goes to **Team updates** in Celestin Together, from me, even with this page closed." : "Each answer goes to your **Tasks** chat, even if this page is closed.") + " You can change or stop it in **Tasks** in the sidebar." });
 	syncTasks();
 }
+// ---- Celestin Together's Front desk: a receptionist on a link you share (the server answers customers; see deskChat)
+var DESKS = { bots: [], items: [], at: 0 };
+const deskLink = (id) => location.origin + location.pathname.replace(/[^/]*$/, "") + "talk.html#" + id;
+const deskNew = () => DESKS.items.filter((x) => x.status === "new").length;
+// its model: whoever's measured best at following instructions exactly and getting facts right in a short reply, by the
+// same rules as everything else (54/46, 1.8x); then the next two, should it be busy
+function deskModels() {
+	try {
+		const data = bestFirst(quarkFirst(arenaRank("write", { "text:instruction_following": 0.6, "factuality:overall": 0.2, "text:creative_writing": 0.2 }), undefined, null, (x, c) => callCost(x, c, 250, 1500)));
+		return pinFirst(diversify(data), "write").slice(0, 3).map((m) => m.id);
+	} catch { return []; }
+}
+async function syncDesks(quiet) {
+	if (!TOGETHER_APP || !creditsMode() || !account) return;
+	let j;
+	try { j = await api("/api/bots"); } catch { return; }
+	const before = deskNew();
+	DESKS = { bots: j.bots || [], items: j.items || [], at: Date.now() };
+	const n = deskNew();
+	if (n > before && !quiet) toast(n - before === 1 ? "Your front desk passed you something new" : "Your front desk passed you " + (n - before) + " new things");
+	if (current && !current.msgs.length) renderTogetherWelcome();
+	if ($("#deskBox")) drawDesks();
+}
+function openDesks(edit) {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	openModal('<h2>Front desk</h2><p class="sub">A receptionist for your business on a link you share (your WhatsApp, Instagram or website): it answers your customers day and night from what you tell it, and passes bookings, messages and anything it can\'t answer to you here. Your answer reaches them in the same chat.</p><div id="deskBox"></div>', "wide");
+	drawDesks(edit);
+	syncDesks(true);
+}
+function deskForm(d) {
+	d = d || {};
+	return '<div class="field"><label for="dkName">Your business</label><input class="inp" id="dkName" maxlength="60" placeholder="e.g. Kopi Senja" value="' + esc(d.name || "") + '"></div>' +
+		'<div class="field"><label for="dkIntro">How it says hello</label><input class="inp" id="dkIntro" maxlength="300" placeholder="Hi! I\'m Kopi Senja\'s front desk. How can I help?" value="' + esc(d.intro || "") + '"></div>' +
+		'<div class="field"><label for="dkBrief">What it should know</label><textarea class="inp" id="dkBrief" rows="7" maxlength="8000" placeholder="What you do and where. Opening hours. Services or menu with prices. How bookings or orders work (how far ahead, how many people, deposits). Delivery, payment, parking. What it must never promise.">' + esc(d.brief || "") + "</textarea></div>" +
+		'<div class="field"><label for="dkCap">Daily limit (credits)</label><input class="inp" id="dkCap" type="number" min="5" max="5000" step="5" value="' + (d.cap || 100) + '" style="max-width:140px"><div class="help">About one credit for every four or five customer messages. Past it, it still takes messages for you, without spending.</div></div>' +
+		'<div class="status" id="dkStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px">' + (d.id ? '<button class="btn" id="dkCancel">Cancel</button>' : "") + '<button class="btn dark" id="dkSave">' + (d.id ? "Save" : "Open the front desk") + "</button></div>";
+}
+function drawDesks(edit) {
+	const box = $("#deskBox");
+	if (!box) return;
+	const ed = edit === "new" ? {} : edit ? DESKS.bots.find((b) => b.id === edit) : null;
+	if (ed || !DESKS.bots.length) {
+		box.innerHTML = deskForm(ed || {});
+		if ($("#dkCancel")) $("#dkCancel").onclick = () => drawDesks();
+		$("#dkSave").onclick = async () => {
+			$("#dkSave").disabled = true;
+			try {
+				await api("/api/bots", { method: "POST", body: JSON.stringify({ id: ed && ed.id, name: $("#dkName").value, intro: $("#dkIntro").value, brief: $("#dkBrief").value, cap: +$("#dkCap").value, tz: -new Date().getTimezoneOffset(), models: deskModels() }) });
+				await syncDesks(true);
+				drawDesks();
+			} catch (e) { $("#dkStatus").className = "status bad"; $("#dkStatus").textContent = e.message || String(e); $("#dkSave").disabled = false; }
+		};
+		return;
+	}
+	const kind = { booking: "Booking", message: "Message", question: "Question" };
+	box.innerHTML = DESKS.bots.map((b) => '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(b.name) + '</b><span class="help">' + creditsText(b.today) + " of " + creditsText(b.cap) + " credits today</span></div>" +
+		'<div class="row" style="gap:8px;margin-top:6px"><input class="inp" readonly value="' + esc(deskLink(b.id)) + '" aria-label="Its link" style="flex:1;min-width:0"><button class="btn" data-dkcopy="' + b.id + '">Copy link</button><a class="btn" href="' + esc(deskLink(b.id)) + '" target="_blank" rel="noopener">Open</a></div>' +
+		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn" data-dkedit="' + b.id + '">Edit</button><button class="btn" data-dkdel="' + b.id + '">Delete</button></div></div>').join("") +
+		'<div class="field"><label>Inbox' + (deskNew() ? " · " + deskNew() + " new" : "") + "</label>" + (DESKS.items.length ? DESKS.items.slice(0, 40).map((it) => '<div class="desk-it' + (it.status === "new" ? " new" : "") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(kind[it.kind] || "Message") + "</b><span class=\"help\">" + esc(it.botName) + " · " + new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" }) + '</span></div><div>' + esc(it.summary || "") + "</div>" + (it.details && (it.details.name || it.details.contact || it.details.when) ? '<div class="help">' + esc([it.details.name, it.details.contact, it.details.when].filter(Boolean).join(" · ")) + "</div>" : "") +
+			'<div class="row" style="gap:8px;margin-top:6px"><input class="inp" placeholder="Reply to them…" data-dkreply="' + it.id + '" style="flex:1;min-width:0"><button class="btn dark" data-dksend="' + it.id + '">Send</button>' + (it.status === "new" ? '<button class="btn" data-dkdone="' + it.id + '">Done</button>' : "") + '<button class="btn" data-dkchat="' + it.bot + "|" + it.visitor + '">See chat</button></div><div class="dk-chat" id="dkc-' + it.id + '"></div></div>').join("") : '<div class="help">Nothing yet. Share its link, and what it passes on shows up here.</div>') + "</div>" +
+		'<div class="row" style="justify-content:flex-end"><button class="btn" data-dkedit="new">Add another front desk</button></div>';
+	$$("[data-dkcopy]").forEach((x) => (x.onclick = () => { navigator.clipboard.writeText(deskLink(x.dataset.dkcopy)).then(() => toast("Link copied: share it with your customers"), () => {}); }));
+	$$("[data-dkedit]").forEach((x) => (x.onclick = () => drawDesks(x.dataset.dkedit)));
+	$$("[data-dkdel]").forEach((x) => (x.onclick = async () => { if (!confirm("Delete this front desk, its chats and its inbox? Its link stops working.")) return; await api("/api/bots/" + x.dataset.dkdel, { method: "DELETE" }).catch(() => {}); await syncDesks(true); drawDesks(); }));
+	const act = async (iid, body) => { await api("/api/bots/items/" + iid, { method: "POST", body: JSON.stringify(body) }).catch((e) => toast(e.message || String(e))); await syncDesks(true); };
+	$$("[data-dksend]").forEach((x) => (x.onclick = () => { const v = $('[data-dkreply="' + x.dataset.dksend + '"]').value.trim(); if (v) act(x.dataset.dksend, { status: "done", reply: v }).then(() => toast("Sent: they'll see it in their chat")); }));
+	$$("[data-dkdone]").forEach((x) => (x.onclick = () => act(x.dataset.dkdone, { status: "done" })));
+	$$("[data-dkchat]").forEach((x) => (x.onclick = async () => {
+		const [bot, visitor] = x.dataset.dkchat.split("|"), box2 = x.closest(".desk-it").querySelector(".dk-chat");
+		try { const j = await api("/api/bots/convo?bot=" + bot + "&visitor=" + encodeURIComponent(visitor)); box2.innerHTML = j.msgs.map((m) => '<div class="dk-m ' + m.role + '">' + esc(m.text) + "</div>").join(""); } catch (e) { box2.textContent = e.message || String(e); }
+	}));
+}
 // what ran while you were away: into the Tasks chat (a Together teammate's: into Team updates)
 let TASK_SYNC = 0;
 var TEAM_TASKS = [];
@@ -13859,8 +13955,8 @@ async function syncTasks(quiet) {
 	}
 	return j;
 }
-setInterval(() => syncTasks(), 5 * 60e3);
-addEventListener("focus", () => syncTasks());
+setInterval(() => { syncTasks(); syncDesks(); }, 5 * 60e3);
+addEventListener("focus", () => { syncTasks(); syncDesks(); });
 async function openTasks() {
 	if (!creditsMode() || !account) { openAccount(); return; }
 	openModal('<h2>Tasks</h2><p class="sub">Things Celestin does by itself on a schedule, even with this page closed. Each run uses your credits like a message, and its answer waits in your Tasks chat.</p>' +
