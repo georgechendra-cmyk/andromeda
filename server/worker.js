@@ -1656,19 +1656,50 @@ async function wikiSearch(q, n) {
 	}
 	return [];
 }
-// the news on something, from GDELT's open index of the world's news (every country and language, minutes old): the
-// newest articles first (titles and links; a page is read when it's needed)
-async function newsSearch(q, n, days = 3) {
-	const query = String(q || "").replace(/[^\p{L}\p{N}\s"'-]/gu, " ").replace(/\s+/g, " ").trim().slice(0, 200);
+// the news on something: the publishers' own feeds (Indonesian ones for an Indonesian query, English otherwise, both when
+// unsure) and, for English, Hacker News; the items that mention it, best match and newest first
+const NEWS_FEEDS = {
+	id: [["antara", "https://www.antaranews.com/rss/terkini.xml"], ["antara-ekonomi", "https://www.antaranews.com/rss/ekonomi.xml"], ["antara-tekno", "https://www.antaranews.com/rss/tekno.xml"], ["cnnid", "https://www.cnnindonesia.com/nasional/rss"], ["cnnid-ekonomi", "https://www.cnnindonesia.com/ekonomi/rss"], ["cnnid-teknologi", "https://www.cnnindonesia.com/teknologi/rss"], ["cnnid-internasional", "https://www.cnnindonesia.com/internasional/rss"], ["cnnid-hiburan", "https://www.cnnindonesia.com/hiburan/rss"], ["cnnid-olahraga", "https://www.cnnindonesia.com/olahraga/rss"], ["cnnid-gaya", "https://www.cnnindonesia.com/gaya-hidup/rss"], ["tempo", "https://rss.tempo.co/nasional"], ["okezone", "https://sindikasi.okezone.com/index.php/rss/0/RSS2.0"]],
+	en: [["guardian", "https://www.theguardian.com/world/rss"], ["guardian-business", "https://www.theguardian.com/business/rss"], ["guardian-tech", "https://www.theguardian.com/technology/rss"], ["aljazeera", "https://www.aljazeera.com/xml/rss/all.xml"], ["bbc", "https://feeds.bbci.co.uk/news/world/rss.xml"], ["bbc-business", "https://feeds.bbci.co.uk/news/business/rss.xml"], ["bbc-tech", "https://feeds.bbci.co.uk/news/technology/rss.xml"], ["npr", "https://feeds.npr.org/1001/rss.xml"], ["cnbc", "https://www.cnbc.com/id/100003114/device/rss/rss.html"], ["techcrunch", "https://techcrunch.com/feed/"], ["verge", "https://www.theverge.com/rss/index.xml"], ["arstechnica", "https://feeds.arstechnica.com/arstechnica/index"], ["wired", "https://www.wired.com/feed/rss"]],
+};
+const NEWS_STOP = new Set("the a an of and or in on at for to with about from by is are was news latest new today berita terbaru hari ini dan atau di ke dari yang untuk dengan tentang pada adalah akan ada ini itu soal info".split(" "));
+const ID_WORDS = /\b(yang|dan|untuk|harga|berita|terbaru|di|ke|dari|dengan|tentang|bisnis|usaha|kopi|makanan|pemerintah|indonesia|jakarta|bandung|surabaya|rupiah|warga|presiden|menteri)\b/i;
+const FEED_MEM = new Map(), FEED_LIFE = 15 * 60e3;
+// (budget: how many feeds one search may read afresh; the rest are used as last read, so one request never reads them all)
+async function feedCached(env, name, url, budget) {
+	const k = "feed:" + name, mem = FEED_MEM.get(k);
+	if (mem && now() - mem.at < FEED_LIFE) return mem.items;
+	const row = env ? await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind(k).first().catch(() => null) : null;
+	let old = null;
+	try { old = row && JSON.parse(row.v); if (old && now() - old.at < FEED_LIFE) { FEED_MEM.set(k, old); return old.items; } } catch {}
+	if (budget && budget.left <= 0) return (old && old.items) || (mem && mem.items) || [];
+	if (budget) budget.left--;
+	const p = await pageText(url, 1);
+	if (!p || p.error) return (mem && mem.items) || [];
+	const v = { at: now(), items: feedItems(p.raw).map((x) => ({ title: x.title, url: x.url, text: x.text.slice(0, 240), at: Date.parse(x.at) || 0, src: name })) };
+	FEED_MEM.set(k, v);
+	if (env) await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(k, JSON.stringify(v)).run().catch(() => {});
+	return v.items;
+}
+const newsWords = (q) => [...new Set(String(q || "").toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1 && !NEWS_STOP.has(w)))].slice(0, 8);
+// the feed items that mention it (most of its words, as whole words), with their dates
+async function newsItems(env, q, days) {
+	const words = newsWords(q);
+	if (!words.length) return [];
+	const lang = ID_WORDS.test(q) ? ["id"] : /^[\x00-\x7f]*$/.test(q) ? ["en", "id"] : ["id", "en"];
+	const feeds = lang.flatMap((l) => NEWS_FEEDS[l]);
+	const budget = { left: 8 };
+	const all = (await Promise.all(feeds.map(([n, u]) => feedCached(env, n, u, budget).catch(() => [])))).flat();
+	const res = words.map((w) => new RegExp("(^|[^\\p{L}\\p{N}])" + w + "($|[^\\p{L}\\p{N}])", "u")), need = Math.max(1, Math.ceil(words.length * 0.6)), since = now() - days * 864e5, seen = new Set();
+	return all.map((x) => { const h = (x.title + " " + x.text).toLowerCase(); return { x, hit: res.filter((r) => r.test(h)).length }; })
+		.filter((o) => o.hit >= need && (!o.x.at || o.x.at >= since) && !seen.has(o.x.url) && seen.add(o.x.url))
+		.sort((a, b) => b.hit - a.hit || (b.x.at || 0) - (a.x.at || 0)).map((o) => o.x);
+}
+async function newsSearch(q, n, days = 3, env) {
+	const query = String(q || "").replace(/\s+/g, " ").trim().slice(0, 200);
 	if (query.length < 3) return [];
-	try {
-		const r = await fetch("https://api.gdeltproject.org/api/v2/doc/doc?query=" + encodeURIComponent(/\s/.test(query) && !/"/.test(query) && query.split(" ").length <= 4 ? '"' + query + '"' : query) + "&mode=artlist&maxrecords=" + Math.min(50, Math.max(5, n * 3)) + "&format=json&sort=datedesc&timespan=" + days + "d", { signal: AbortSignal.timeout(12000) });
-		if (!r.ok) return [];
-		const j = await r.json().catch(() => ({}));
-		const seen = new Set();
-		return (j.articles || []).filter((a) => a && a.url && a.title && !seen.has(a.title.toLowerCase()) && seen.add(a.title.toLowerCase())).slice(0, n)
-			.map((a) => ({ title: String(a.title).slice(0, 200) + " (" + (a.domain || "news") + ")", url: a.url, text: "News, " + String(a.seendate || "").replace(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2}).*/, "$1-$2-$3 $4:$5 UTC") + (a.language ? ", " + a.language : "") }));
-	} catch { return []; }
+	const [items, hn] = await Promise.all([newsItems(env, query, days), ID_WORDS.test(query) ? [] : (async () => { try { const j = await (await fetch("https://hn.algolia.com/api/v1/search?tags=story&hitsPerPage=4&numericFilters=created_at_i>" + Math.floor((now() - days * 864e5) / 1000) + "&query=" + encodeURIComponent(query), { signal: AbortSignal.timeout(8000) })).json(); return (j.hits || []).filter((h) => h.title).map((h) => ({ title: h.title, url: h.url || "https://news.ycombinator.com/item?id=" + h.objectID, text: (h.points || 0) + " points on Hacker News", at: (h.created_at_i || 0) * 1000, src: "hackernews" })); } catch { return []; } })()]);
+	return [...items.slice(0, n), ...hn.slice(0, 2)].slice(0, n + 1).map((x) => ({ title: x.title.slice(0, 200) + " (" + x.src + ")", url: x.url, text: (x.at ? "News, " + new Date(x.at).toISOString().slice(0, 16).replace("T", " ") + " UTC. " : "News. ") + (x.text || "") }));
 }
 // what a search finds: the search key's results, or (with none) a model's own search, held and charged to the person
 async function searchFor(env, user, q, n) {
@@ -1682,7 +1713,7 @@ async function searchFor(env, user, q, n) {
 	finally { await charge(env, user.id, "web-search" + (got.model ? ": " + got.model : ""), held, got.usd, mt); }
 	// (nothing could search the web: the news (GDELT, open and free) and Wikipedia, rather than nothing)
 	if (got.results.length) return got.results;
-	const [news, wiki] = await Promise.all([newsSearch(q, Math.ceil(n / 2) + 1), wikiSearch(q, Math.max(2, Math.floor(n / 2)))]);
+	const [news, wiki] = await Promise.all([newsSearch(q, Math.ceil(n / 2) + 1, 3, env), wikiSearch(q, Math.max(2, Math.floor(n / 2)))]);
 	return [...news, ...wiki].slice(0, n + 2);
 }
 // the search results go in front of the newest message (not the system prompt), so the cached start of the
@@ -3186,7 +3217,7 @@ function feedItems(x) {
 // a short fingerprint of a line or a link, to know what's new since the last look
 const fp = async (x) => (await sha256hex(String(x))).slice(0, 12);
 // what's new in each thing it watches since the last look (nothing new: nothing to read, nothing spent)
-async function agentLook(src, st) {
+async function agentLook(src, st, env) {
 	const key = await fp(src.type + ":" + src.value), was = new Set(st.seen && st.seen[key] || []), first = !st.seen || !st.seen[key];
 	let items = [], keep = [];
 	if (src.type === "url") {
@@ -3198,7 +3229,7 @@ async function agentLook(src, st) {
 		items = lines.filter((l, i) => !was.has(hashes[i])).slice(0, 80).map((l) => ({ text: l.slice(0, 400) }));
 		return { key, label: p.title || src.value, fresh: first ? [] : items, first, all: first ? lines.slice(0, 120).join("\n").slice(0, 6000) : "", keep };
 	}
-	if (src.type === "news") items = await newsSearch(src.value, 15, 2);
+	if (src.type === "news") items = await newsSearch(src.value, 15, 2, env);
 	else if (src.type === "hn") { try { const j = await (await fetch("https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=20&query=" + encodeURIComponent(src.value), { signal: AbortSignal.timeout(8000) })).json(); items = (j.hits || []).map((h) => ({ title: h.title, url: h.url || "https://news.ycombinator.com/item?id=" + h.objectID, text: (h.points || 0) + " points" })); } catch {} }
 	else if (src.type === "rss") { const p = await pageText(src.value, 400000); if (!p || p.error) return { key, error: src.value + ": " + ((p && p.error) || "not a feed"), fresh: [], keep: [...was] }; items = feedItems(p.raw); }
 	const hs = await Promise.all(items.map((x) => fp(x.url || x.title)));
@@ -3233,7 +3264,7 @@ async function runAgent(env, ctx, a, manual) {
 	if (!row) return null;
 	const owner = await readyUser(env, row, await config(env));
 	const spent = { mc: 0, broke: false }, logs = [];
-	const looks = await Promise.all(sources.map((x) => agentLook(x, st)));
+	const looks = await Promise.all(sources.map((x) => agentLook(x, st, env)));
 	st.seen = Object.fromEntries(looks.map((l) => [l.key, l.keep]));
 	const fresh = looks.filter((l) => l.fresh.length), errors = looks.filter((l) => l.error).map((l) => l.error);
 	const firstPages = looks.filter((l) => l.first && l.all);
@@ -3415,7 +3446,8 @@ const ACTIVE = {
 	facebook: [.15, .1, .05, .05, .05, .1, .25, .45, .6, .7, .75, .8, .85, .8, .7, .65, .65, .7, .8, .9, .95, .8, .55, .3],
 	threads: [.2, .1, .05, .05, .05, .1, .25, .45, .65, .8, .8, .75, .8, .75, .65, .6, .6, .7, .8, .95, 1, .85, .6, .3],
 };
-// how hot the topic is in the news right now against its last 3 days (GDELT, one look an hour per topic; 1 = usual)
+// how hot the topic is in the news right now against its last 3 days (the publishers' feeds; one look an hour per topic;
+// 1 = usual)
 async function topicHeat(env, topic) {
 	const q = String(topic || "").trim();
 	if (!q) return { heat: 1 };
@@ -3424,10 +3456,14 @@ async function topicHeat(env, topic) {
 	try { const v = kept && JSON.parse(kept.v); if (v && now() - v.at < 3600e3) return v; } catch {}
 	let heat = 1;
 	try {
-		const r = await fetch("https://api.gdeltproject.org/api/v2/doc/doc?query=" + encodeURIComponent(/\s/.test(q) ? '"' + q + '"' : q) + "&mode=timelinevolraw&timespan=3d&format=json", { signal: AbortSignal.timeout(12000) });
-		const j = await r.json();
-		const pts = ((j.timeline && j.timeline[0] && j.timeline[0].data) || []).map((x) => Number(x.value) || 0);
-		if (pts.length > 8) { const avg = pts.reduce((a, b) => a + b, 0) / pts.length, recent = pts.slice(-4).reduce((a, b) => a + b, 0) / 4; heat = avg > 0 ? Math.max(.2, Math.min(5, recent / avg)) : 1; }
+		// (its mentions in the feeds over 3 days: the last 6 hours against the pace of the rest; too few to tell: usual)
+		const items = (await newsItems(env, q, 3)).filter((x) => x.at), t = now();
+		if (items.length >= 4) {
+			const oldest = Math.min(...items.map((x) => x.at)), span = Math.max(12, (t - oldest) / 3600e3);
+			const recent = items.filter((x) => t - x.at <= 6 * 3600e3).length, rest = items.length - recent;
+			const pace = rest / Math.max(6, span - 6);
+			heat = pace > 0 ? Math.max(.2, Math.min(5, recent / 6 / pace)) : recent >= 3 ? 3 : 1;
+		}
 	} catch {}
 	const v = { at: now(), heat: Math.round(heat * 100) / 100 };
 	await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(k, JSON.stringify(v)).run().catch(() => {});
