@@ -170,12 +170,12 @@ CREATE INDEX IF NOT EXISTS sessions_user ON sessions (user_id);
 CREATE INDEX IF NOT EXISTS usage_user ON usage (user_id, created_at);
 
 -- Celestin Together's Front desk: a receptionist on a link the owner shares, its chats, and what it passes on
-CREATE TABLE IF NOT EXISTS bots (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, intro TEXT, brief TEXT NOT NULL, models TEXT, cap_mc INTEGER NOT NULL DEFAULT 200000, day TEXT, day_mc INTEGER NOT NULL DEFAULT 0, tz INTEGER NOT NULL DEFAULT 420, active INTEGER NOT NULL DEFAULT 1, slots TEXT, cc TEXT, voice TEXT, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS bots (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, intro TEXT, brief TEXT NOT NULL, models TEXT, cap_mc INTEGER NOT NULL DEFAULT 200000, day TEXT, day_mc INTEGER NOT NULL DEFAULT 0, tz INTEGER NOT NULL DEFAULT 420, active INTEGER NOT NULL DEFAULT 1, slots TEXT, cc TEXT, voice TEXT, tzname TEXT, opts TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS bots_user ON bots (user_id);
 CREATE TABLE IF NOT EXISTS bot_msgs (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, visitor TEXT NOT NULL, role TEXT NOT NULL, text TEXT NOT NULL, ip TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS bot_msgs_v ON bot_msgs (bot_id, visitor, created_at);
 CREATE INDEX IF NOT EXISTS bot_msgs_ip ON bot_msgs (bot_id, ip, created_at);
-CREATE TABLE IF NOT EXISTS bot_items (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, user_id TEXT NOT NULL, visitor TEXT NOT NULL, kind TEXT NOT NULL, summary TEXT, details TEXT, status TEXT NOT NULL DEFAULT 'new', slot TEXT, slot_at INTEGER, reminded INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS bot_items (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, user_id TEXT NOT NULL, visitor TEXT NOT NULL, kind TEXT NOT NULL, summary TEXT, details TEXT, status TEXT NOT NULL DEFAULT 'new', slot TEXT, slot_at INTEGER, reminded INTEGER NOT NULL DEFAULT 0, asked INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS bot_items_user ON bot_items (user_id, status, created_at);
 
 -- Celestin Together's jobs that run by themselves (win-back messages, marketing posts) and what they make
@@ -198,6 +198,9 @@ CREATE TABLE IF NOT EXISTS conns (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, ki
 
 -- phone calls placed for a business through its own Twilio account, turn by turn
 CREATE TABLE IF NOT EXISTS calls (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, job_id TEXT, to_num TEXT NOT NULL, name TEXT, purpose TEXT NOT NULL, lang TEXT, models TEXT, turns TEXT, status TEXT NOT NULL DEFAULT 'calling', outcome TEXT, sid TEXT, created_at INTEGER NOT NULL, updated_at INTEGER);
+-- every text a front desk sent from the business's number (daily limits; nobody gets the same offer twice)
+CREATE TABLE IF NOT EXISTS texts (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, user_id TEXT NOT NULL, num TEXT NOT NULL, kind TEXT NOT NULL, slot TEXT, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS texts_num ON texts (bot_id, num, created_at);
 CREATE INDEX IF NOT EXISTS calls_user ON calls (user_id, created_at);
 
 -- a person's settings (act without asking)
