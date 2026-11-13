@@ -7439,7 +7439,7 @@ async function studyRefs(plan, text, atts) {
 				hold.status = foundIt ? "Watching a video of " + ref.name : "Watching the video you linked";
 				updateLast();
 				try {
-					const seen = String(await stream(watcher.id, [{ role: "user", content: [{ type: "file", file: { file_id: links[0], format: "video/mp4" } }, { type: "text", text: "Watch this whole video carefully, the way a director studies a reference before matching it. The user wants work made like it" + (ref.take ? ", for " + ref.take : "") + ". Describe exactly what makes it what it is, concretely enough to match it with no further study: who's in it and their personality (energy, humour, how they talk, catchphrases, how fast), the format and structure, the visual style (palette, lighting, camera, editing rhythm, captions and type, how things move, roughly what frame rate it feels like), sound and music. 250 words at most." }] }], () => {}, busy.signal, { max_tokens: 1200, temperature: 0, ...effortFor(watcher.id, "low") }, hold)).trim();
+					const seen = String(await stream(watcher.id, [{ role: "user", content: [{ type: "file", file: { file_id: links[0], format: "video/mp4" } }, { type: "text", text: "Watch this whole video carefully, the way a lead animator studies a reference before recreating its look. The user wants work made like it" + (ref.take ? ", for " + ref.take : "") + ". Write a replication spec, concrete enough that someone who never saw it could match it, in this order:\n1. How it's made: 2D, 3D, or 2D characters in a 3D world (or flat layers with depth); flat, cel-shaded or textured; hand-drawn, vector or rendered; how smooth the motion is (on twos, or smooth).\n2. Each main character: head shape (oval, round, bean, square...), head-to-body ratio, body and limbs, eyes (dots, ovals, pupils), mouth and how it moves when they talk, nose, ears, hair, outline (colour and thickness, or none), colours (hex), shading, and how they move.\n3. The world: what it's built from, palette (hex), lighting, depth, props.\n4. Camera and editing: framing, camera moves, seconds per shot, transitions.\n5. Words on screen: captions or subtitles (look, size, colour, outline, placement, word by word or whole lines).\n6. Personality and format: who's in it, their energy and humour, how they talk, catchphrases, the structure (hook, beats, ending), length.\n7. Sound: voices (pitch, pace), music, sound effects.\nOnly what you can see and hear; 450 words at most." }] }], () => {}, busy.signal, { max_tokens: 1800, temperature: 0, ...effortFor(watcher.id, "low") }, hold)).trim();
 					if (seen) { bits.push("Watched it (" + links[0] + "): " + seen); REF_WATCH = { model: watcher, video: links[0], brief: seen, name: ref.name, take: ref.take }; }
 				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 			}
@@ -7451,7 +7451,7 @@ async function studyRefs(plan, text, atts) {
 					const pic = o.thumbnail_url ? (await toolCall("/api/tools/fetch", { url: o.thumbnail_url, image: true }, 15000).catch(() => ({}))).image : "";
 					const eye = pic && bestFirst(quarkFirst(arenaRank("vision", { "vision:overall": 1 })))[0];
 					if (eye) {
-						const look = await stream((eye.m || eye).id, [{ role: "user", content: [{ type: "text", text: "This is the thumbnail of \"" + o.title + "\" by " + (o.author_name || "a creator") + ". Describe its style exactly, as an art director would brief an animator to match it: drawing style and line work, palette (with hex colours), lighting and shading, characters and how they're drawn, typography and captions, composition and framing, mood. Only what you can see; 150 words at most." }, { type: "image_url", image_url: { url: pic } }] }], () => {}, busy.signal, { max_tokens: 600, temperature: 0, ...effortFor((eye.m || eye).id, "low") }, hold);
+						const look = await stream((eye.m || eye).id, [{ role: "user", content: [{ type: "text", text: "This is the thumbnail of \"" + o.title + "\" by " + (o.author_name || "a creator") + ". Describe its style exactly, as an art director would brief an animator to match it: whether it's 2D, 3D, or 2D characters in a 3D world; drawing style and line work, palette (with hex colours), lighting and shading; the characters and how they're built (head shape, proportions, eyes, mouth, outlines); typography and captions, composition and framing, mood. Only what you can see; 200 words at most." }, { type: "image_url", image_url: { url: pic } }] }], () => {}, busy.signal, { max_tokens: 600, temperature: 0, ...effortFor((eye.m || eye).id, "low") }, hold);
 						if (String(look).trim()) bits.push("Its thumbnail's look: " + String(look).trim());
 					}
 				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
@@ -7463,7 +7463,7 @@ async function studyRefs(plan, text, atts) {
 				const frames = clip.frames.filter((f, k, all) => k % Math.max(1, Math.floor(all.length / 4)) === 0).slice(0, 4);
 				if (eye && frames.length) {
 					try {
-						const look = await stream((eye.m || eye).id, [{ role: "user", content: [{ type: "text", text: "These are " + frames.length + " frames, in order, from a clip the user gave as the reference for " + ref.name + ". Describe its style exactly, as an art director would brief an animator to match it: drawing style and line work, palette (with hex colours), lighting and shading, characters, typography and captions, composition and camera, how things move from frame to frame (smooth or choppy, roughly what frame rate it feels like), pacing, mood. Only what you can see; 200 words at most." }, ...frames.map((f) => ({ type: "image_url", image_url: { url: f.data } }))] }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor((eye.m || eye).id, "low") }, hold);
+						const look = await stream((eye.m || eye).id, [{ role: "user", content: [{ type: "text", text: "These are " + frames.length + " frames, in order, from a clip the user gave as the reference for " + ref.name + ". Describe its style exactly, as an art director would brief an animator to match it: whether it's 2D, 3D, or 2D characters in a 3D world; drawing style and line work, palette (with hex colours), lighting and shading; the characters and how they're built (head shape, proportions, eyes, mouth, outlines); typography and captions, composition and camera, how things move from frame to frame (smooth or choppy, roughly what frame rate it feels like), pacing, mood. Only what you can see; 200 words at most." }, ...frames.map((f) => ({ type: "image_url", image_url: { url: f.data } }))] }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor((eye.m || eye).id, "low") }, hold);
 						if (String(look).trim()) bits.push("The clip they attached (" + clip.name + "), as seen: " + String(look).trim());
 					} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 				}
@@ -7472,7 +7472,7 @@ async function studyRefs(plan, text, atts) {
 			const sage = bestFirst(quarkFirst(arenaRank("research", { "factuality:overall": 0.7, "text:expert": 0.3 })))[0];
 			let known = "";
 			if (sage) {
-				known = String(await stream((sage.m || sage).id, [{ role: "user", content: "Someone wants work made like this: " + ref.name + (ref.kind ? " (" + ref.kind + ")" : "") + ". What to take from it: " + (ref.take || "what it's known for") + "." + (bits.length ? "\n\nFound so far:\n" + bits.join("\n") : "") + (web ? "\n\nLive web search results:\n" + web : "") + "\n\nDescribe exactly what it's like, as a brief for whoever makes the work, concrete enough to match it with no further study: for a creator or video style: art style and line work, palette, lighting, character design, typography and captions, camera and transitions, motion (smooth or choppy, roughly what frame rate it feels like, easing), pacing (how often it cuts, how long a beat lasts), narration voice and tone, music and sound effects, humour, format and length; for a game: its mechanics, controls, camera, feel, look and sound; for a brand or site: its design language (type, colour, spacing, motion, imagery). Only what you reliably know or what the material above shows; nothing guessed. If you don't reliably know what this is and the material doesn't show it, reply with exactly: UNKNOWN" }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor((sage.m || sage).id, "low") }, hold)).trim();
+				known = String(await stream((sage.m || sage).id, [{ role: "user", content: "Someone wants work made like this: " + ref.name + (ref.kind ? " (" + ref.kind + ")" : "") + ". What to take from it: " + (ref.take || "what it's known for") + "." + (bits.length ? "\n\nFound so far:\n" + bits.join("\n") : "") + (web ? "\n\nLive web search results:\n" + web : "") + "\n\nDescribe exactly what it's like, as a brief for whoever makes the work, concrete enough to match it with no further study: for a creator or video style: how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built (head shape, proportions, eyes, mouth, outlines), art style and line work, palette, lighting, character design, typography and captions, camera and transitions, motion (smooth or choppy, roughly what frame rate it feels like, easing), pacing (how often it cuts, how long a beat lasts), narration voice and tone, music and sound effects, humour, format and length; for a game: its mechanics, controls, camera, feel, look and sound; for a brand or site: its design language (type, colour, spacing, motion, imagery). Only what you reliably know or what the material above shows; nothing guessed. If you don't reliably know what this is and the material doesn't show it, reply with exactly: UNKNOWN" }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor((sage.m || sage).id, "low") }, hold)).trim();
 			}
 			const unknown = !known || /^UNKNOWN\b/i.test(known);
 			found.push({ ...ref, brief: unknown ? (bits.length ? bits.join("\n") : "") : known, unknown: unknown && !bits.length, from: [links.length && bits.length ? (foundIt ? "a video of it found on the web" : "the linked video") : "", web ? "the web" : "", !unknown && sage ? shortName(sage.m || sage) : ""].filter(Boolean) });
@@ -7482,6 +7482,9 @@ async function studyRefs(plan, text, atts) {
 }
 // the video the watcher watched for this request, and what it said (null: none)
 var REF_WATCH = null;
+// what the references were found to be like, word for word, for whoever makes the work (a director's one-line "look"
+// loses the head shapes and the 2D-in-3D; the animator gets this whole)
+var REF_NOTE = "";
 // the watcher watches the video again with what was made: does it match? ({ match, notes })
 async function refJudge(what, made, msg) {
 	const w = REF_WATCH;
@@ -7524,6 +7527,7 @@ function useRefs(plan, text, found) {
 		(lost.length ? (known.length ? "\n" : "") + "Nothing reliable could be found about " + lost.map((f) => f.name).join(" or ") + ". Say so in one short line at the start, make it in the most likely reading of what they asked, and offer to match it exactly if they send a link to one of their videos or a short clip." : "");
 	plan.request = wholeRequest(plan, text) + "\n\n" + note;
 	PLAN_NOTE = (PLAN_NOTE ? PLAN_NOTE + "\n" : "") + note;
+	REF_NOTE = known.map((f) => f.name + (f.kind ? " (" + f.kind + ")" : "") + ": " + f.brief).join("\n\n").slice(0, 5000);
 	for (const f of found) noteTool("Looked up: " + f.name, f.unknown ? "Nothing reliable found: said so, and asked for a link or a clip" : "What it's like, from " + (f.from.join(" and ") || "what's known"));
 }
 // How Celestin serves one request: the conductor reads it and decides how (small talk needs no reading), then the part of
@@ -7571,7 +7575,7 @@ async function serve(text, atts, tool, o = {}) {
 	// (a team's piece the Reviewer checks at the end anyway: no check of its own, unless it's code, run and fixed as it's made)
 	if (PROFILE && o.check === false && PROFILE.kind !== "code" && speed() !== "max") PROFILE.check = false;
 	// a named reference to match: looked up first
-	REF_WATCH = null;
+	REF_WATCH = null; REF_NOTE = "";
 	if (plan && plan.refs && plan.refs.length && !LANE) useRefs(plan, text, await studyRefs(plan, text, atts));
 	// a long run: what it'll likely cost, and a go-ahead, before anything is spent (not for Max's own extra rounds: only
 	// when they gave it time, or all the time it needs)
@@ -10667,6 +10671,8 @@ async function runVideo(text, atts, planned) {
 	}
 	// (the person's own words, for the animator of a film made in one take)
 	plan.ask = String((planned && planned.ask) || text || "").slice(0, 2000);
+	// (and what its reference was found to be like, whole, when it was made like one)
+	plan.ref = String((planned && planned.ref) || REF_NOTE || "").slice(0, 5000);
 	const left = await walletLeft();
 	msg.status = drawn ? "Waiting for your go" : "Waiting for you to pick the quality";
 	updateLast();
@@ -11297,7 +11303,7 @@ Write ONE complete HTML document, exactly to this contract:
 - One <canvas id="c">, sized in your script to window.W by window.H pixels (canvas.width = W; canvas.height = H), filling the page with no margin.
 - window.DURATION = the shot's length in seconds.
 - window.seek = async function (t) { ... }: draws the complete frame for time t (0 to DURATION) on the canvas. Every pixel depends only on t: no requestAnimationFrame, no timers, no Date.now or performance.now, no CSS animation or transition, and randomness only from a seeded generator you write. seek(3) and then seek(1) must give exactly the frame at 1.
-- Everything in this file. Nothing may be loaded except Google Fonts (a <link> to fonts.googleapis.com; await document.fonts.ready inside seek before drawing text) and, only for real 3D, three.js r128 from https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js (WebGLRenderer with preserveDrawingBuffer: true, drawn into the canvas #c). No images, video or files: draw everything yourself with paths, shapes, gradients, patterns and text.
+- Everything in this file. Nothing may be loaded except Google Fonts (a <link> to fonts.googleapis.com; await document.fonts.ready inside seek before drawing text) and, only for real 3D, three.js r128 from https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js (WebGLRenderer with preserveDrawingBuffer: true, drawn into the canvas #c). For flat 2D characters in a 3D world, draw each character on its own offscreen canvas for the frame and show it as a CanvasTexture (needsUpdate = true) on a plane facing the camera, in the three.js scene. No images, video or files: draw everything yourself with paths, shapes, gradients, patterns and text.
 
 Make it look like a top motion-design studio made it: a strong composition; easing on every move (cubic or expo in and out, a touch of anticipation and overshoot); secondary motion and layered parallax so it never feels static; a consistent palette and lighting; typography with real hierarchy, kept inside the middle 90% of the frame; texture where the style wants it (grain, paper, hatching, halftone); motion through the whole duration (no dead stretches), settling into a clean final frame. Characters, if any, drawn with care: clear silhouettes, expressive poses, simple faces that read.
 
@@ -11419,7 +11425,7 @@ Write ONE complete HTML document, exactly to this contract:
 - One <canvas id="c">, sized in your script to window.W by window.H pixels (canvas.width = W; canvas.height = H), filling the page with no margin. Lay everything out relative to W and H.
 - window.DURATION = the film's length in seconds.
 - window.seek = async function (t) { ... }, defined when the script first runs: draws the complete frame for time t (0 to DURATION). Every pixel depends only on t: no requestAnimationFrame, no timers, no Date.now or performance.now, no CSS animation or transition, and randomness only from a seeded generator you write. seek(20) and then seek(2) must give exactly the frame at 2.
-- Everything in this file. Nothing may be loaded except Google Fonts (a <link> to fonts.googleapis.com; await document.fonts.ready inside seek before drawing text) and, only for real 3D, three.js r128 from https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js (WebGLRenderer with preserveDrawingBuffer: true, drawn into the canvas #c). No images, video or files: draw everything yourself.
+- Everything in this file. Nothing may be loaded except Google Fonts (a <link> to fonts.googleapis.com; await document.fonts.ready inside seek before drawing text) and, only for real 3D, three.js r128 from https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js (WebGLRenderer with preserveDrawingBuffer: true, drawn into the canvas #c). For flat 2D characters in a 3D world, draw each character on its own offscreen canvas for the frame and show it as a CanvasTexture (needsUpdate = true) on a plane facing the camera, in the three.js scene. No images, video or files: draw everything yourself.
 
 How the best ones are built:
 - One timeline: a list of scenes with start and end times, each scene a function of its own local progress. One design system for the whole film, defined once at the top: palette, type scale, grid and margins, line weights, corner radii, shadows, and a motion language (the same easings and timings everywhere). Each recurring character, product or screen is drawn by one helper, so it's identical in every scene.
@@ -11484,6 +11490,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	let at = 0;
 	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
 	const brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
+		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
 		"\nIts typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words; never Inter, Roboto, Arial or a system font." +
 		"\nAspect " + plan.aspect + ", " + total + " seconds in all.\n\nThe shot list (one continuous film: design the transitions between them):\n" + timeline +
 		(plan.end.title || plan.end.sub ? "\n\nIt ends on: " + [plan.end.title, plan.end.sub].filter(Boolean).join(" / ") : "");
@@ -11536,6 +11543,25 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 			if (c.ship) break;
 		}
 	} finally { if (deep) DEEP_NOW--; }
+	// (made like a reference video: the one who watched it compares frames of the film to the video, and what isn't like it
+	// yet is fixed once. The owner, Nov 14: a model that watched it would say "2D in a 3D world, oval heads", so it's checked
+	// against that, not just against good taste)
+	const w = REF_WATCH;
+	if (w && !prev && !(signal && signal.aborted)) {
+		try {
+			onStatus("The one who watched the reference is comparing the film to it");
+			const sheet = await filmSheet(html, total, W, H);
+			const raw = await stream(w.model.id, [{ role: "user", content: [{ type: "file", file: { file_id: w.video, format: "video/mp4" } }, { type: "text", text: "You watched this video as the reference for " + (w.take || "a film") + ". What you said about it:\n" + w.brief + "\n\nThe image is a contact sheet: 12 frames taken evenly through the film the team made to look like it. Compare them to the video as its lead animator would: how it's made (2D, 3D, or 2D characters in a 3D world), how the characters are built (head shape, proportions, eyes, mouth, outlines), the world, the palette, the camera, the words on screen. Only real misses, each concrete enough to fix in code (what's wrong, and what it should be). Reply with ONLY this JSON: {\"match\": true or false, \"notes\": [\"...\"]}" }, { type: "image_url", image_url: { url: sheet } }] }], () => {}, signal, { max_tokens: 900, temperature: 0, ...effortFor(w.model.id, "low") }, msg);
+			const j = parseJSON(raw) || {}, notes = (Array.isArray(j.notes) ? j.notes : []).map(String).filter((x) => x.trim()).slice(0, 6);
+			if (j.match === false && notes.length) {
+				onStatus("Making it more like the reference (" + notes.length + ")");
+				const next = await edit(by, "The one who studied the reference video compared frames of this film to it, and it isn't like it yet:\n- " + notes.join("\n- ") + "\nFix these so it looks like the reference (its look and how it's built, never its actual characters or content), keeping everything that works.", html);
+				await runs(next);
+				html = next;
+				rounds++;
+			}
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
 	return { html, by, critic, rounds };
 }
 
@@ -11781,6 +11807,7 @@ async function studioEdit(text, atts, pick) {
 	const j = parseJSON(out);
 	const plan = cleanPlan(j, d.plan.want, d.drawnOnly);
 	plan.ask = d.plan.ask || "";
+	plan.ref = d.plan.ref || "";
 	const redo = { scenes: (j.redo?.scenes || []).map(Number).filter((n) => n >= 0 && n < plan.scenes.length), voice: !!j.redo?.voice, music: !!j.redo?.music };
 	msg.used.push({ name: shortName(m), desc: "Director: changed the plan" });
 	// a new copy of it, so the old one stays as it was; shots that didn't change are reused as they are
