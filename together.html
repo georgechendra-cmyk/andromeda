@@ -7420,14 +7420,23 @@ async function studyRefs(plan, text, atts) {
 	updateLast();
 	const found = [];
 	try {
-		const links = [...new Set(String(text).match(YT_RE) || [])].slice(0, 2);
+		const given = [...new Set(String(text).match(YT_RE) || [])].slice(0, 2);
 		for (const ref of plan.refs) {
 			const bits = [];
+			// the live web first, when this server can search (a creator, a show, a game or an ad: a video of it too)
+			let web = "", hits = [];
+			const visual = /youtub|channel|creator|video|animat|short|tiktok|film|movie|show|trailer|game|ad\b|commercial|style/i.test(ref.kind + " " + ref.take);
+			try { hits = (await toolCall("/api/tools/search", { query: ref.name + " " + ref.kind + " " + ref.take + (visual && !given.length ? " video" : ""), n: 5 }, 25000)).results || []; web = hits.map((x, i) => "[" + (i + 1) + "] " + x.title + " (" + x.url + "): " + x.text).join("\n").slice(0, 6000); }
+			catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			// (no link given: the first video of it the search found is watched instead, so the work is matched to the real
+			// thing, not to a description of it. Owner, Nov 14: upgrade the self-routing, not one task)
+			const links = given.length ? given : [...new Set(hits.flatMap((x) => (String(x.url || "") + " " + String(x.text || "")).match(YT_RE) || []))].slice(0, 1);
+			const foundIt = !given.length && links.length > 0;
 			// a YouTube video they linked: its title, channel and thumbnail (YouTube's own oEmbed), the thumbnail read for its look
 			// the watcher: the best at reading pictures and video of the models that can watch YouTube (Gemini's), by the rules
 			const watcher = links.length ? (bestFirst(quarkFirst(arenaRank("vision", { "vision:overall": 1 }).filter((x) => provider((x.m || x).id) === "google")))[0] || {}).m : null;
 			if (watcher && !REF_WATCH) {
-				hold.status = "Watching the video you linked";
+				hold.status = foundIt ? "Watching a video of " + ref.name : "Watching the video you linked";
 				updateLast();
 				try {
 					const seen = String(await stream(watcher.id, [{ role: "user", content: [{ type: "file", file: { file_id: links[0], format: "video/mp4" } }, { type: "text", text: "Watch this whole video carefully, the way a director studies a reference before matching it. The user wants work made like it" + (ref.take ? ", for " + ref.take : "") + ". Describe exactly what makes it what it is, concretely enough to match it with no further study: who's in it and their personality (energy, humour, how they talk, catchphrases, how fast), the format and structure, the visual style (palette, lighting, camera, editing rhythm, captions and type, how things move, roughly what frame rate it feels like), sound and music. 250 words at most." }] }], () => {}, busy.signal, { max_tokens: 1200, temperature: 0, ...effortFor(watcher.id, "low") }, hold)).trim();
@@ -7459,10 +7468,6 @@ async function studyRefs(plan, text, atts) {
 					} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 				}
 			}
-			// the live web, when this server can search
-			let web = "";
-			try { web = ((await toolCall("/api/tools/search", { query: ref.name + " " + ref.kind + " " + ref.take, n: 5 }, 25000)).results || []).map((x, i) => "[" + (i + 1) + "] " + x.title + " (" + x.url + "): " + x.text).join("\n").slice(0, 6000); }
-			catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 			// what the model best at getting facts right reliably knows (and says when it doesn't)
 			const sage = bestFirst(quarkFirst(arenaRank("research", { "factuality:overall": 0.7, "text:expert": 0.3 })))[0];
 			let known = "";
@@ -7470,7 +7475,7 @@ async function studyRefs(plan, text, atts) {
 				known = String(await stream((sage.m || sage).id, [{ role: "user", content: "Someone wants work made like this: " + ref.name + (ref.kind ? " (" + ref.kind + ")" : "") + ". What to take from it: " + (ref.take || "what it's known for") + "." + (bits.length ? "\n\nFound so far:\n" + bits.join("\n") : "") + (web ? "\n\nLive web search results:\n" + web : "") + "\n\nDescribe exactly what it's like, as a brief for whoever makes the work, concrete enough to match it with no further study: for a creator or video style: art style and line work, palette, lighting, character design, typography and captions, camera and transitions, motion (smooth or choppy, roughly what frame rate it feels like, easing), pacing (how often it cuts, how long a beat lasts), narration voice and tone, music and sound effects, humour, format and length; for a game: its mechanics, controls, camera, feel, look and sound; for a brand or site: its design language (type, colour, spacing, motion, imagery). Only what you reliably know or what the material above shows; nothing guessed. If you don't reliably know what this is and the material doesn't show it, reply with exactly: UNKNOWN" }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor((sage.m || sage).id, "low") }, hold)).trim();
 			}
 			const unknown = !known || /^UNKNOWN\b/i.test(known);
-			found.push({ ...ref, brief: unknown ? (bits.length ? bits.join("\n") : "") : known, unknown: unknown && !bits.length, from: [links.length && bits.length ? "the linked video" : "", web ? "the web" : "", !unknown && sage ? shortName(sage.m || sage) : ""].filter(Boolean) });
+			found.push({ ...ref, brief: unknown ? (bits.length ? bits.join("\n") : "") : known, unknown: unknown && !bits.length, from: [links.length && bits.length ? (foundIt ? "a video of it found on the web" : "the linked video") : "", web ? "the web" : "", !unknown && sage ? shortName(sage.m || sage) : ""].filter(Boolean) });
 		}
 	} finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 	return found;
