@@ -2119,6 +2119,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<button class="icon" id="artReload" title="Start it again" aria-label="Start it again"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
 			<button class="icon" id="artCopy" title="Copy the code" aria-label="Copy the code"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/><rect x="3" y="8" width="13" height="13" rx="2"/></svg></button>
 			<button class="icon" id="artDl" title="Download" aria-label="Download"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
+			<button class="icon" id="artPub" title="Put it online" aria-label="Put it online" hidden><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
 			<button class="icon" id="art3d" title="Download the 3D model" aria-label="Download the 3D model" hidden><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9Z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
 			<button class="icon" id="artTab" title="Open in a new tab" aria-label="Open in a new tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></button>
 			<button class="icon" id="artFull" title="Full screen" aria-label="Full screen"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
@@ -13609,6 +13610,7 @@ function drawArt() {
 	$("#artCopy").hidden = $("#artDl").hidden = building;
 	$("#artReload").hidden = $("#artFull").hidden = isDoc || building || a.view !== "preview";
 	$("#art3d").hidden = !isThreeApp(a) || a.view !== "preview";
+	$("#artPub").hidden = a.kind !== "app" || building;
 	if (isDoc) { $("#artViews").hidden = true; drawCanvas(); return; }
 	const body = $("#artBody");
 	if (a.view === "preview") {
@@ -13656,6 +13658,75 @@ $("#artDl").onclick = () => {
 	else if (f) download(/\./.test(f.name) ? f.name.split("/").pop() : name + "." + ({ react: "jsx", javascript: "js" }[f.name] || f.name), f.text);
 	else download(name + ".html", ART.page || ART.doc);
 };
+// ---- Put it online: GitHub Pages, on the person's own GitHub (free, the site is theirs, a link anyone can open; pressed
+// again after a change, the same site updates). The owner, Nov 14: "u dont know how to upload website ... celestin does
+// it for you". (Not hosted on Celestin's own server: one scam page there could get the server's address flagged)
+const siteFilesOf = (a) => {
+	const real = (a.files || []).filter((f) => /^[\w./ -]+\.[a-z0-9]+$/i.test(String(f.name || "")) && !/\.\./.test(f.name));
+	const out = real.some((f) => /(^|\/)index\.html$/i.test(f.name)) ? real.map((f) => ({ path: normPath(f.name), text: String(f.text || "") })) : [{ path: "index.html", text: String(a.page || a.doc || "") }];
+	return [...out, { path: ".nojekyll", text: "" }];
+};
+const siteSlug = (t) => String(t || "site").toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/[\s_]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "site";
+async function ghPutFiles(repo, branch, files, message) {
+	const R = "/repos/" + repo;
+	let head = null;
+	// (a repository made a moment ago can take a few seconds to have its first commit)
+	for (let k = 0; k < 4 && !head; k++) { try { head = await ghApi(R + "/git/ref/heads/" + encodeURIComponent(branch)); } catch (e) { if (k === 3 || ![404, 409].includes(e.gh)) throw e; await new Promise((r) => setTimeout(r, 2000)); } }
+	const parent = await ghApi(R + "/git/commits/" + head.object.sha);
+	const t = await ghApi(R + "/git/trees", { method: "POST", body: JSON.stringify({ base_tree: parent.tree.sha, tree: files.map((f) => ({ path: f.path, mode: "100644", type: "blob", content: f.text })) }) });
+	const c = await ghApi(R + "/git/commits", { method: "POST", body: JSON.stringify({ message, tree: t.sha, parents: [head.object.sha] }) });
+	await ghApi(R + "/git/refs/heads/" + encodeURIComponent(branch), { method: "PATCH", body: JSON.stringify({ sha: c.sha }) });
+}
+async function publishSite() {
+	if (!ART || ART.kind !== "app") return;
+	if (!ghToken()) { openPublish(); return; }
+	const a = ART, files = siteFilesOf(a), sites = store.get("sites", null) || {}, key = (a.cid || "") + ":" + (a.title || "");
+	if (!files[0].text) { toast("There's nothing to put online yet"); return; }
+	const btn = $("#artPub");
+	btn.disabled = true;
+	toast("Putting it online…");
+	try {
+		const login = (await ghApi("/user")).login;
+		let repo = sites[key] && sites[key].repo;
+		const fresh = !repo;
+		if (!repo) {
+			const base = siteSlug(a.title);
+			for (let k = 0; k < 6 && !repo; k++) {
+				try { repo = (await ghApi("/user/repos", { method: "POST", body: JSON.stringify({ name: base + (k ? "-" + (k + 1) : ""), description: String(a.title || "A site").slice(0, 120) + ", made with Celestin", auto_init: true, has_issues: false, has_wiki: false }) })).full_name; }
+				catch (e) { if (e.gh === 422) continue; if ([401, 403, 404].includes(e.gh)) { openPublish("Your GitHub key can't make a new repository. Make one with the link below (it has the right permission), and paste it here."); return; } throw e; }
+			}
+			if (!repo) throw new Error("Couldn't find a free name for it on your GitHub");
+		}
+		const branch = (await ghApi("/repos/" + repo)).default_branch || "main";
+		await ghPutFiles(repo, branch, files, "Update " + (a.title || "the site") + "\n\nMade with Celestin");
+		try { await ghApi("/repos/" + repo + "/pages", { method: "POST", body: JSON.stringify({ source: { branch, path: "/" } }) }); } catch (e) { if (e.gh !== 409) throw e; }
+		const url = "https://" + login.toLowerCase() + ".github.io/" + repo.split("/")[1] + "/";
+		sites[key] = { repo, url, at: Date.now() };
+		store.set("sites", sites);
+		openPublished(url, repo, fresh);
+	} catch (e) { toast(e.message || String(e)); }
+	finally { btn.disabled = false; }
+}
+function openPublish(note) {
+	openModal('<h2>Put it online</h2><p class="sub">' + esc(note || "Celestin puts your site on GitHub Pages: free, on your own GitHub account, with a link anyone can open. Once, it needs a key to your GitHub:") + "</p>" +
+		'<ol class="help" style="line-height:1.7;margin:0 0 12px 18px"><li>No GitHub yet? <a href="https://github.com/signup" target="_blank" rel="noopener">Make a free account</a>.</li><li><a href="https://github.com/settings/tokens/new?scopes=public_repo&amp;description=Celestin%20sites" target="_blank" rel="noopener">Make a key here</a>: it comes filled in. Scroll down, press Generate token, and copy it.</li><li>Paste it here.</li></ol>' +
+		'<div class="field"><input class="inp" id="pubTok" placeholder="ghp_…" autocomplete="off" spellcheck="false"></div><div class="status" id="pubStatus" role="status"></div><div class="row" style="justify-content:flex-end"><button class="btn dark" id="pubGo">Put it online</button></div>' +
+		'<p class="help">The key stays in this browser and is only ever sent to GitHub. The site and its code are public on your GitHub: that\'s how free hosting there works.</p>');
+	$("#pubGo").onclick = async () => {
+		const t = $("#pubTok").value.trim(), st = $("#pubStatus");
+		if (!/^(ghp_|github_pat_|gho_)\w{20,}$/.test(t)) { st.className = "status bad"; st.textContent = "That doesn't look like a GitHub key: it starts with ghp_."; return; }
+		$("#pubGo").disabled = true;
+		store.set("github", { token: t });
+		try { const u = await ghApi("/user"); store.set("github", { token: t, login: u.login }); closeModal(); publishSite(); }
+		catch (e) { store.set("github", null); st.className = "status bad"; st.textContent = e.message || String(e); $("#pubGo").disabled = false; }
+	};
+}
+function openPublished(url, repo, fresh) {
+	openModal('<h2>It\'s online</h2><p class="sub">' + (fresh ? "GitHub takes about a minute to put a new site up; the link works from then on." : "Updated: GitHub shows the new version in a few seconds.") + '</p><div class="row" style="gap:8px"><input class="inp" readonly value="' + esc(url) + '" aria-label="Its link" style="flex:1;min-width:0"><button class="btn" id="pubCopy">Copy</button><a class="btn dark" href="' + esc(url) + '" target="_blank" rel="noopener">Open</a></div>' +
+		'<p class="help">After a change, press the same button and this site updates. It lives in <a href="https://github.com/' + esc(repo) + '" target="_blank" rel="noopener">github.com/' + esc(repo) + "</a>.</p>");
+	$("#pubCopy").onclick = () => navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => {});
+}
+$("#artPub").onclick = () => publishSite();
 // wider or narrower: drag its edge (remembered)
 $("#artDrag").addEventListener("pointerdown", (e) => {
 	e.preventDefault();
