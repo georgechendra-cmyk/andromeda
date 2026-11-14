@@ -13444,7 +13444,7 @@ function teamMembers() {
 	out.forEach((x, k) => (x.hue = TG_HUES[k % TG_HUES.length]));
 	return out;
 }
-const tgOpenMember = (x) => (x.kind === "agent" ? openAgents(x.id) : x.kind === "desk" ? openDesks() : openJob(x.id));
+const tgOpenMember = (x) => (x.kind === "agent" ? openAgents("@" + x.id) : x.kind === "desk" ? openDesks() : openJob(x.id));
 const tgAv = (x, cls) => '<span class="' + cls + '" style="--h:' + (x.hue || tgHue(x.name + x.role)) + '">' + esc((String(x.name || "?").trim()[0] || "?").toUpperCase()) + (cls === "tgt-av" ? '<i class="' + (x.need ? "need" : x.on ? "on" : "off") + '"></i>' : "") + "</span>";
 function drawTeamList() {
 	const box = $("#tgTeam");
@@ -14886,7 +14886,7 @@ async function syncAgents(quiet) {
 	railBadges();
 	const n = agentUnseen();
 	if (n > before && !quiet) toast(n - before === 1 ? "An agent has something for you" : "Your agents have " + (n - before) + " new reports");
-	if ($("#agBox") && !$("#agBox").contains(document.activeElement)) drawAgents();
+	if ($("#agBox") && !$("#agBox").contains(document.activeElement) && !$("#agAsk") && !$("#agSave")) drawAgents(AG_ONLY ? "@" + AG_ONLY : undefined);
 	if (current && !current.msgs.length) renderTogetherWelcome();
 }
 function openAgents(edit, ask) {
@@ -14919,6 +14919,7 @@ function agentForm(a) {
 		'<div class="help" style="margin-bottom:12px">On your credits: a look that finds nothing new is free, a quick check of something new is a fraction of a credit, and a full report is a few credits.</div>' +
 		'<div class="status" id="agStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="agCancel">Cancel</button><button class="btn dark" id="agSave">' + (a.id ? "Save" : "Start it") + "</button></div>";
 }
+var AG_ONLY = null;
 function drawAgents(edit, ask) {
 	const box = $("#agBox");
 	if (!box) return;
@@ -14942,13 +14943,18 @@ function drawAgents(edit, ask) {
 	// 2. its plan, to check and change
 	if (edit) { const a = AGENTS.agents.find((x) => x.id === edit); if (a) { drawAgentForm(a); return; } }
 	// 3. the agents, and what they found
-	const un = AGENTS.log.filter((l) => !l.seen), name = (id) => (AGENTS.agents.find((a) => a.id === id) || {}).name || "An agent";
-	box.innerHTML = AGENTS.agents.map((a) => { const look = String(a.lastLook || ""), at = look.split(" · ")[1]; return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(a.name) + '</b><span class="help">' + esc(everyText(a.every)) + " · " + creditsText(a.spent) + " credits so far</span></div>" +
+	// (one agent's own page, "@" and its id: its card and what it found and did; opened from HQ and Your team)
+	const only = typeof edit === "string" && edit[0] === "@" && AGENTS.agents.some((a) => a.id === edit.slice(1)) ? edit.slice(1) : null;
+	AG_ONLY = only;
+	const list = only ? AGENTS.agents.filter((a) => a.id === only) : AGENTS.agents, logs = only ? AGENTS.log.filter((l) => l.agent === only) : AGENTS.log;
+	const un = logs.filter((l) => !l.seen), name = (id) => (AGENTS.agents.find((a) => a.id === id) || {}).name || "An agent";
+	box.innerHTML = (only ? '<div class="row" style="margin-bottom:10px"><a href="#" id="agAll">← All agents</a></div>' : "") + list.map((a) => { const look = String(a.lastLook || ""), at = look.split(" · ")[1]; return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:baseline;gap:8px"><b>' + esc(a.name) + '</b><span class="help">' + esc(everyText(a.every)) + " · " + creditsText(a.spent) + " credits so far</span></div>" +
 		'<div class="help" style="margin-top:2px">' + (a.active ? "" : "<b>Paused</b> · ") + esc(look.split(" · ")[0] || "Starting: its first look is in a minute or two") + (at ? " · " + esc(new Date(at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })) : "") + "</div>" +
 		'<div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button class="btn" data-agrun="' + a.id + '">Look now</button><button class="btn" data-agpause="' + a.id + '">' + (a.active ? "Pause" : "Resume") + '</button><button class="btn" data-agedit="' + a.id + '">Edit</button><button class="btn" data-agdel="' + a.id + '">Delete</button></div></div>'; }).join("") +
 		'<div class="row" style="justify-content:flex-end;margin-bottom:10px"><button class="btn dark" id="agNew">New agent</button></div>' +
-		'<div class="field"><label>What they found and did' + (un.length ? " · " + un.length + " new" : "") + "</label>" + (AGENTS.log.length ? AGENTS.log.slice(0, 40).map((l) => { const when = esc(new Date(l.at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })); if (l.kind === "approve") { let m = {}; try { m = JSON.parse(l.text); } catch {} return '<div class="desk-it new"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(name(l.agent)) + " · an email for your OK</b><span class=\"help\">" + when + '</span></div><div class="help">' + esc(m.to ? "To " + m.to : "A reply in the thread") + (m.subject ? " · " + esc(m.subject) : "") + '</div><textarea class="inp" rows="5" data-agbody="' + l.id + '" style="margin:6px 0">' + esc(m.body || "") + '</textarea><div class="row" style="gap:8px"><button class="btn dark" data-agsendmail="' + l.id + '">Send</button><button class="btn" data-agdiscard="' + l.id + '">Discard</button></div></div>'; } return '<div class="desk-it' + (l.seen ? "" : " new") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(name(l.agent)) + (l.kind === "action" ? " · done" : "") + '</b><span class="help">' + when + '</span></div><div class="md">' + md(l.text) + "</div></div>"; }).join("") : '<div class="help">Nothing yet: what they find shows up here.</div>') + "</div>";
+		'<div class="field"><label>What they found and did' + (un.length ? " · " + un.length + " new" : "") + "</label>" + (logs.length ? logs.slice(0, 40).map((l) => { const when = esc(new Date(l.at).toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })); if (l.kind === "approve") { let m = {}; try { m = JSON.parse(l.text); } catch {} return '<div class="desk-it new"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(name(l.agent)) + " · an email for your OK</b><span class=\"help\">" + when + '</span></div><div class="help">' + esc(m.to ? "To " + m.to : "A reply in the thread") + (m.subject ? " · " + esc(m.subject) : "") + '</div><textarea class="inp" rows="5" data-agbody="' + l.id + '" style="margin:6px 0">' + esc(m.body || "") + '</textarea><div class="row" style="gap:8px"><button class="btn dark" data-agsendmail="' + l.id + '">Send</button><button class="btn" data-agdiscard="' + l.id + '">Discard</button></div></div>'; } return '<div class="desk-it' + (l.seen ? "" : " new") + '"><div class="row" style="justify-content:space-between;gap:8px"><b>' + esc(name(l.agent)) + (l.kind === "action" ? " · done" : "") + '</b><span class="help">' + when + '</span></div><div class="md">' + md(l.text) + "</div></div>"; }).join("") : '<div class="help">Nothing yet: what they find shows up here.</div>') + "</div>";
 	$("#agNew").onclick = () => drawAgents("new");
+	if ($("#agAll")) $("#agAll").onclick = (e) => { e.preventDefault(); drawAgents(); };
 	$$("[data-agsendmail]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api("/api/agents/log/" + b.dataset.agsendmail + "/send", { method: "POST", body: JSON.stringify({ body: $('[data-agbody="' + b.dataset.agsendmail + '"]').value }) }); toast("Sent from your Gmail"); } catch (e) { toast(e.message || String(e)); b.disabled = false; return; } await syncAgents(true); drawAgents(); }));
 	$$("[data-agdiscard]").forEach((b) => (b.onclick = async () => { await api("/api/agents/log/" + b.dataset.agdiscard + "/discard", { method: "POST" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
 	$$("[data-agedit]").forEach((b) => (b.onclick = () => drawAgents(b.dataset.agedit)));
