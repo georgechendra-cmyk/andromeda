@@ -3772,28 +3772,20 @@ async function craftSet(req, env, user, lesson) {
 	await env.DB.prepare("INSERT INTO craft (k, brief, lessons, updated_at) VALUES (?, ?, '[]', ?) ON CONFLICT(k) DO UPDATE SET brief = excluded.brief, updated_at = excluded.updated_at").bind(k, brief, now()).run();
 	return json({ ok: true });
 }
-// Research, paid for once: a topic nobody has researched is researched by the server and kept for everyone. The owner pays
-// while the day's research budget lasts (RESEARCH_DAY_IDR, and a few new topics a day for each person, so nobody can spend
-// it all), then the person asking does; either way nobody pays for the same topic twice. A complaint rechecks it (a few a
-// day for each person and each topic), and only a recheck that agrees changes it for everyone
-const RESEARCH_DAY_IDR = 2000, RESEARCH_EACH = 5, RECHECK_EACH = 3, RECHECK_TOPIC = 2;
+// Research, paid for once: a topic nobody has researched is researched by the server and kept for everyone. The person who
+// asks first pays for it (never the owner: the owner's choice, Nov 15); everyone after them gets it for nothing, so nobody
+// pays for the same topic twice. A complaint rechecks it (twice a day per topic at most, so it can't flip back and forth),
+// and only a recheck that agrees changes it for everyone
+const RECHECK_TOPIC = 2;
 const researchDay = () => "research:" + new Date(now()).toISOString().slice(0, 10);
 async function counter(env, k) { const r = await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind(k).first().catch(() => null); return Number(r && r.v) || 0; }
 async function bump(env, k, by) { await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = CAST(v AS REAL) + ?").bind(k, String(by), by).run().catch(() => {}); }
 const lessonsOf = (r) => { try { return JSON.parse((r && r.lessons) || "[]") || []; } catch { return []; } };
 const topicName = (k) => String(k || "").replace(/^\s*mood:\s*/i, "").toLowerCase().replace(/[^a-z0-9 &+'-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
 const modelsIn = (b) => (Array.isArray(b.models) ? b.models : []).map(String).filter((m) => /^[\w.:\/@-]{3,120}$/.test(m)).slice(0, 3);
-// who pays: the owner (through the public gateways, as anyone's work goes) while the day's budget and this person's share
-// of it last; else the person asking
-async function researchPayer(env, user, c, what) {
-	const day = researchDay(), spentIdr = (await counter(env, day)) * (Number(c.free.usdIdr) || 18000);
-	const mine = await counter(env, day + ":" + what + ":" + user.id);
-	if (spentIdr < RESEARCH_DAY_IDR && mine < (what === "recheck" ? RECHECK_EACH : RESEARCH_EACH)) {
-		const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind([...OWNER_IDS][0]).first().catch(() => null);
-		if (row) return { who: { ...(await readyUser(env, row, c)), owner: true, shared: true }, owner: true };
-	}
-	return { who: user, owner: false };
-}
+// who pays: the person asking, through the public gateways (what's kept for everyone is made the way anyone's work is,
+// even when the owner asks)
+const researchPayer = (user) => ({ who: { ...user, shared: true } });
 async function researchAsk(env, ctx, payer, models, content, maxTokens) {
 	for (const model of models) {
 		try {
@@ -3804,18 +3796,9 @@ async function researchAsk(env, ctx, payer, models, content, maxTokens) {
 	}
 	return { out: "" };
 }
-// (what the owner's research really cost, from what was written down as it was used, counted against the day)
-async function researchSpent(env, payer, t0, what, uid) {
-	const day = researchDay();
-	if (payer.owner) {
-		const r = await env.DB.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage WHERE user_id = ? AND created_at >= ?").bind(payer.who.id, t0).first().catch(() => null);
-		await bump(env, day, Number(r && r.usd) || 0);
-	}
-	await bump(env, day + ":" + what + ":" + uid, 1);
-}
 const researchWeb = async (env, who, q) => { try { return (await searchFor(env, who, q, 5)).map((x, i) => "[" + (i + 1) + "] " + x.title + ": " + x.text).join("\n").slice(0, 6000); } catch { return ""; } };
-const CRAFT_ASK = (name, web) => "You are the most experienced professional in the world at making: " + name + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write the craft brief a maker should follow to make one exceptionally well: (1) what the best ones do (structure, pacing, composition); (2) the exact specifics that make it look professional and real (proportions and sizes, typography, colour, timing and motion, materials, wording); (3) the mistakes that make it look amateur or AI-made, to avoid; (4) a short checklist to verify before finishing. Concrete numbers and rules, no filler; 350 words at most. Only craft knowledge: no links, no names of people, nothing about any one user." + (web ? "\n\nSearch results:\n" + web : "");
-const MOOD_ASK = (name, web) => "You are a senior colourist and art director. The occasion or feeling: " + name + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write what a designer needs to give anything this look: (1) what it should feel like, and where that comes from in the real world (its light, its materials, its time of day, its place); (2) four palettes that truly fit it, varied (light and dark, warmer and cooler), each as five hex colours with their roles (background, surface, text, accent, second) and why; (3) the character of the typefaces that fit it, described, not named (\"a rounded, friendly sans\", \"a breezy script, one word at most\"); (4) the colours and type that would be wrong for it, and why (dark red for a sunny beach morning reads heavy and formal); (5) any cultural meaning to respect. 300 words at most, no filler, no names of people, nothing about any one user." + (web ? "\n\nSearch results:\n" + web : "");
+const CRAFT_ASK = (name, web) => "You are the most experienced professional in the world at making: " + name + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write the craft brief a maker should follow to make one exceptionally well: (1) what the best ones do (structure, pacing, composition); (2) the exact specifics that make it look professional and real (proportions and sizes, typography, colour, timing and motion, materials, wording); (3) the mistakes that make it look amateur or AI-made, to avoid; (4) a short checklist to verify before finishing. Concrete numbers and rules, no filler; 350 words at most. Only craft knowledge: no links, no names of people, nothing about any one user. Only lasting knowledge, true for years and for every one of these: never this year's trends, prices, news, or anything about one business." + (web ? "\n\nSearch results:\n" + web : "");
+const MOOD_ASK = (name, web) => "You are a senior colourist and art director. The occasion or feeling: " + name + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write what a designer needs to give anything this look: (1) what it should feel like, and where that comes from in the real world (its light, its materials, its time of day, its place); (2) four palettes that truly fit it, varied (light and dark, warmer and cooler), each as five hex colours with their roles (background, surface, text, accent, second) and why; (3) the character of the typefaces that fit it, described, not named (\"a rounded, friendly sans\", \"a breezy script, one word at most\"); (4) the colours and type that would be wrong for it, and why (dark red for a sunny beach morning reads heavy and formal); (5) any cultural meaning to respect. 300 words at most, no filler, no names of people, nothing about any one user. Only lasting knowledge, true for years and for every one of these: never this year's trends, prices, news, or anything about one business." + (web ? "\n\nSearch results:\n" + web : "");
 async function craftResearch(req, env, ctx, user) {
 	const b = await body(req), mood = /^\s*mood:/i.test(String(b.key || "")), k = craftK(b.key), name = topicName(b.key);
 	if (name.length < 3 || k.replace(/^mood: /, "").length < 3) throw fail(400, "Which kind of thing?");
@@ -3829,20 +3812,20 @@ async function craftResearch(req, env, ctx, user) {
 	if (was && now() - was < 120e3) return json({ pending: true });
 	await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(lock, String(now())).run().catch(() => {});
 	try {
-		const c = await config(env), payer = await researchPayer(env, user, c, "new"), t0 = now();
+		const payer = researchPayer(user);
 		const web = await researchWeb(env, payer.who, name + (mood ? " colour palette mood design typography" : " professional best practices common mistakes"));
 		const got = await researchAsk(env, ctx, payer, models, (mood ? MOOD_ASK : CRAFT_ASK)(name, web), 1200);
-		await researchSpent(env, payer, t0, "new", user.id);
 		const brief = got.out.slice(0, 4000);
 		if (brief.length < 200) return json({ brief: null, lessons: lessonsOf(have), broke: !!got.broke });
 		await env.DB.prepare("INSERT INTO craft (k, brief, lessons, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(k) DO UPDATE SET brief = excluded.brief, updated_at = excluded.updated_at").bind(k, brief, JSON.stringify(lessonsOf(have)), now()).run();
-		return json({ brief, lessons: lessonsOf(have), paidBy: payer.owner ? "celestin" : "you" });
+		return json({ brief, lessons: lessonsOf(have) });
 	} finally { await env.DB.prepare("DELETE FROM config WHERE k = ?").bind(lock).run().catch(() => {}); }
 }
 async function craftRecheck(req, env, ctx, user) {
 	const b = await body(req), mood = /^\s*mood:/i.test(String(b.key || "")), k = craftK(b.key), name = topicName(b.key);
 	const complaint = String(b.complaint || "").replace(/\s+/g, " ").trim().slice(0, 300);
-	if (name.length < 3 || complaint.length < 8) throw fail(400, "What's wrong with it?");
+	if (name.length < 3 || complaint.length < 2) throw fail(400, "What's wrong with it?");
+	const made = String(b.made || "").replace(/\s+/g, " ").trim().slice(0, 600);
 	const have = await env.DB.prepare("SELECT brief, lessons FROM craft WHERE k = ?").bind(k).first().catch(() => null);
 	if (!have || !have.brief) return json({ right: null, brief: null, lessons: lessonsOf(have) });
 	const models = modelsIn(b);
@@ -3851,11 +3834,10 @@ async function craftRecheck(req, env, ctx, user) {
 	const topic = researchDay() + ":recheck-topic:" + k;
 	if ((await counter(env, topic)) >= RECHECK_TOPIC) return json({ right: null, later: true, brief: have.brief, lessons: lessonsOf(have) });
 	await bump(env, topic, 1);
-	const c = await config(env), payer = await researchPayer(env, user, c, "recheck"), t0 = now();
+	const payer = researchPayer(user);
 	const web = await researchWeb(env, payer.who, name + (mood ? " colour palette mood " : " ") + complaint.slice(0, 80));
-	const got = await researchAsk(env, ctx, payer, models, "You keep Celestin's knowledge about " + (mood ? "giving anything the look of this occasion: " : "making this kind of thing: ") + name + ". Someone who used it says this is wrong: \"" + complaint + "\"\n\nWhat Celestin knows now:\n" + have.brief + (web ? "\n\nFresh search results:\n" + web : "") +
-		"\n\nJudge it honestly, for this kind of thing in general, not one person's taste: is the complaint right? Reply with ONLY this JSON: {\"right\": true or false, \"why\": \"one sentence\", \"brief\": \"only when right: the whole corrected version, in the same form, 350 words at most\", \"lesson\": \"only when right: the general rule, one line\"}", 1500);
-	await researchSpent(env, payer, t0, "recheck", user.id);
+	const got = await researchAsk(env, ctx, payer, models, "You keep Celestin's knowledge about " + (mood ? "giving anything the look of this occasion: " : "making this kind of thing: ") + name + ". Someone who used it criticised what was made with it: \"" + complaint + "\"" + (made ? "\nWhat was made: " + made : "") + "\n\nWhat Celestin knows now:\n" + have.brief + (web ? "\n\nFresh search results:\n" + web : "") +
+		"\n\nJudge it honestly, for this kind of thing in general, not one person's taste: is what Celestin knows wrong, or missing something, in a way that led to this? A vague criticism (\"it looks bad\", \"meh\") counts when the knowledge really led to it; when the knowledge is right and it was only used badly, it isn't wrong. Keep only lasting knowledge, true for years and for every one of these. Reply with ONLY this JSON: {\"right\": true or false, \"why\": \"one sentence\", \"brief\": \"only when right: the whole corrected version, in the same form, 350 words at most\", \"lesson\": \"only when right: the general rule, one line\"}", 1500);
 	const j = jsonIn(got.out) || {}, right = j.right === true || j.right === "true";
 	let brief = have.brief, lessons = lessonsOf(have);
 	if (got.out && right) {
