@@ -24,6 +24,6 @@ s = s.replace('<footer class="auth-foot">Free credits every day · no card · yo
 swap('id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"', 'id="newChat" data-tip="New agent" aria-label="New agent"');
 swap('id="newChatTop" aria-label="New chat"', 'id="newChatTop" aria-label="New agent"');
 swap("<!-- your chats and projects:", '<div class="tg-team" id="tgTeam" aria-label="Your team"></div>\n\t\t<!-- your chats and projects:');
-swap("</head>", '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Sans:opsz,wght@9..40,400..700&display=swap">\n</head>');
+swap("</head>", '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">\n</head>');
 writeFileSync(new URL("together.html", dir), s);
 console.log("together.html built");

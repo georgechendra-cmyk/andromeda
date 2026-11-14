@@ -1706,8 +1706,8 @@ html { scroll-behavior: smooth; }
 .legal-links { color: var(--faint); font-size: 12.5px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app, .auth, .auth-card { transition: none !important; } }
 /* ==== Celestin Together's own look: Apple's Messages (system colours on grouped greys, SF Pro), never Celestin's sky */
-html[data-app="together"]:not([data-theme="light"]) { --bg: #10120e; --bg2: #191c16; --bg3: #22261f; --bg4: #2d3229; --line: rgba(214,224,200,.12); --line2: rgba(214,224,200,.24); --text: #eef1e8; --muted: rgba(226,232,216,.64); --faint: rgba(226,232,216,.34); --ink: #eef1e8; --onink: #10120e; --brand: #34d399; --brand-rgb: 52,211,153; --brand-soft: rgba(52,211,153,.14); --brand-grad: linear-gradient(#34d399, #34d399); --glass: rgba(25,28,22,.82); --glass-line: rgba(214,224,200,.12); --sky: none; --tgb: #22261f; --hi: none; }
-html[data-app="together"][data-theme="light"] { --bg: #f4f1e9; --bg2: #fffdf7; --bg3: #ebe6da; --bg4: #dcd5c5; --line: rgba(46,38,22,.13); --line2: rgba(46,38,22,.26); --text: #1d1a14; --muted: rgba(46,38,22,.62); --faint: rgba(46,38,22,.34); --ink: #1d1a14; --onink: #fffdf7; --brand: #0e7a5f; --brand-rgb: 14,122,95; --brand-soft: rgba(14,122,95,.1); --brand-grad: linear-gradient(#0e7a5f, #0e7a5f); --glass: rgba(255,253,247,.88); --glass-line: rgba(46,38,22,.13); --sky: none; --tgb: #ebe6da; --hi: none; }
+html[data-app="together"]:not([data-theme="light"]) { --bg: #000; --bg2: #1c1c1e; --bg3: #2c2c2e; --bg4: #3a3a3c; --line: rgba(255,255,255,.1); --line2: rgba(255,255,255,.18); --text: #f5f5f7; --muted: #98989d; --faint: #636366; --ink: #f5f5f7; --onink: #000; --brand: #0a84ff; --brand-rgb: 10,132,255; --brand-soft: rgba(10,132,255,.16); --brand-grad: linear-gradient(#0a84ff, #0a84ff); --glass: rgba(28,28,30,.72); --glass-line: rgba(255,255,255,.1); --sky: none; --tgb: #2c2c2e; --hi: none; }
+html[data-app="together"][data-theme="light"] { --bg: #f5f5f7; --bg2: #fff; --bg3: #e8e8ed; --bg4: #d2d2d7; --line: rgba(0,0,0,.08); --line2: rgba(0,0,0,.14); --text: #1d1d1f; --muted: #6e6e73; --faint: #a1a1a6; --ink: #1d1d1f; --onink: #fff; --brand: #0071e3; --brand-rgb: 0,113,227; --brand-soft: rgba(0,113,227,.1); --brand-grad: linear-gradient(#0071e3, #0071e3); --glass: rgba(255,255,255,.72); --glass-line: rgba(0,0,0,.08); --sky: none; --tgb: #e8e8ed; --hi: none; }
 html[data-app="together"] body { background: var(--bg); font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
 html[data-app="together"] #appSky, html[data-app="together"] .sky { display: none !important; }
 html[data-app="together"] .sidebar { background: var(--glass); }
@@ -1914,6 +1914,55 @@ html[data-app="together"]:not([data-theme="light"]) .hq-needs { background: rgba
 .hq-mate { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 10px; background: var(--bg3); font-size: 13px; color: var(--text); }
 .hq-mate i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
 @media (max-width: 760px) { .hq { padding: 22px 16px 32px; } .hq-acts { justify-items: start; } .hq-grid { grid-template-columns: 1fr; } }
+
+/* ==== Together, Apple-style (the owner, Nov 14: "more modern than old money, use Apple design rules"): system type (SF on
+   Apple devices, Inter elsewhere), Apple's grays and blue, soft depth instead of hard edges, round contact-style avatars,
+   capsule buttons, a translucent sidebar */
+html[data-app="together"] { --tg-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", Inter, "Segoe UI", system-ui, sans-serif; --tg-ease: cubic-bezier(.2, .8, .2, 1); }
+html[data-app="together"] body, html[data-app="together"] h1, html[data-app="together"] h2, html[data-app="together"] .modal h2 { font-family: var(--tg-font); }
+html[data-app="together"] body { -webkit-font-smoothing: antialiased; }
+@media (min-width: 861px) {
+	html[data-app="together"] body .sidebar { background: color-mix(in srgb, var(--bg2) 76%, transparent); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-right: 1px solid var(--line); }
+	html[data-app="together"] body .sidebar .brand-name { font: 600 17px var(--tg-font); letter-spacing: -.022em; }
+	html[data-app="together"] body .sidebar .nav-i { height: 34px; border-radius: 8px; font-size: 13.5px; font-weight: 500; }
+	html[data-app="together"] body .sidebar .nav-i.new { height: 38px; border-radius: 980px; background: var(--brand); font-weight: 600; box-shadow: 0 4px 14px -4px rgba(var(--brand-rgb), .55); }
+}
+html[data-app="together"] .tgt-h { font-size: 12px; font-weight: 600; letter-spacing: .01em; text-transform: none; }
+html[data-app="together"] .tgt-m { border-radius: 10px; }
+html[data-app="together"] .tgt-av, html[data-app="together"] .hq-av { border-radius: 50%; background: linear-gradient(160deg, color-mix(in srgb, var(--h, #8e8e93) 52%, #fff), var(--h, #8e8e93)); font-family: var(--tg-font); font-weight: 600; letter-spacing: -.01em; }
+html[data-app="together"] .tgt-m em { background: #ff3b30; color: #fff; }
+html[data-app="together"] .hq { padding-top: 52px; }
+html[data-app="together"] .hq-top { border-bottom: 0; padding-bottom: 6px; align-items: center; }
+html[data-app="together"] .hq-k { color: var(--muted); font-size: 15px; font-weight: 600; letter-spacing: -.01em; text-transform: none; margin-bottom: 6px; }
+html[data-app="together"] .hq h1 { font: 700 clamp(32px, 3.9vw, 48px)/1.08 var(--tg-font); letter-spacing: -.035em; text-wrap: balance; }
+html[data-app="together"] .hq-top p { text-wrap: pretty; }
+html[data-app="together"] .hq-top p { font-size: 17px; line-height: 1.47; letter-spacing: -.01em; }
+html[data-app="together"] .hq-acts .btn { height: 44px; padding: 0 22px; border-radius: 980px; font-size: 15px; font-weight: 500; transition: transform .2s var(--tg-ease), background .2s; }
+html[data-app="together"] .hq-acts .btn:not(.dark) { background: var(--bg3); border-color: transparent; color: var(--text); }
+html[data-app="together"] .hq-acts .btn:active { transform: scale(.97); }
+html[data-app="together"] .hq-ai b { color: var(--brand); font-weight: 500; }
+html[data-app="together"] .hq-needs { border: 0; border-radius: 16px; background: rgba(255, 149, 0, .12); color: #c93400; font-weight: 500; }
+html[data-app="together"]:not([data-theme="light"]) .hq-needs { background: rgba(255, 159, 10, .16); color: #ffb340; }
+html[data-app="together"] .hq-sec { margin-top: 40px; }
+html[data-app="together"] .hq-sec h2 { font: 600 22px/1.2 var(--tg-font); letter-spacing: -.022em; text-transform: none; color: var(--text); margin-bottom: 14px; }
+html[data-app="together"] .hq-grid { gap: 16px; }
+html[data-app="together"] .hq-m { border: 1px solid var(--line); border-radius: 20px; background: var(--bg2); box-shadow: none; padding: 18px; transition: transform .35s var(--tg-ease), box-shadow .35s var(--tg-ease); }
+html[data-app="together"][data-theme="light"] .hq-m { border-color: transparent; box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 6px 20px rgba(0, 0, 0, .05); }
+html[data-app="together"] .hq-m:hover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(0, 0, 0, .05), 0 18px 40px rgba(0, 0, 0, .1); }
+html[data-app="together"] .hq-mt b { font-weight: 600; letter-spacing: -.015em; }
+html[data-app="together"] .hq-add, html[data-app="together"][data-theme="light"] .hq-add { background: transparent; box-shadow: none; border: 1.5px dashed var(--line2); }
+html[data-app="together"] .hq-st { font-weight: 500; }
+html[data-app="together"] .hq-st.on { color: #248a3d; }
+html[data-app="together"]:not([data-theme="light"]) .hq-st.on { color: #30d158; }
+html[data-app="together"] .hq-st.on::before { background: #34c759; box-shadow: 0 0 0 3px rgba(52, 199, 89, .2); }
+html[data-app="together"] .hq-st.need { color: #c93400; }
+html[data-app="together"]:not([data-theme="light"]) .hq-st.need { color: #ffb340; }
+html[data-app="together"] .hq-st.need::before { background: #ff9500; }
+html[data-app="together"] .hq-chip, html[data-app="together"] .hq-mate { border: 0; border-radius: 980px; background: var(--bg2); padding: 9px 16px; font-size: 14px; transition: background .2s, color .2s; }
+html[data-app="together"][data-theme="light"] .hq-chip, html[data-app="together"][data-theme="light"] .hq-mate { box-shadow: 0 1px 2px rgba(0, 0, 0, .06); }
+html[data-app="together"] .hq-chip:hover { background: var(--brand); color: #fff; }
+html[data-app="together"] .hq-give .composer { border-radius: 22px; }
+html[data-app="together"][data-theme="light"] .hq-give .composer { border-color: transparent; box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .06); }
 a.btn, a.btn:hover { text-decoration: none; }
 .desk-it { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
 .desk-it.new { border-color: var(--brand); }
@@ -1955,7 +2004,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 .twj-h { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 4px 2px; }
 
 </style>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Sans:opsz,wght@9..40,400..700&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/></symbol><symbol id="logoT" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/><circle cx="26.5" cy="26.7" r="2.5" fill="currentColor"/></symbol></defs></svg>
@@ -13445,7 +13494,8 @@ if (TOGETHER_APP) {
 	if (bn) bn.textContent = "Celestin Together";
 }
 // the team, down Together's side: every agent, the front desk and the jobs, each with what it's doing right now
-const TG_HUES = ["#0e7a5f", "#b45309", "#7c3aed", "#be123c", "#0369a1", "#4d7c0f", "#a21caf", "#c2410c"];
+// (Apple's system colours, as its contacts and apps wear them)
+const TG_HUES = ["#007aff", "#34c759", "#ff9500", "#af52de", "#ff2d55", "#5ac8fa", "#5856d6", "#ff3b30"];
 const tgHue = (s) => TG_HUES[[...String(s || "?")].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7) % TG_HUES.length];
 function teamMembers() {
 	const out = [];
@@ -13475,9 +13525,9 @@ if (!TOGETHER_APP) $("#togetherNav").dataset.tip = "Open Celestin Together, your
 if (TOGETHER_APP) {
 	// (here it leads back to Celestin)
 	const b = $("#togetherNav");
-	b.dataset.tip = "Back to Celestin";
-	b.setAttribute("aria-label", "Back to Celestin");
-	b.querySelector(".lbl").textContent = "Celestin";
+	b.dataset.tip = "Chatting, writing, learning and building are Celestin AI's";
+	b.setAttribute("aria-label", "Just chat? Celestin AI");
+	b.querySelector(".lbl").textContent = "Just chat? Celestin AI";
 	b.querySelector("svg").innerHTML = '<use href="#logoT"/>';
 	b.querySelector("svg").setAttribute("fill", "currentColor");
 	b.dataset.tip = "Back to Celestin: code, pictures and video";
