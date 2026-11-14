@@ -649,7 +649,6 @@ textarea.inp { height: auto; min-height: 72px; padding: 10px 12px; line-height: 
 @media (max-width: 760px) { .team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* the Together app, by Apple's design rules: SF Pro where there is one, one accent (Apple's blue) for what can be
    pressed, calm surfaces, soft depth only where something sits over something, everything on an 8px rhythm */
-html[data-app="together"] { --brand: #0e7a5f; --brand-rgb: 14, 122, 95; }
 html[data-app="together"] body { font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: -.003em; }
 html[data-app="together"] .welcome .greet { font-family: "Bricolage Grotesque", "DM Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
 html[data-app="together"] .mate { border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
@@ -1706,8 +1705,6 @@ html { scroll-behavior: smooth; }
 .legal-links { color: var(--faint); font-size: 12.5px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app, .auth, .auth-card { transition: none !important; } }
 /* ==== Celestin Together's own look: Apple's Messages (system colours on grouped greys, SF Pro), never Celestin's sky */
-html[data-app="together"]:not([data-theme="light"]) { --bg: #000; --bg2: #1c1c1e; --bg3: #2c2c2e; --bg4: #3a3a3c; --line: rgba(255,255,255,.1); --line2: rgba(255,255,255,.18); --text: #f5f5f7; --muted: #98989d; --faint: #636366; --ink: #f5f5f7; --onink: #000; --brand: #0a84ff; --brand-rgb: 10,132,255; --brand-soft: rgba(10,132,255,.16); --brand-grad: linear-gradient(#0a84ff, #0a84ff); --glass: rgba(28,28,30,.72); --glass-line: rgba(255,255,255,.1); --sky: none; --tgb: #2c2c2e; --hi: none; }
-html[data-app="together"][data-theme="light"] { --bg: #f5f5f7; --bg2: #fff; --bg3: #e8e8ed; --bg4: #d2d2d7; --line: rgba(0,0,0,.08); --line2: rgba(0,0,0,.14); --text: #1d1d1f; --muted: #6e6e73; --faint: #a1a1a6; --ink: #1d1d1f; --onink: #fff; --brand: #0071e3; --brand-rgb: 0,113,227; --brand-soft: rgba(0,113,227,.1); --brand-grad: linear-gradient(#0071e3, #0071e3); --glass: rgba(255,255,255,.72); --glass-line: rgba(0,0,0,.08); --sky: none; --tgb: #e8e8ed; --hi: none; }
 html[data-app="together"] body { background: var(--bg); font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
 html[data-app="together"] #appSky, html[data-app="together"] .sky { display: none !important; }
 html[data-app="together"] .sidebar { background: var(--glass); }
@@ -1963,6 +1960,62 @@ html[data-app="together"][data-theme="light"] .hq-chip, html[data-app="together"
 html[data-app="together"] .hq-chip:hover { background: var(--brand); color: #fff; }
 html[data-app="together"] .hq-give .composer { border-radius: 22px; }
 html[data-app="together"][data-theme="light"] .hq-give .composer { border-color: transparent; box-shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 8px 24px rgba(0, 0, 0, .06); }
+
+/* ==== Together in Celestin AI's colours, HQ laid out the Apple way (the owner, Nov 14): the large title under the date
+   with its toolbar, three widgets, the team as one inset grouped list (Settings), the specialists as faces (the share
+   sheet), the message bar pinned to the bottom (Messages) */
+html[data-app="together"] body .main { background: var(--sky, none), var(--bg); }
+@media (min-width: 861px) { html[data-app="together"] body .sidebar .nav-i.new { background: var(--brand-grad); color: #fff; } }
+html[data-app="together"] .btn.dark, html[data-app="together"] .send, html[data-app="together"] #sendBtn { background: var(--brand-grad); color: #fff; border-color: transparent; }
+.h2 { max-width: 880px; padding: 44px 28px 0; }
+.h2-date { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.h2-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
+.h2 h1 { margin: 0; font: 700 clamp(32px, 4vw, 40px)/1.1 var(--tg-font); letter-spacing: -.03em; }
+.h2-tools { display: flex; gap: 8px; }
+.h2-btn { display: inline-flex; align-items: center; height: 36px; padding: 0 16px; border-radius: 980px; background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); font: 500 14px var(--tg-font); transition: transform .2s var(--tg-ease), background .2s; }
+.h2-btn:hover { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.h2-btn.go { background: var(--brand-grad); color: #fff; box-shadow: 0 6px 18px -8px rgba(var(--brand-rgb), .8); }
+.h2-btn:active { transform: scale(.96); }
+.h2-sub { margin: 8px 0 0; color: var(--muted); font-size: 15px; line-height: 1.5; }
+.h2-sub a { color: var(--brand); text-decoration: none; font-weight: 500; white-space: nowrap; }
+.h2-widgets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 26px; }
+.h2-w { display: grid; align-content: space-between; gap: 18px; min-height: 112px; padding: 16px 18px; border-radius: 22px; text-align: left; color: var(--text); background: var(--glass, var(--bg2)); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%); box-shadow: var(--lift, none); transition: transform .3s var(--tg-ease); }
+.h2-w:hover { transform: translateY(-2px); }
+.h2-wn { font: 700 36px/1 var(--tg-font); letter-spacing: -.03em; }
+.h2-wl { font-size: 13.5px; font-weight: 500; color: var(--muted); }
+.h2-w.need .h2-wn { color: #ff9f0a; }
+.h2-w.on .h2-wn { color: #30d158; }
+.h2-w.add .h2-wn { background: var(--brand-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.h2-sec { margin-top: 30px; }
+.h2-sh { margin: 0 0 8px 16px; font-size: 13px; font-weight: 600; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.h2-list { border-radius: 16px; overflow: hidden; background: var(--glass, var(--bg2)); backdrop-filter: blur(24px) saturate(160%); -webkit-backdrop-filter: blur(24px) saturate(160%); box-shadow: var(--lift, none); }
+.h2-empty { padding: 18px; color: var(--muted); font-size: 15px; }
+.h2-r { position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto 10px; align-items: center; gap: 12px; width: 100%; padding: 10px 16px; text-align: left; color: var(--text); transition: background .15s; }
+.h2-r + .h2-r::before { content: ""; position: absolute; top: 0; left: 66px; right: 0; height: 1px; background: var(--line); }
+.h2-r:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.h2-r .hq-av { width: 38px; height: 38px; font-size: 15px; }
+.h2-rt { display: grid; min-width: 0; }
+.h2-rt b { font-size: 15px; font-weight: 600; letter-spacing: -.01em; }
+.h2-rt small { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.h2-st { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 980px; font-size: 12.5px; font-weight: 500; white-space: nowrap; background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--muted); }
+.h2-st.on { background: rgba(48, 209, 88, .14); color: #30d158; }
+.h2-st.need { background: rgba(255, 159, 10, .16); color: #ff9f0a; }
+html[data-theme="light"][data-app="together"] .h2-st.on { color: #1f8a3c; }
+html[data-theme="light"][data-app="together"] .h2-st.need { color: #c25e00; }
+.h2-chev { color: var(--faint); }
+.h2-people { display: flex; gap: 18px; overflow-x: auto; padding: 4px 16px 6px; scrollbar-width: none; }
+.h2-people::-webkit-scrollbar { display: none; }
+.h2-p { display: grid; justify-items: center; gap: 6px; min-width: 64px; font-size: 12.5px; color: var(--text); }
+.h2-pa { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; color: #fff; font: 600 20px var(--tg-font); background: linear-gradient(160deg, color-mix(in srgb, var(--c) 55%, #fff), var(--c)); box-shadow: 0 6px 16px -6px var(--c); transition: transform .25s var(--tg-ease); }
+.h2-p:hover .h2-pa { transform: scale(1.06); }
+.h2-note { margin: 8px 16px 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+.h2-dock { position: sticky; bottom: 0; z-index: 2; margin-top: 30px; padding: 12px 0 18px; background: var(--bg); box-shadow: 0 -26px 22px -6px var(--bg); }
+.h2-chips { display: flex; gap: 8px; overflow-x: auto; padding: 0 2px 10px; scrollbar-width: none; }
+.h2-chips::-webkit-scrollbar { display: none; }
+.h2-chip { flex: none; padding: 8px 14px; border-radius: 980px; font-size: 13.5px; color: var(--text); background: var(--glass, var(--bg2)); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: var(--lift, none); transition: background .2s, color .2s; }
+.h2-chip:hover { background: var(--brand); color: #fff; }
+.h2-dock .composer { margin: 0; border-radius: 24px; }
+@media (max-width: 760px) { .h2 { padding: 22px 16px 0; } .h2-widgets { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; } .h2-w { min-height: 92px; padding: 12px; border-radius: 18px; } .h2-wn { font-size: 28px; } .h2-wl { font-size: 12px; } .h2-st { display: none; } .h2-r { grid-template-columns: 38px minmax(0, 1fr) 10px; } }
 a.btn, a.btn:hover { text-decoration: none; }
 .desk-it { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
 .desk-it.new { border-color: var(--brand); }
@@ -7353,8 +7406,10 @@ function mateModel(t) {
 		return r[0] ? shortName(r[0].m) : "";
 	} catch { return ""; }
 }
-// Together's home: HQ, the team at work. Who works here and what each is doing, what needs you, the work to give them, and
-// the specialists on call for one-off work (the owner, Nov 14: Together is a workplace, chatting is Celestin AI's)
+// Together's home, laid out the way Apple lays out its own apps (the owner, Nov 14: "use apple design rules… change the
+// whole layout… the same colour theme as Celestin AI"): a large title under the date with its toolbar beside it, three
+// widgets (what needs you, who's working, hire someone), the team as one inset grouped list like Settings, the
+// specialists as a row of faces like the share sheet, and the message bar pinned to the bottom like Messages
 const HQ_HIRE = [
 	["Jim, for marketing", "Hire Jim to run my marketing: posts every day where my customers are, in my voice"],
 	["A receptionist", "Set up a front desk that answers my customers, takes bookings and answers my business phone and texts"],
@@ -7363,28 +7418,32 @@ const HQ_HIRE = [
 	["Bring customers back", "Bring back customers who haven't been in for a while, with a personal message each"],
 	["My whole business", "Set up my whole business: front desk, marketing, bringing customers back and my inbox"],
 ];
+const HQ_CHEVRON = '<svg class="h2-chev" width="8" height="13" viewBox="0 0 8 13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m1.5 1.5 5 5-5 5"/></svg>';
 function renderTogetherWelcome() {
 	// (the composer is about to be redrawn round: kept safe in its dock first)
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
 	const ms = teamMembers(), nd = NEEDS.items.length, working = ms.filter((x) => x.on).length;
 	// (the agents that work again and again: all paused at once, for a holiday or a quiet week, and all back again)
 	const repeat = (AGENTS.agents || []).filter((a) => a.every > 0), running = repeat.filter((a) => a.active);
-	const card = (x, k) => '<button class="hq-m" data-hqm="' + k + '">' + tgAv(x, "hq-av") + '<span class="hq-mt"><b>' + esc(x.name) + "</b><small>" + esc(x.role || "") + '</small></span><span class="hq-st ' + (x.need ? "need" : x.on ? "on" : "off") + '">' + esc(x.status) + "</span></button>";
-	$("#view").innerHTML = '<section class="hq">' +
-		'<header class="hq-top"><div class="hq-hl"><div class="hq-k">Celestin Together · HQ</div><h1>' + (ms.length ? (working ? working + (working === 1 ? " agent is" : " agents are") + " working for you" : "Your team") : "Hire your AI team") + "</h1>" +
-		"<p>Agents that run parts of your business by themselves, day and night, even with this page closed. You hand out the work; they do it, and only come to you when something needs you.</p></div>" +
-		'<div class="hq-acts"><div class="row" style="gap:8px">' + (repeat.length ? '<button class="btn" id="hqPause">' + (running.length ? "Pause everyone" : "Resume everyone") + "</button>" : "") + '<button class="btn dark" id="hqNew">+ New agent</button></div><a class="hq-ai" href="./#app">Just want to chat, write or learn? <b>Celestin AI →</b></a></div></header>' +
-		(nd ? '<button class="hq-needs" id="twNeeds"><b>' + nd + (nd === 1 ? " thing needs you" : " things need you") + "</b><span>Open</span></button>" : "") +
-		'<div class="hq-sec"><h2>Your team</h2>' + (ms.length
-			? '<div class="hq-grid">' + ms.map(card).join("") + '<button class="hq-m hq-add" id="hqAdd"><span class="hq-av">+</span><span class="hq-mt"><b>Hire someone new</b><small>Any job: describe it in a sentence</small></span></button></div>'
-			: '<div class="hq-empty"><b>No one works here yet.</b> Hire your first agent: describe the job in a sentence below, press New agent, or pick one to start from.</div>') + "</div>" +
-		'<div class="hq-sec hq-give"><h2>Give your team work</h2><div id="slot"></div><div class="hq-hire">' + HQ_HIRE.map(([t, s]) => '<button class="hq-chip" data-hqsug="' + esc(s) + '">' + esc(t) + "</button>").join("") + "</div></div>" +
-		'<div class="hq-sec hq-mates"><h2>Specialists on call</h2><p>For one-off work here, the Lead gives each part to the specialist measured best at it, and they work at the same time. Type @ and a name to ask one directly.</p><div class="hq-row">' +
-		TEAM.filter((t) => t.id !== "lead").map((t) => '<button class="hq-mate" data-mate="' + t.id + '"><i style="--c:' + t.c + '"></i>' + esc(t.name) + "</button>").join("") + "</div></div>" +
+	const date = new Date().toLocaleDateString([], { weekday: "long", day: "numeric", month: "long" });
+	const row = (x, k) => '<button class="h2-r" data-hqm="' + k + '">' + tgAv(x, "hq-av") + '<span class="h2-rt"><b>' + esc(x.name) + "</b><small>" + esc(x.role || "") + '</small></span><span class="h2-st ' + (x.need ? "need" : x.on ? "on" : "off") + '">' + esc(x.status) + "</span>" + HQ_CHEVRON + "</button>";
+	$("#view").innerHTML = '<section class="hq h2">' +
+		'<header class="h2-top"><div class="h2-date">' + esc(date) + '</div><div class="h2-row"><h1>' + (ms.length ? "Your team" : "Hire your team") + '</h1><div class="h2-tools">' +
+		(repeat.length ? '<button class="h2-btn" id="hqPause">' + (running.length ? "Pause everyone" : "Resume everyone") + "</button>" : "") + '<button class="h2-btn go" id="hqNew">+ New agent</button></div></div>' +
+		'<p class="h2-sub">' + (ms.length ? (working === 1 ? "1 agent is" : working + " agents are") + " working for you, day and night, even with this page closed." : "Agents that run parts of your business by themselves, day and night, even with this page closed.") + ' Just want to chat? <a href="./#app">Celestin AI →</a></p></header>' +
+		'<div class="h2-widgets"><button class="h2-w need" id="twNeeds"><span class="h2-wn">' + nd + '</span><span class="h2-wl">' + (nd === 1 ? "thing needs you" : "things need you") + "</span></button>" +
+		'<button class="h2-w on" id="hqWorking"><span class="h2-wn">' + working + '</span><span class="h2-wl">working now</span></button>' +
+		'<button class="h2-w add" id="hqAdd"><span class="h2-wn">+</span><span class="h2-wl">Hire someone new</span></button></div>' +
+		'<div class="h2-sec"><div class="h2-sh">Team</div>' + (ms.length ? '<div class="h2-list">' + ms.map(row).join("") + "</div>" : '<div class="h2-list h2-empty">No one works here yet. Describe a job below in a sentence, press New agent, or pick one to start from.</div>') + "</div>" +
+		'<div class="h2-sec"><div class="h2-sh">Specialists on call</div><div class="h2-people">' + TEAM.filter((t) => t.id !== "lead").map((t) => '<button class="h2-p" data-mate="' + t.id + '"><span class="h2-pa" style="--c:' + t.c + '">' + esc(t.name[0]) + "</span><span>" + esc(t.name) + "</span></button>").join("") + '</div><p class="h2-note">For one-off work here: the Lead hands each part to the one measured best at it. Type @ and a name to ask one directly.</p></div>' +
+		'<div class="h2-dock"><div class="h2-chips">' + HQ_HIRE.map(([t, s]) => '<button class="h2-chip" data-hqsug="' + esc(s) + '">' + esc(t) + "</button>").join("") + '</div><div id="slot"></div></div>' +
 		"</section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 	$("#hqNew").onclick = () => openAgents("new");
+	$("#hqAdd").onclick = () => openAgents("new");
+	$("#hqWorking").onclick = () => openAgents();
+	$("#twNeeds").onclick = () => openNeeds();
 	if ($("#hqPause")) $("#hqPause").onclick = async () => {
 		const on = !running.length, list = on ? repeat : running;
 		$("#hqPause").disabled = true;
@@ -7393,8 +7452,6 @@ function renderTogetherWelcome() {
 		toast(on ? "Everyone's back at work" : "Everyone's paused: nothing runs until you resume them");
 		if ($(".hq")) renderTogetherWelcome();
 	};
-	if ($("#hqAdd")) $("#hqAdd").onclick = () => openAgents("new");
-	if ($("#twNeeds")) $("#twNeeds").onclick = () => openNeeds();
 	$$("[data-hqm]").forEach((b) => (b.onclick = () => tgOpenMember(ms[+b.dataset.hqm])));
 	// (a suggestion is put in the box to change or send, never sent by itself: hiring is the person's call)
 	$$("[data-hqsug]").forEach((b) => (b.onclick = () => { const inp = $("#input"); inp.value = b.dataset.hqsug; autosize(); inp.focus(); }));
