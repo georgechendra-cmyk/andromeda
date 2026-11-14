@@ -187,6 +187,8 @@ async function route(req, env, ctx, url) {
 	if ((cl = p.match(/^\/api\/craft\/([^/]{3,200})$/)) && m === "GET") return craftGet(env, decodeURIComponent(cl[1]));
 	if (p === "/api/craft" && m === "POST") return craftSet(req, env, user, false);
 	if (p === "/api/craft/lesson" && m === "POST") return craftSet(req, env, user, true);
+	if (p === "/api/craft/research" && m === "POST") return craftResearch(req, env, ctx, user);
+	if (p === "/api/craft/recheck" && m === "POST") return craftRecheck(req, env, ctx, user);
 	if (p === "/api/prefs" && m === "GET") return prefsGet(env, user);
 	if (p === "/api/prefs" && m === "POST") return prefsSet(req, env, user);
 	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
@@ -1755,7 +1757,7 @@ async function searchFor(env, user, q, n) {
 	const held = await take(env, user.id, mt.toMc(0.06), c, !!user.owner);
 	if (!held) return [];
 	let got = { results: [], usd: 0 };
-	try { got = await modelSearch(env, q, n, orderFor(c, user.owner)); }
+	try { got = await modelSearch(env, q, n, orderFor(c, user.owner && !user.shared)); }
 	finally { await charge(env, user.id, "web-search" + (got.model ? ": " + got.model : ""), held, got.usd, mt); }
 	// (nothing could search the web: the news (GDELT, open and free) and Wikipedia, rather than nothing)
 	if (got.results.length) return got.results;
@@ -1901,9 +1903,10 @@ async function chat(req, env, ctx, user) {
 	delete b.plugins;
 	const web = plug ? { n: Math.max(1, Math.min(8, Number(plug.max_results) || 5)), query: plug.query || lastUserText(b.messages) } : null;
 	await Promise.all(gateways(env).map(gatewayCatalog));
-	let ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, orderFor(c, user.owner));
-	// (the public only through the gateways set for it; the owner's demo through all of them)
-	if (!user.owner && Array.isArray(c.publicGateways) && c.publicGateways.length) ways = ways.filter((w) => w.kind !== "gw" || c.publicGateways.includes(String(w.gw)));
+	let ways = routes(env, b.model, !!web, Array.isArray(b.tools) && b.tools.length > 0, price, orderFor(c, user.owner && !user.shared));
+	// (the public only through the gateways set for it; the owner's demo through all of them; what the owner pays for that
+	// everyone gets, such as research, the public way)
+	if ((!user.owner || user.shared) && Array.isArray(c.publicGateways) && c.publicGateways.length) ways = ways.filter((w) => w.kind !== "gw" || c.publicGateways.includes(String(w.gw)));
 	if (deep && c.deepGateway) ways = ways.filter((w) => w.kind === "gw" && w.gw === String(c.deepGateway));
 	if (!ways.length) throw fail(503, deep ? "Deep work's models are busy right now." : "This server can't reach that model. Pick another, or try again later.");
 
@@ -3733,9 +3736,16 @@ async function connTest(env, user, kind) {
 }
 
 // ------------------------------------------------------------------ the craft memory
-// How the best make each kind of thing, researched once, and what real feedback taught about it: read by everyone, written
-// only from the owner's own browser (anyone else's stays in their own), so no one can slip instructions into everyone's work
-const craftK = (k) => String(k || "").toLowerCase().replace(/[^a-z0-9 &+-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+// How the best make each kind of thing (and what each occasion's look is), researched once by the server for everyone, and
+// what real feedback taught about it: read by everyone; written only by the server's own research and rechecks, and lessons
+// by the owner's own browser, so no one can slip instructions into everyone's work
+// (the same topic however it's worded: word order, "a", "the", "for", plurals; an occasion's look is "mood: ...")
+const TOPIC_STOP = new Set(["a", "an", "the", "for", "of", "my", "our", "your", "their", "at", "in", "on", "to", "with", "about", "some"]);
+const craftK = (k) => {
+	const raw = String(k || ""), mood = /^\s*mood:/i.test(raw);
+	const words = [...new Set(raw.replace(/^\s*mood:/i, "").toLowerCase().replace(/[^a-z0-9 &+-]/g, " ").split(/\s+/).filter((w) => w && !TOPIC_STOP.has(w)).map((w) => (w.length > 4 && /[^s]s$/.test(w) ? w.slice(0, -1) : w)))].sort();
+	return ((mood ? "mood: " : "") + words.join(" ")).slice(0, 60);
+};
 async function craftGet(env, key) {
 	const r = await env.DB.prepare("SELECT brief, lessons FROM craft WHERE k = ?").bind(craftK(key)).first().catch(() => null);
 	if (!r) return json({ brief: null, lessons: [] });
@@ -3761,6 +3771,100 @@ async function craftSet(req, env, user, lesson) {
 	if (brief.length < 200) throw fail(400, "That brief is too short.");
 	await env.DB.prepare("INSERT INTO craft (k, brief, lessons, updated_at) VALUES (?, ?, '[]', ?) ON CONFLICT(k) DO UPDATE SET brief = excluded.brief, updated_at = excluded.updated_at").bind(k, brief, now()).run();
 	return json({ ok: true });
+}
+// Research, paid for once: a topic nobody has researched is researched by the server and kept for everyone. The owner pays
+// while the day's research budget lasts (RESEARCH_DAY_IDR, and a few new topics a day for each person, so nobody can spend
+// it all), then the person asking does; either way nobody pays for the same topic twice. A complaint rechecks it (a few a
+// day for each person and each topic), and only a recheck that agrees changes it for everyone
+const RESEARCH_DAY_IDR = 2000, RESEARCH_EACH = 5, RECHECK_EACH = 3, RECHECK_TOPIC = 2;
+const researchDay = () => "research:" + new Date(now()).toISOString().slice(0, 10);
+async function counter(env, k) { const r = await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind(k).first().catch(() => null); return Number(r && r.v) || 0; }
+async function bump(env, k, by) { await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = CAST(v AS REAL) + ?").bind(k, String(by), by).run().catch(() => {}); }
+const lessonsOf = (r) => { try { return JSON.parse((r && r.lessons) || "[]") || []; } catch { return []; } };
+const topicName = (k) => String(k || "").replace(/^\s*mood:\s*/i, "").toLowerCase().replace(/[^a-z0-9 &+'-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+const modelsIn = (b) => (Array.isArray(b.models) ? b.models : []).map(String).filter((m) => /^[\w.:\/@-]{3,120}$/.test(m)).slice(0, 3);
+// who pays: the owner (through the public gateways, as anyone's work goes) while the day's budget and this person's share
+// of it last; else the person asking
+async function researchPayer(env, user, c, what) {
+	const day = researchDay(), spentIdr = (await counter(env, day)) * (Number(c.free.usdIdr) || 18000);
+	const mine = await counter(env, day + ":" + what + ":" + user.id);
+	if (spentIdr < RESEARCH_DAY_IDR && mine < (what === "recheck" ? RECHECK_EACH : RESEARCH_EACH)) {
+		const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind([...OWNER_IDS][0]).first().catch(() => null);
+		if (row) return { who: { ...(await readyUser(env, row, c)), owner: true, shared: true }, owner: true };
+	}
+	return { who: user, owner: false };
+}
+async function researchAsk(env, ctx, payer, models, content, maxTokens) {
+	for (const model of models) {
+		try {
+			const res = await chat(new Request("https://andromeda.internal/api/chat/completions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model, messages: [{ role: "user", content }], max_tokens: maxTokens, temperature: 0.2 }) }), env, ctx, payer.who);
+			const out = String((await res.json().catch(() => ({}))).choices?.[0]?.message?.content || "").trim();
+			if (out) return { out, model };
+		} catch (e) { if (e.status === 402) return { out: "", broke: true }; }
+	}
+	return { out: "" };
+}
+// (what the owner's research really cost, from what was written down as it was used, counted against the day)
+async function researchSpent(env, payer, t0, what, uid) {
+	const day = researchDay();
+	if (payer.owner) {
+		const r = await env.DB.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS usd FROM usage WHERE user_id = ? AND created_at >= ?").bind(payer.who.id, t0).first().catch(() => null);
+		await bump(env, day, Number(r && r.usd) || 0);
+	}
+	await bump(env, day + ":" + what + ":" + uid, 1);
+}
+const researchWeb = async (env, who, q) => { try { return (await searchFor(env, who, q, 5)).map((x, i) => "[" + (i + 1) + "] " + x.title + ": " + x.text).join("\n").slice(0, 6000); } catch { return ""; } };
+const CRAFT_ASK = (name, web) => "You are the most experienced professional in the world at making: " + name + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write the craft brief a maker should follow to make one exceptionally well: (1) what the best ones do (structure, pacing, composition); (2) the exact specifics that make it look professional and real (proportions and sizes, typography, colour, timing and motion, materials, wording); (3) the mistakes that make it look amateur or AI-made, to avoid; (4) a short checklist to verify before finishing. Concrete numbers and rules, no filler; 350 words at most. Only craft knowledge: no links, no names of people, nothing about any one user." + (web ? "\n\nSearch results:\n" + web : "");
+const MOOD_ASK = (name, web) => "You are a senior colourist and art director. The occasion or feeling: " + name + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write what a designer needs to give anything this look: (1) what it should feel like, and where that comes from in the real world (its light, its materials, its time of day, its place); (2) four palettes that truly fit it, varied (light and dark, warmer and cooler), each as five hex colours with their roles (background, surface, text, accent, second) and why; (3) the character of the typefaces that fit it, described, not named (\"a rounded, friendly sans\", \"a breezy script, one word at most\"); (4) the colours and type that would be wrong for it, and why (dark red for a sunny beach morning reads heavy and formal); (5) any cultural meaning to respect. 300 words at most, no filler, no names of people, nothing about any one user." + (web ? "\n\nSearch results:\n" + web : "");
+async function craftResearch(req, env, ctx, user) {
+	const b = await body(req), mood = /^\s*mood:/i.test(String(b.key || "")), k = craftK(b.key), name = topicName(b.key);
+	if (name.length < 3 || k.replace(/^mood: /, "").length < 3) throw fail(400, "Which kind of thing?");
+	const have = await env.DB.prepare("SELECT brief, lessons FROM craft WHERE k = ?").bind(k).first().catch(() => null);
+	// (researched already: nobody pays for it again)
+	if (have && have.brief) return json({ brief: have.brief, lessons: lessonsOf(have), kept: true });
+	const models = modelsIn(b);
+	if (!models.length) throw fail(400, "Which model?");
+	// (two people asking for the same new topic at once: one researches it, the other comes back for it)
+	const lock = "craftwip:" + k, was = await counter(env, lock);
+	if (was && now() - was < 120e3) return json({ pending: true });
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(lock, String(now())).run().catch(() => {});
+	try {
+		const c = await config(env), payer = await researchPayer(env, user, c, "new"), t0 = now();
+		const web = await researchWeb(env, payer.who, name + (mood ? " colour palette mood design typography" : " professional best practices common mistakes"));
+		const got = await researchAsk(env, ctx, payer, models, (mood ? MOOD_ASK : CRAFT_ASK)(name, web), 1200);
+		await researchSpent(env, payer, t0, "new", user.id);
+		const brief = got.out.slice(0, 4000);
+		if (brief.length < 200) return json({ brief: null, lessons: lessonsOf(have), broke: !!got.broke });
+		await env.DB.prepare("INSERT INTO craft (k, brief, lessons, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(k) DO UPDATE SET brief = excluded.brief, updated_at = excluded.updated_at").bind(k, brief, JSON.stringify(lessonsOf(have)), now()).run();
+		return json({ brief, lessons: lessonsOf(have), paidBy: payer.owner ? "celestin" : "you" });
+	} finally { await env.DB.prepare("DELETE FROM config WHERE k = ?").bind(lock).run().catch(() => {}); }
+}
+async function craftRecheck(req, env, ctx, user) {
+	const b = await body(req), mood = /^\s*mood:/i.test(String(b.key || "")), k = craftK(b.key), name = topicName(b.key);
+	const complaint = String(b.complaint || "").replace(/\s+/g, " ").trim().slice(0, 300);
+	if (name.length < 3 || complaint.length < 8) throw fail(400, "What's wrong with it?");
+	const have = await env.DB.prepare("SELECT brief, lessons FROM craft WHERE k = ?").bind(k).first().catch(() => null);
+	if (!have || !have.brief) return json({ right: null, brief: null, lessons: lessonsOf(have) });
+	const models = modelsIn(b);
+	if (!models.length) throw fail(400, "Which model?");
+	// (a topic rechecked a couple of times today already: kept as it is until tomorrow)
+	const topic = researchDay() + ":recheck-topic:" + k;
+	if ((await counter(env, topic)) >= RECHECK_TOPIC) return json({ right: null, later: true, brief: have.brief, lessons: lessonsOf(have) });
+	await bump(env, topic, 1);
+	const c = await config(env), payer = await researchPayer(env, user, c, "recheck"), t0 = now();
+	const web = await researchWeb(env, payer.who, name + (mood ? " colour palette mood " : " ") + complaint.slice(0, 80));
+	const got = await researchAsk(env, ctx, payer, models, "You keep Celestin's knowledge about " + (mood ? "giving anything the look of this occasion: " : "making this kind of thing: ") + name + ". Someone who used it says this is wrong: \"" + complaint + "\"\n\nWhat Celestin knows now:\n" + have.brief + (web ? "\n\nFresh search results:\n" + web : "") +
+		"\n\nJudge it honestly, for this kind of thing in general, not one person's taste: is the complaint right? Reply with ONLY this JSON: {\"right\": true or false, \"why\": \"one sentence\", \"brief\": \"only when right: the whole corrected version, in the same form, 350 words at most\", \"lesson\": \"only when right: the general rule, one line\"}", 1500);
+	await researchSpent(env, payer, t0, "recheck", user.id);
+	const j = jsonIn(got.out) || {}, right = j.right === true || j.right === "true";
+	let brief = have.brief, lessons = lessonsOf(have);
+	if (got.out && right) {
+		const nb = String(j.brief || "").trim().slice(0, 4000), l = String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300);
+		if (nb.length >= 200) brief = nb;
+		if (l.length >= 8 && !lessons.some((x) => x.toLowerCase() === l.toLowerCase())) lessons = [...lessons, l].slice(-30);
+		await env.DB.prepare("UPDATE craft SET brief = ?, lessons = ?, updated_at = ? WHERE k = ?").bind(brief, JSON.stringify(lessons), now(), k).run();
+	}
+	return json({ right: got.out ? right : null, why: String(j.why || "").slice(0, 300), brief, lessons, broke: !!got.broke });
 }
 // ------------------------------------------------------------------ a person's settings, and their Google Calendar
 // a booking in their Google Calendar (the Gmail script, version 2; an older one: nothing happens)

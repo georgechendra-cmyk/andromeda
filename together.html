@@ -3711,10 +3711,10 @@ async function conduct(text, atts, tried, only, team) {
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
 		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or an agent: ANY other job they want done by itself in the background, once or again and again, while they're away (answer or write emails; watch prices, pages, tickets, competitors or their inbox; follow news; research something and email or report it; post for them; write something every day; anything else). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for an agent, what: the job in their words, and staff [{name, role}] with the name they gave it, if any). When they ask for several of these for their business at once (a front desk that also calls or emails customers to rebook, answers email, markets…), kind setup, with kinds listing the parts (desk, winback, email, marketing), type place (customers come to it: a shop, salon, clinic) or online, assistant (a name they gave it, if any) and everything else they told you. When they want several agents at once, each for a role (\"Jim for marketing, Cindy for finance\", \"agents for every job my company needs\"), kind team, with staff listing each one as {name, role} (the names they gave; for \"every job\", the roles that business truly needs to grow, at most 8, each with a short first name) and name and brief about the business. Never ask them what you can decide yourself: fill in anything missing with the most likely choice and say in one line what you assumed; ask only when nothing useful can be done without the answer.\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\", \"craft\": \"barbershop website\", \"lesson\": \"\", \"brand\": \"\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup|team\", \"staff\": [{\"name\": \"\", \"role\": \"\"}], \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\", \"craft\": \"barbershop website\", \"lesson\": \"\", \"brand\": \"\", \"mood\": \"sunday morning at the beach\", \"recheck\": \"\", \"relook\": false" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup|team\", \"staff\": [{\"name\": \"\", \"role\": \"\"}], \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
-		+ " \"craft\": when something is being made (an app, a site, a game, a film, a picture, a document, a deck), the kind of thing it is in 2 to 5 general words anyone could ask for too (\"product trailer video\", \"barbershop website\", \"3D product model\", \"logo\"), never personal details. \"lesson\": only when this message complains about or corrects the last thing made, the general rule a maker should always follow from now on, in one line, without personal details (\"a phone is 9 wide by 19.5 tall, never a chunky tablet\"). \"brand\": when the work is for or about a real, existing business, brand or product (theirs or a known one; never a private person), its name exactly as written, without the town; else empty."
+		+ " \"craft\": when something is being made (an app, a site, a game, a film, a picture, a document, a deck), the kind of thing it is in 2 to 5 general words anyone could ask for too (\"product trailer video\", \"barbershop website\", \"3D product model\", \"logo\"), never personal details. \"lesson\": only when this message complains about or corrects the last thing made, the general rule a maker should always follow from now on, in one line, without personal details (\"a phone is 9 wide by 19.5 tall, never a chunky tablet\"). \"brand\": when the work is for or about a real, existing business, brand or product (theirs or a known one; never a private person), its name exactly as written, without the town; else empty. \"mood\": when what's made has a look (a site, an app, a film, a picture, a deck), the occasion or feeling its look should give, in 2 to 6 general words (\"sunday morning at the beach\", \"chinese new year\", \"funeral notice\", \"luxury night out\"), never personal details; else empty. \"recheck\": only when they say Celestin got something wrong about this kind of thing in general (a fact, a convention, colours or type that don't suit the occasion), not just a change they'd like: \"craft\" when it's about how it's made, \"mood\" when it's about the look for the occasion; else empty. \"relook\": true when they want the colours, the typefaces or the whole look of what was made changed."
 		+ " \"refs\": only when the request asks for something like, in the style of, or replicating a specific named thing it should match (a creator or channel, a game, a film or show, a brand, a website, an artist, a particular video or page): each one's name as they wrote it, what it is, and exactly what to take from it; never for a plain topic (a video ABOUT black holes has none)."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
@@ -3769,7 +3769,7 @@ async function conduct(text, atts, tried, only, team) {
 		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader,
 		made: j.made === "coded" || j.made === "filmed" ? j.made : "",
 		job: team && j.job && typeof j.job === "object" ? j.job : null,
-		craft: craftKey(j.craft), lesson: String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300), brand: String(j.brand || "").replace(/\s+/g, " ").trim().slice(0, 80),
+		craft: craftKey(j.craft), lesson: String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300), brand: String(j.brand || "").replace(/\s+/g, " ").trim().slice(0, 80), mood: craftKey(j.mood), recheck: j.recheck === "craft" || j.recheck === "mood" ? j.recheck : "", relook: j.relook === true || j.relook === "true",
 		refs: (Array.isArray(j.refs) ? j.refs : []).filter((x) => x && String(x.name || "").trim()).slice(0, 2).map((x) => ({ name: String(x.name).trim().slice(0, 80), kind: String(x.kind || "").slice(0, 60), take: String(x.take || "").slice(0, 200) })) };
 }
 // the way it chose, done by the part of Celestin that does it
@@ -7698,23 +7698,49 @@ var REF_WATCH = null;
 // what the references were found to be like, word for word, for whoever makes the work (a director's one-line "look"
 // loses the head shapes and the 2D-in-3D; the animator gets this whole)
 var REF_NOTE = "";
-// ---- Craft memory: how the best make each kind of thing ("product trailer video", "barbershop website"), researched the
-// first time it's asked for and kept (in this browser; the owner's, for everyone, on the server), and the lessons real
-// feedback taught about it; whoever makes it follows both. Paid for once per kind of thing, never per request
+// ---- Craft memory: how the best make each kind of thing ("product trailer video", "barbershop website") and what each
+// occasion's look is ("sunday morning at the beach"), researched by the server the first time anyone asks and kept for
+// everyone (Celestin pays while its research budget for the day lasts, then whoever asks does), and the lessons real
+// feedback taught about it; whoever makes it follows both. Paid for once per topic, never per request, never twice (the
+// owner, Nov 14: "i can pay for the research myself but i cant do that for every topic that will repeat")
 const CRAFT_WAYS = ["app", "project", "sim", "board", "image", "video", "music", "docx", "pdf", "pptx", "xlsx"];
 const craftKey = (k) => String(k || "").toLowerCase().replace(/[^a-z0-9 &+-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+// (the topic as it's kept, the same however it's worded: word order, "a", "the", "for", plurals; as the server keeps it)
+const TOPIC_STOP = new Set(["a", "an", "the", "for", "of", "my", "our", "your", "their", "at", "in", "on", "to", "with", "about", "some"]);
+const topicKey = (k) => {
+	const raw = String(k || ""), mood = /^\s*mood:/i.test(raw);
+	const words = [...new Set(raw.replace(/^\s*mood:/i, "").toLowerCase().replace(/[^a-z0-9 &+-]/g, " ").split(/\s+/).filter((w) => w && !TOPIC_STOP.has(w)).map((w) => (w.length > 4 && /[^s]s$/.test(w) ? w.slice(0, -1) : w)))].sort();
+	return ((mood ? "mood: " : "") + words.join(" ")).slice(0, 60);
+};
 var CRAFT_NOTE = "";
-async function craftBrief(raw) {
-	const key = craftKey(raw);
+const craftModels = () => bestFor("craft").slice(0, 3).map((m) => (m.m || m).id);
+async function craftBrief(raw, mood) {
+	const key = craftKey(raw), sk = topicKey((mood ? "mood:" : "") + key);
 	if (key.length < 3) return null;
-	const all = store.get("craft", null) || {}, mine = all[key];
+	const all = store.get("craft", null) || {}, mine = all[sk];
 	if (mine && mine.brief && Date.now() - (mine.at || 0) < 45 * 864e5) return mine;
-	// (what the owner's own use already learned, kept for everyone)
-	try { const j = await api("/api/craft/" + encodeURIComponent(key)); if (j && j.brief) { all[key] = { brief: j.brief, lessons: [...new Set([...(j.lessons || []), ...((mine && mine.lessons) || [])])].slice(-30), at: Date.now() }; store.set("craft", all); return all[key]; } } catch {}
-	const hold = { role: "assistant", text: "", streaming: true, status: "Learning how the best make a " + key };
+	const keep = (j) => { all[sk] = { brief: j.brief, lessons: [...new Set([...(j.lessons || []), ...((mine && mine.lessons) || [])])].slice(-30), at: Date.now() }; store.set("craft", all); return all[sk]; };
+	// (researched already, for everyone)
+	try { const j = await api("/api/craft/" + encodeURIComponent(sk)); if (j && j.brief) return keep(j); } catch {}
+	const hold = { role: "assistant", text: "", streaming: true, status: mood ? "Learning what colours and type fit " + key : "Learning how the best make a " + key };
 	current.msgs.push(hold);
 	updateLast();
 	try {
+		// the server researches it, once, for everyone
+		let reached = false;
+		try {
+			for (let t = 0; t < 3; t++) {
+				const j = await api("/api/craft/research", { method: "POST", body: JSON.stringify({ key: (mood ? "mood:" : "") + key, models: craftModels() }) });
+				reached = true;
+				if (j && j.brief) { if (!j.kept) noteTool("Learned: " + key, (mood ? "Researched what colours and type fit it" : "Researched how the best make it") + ", once, and kept it for everyone from now on"); return keep(j); }
+				if (!(j && j.pending)) break;
+				// (someone else is researching it right now: theirs in a moment, not paid for twice)
+				await new Promise((r) => setTimeout(r, 8000));
+			}
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		// (the server answered, but nothing could be researched right now: not paid for again here)
+		if (reached || mood) return mine || null;
+		// (the server couldn't be reached at all: researched here instead, kept in this browser)
 		let web = "";
 		try { web = ((await toolCall("/api/tools/search", { query: key + " professional best practices common mistakes", n: 5 }, 25000)).results || []).map((x, i) => "[" + (i + 1) + "] " + x.title + ": " + x.text).join("\n").slice(0, 6000); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 		const m = bestFor("craft")[0];
@@ -7722,24 +7748,39 @@ async function craftBrief(raw) {
 		const id = (m.m || m).id;
 		const out = String(await stream(id, [{ role: "user", content: "You are the most experienced professional in the world at making: " + key + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write the craft brief a maker should follow to make one exceptionally well: (1) what the best ones do (structure, pacing, composition); (2) the exact specifics that make it look professional and real (proportions and sizes, typography, colour, timing and motion, materials, wording); (3) the mistakes that make it look amateur or AI-made, to avoid; (4) a short checklist to verify before finishing. Concrete numbers and rules, no filler; 350 words at most. Only craft knowledge: no links, no names of people, nothing about any one user." + (web ? "\n\nSearch results:\n" + web : "") }], () => {}, busy.signal, { max_tokens: 1200, temperature: 0.2, ...effortFor(id, "low") }, hold)).trim();
 		if (out.length < 200) return mine || null;
-		all[key] = { brief: out.slice(0, 4000), lessons: (mine && mine.lessons) || [], at: Date.now() };
+		all[sk] = { brief: out.slice(0, 4000), lessons: (mine && mine.lessons) || [], at: Date.now() };
 		store.set("craft", all);
-		if (me && me.owner) api("/api/craft", { method: "POST", body: JSON.stringify({ key, brief: all[key].brief }) }).catch(() => {});
 		noteTool("Learned: " + key, "Researched how the best make it, once, and kept it for every " + key + " after this");
-		return all[key];
+		return all[sk];
 	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return mine || null; }
 	finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 }
-// a complaint or correction about what was made: kept as a lesson for that kind of thing, from now on
-async function craftLesson(raw, lesson) {
-	const key = craftKey(raw), l = String(lesson || "").trim().slice(0, 300);
+// a complaint or correction about what was made: kept as a lesson for that kind of thing (or that occasion's look), from now on
+async function craftLesson(raw, lesson, mood) {
+	const key = craftKey(raw), sk = topicKey((mood ? "mood:" : "") + key), l = String(lesson || "").trim().slice(0, 300);
 	if (key.length < 3 || l.length < 8) return;
-	const all = store.get("craft", null) || {}, e = all[key] || { brief: "", lessons: [], at: 0 };
+	const all = store.get("craft", null) || {}, e = all[sk] || { brief: "", lessons: [], at: 0 };
 	if (!e.lessons.some((x) => x.toLowerCase() === l.toLowerCase())) e.lessons = [...e.lessons, l].slice(-30);
-	all[key] = e;
+	all[sk] = e;
 	store.set("craft", all);
-	if (me && me.owner) api("/api/craft/lesson", { method: "POST", body: JSON.stringify({ key, lesson: l }) }).catch(() => {});
+	if (me && me.owner) api("/api/craft/lesson", { method: "POST", body: JSON.stringify({ key: (mood ? "mood:" : "") + key, lesson: l }) }).catch(() => {});
 	noteTool("Lesson kept: " + key, l);
+}
+// "no, that's wrong, check it": what Celestin knows about it is rechecked against fresh research, and changed for everyone
+// only when the recheck agrees (their own lesson is kept for their own work either way)
+async function craftRecheck(raw, complaint, mood) {
+	const key = craftKey(raw), sk = topicKey((mood ? "mood:" : "") + key);
+	if (key.length < 3) return;
+	const hold = { role: "assistant", text: "", streaming: true, status: "Rechecking what Celestin knows about " + (mood ? "the look of " : "making a ") + key };
+	current.msgs.push(hold);
+	updateLast();
+	try {
+		const j = await api("/api/craft/recheck", { method: "POST", body: JSON.stringify({ key: (mood ? "mood:" : "") + key, complaint: String(complaint || "").slice(0, 300), models: craftModels() }) });
+		if (j && j.brief) { const all = store.get("craft", null) || {}, mine = all[sk] || {}; all[sk] = { brief: j.brief, lessons: [...new Set([...(j.lessons || []), ...(mine.lessons || [])])].slice(-30), at: Date.now() }; store.set("craft", all); }
+		if (j && j.right === true) noteTool("Rechecked: " + key, "The complaint was right" + (j.why ? " (" + j.why + ")" : "") + ": fixed for everyone from now on");
+		else if (j && j.right === false) noteTool("Rechecked: " + key, "What Celestin knew holds up" + (j.why ? " (" + j.why + ")" : "") + "; their own lesson is still kept for their work");
+	} catch (e) { if (e.name === "AbortError") throw e; }
+	finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
 }
 function useCraft(plan, text, raw, c) {
 	const key = craftKey(raw);
@@ -7969,6 +8010,10 @@ async function lookEvidence(plan, text, atts, hold) {
 // fixed in code where they don't; typefaces only from the list (or the brand's own), never one just used for something else
 async function lookFor(plan, text, atts) {
 	const key = String(plan.brand || plan.craft || plan.name || plan.way).toLowerCase().slice(0, 60);
+	// (what this occasion's look is: researched once, for everyone, with what real feedback taught about it)
+	const moodK = craftKey(plan.mood || (plan.edit && current && current.mood) || "");
+	const moodC = moodK.length >= 3 ? await craftBrief(moodK, true) : null;
+	const moodNote = moodC ? ((moodC.brief || "") + ((moodC.lessons || []).length ? "\nLessons from real feedback on it (always follow them):\n- " + moodC.lessons.join("\n- ") : "")).trim() : "";
 	const hold = { role: "assistant", text: "", streaming: true, status: "Choosing the look from what's real about it" };
 	current.msgs.push(hold);
 	updateLast();
@@ -7993,10 +8038,11 @@ async function lookFor(plan, text, atts) {
 		].filter(Boolean).join("\n");
 		const lang = plan.profile && plan.profile.language;
 		const prompt = "You are the art director for this: " + String(plan.request || text).slice(0, 2500) + "\nWhat it is: " + (plan.craft || plan.way) + (plan.brand ? ", for " + plan.brand : "") + "." + (lang ? " Its audience reads " + lang + "." : "") +
-			"\n\nDecide its colours and typefaces from evidence, never from habit: an art director who reaches for the same palette and the same fonts every time is guessing. In this order:\n1. The brand's own look, measured below from its real site, logo or pictures: when there is one, keep it (its colours exactly; its typefaces when they're on Google Fonts, else the closest in the list).\n2. What the person said about the look (colours, mood, light or dark, references).\n3. Only then the subject itself: its materials, its place, its era and its light (a barbershop: leather, brass and chalk; a clinic: clean linen and one calm colour), who it's for and their culture, and its category (fit what people expect of it, then stand apart from what every competitor does)." +
+			"\n\nDecide its colours and typefaces from evidence, never from habit: an art director who reaches for the same palette and the same fonts every time is guessing. In this order:\n1. The brand's own look, measured below from its real site, logo or pictures: when there is one, keep it (its colours exactly; its typefaces when they're on Google Fonts, else the closest in the list).\n2. What the person said about the look (colours, mood, light or dark, references).\n3. Only then the occasion and the subject: what this occasion's look is (researched below, when it is: build from the palette in it that fits this project best, not always its first), the subject's materials, its place, its era and its light (a barbershop: leather, brass and chalk; a clinic: clean linen and one calm colour), who it's for and their culture, and its category (fit what people expect of it, then stand apart from what every competitor does)." +
 			"\n\nHow colour works (follow it):\n" + SKILLBOOK.color[1] +
 			"\n\nTypefaces: ONLY from this list (name | kind | d: headings only, t: text, b: both | its personality)" + (brandType.length ? ", or the brand's own (" + brandType.join(", ") + ")" : "") + ". A display face for headings and a text face for everything else (or one \"b\" family for both); a \"d\" face never sets text:\n" + offer.map((f) => f.name + " | " + f.kind + " | " + f.use + " | " + f.tags).join("\n") +
 			(past.length ? "\n\nPalettes already used for other recent work (background and accent), so not again unless it's the same brand: " + past.map((l) => (l.colors || []).join(" ")).join("; ") + "." : "") +
+			(moodNote ? "\n\nWhat the look of this occasion (" + moodK + ") is, researched:\n" + moodNote : "") +
 			(evid ? "\n\nThe evidence:\n" + evid : "\n\nThere's no brand look to measure: decide from what they said and from the subject.") +
 			"\n\nReply with ONLY this JSON: {\"feel\": [\"3 words for what it should feel like\"], \"from\": \"brand|said|subject\", \"background\": \"#hex\", \"surface\": \"#hex (cards, panels)\", \"text\": \"#hex\", \"muted\": \"#hex (secondary text)\", \"accent\": \"#hex (what can be pressed, the one thing that matters most)\", \"second\": \"#hex or empty (used sparingly)\", \"why_colour\": \"one sentence: where each colour comes from\", \"display\": \"typeface\", \"body\": \"typeface\", \"why_type\": \"one sentence\", \"missing\": \"what of their own look couldn't be found and would let it match exactly (their logo, a photo of the place), or empty\"}";
 		const raw = await stream(id, [{ role: "user", content: prompt }], () => {}, busy.signal, { max_tokens: 1200, temperature: 0.6, ...effortFor(id, "low") }, hold);
@@ -8145,7 +8191,12 @@ async function serve(text, atts, tool, o = {}) {
 	if (plan && plan.refs && plan.refs.length && !LANE) useRefs(plan, text, await studyRefs(plan, text, atts));
 	// the craft: how the best make this kind of thing, researched once and kept, with what real feedback taught about it
 	CRAFT_NOTE = "";
-	if (plan && plan.lesson) await craftLesson(plan.craft || (current && current.craft) || "", plan.lesson);
+	if (plan && plan.mood && current) current.mood = plan.mood;
+	{
+		const onMood = !!plan && plan.recheck === "mood", raw = onMood ? (plan.mood || (current && current.mood) || "") : ((plan && plan.craft) || (current && current.craft) || "");
+		if (plan && plan.lesson) await craftLesson(raw, plan.lesson, onMood);
+		if (plan && plan.recheck && !LANE && raw) await craftRecheck(raw, plan.lesson || text, onMood);
+	}
 	if (plan && plan.craft && !LANE && CRAFT_WAYS.includes(plan.way)) {
 		if (current) current.craft = plan.craft;
 		const c = await craftBrief(plan.craft);
@@ -8153,7 +8204,7 @@ async function serve(text, atts, tool, o = {}) {
 	}
 	// the look: decided from evidence (theirs, measured; what they said; the subject), never guessed or the usual
 	LOOK = null;
-	if (plan && !LANE && !plan.edit && LOOK_WAYS.includes(plan.way) && (plan.way !== "project" || /\b(site|website|web ?app|landing|page|app|ui|dashboard|game|store|shop|portfolio|blog|design)\b/i.test(String(plan.request || text)))) {
+	if (plan && !LANE && (!plan.edit || plan.relook || plan.recheck === "mood") && LOOK_WAYS.includes(plan.way) && (plan.way !== "project" || /\b(site|website|web ?app|landing|page|app|ui|dashboard|game|store|shop|portfolio|blog|design)\b/i.test(String(plan.request || text)))) {
 		const l = await lookFor(plan, text, atts);
 		if (l) useLook(plan, text, l);
 	}
