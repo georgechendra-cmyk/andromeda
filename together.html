@@ -2976,6 +2976,8 @@ const FEATURE_W = {
 	// about as well)
 	// (own: picked on reading and planning alone, not on what the request is about: reading a coding request well is
 	// still reading)
+	// a craft brief: how the best make a kind of thing, written by the one who knows the field cold and gets facts right
+	craft: { task: "research", out: 900, w: { "text:expert": 0.4, "factuality:overall": 0.35, "text:instruction_following": 0.25 } },
 	reader: { task: "quick", out: 300, in: 4500, fast: true, own: true, bench: 0.15, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
 	// splitting a request into its smallest pieces of work, and putting the pieces back together into one answer
 	planner: { task: "reasoning", out: 900, in: 3500, own: true, bench: 0.3, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
@@ -3466,6 +3468,7 @@ const WAYS = {
 // work), and every model doing the work follows them.
 const SKILLBOOK = {
 	design: ["building anything visual people use: sites, apps, games, dashboards, slides", "Design like a top product designer: a clear visual hierarchy, generous spacing on a consistent scale, one typeface family with two or three weights, a restrained palette with one accent, real content (never lorem ipsum), smooth 150-300ms transitions, hover, focus, empty and loading states, responsive down to 360px, accessible contrast and labels. It must look finished and premium, never like a template."],
+	color: ["choosing or using colour anywhere: palettes, themes, brands and logos, sites and apps, slides, posters, pictures and films", "Use colour like a senior designer and colourist. (1) Start from meaning and audience, not a favourite hue: what it should feel like, for whom, in which culture and industry. Colour feelings are broadly shared across cultures (a 30-nation study found strong agreement) but local meanings shift them: red is luck and celebration in China and Indonesia but urgency or danger in the West; white is purity in the West and mourning across much of East Asia; green is Islam, wealth and fertility in the Middle East but can hint at infidelity in China; yellow is sunny in Latin America and Africa, envy in Germany. (2) What colours commonly say: blue calm, trust and competence (finance, tech, health) but the most used brand colour, so it stands out least; green growth, health, nature, money; red energy, appetite, urgency, love or danger (food, sales, alerts); orange warm, friendly, playful; yellow optimism and attention (small doses: poor contrast on white); purple luxury, creativity, spirituality; pink tender or bold-playful; browns and earth tones warmth, craft, honesty; black authority, luxury, edge; white clean and spacious; gold or brass premium heritage; muted, greyed tones calm and grown-up; neon and high chroma youth, nightlife, energy. (3) Harmony picks the hues: monochromatic (one hue, many lightnesses: calm, elegant), analogous (neighbours: cohesive, natural), complementary (opposites: vivid, one must dominate), split-complementary (a hue and the two beside its opposite: contrast with less tension), triadic (three evenly spaced: playful, one dominant). Proportion makes it work: about 60% dominant (usually a neutral tinted toward the main hue), 30% secondary, 10% accent, and the accent only on what matters (the main action, the key word). (4) Lightness before hue: readability comes from lightness contrast (squint to check); text at least 4.5:1 against its background, 3:1 for large text and controls; never colour alone to carry meaning (about 1 in 12 men has a red-green deficiency): add a label, icon or shape. (5) Build palettes perceptually (OKLCH): a neutral scale that is the main hue at very low chroma (never dead grey), one accent scale with even lightness steps and steady chroma, and success, warning and error pulled slightly toward the palette; derive hover states and tints by mixing, not new hues. (6) Dark themes: near-black, not pure black; off-white text, not pure white; higher surfaces lighter, not shadowed; accents a little desaturated and lighter so they don't vibrate. (7) Mood lives in saturation and temperature: warm colours advance and energise, cool ones recede and calm; high chroma shouts (use little), muted reads expensive; a warm and cool contrast gives depth, but everywhere it becomes a cliché. (8) Films and pictures: plan colour per scene like a colour script, shifting with the story (cool and desaturated for loss or tension, warm and saturated for joy, one saturated colour to point the eye); light has a colour (golden hour, overcast, neon, tungsten) and everything in the scene takes it on. (9) Never the generic AI look: purple or violet-to-blue gradients, neon on black, rainbow gradients, everything saturated. Fewer colours, each chosen for a reason, always win."],
 	data: ["analysing data, files, spreadsheets or statistics, and making charts", "Work like a data scientist: load the data with pandas and look at it first (shape, columns, types, missing values) before concluding anything; compute with code, never by eye; check results a second way; make clear charts (labelled axes with units, a title, readable fonts); state assumptions, caveats and the exact numbers."],
 	research: ["questions needing current, sourced or thorough answers, and research reports", "Research like an analyst: break the question into sub-questions; search several times with different phrasings; read the actual sources, not just snippets; prefer primary and recent sources; cross-check facts across sources; note disagreements and dates; cite every claim inline as [n](url). End with a clear answer and what's still uncertain."],
 	code: ["writing, fixing, reviewing or explaining code", "Engineer like a senior developer: read the existing code and follow its style; make the smallest correct change; handle errors and edge cases; never leave placeholders or TODOs; when code can be run, run it and test it; say briefly what changed and why."],
@@ -3709,6 +3712,7 @@ async function conduct(text, atts, tried, only, team) {
 		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup|team\", \"staff\": [{\"name\": \"\", \"role\": \"\"}], \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
+		+ " \"craft\": when something is being made (an app, a site, a game, a film, a picture, a document, a deck), the kind of thing it is in 2 to 5 general words anyone could ask for too (\"product trailer video\", \"barbershop website\", \"3D product model\", \"logo\"), never personal details. \"lesson\": only when this message complains about or corrects the last thing made, the general rule a maker should always follow from now on, in one line, without personal details (\"a phone is 9 wide by 19.5 tall, never a chunky tablet\")."
 		+ " \"refs\": only when the request asks for something like, in the style of, or replicating a specific named thing it should match (a creator or channel, a game, a film or show, a brand, a website, an artist, a particular video or page): each one's name as they wrote it, what it is, and exactly what to take from it; never for a plain topic (a video ABOUT black holes has none)."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
@@ -3763,6 +3767,7 @@ async function conduct(text, atts, tried, only, team) {
 		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader,
 		made: j.made === "coded" || j.made === "filmed" ? j.made : "",
 		job: team && j.job && typeof j.job === "object" ? j.job : null,
+		craft: craftKey(j.craft), lesson: String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300),
 		refs: (Array.isArray(j.refs) ? j.refs : []).filter((x) => x && String(x.name || "").trim()).slice(0, 2).map((x) => ({ name: String(x.name).trim().slice(0, 80), kind: String(x.kind || "").slice(0, 60), take: String(x.take || "").slice(0, 200) })) };
 }
 // the way it chose, done by the part of Celestin that does it
@@ -7691,6 +7696,57 @@ var REF_WATCH = null;
 // what the references were found to be like, word for word, for whoever makes the work (a director's one-line "look"
 // loses the head shapes and the 2D-in-3D; the animator gets this whole)
 var REF_NOTE = "";
+// ---- Craft memory: how the best make each kind of thing ("product trailer video", "barbershop website"), researched the
+// first time it's asked for and kept (in this browser; the owner's, for everyone, on the server), and the lessons real
+// feedback taught about it; whoever makes it follows both. Paid for once per kind of thing, never per request
+const CRAFT_WAYS = ["app", "project", "sim", "board", "image", "video", "music", "docx", "pdf", "pptx", "xlsx"];
+const craftKey = (k) => String(k || "").toLowerCase().replace(/[^a-z0-9 &+-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+var CRAFT_NOTE = "";
+async function craftBrief(raw) {
+	const key = craftKey(raw);
+	if (key.length < 3) return null;
+	const all = store.get("craft", null) || {}, mine = all[key];
+	if (mine && mine.brief && Date.now() - (mine.at || 0) < 45 * 864e5) return mine;
+	// (what the owner's own use already learned, kept for everyone)
+	try { const j = await api("/api/craft/" + encodeURIComponent(key)); if (j && j.brief) { all[key] = { brief: j.brief, lessons: [...new Set([...(j.lessons || []), ...((mine && mine.lessons) || [])])].slice(-30), at: Date.now() }; store.set("craft", all); return all[key]; } } catch {}
+	const hold = { role: "assistant", text: "", streaming: true, status: "Learning how the best make a " + key };
+	current.msgs.push(hold);
+	updateLast();
+	try {
+		let web = "";
+		try { web = ((await toolCall("/api/tools/search", { query: key + " professional best practices common mistakes", n: 5 }, 25000)).results || []).map((x, i) => "[" + (i + 1) + "] " + x.title + ": " + x.text).join("\n").slice(0, 6000); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		const m = bestFor("craft")[0];
+		if (!m) return mine || null;
+		const id = (m.m || m).id;
+		const out = String(await stream(id, [{ role: "user", content: "You are the most experienced professional in the world at making: " + key + ". From what you reliably know" + (web ? " and the search results below" : "") + ", write the craft brief a maker should follow to make one exceptionally well: (1) what the best ones do (structure, pacing, composition); (2) the exact specifics that make it look professional and real (proportions and sizes, typography, colour, timing and motion, materials, wording); (3) the mistakes that make it look amateur or AI-made, to avoid; (4) a short checklist to verify before finishing. Concrete numbers and rules, no filler; 350 words at most. Only craft knowledge: no links, no names of people, nothing about any one user." + (web ? "\n\nSearch results:\n" + web : "") }], () => {}, busy.signal, { max_tokens: 1200, temperature: 0.2, ...effortFor(id, "low") }, hold)).trim();
+		if (out.length < 200) return mine || null;
+		all[key] = { brief: out.slice(0, 4000), lessons: (mine && mine.lessons) || [], at: Date.now() };
+		store.set("craft", all);
+		if (me && me.owner) api("/api/craft", { method: "POST", body: JSON.stringify({ key, brief: all[key].brief }) }).catch(() => {});
+		noteTool("Learned: " + key, "Researched how the best make it, once, and kept it for every " + key + " after this");
+		return all[key];
+	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return mine || null; }
+	finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+}
+// a complaint or correction about what was made: kept as a lesson for that kind of thing, from now on
+async function craftLesson(raw, lesson) {
+	const key = craftKey(raw), l = String(lesson || "").trim().slice(0, 300);
+	if (key.length < 3 || l.length < 8) return;
+	const all = store.get("craft", null) || {}, e = all[key] || { brief: "", lessons: [], at: 0 };
+	if (!e.lessons.some((x) => x.toLowerCase() === l.toLowerCase())) e.lessons = [...e.lessons, l].slice(-30);
+	all[key] = e;
+	store.set("craft", all);
+	if (me && me.owner) api("/api/craft/lesson", { method: "POST", body: JSON.stringify({ key, lesson: l }) }).catch(() => {});
+	noteTool("Lesson kept: " + key, l);
+}
+function useCraft(plan, text, raw, c) {
+	const key = craftKey(raw);
+	const note = (c.brief ? "How the best make a " + key + " (researched for this kind of work; follow it closely):\n" + c.brief : "") + (c.lessons && c.lessons.length ? (c.brief ? "\n" : "") + "Lessons from real feedback on this kind of work (always follow them):\n- " + c.lessons.join("\n- ") : "");
+	if (!note) return;
+	plan.request = wholeRequest(plan, text) + "\n\n" + note;
+	PLAN_NOTE = (PLAN_NOTE ? PLAN_NOTE + "\n" : "") + note;
+	CRAFT_NOTE = note;
+}
 // the watcher watches the video again with what was made: does it match? ({ match, notes })
 async function refJudge(what, made, msg) {
 	const w = REF_WATCH;
@@ -7783,6 +7839,14 @@ async function serve(text, atts, tool, o = {}) {
 	// a named reference to match: looked up first
 	REF_WATCH = null; REF_NOTE = "";
 	if (plan && plan.refs && plan.refs.length && !LANE) useRefs(plan, text, await studyRefs(plan, text, atts));
+	// the craft: how the best make this kind of thing, researched once and kept, with what real feedback taught about it
+	CRAFT_NOTE = "";
+	if (plan && plan.lesson) await craftLesson(plan.craft || (current && current.craft) || "", plan.lesson);
+	if (plan && plan.craft && !LANE && CRAFT_WAYS.includes(plan.way)) {
+		if (current) current.craft = plan.craft;
+		const c = await craftBrief(plan.craft);
+		if (c) useCraft(plan, text, plan.craft, c);
+	}
 	// a long run: what it'll likely cost, and a go-ahead, before anything is spent (not for Max's own extra rounds: only
 	// when they gave it time, or all the time it needs)
 	if (plan && !LANE && LONG_WAYS.includes(plan.way)) {
@@ -11022,6 +11086,7 @@ async function runVideo(text, atts, planned) {
 	plan.ask = String((planned && planned.ask) || text || "").slice(0, 2000);
 	// (and what its reference was found to be like, whole, when it was made like one)
 	plan.ref = String((planned && planned.ref) || REF_NOTE || "").slice(0, 5000);
+	plan.craftNote = String((planned && planned.craftNote) || CRAFT_NOTE || "").slice(0, 6000);
 	const left = await walletLeft();
 	msg.status = drawn ? "Waiting for your go" : "Waiting for you to pick the quality";
 	updateLast();
@@ -11652,6 +11717,7 @@ const FILM_CRAFT = `Taste, camera and realism (what separates a film people shar
 - A camera, like a film: draw each scene into a world a virtual camera moves through (one transform over the whole frame: scale, translate, rotate, always eased). Push in on what matters, pan and track with what moves, pull out to reveal, whip between scenes with motion blur; never a frame that just sits: a slow drift in every hold, and a real move at least every 2 to 3 seconds. Depth: a foreground, the subject and a background moving at different speeds, the background softly out of focus (ctx.filter = "blur(...)") when the camera is close.
 - Real things at their real proportions, measured, never guessed: a phone is 9 wide by 19.5 tall (71.5 by 147.5 mm), its corners rounded by about 18% of its width, a thin even bezel (about 3% of its width), a pill-shaped camera cut-out at the top, a status bar (time, signal, battery) and a home bar at the bottom; a tablet is 3:4; a laptop screen 16:10 on a thin base; a watch face a rounded square. Never a chunky tablet for a phone.
 - A phone in the world, never floating on a plain background: held in a hand or lying on a table, lit like the rest of the scene (a highlight along its edge, a shadow under it, its screen's glow on what's near), its screen in the platform's own manner (message bubbles with tails, names and timestamps, a typing indicator, the keyboard rising as someone types, a notification sliding down from the top), and the camera with it: push in to read a message, follow the thumb, tilt as it's picked up.
+- Colour like a colourist: about 60% a dominant (a neutral tinted toward the main hue), 30% a secondary, 10% an accent kept for what matters; lightness contrast before hue; the palette shifts with the story (cool and desaturated for tension or loss, warm and saturated for joy, one saturated colour to point the eye); light has a colour and everything in the scene takes it on; meanings checked for the audience (white is mourning across much of East Asia, red is luck in China and Indonesia).
 - When a brand's real logo is given, use exactly that shape; never draw a logo of your own for a real brand.`;
 const ANIMATOR = `You animate one shot of a film in code: a motion designer and animator at the best studio in the world, writing the shot as a program that draws every frame.
 
@@ -11851,6 +11917,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
 	const brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
 		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type." : "") +
+		(plan.craftNote ? "\n\n" + String(plan.craftNote).slice(0, 6000) : "") +
 		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
 		"\nIts typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words; never Inter, Roboto, Arial or a system font." +
 		"\nAspect " + plan.aspect + ", " + total + " seconds in all.\n\nThe shot list (one continuous film: design the transitions between them):\n" + timeline +
@@ -12169,6 +12236,7 @@ async function studioEdit(text, atts, pick) {
 	const plan = cleanPlan(j, d.plan.want, d.drawnOnly);
 	plan.ask = d.plan.ask || "";
 	plan.ref = d.plan.ref || "";
+	plan.craftNote = d.plan.craftNote || "";
 	const redo = { scenes: (j.redo?.scenes || []).map(Number).filter((n) => n >= 0 && n < plan.scenes.length), voice: !!j.redo?.voice, music: !!j.redo?.music };
 	msg.used.push({ name: shortName(m), desc: "Director: changed the plan" });
 	// a new copy of it, so the old one stays as it was; shots that didn't change are reused as they are

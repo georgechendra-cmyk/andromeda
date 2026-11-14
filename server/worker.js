@@ -184,6 +184,9 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/run$/)) && m === "POST") return jobRunNow(env, ctx, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
 	if (p === "/api/needs" && m === "GET") return json(await needsOf(env, user.id));
+	if ((cl = p.match(/^\/api\/craft\/([^/]{3,200})$/)) && m === "GET") return craftGet(env, decodeURIComponent(cl[1]));
+	if (p === "/api/craft" && m === "POST") return craftSet(req, env, user, false);
+	if (p === "/api/craft/lesson" && m === "POST") return craftSet(req, env, user, true);
 	if (p === "/api/prefs" && m === "GET") return prefsGet(env, user);
 	if (p === "/api/prefs" && m === "POST") return prefsSet(req, env, user);
 	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
@@ -669,6 +672,8 @@ function columns(env) {
 		// (its other settings: the review link, the days the owner closed)
 		if (!bcols.has("opts")) { try { await env.DB.prepare("ALTER TABLE bots ADD COLUMN opts TEXT").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		// (every text a desk sent from the business's number: for its daily limits and so nobody gets the same offer twice)
+		// (the craft memory: how the best make each kind of thing, and the lessons real feedback taught; written by the owner)
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS craft (k TEXT PRIMARY KEY, brief TEXT, lessons TEXT, updated_at INTEGER)").run();
 		await env.DB.prepare("CREATE TABLE IF NOT EXISTS texts (id TEXT PRIMARY KEY, bot_id TEXT NOT NULL, user_id TEXT NOT NULL, num TEXT NOT NULL, kind TEXT NOT NULL, slot TEXT, created_at INTEGER NOT NULL)").run();
 		await env.DB.prepare("CREATE INDEX IF NOT EXISTS texts_num ON texts (bot_id, num, created_at)").run();
 		const icols = new Set(((await env.DB.prepare("PRAGMA table_info(bot_items)").all()).results || []).map((r) => r.name));
@@ -3678,6 +3683,36 @@ async function connTest(env, user, kind) {
 	return json({ ok: true, url: r.url || null });
 }
 
+// ------------------------------------------------------------------ the craft memory
+// How the best make each kind of thing, researched once, and what real feedback taught about it: read by everyone, written
+// only from the owner's own browser (anyone else's stays in their own), so no one can slip instructions into everyone's work
+const craftK = (k) => String(k || "").toLowerCase().replace(/[^a-z0-9 &+-]/g, " ").replace(/\s+/g, " ").trim().slice(0, 60);
+async function craftGet(env, key) {
+	const r = await env.DB.prepare("SELECT brief, lessons FROM craft WHERE k = ?").bind(craftK(key)).first().catch(() => null);
+	if (!r) return json({ brief: null, lessons: [] });
+	let lessons = [];
+	try { lessons = JSON.parse(r.lessons || "[]"); } catch {}
+	return json({ brief: r.brief || null, lessons });
+}
+async function craftSet(req, env, user, lesson) {
+	if (!user.owner) throw fail(403, "Only the owner teaches Celestin for everyone.");
+	const b = await body(req), k = craftK(b.key);
+	if (k.length < 3) throw fail(400, "Which kind of thing?");
+	const r = await env.DB.prepare("SELECT lessons FROM craft WHERE k = ?").bind(k).first();
+	if (lesson) {
+		const l = String(b.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300);
+		if (l.length < 8) throw fail(400, "Say the lesson.");
+		let ls = [];
+		try { ls = JSON.parse((r && r.lessons) || "[]"); } catch {}
+		if (!ls.some((x) => x.toLowerCase() === l.toLowerCase())) ls = [...ls, l].slice(-30);
+		await env.DB.prepare("INSERT INTO craft (k, brief, lessons, updated_at) VALUES (?, NULL, ?, ?) ON CONFLICT(k) DO UPDATE SET lessons = excluded.lessons, updated_at = excluded.updated_at").bind(k, JSON.stringify(ls), now()).run();
+		return json({ ok: true, lessons: ls });
+	}
+	const brief = String(b.brief || "").trim().slice(0, 4000);
+	if (brief.length < 200) throw fail(400, "That brief is too short.");
+	await env.DB.prepare("INSERT INTO craft (k, brief, lessons, updated_at) VALUES (?, ?, '[]', ?) ON CONFLICT(k) DO UPDATE SET brief = excluded.brief, updated_at = excluded.updated_at").bind(k, brief, now()).run();
+	return json({ ok: true });
+}
 // ------------------------------------------------------------------ a person's settings, and their Google Calendar
 // a booking in their Google Calendar (the Gmail script, version 2; an older one: nothing happens)
 async function calendarAdd(env, userId, e) { const { c } = await gmailOf(env, userId); await gmailCall(c, { action: "event", title: e.title, start: new Date(e.start).toISOString(), minutes: e.minutes || 30, details: e.details || "" }); }
