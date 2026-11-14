@@ -7318,11 +7318,13 @@ function renderTogetherWelcome() {
 	// (the composer is about to be redrawn round: kept safe in its dock first)
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
 	const ms = teamMembers(), nd = NEEDS.items.length, working = ms.filter((x) => x.on).length;
+	// (the agents that work again and again: all paused at once, for a holiday or a quiet week, and all back again)
+	const repeat = (AGENTS.agents || []).filter((a) => a.every > 0), running = repeat.filter((a) => a.active);
 	const card = (x, k) => '<button class="hq-m" data-hqm="' + k + '">' + tgAv(x, "hq-av") + '<span class="hq-mt"><b>' + esc(x.name) + "</b><small>" + esc(x.role || "") + '</small></span><span class="hq-st ' + (x.need ? "need" : x.on ? "on" : "off") + '">' + esc(x.status) + "</span></button>";
 	$("#view").innerHTML = '<section class="hq">' +
 		'<header class="hq-top"><div class="hq-hl"><div class="hq-k">Celestin Together · HQ</div><h1>' + (ms.length ? (working ? working + (working === 1 ? " agent is" : " agents are") + " working for you" : "Your team") : "Hire your AI team") + "</h1>" +
 		"<p>Agents that run parts of your business by themselves, day and night, even with this page closed. You hand out the work; they do it, and only come to you when something needs you.</p></div>" +
-		'<div class="hq-acts"><button class="btn dark" id="hqNew">+ New agent</button><a class="hq-ai" href="./#app">Just want to chat, write or learn? <b>Celestin AI →</b></a></div></header>' +
+		'<div class="hq-acts"><div class="row" style="gap:8px">' + (repeat.length ? '<button class="btn" id="hqPause">' + (running.length ? "Pause everyone" : "Resume everyone") + "</button>" : "") + '<button class="btn dark" id="hqNew">+ New agent</button></div><a class="hq-ai" href="./#app">Just want to chat, write or learn? <b>Celestin AI →</b></a></div></header>' +
 		(nd ? '<button class="hq-needs" id="twNeeds"><b>' + nd + (nd === 1 ? " thing needs you" : " things need you") + "</b><span>Open</span></button>" : "") +
 		'<div class="hq-sec"><h2>Your team</h2>' + (ms.length
 			? '<div class="hq-grid">' + ms.map(card).join("") + '<button class="hq-m hq-add" id="hqAdd"><span class="hq-av">+</span><span class="hq-mt"><b>Hire someone new</b><small>Any job: describe it in a sentence</small></span></button></div>'
@@ -7334,6 +7336,14 @@ function renderTogetherWelcome() {
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 	$("#hqNew").onclick = () => openAgents("new");
+	if ($("#hqPause")) $("#hqPause").onclick = async () => {
+		const on = !running.length, list = on ? repeat : running;
+		$("#hqPause").disabled = true;
+		for (const a of list) await api("/api/agents", { method: "POST", body: JSON.stringify({ ...a, ...agentModels(), tz: -new Date().getTimezoneOffset(), tzName: TZ_NAME, active: on }) }).catch((e) => toast(e.message || String(e)));
+		await syncAgents(true);
+		toast(on ? "Everyone's back at work" : "Everyone's paused: nothing runs until you resume them");
+		if ($(".hq")) renderTogetherWelcome();
+	};
 	if ($("#hqAdd")) $("#hqAdd").onclick = () => openAgents("new");
 	if ($("#twNeeds")) $("#twNeeds").onclick = () => openNeeds();
 	$$("[data-hqm]").forEach((b) => (b.onclick = () => tgOpenMember(ms[+b.dataset.hqm])));
@@ -14530,7 +14540,7 @@ async function syncJobs(quiet) {
 		toast(post ? "Your post is ready: now's the moment to put it out" : n - before + " message" + (n - before > 1 ? "s" : "") + " ready to send");
 		try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Celestin Together", { body: post ? "Your post is ready: now's the moment" : "Messages ready to send to your customers", icon: "icons/together-192.png" }); } catch {}
 	}
-	if (current && !current.msgs.length) renderTogetherWelcome();
+	if ($(".hq")) renderTogetherWelcome();
 	if ($("#jobBox")) drawJob($("#jobBox").dataset.kind);
 }
 function openJob(kind, prefill) {
@@ -14913,7 +14923,7 @@ async function syncAgents(quiet) {
 	const n = agentUnseen();
 	if (n > before && !quiet) toast(n - before === 1 ? "An agent has something for you" : "Your agents have " + (n - before) + " new reports");
 	if ($("#agBox") && !$("#agBox").contains(document.activeElement) && !$("#agAsk") && !$("#agSave")) drawAgents(AG_ONLY ? "@" + AG_ONLY : undefined);
-	if (current && !current.msgs.length) renderTogetherWelcome();
+	if ($(".hq")) renderTogetherWelcome();
 }
 function openAgents(edit, ask) {
 	if (!creditsMode() || !account) { openAccount(); return; }
@@ -15020,7 +15030,7 @@ async function syncNeeds() {
 	try { NEEDS = { items: [], yesterday: {}, ...(await api("/api/needs")) }; } catch { return; }
 	railBadges();
 	if ($("#ndBox")) drawNeeds();
-	else if (current && !current.msgs.length && before !== NEEDS.items.length) renderTogetherWelcome();
+	else if ($(".hq") && before !== NEEDS.items.length) renderTogetherWelcome();
 }
 function openNeeds() {
 	if (!creditsMode() || !account) { openAccount(); return; }
@@ -15086,7 +15096,7 @@ async function syncDesks(quiet) {
 	railBadges();
 	const n = deskNew();
 	if (n > before && !quiet) toast(n - before === 1 ? "Your front desk passed you something new" : "Your front desk passed you " + (n - before) + " new things");
-	if (current && !current.msgs.length) renderTogetherWelcome();
+	if ($(".hq")) renderTogetherWelcome();
 	if ($("#deskBox")) drawDesks();
 }
 function openDesks(edit) {
