@@ -21,9 +21,5 @@ s = s.replace('<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">',
 s = s.replace('<svg class="mark"><use href="#logoT"/></svg>Celestin</button></header>', '<svg class="mark"><use href="#logoT"/></svg>Celestin Together</button></header>');
 s = s.replace('<footer class="auth-foot">Free credits every day · no card · your chats stay in your browser</footer>', '<footer class="auth-foot">Free to start · no card · no subscription · made by Celestin</footer>');
 // a workplace, not a chat (the owner, Nov 14): its "+" makes an agent, its sidebar is the team, its own typefaces
-swap('id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"', 'id="newChat" data-tip="New agent" aria-label="New agent"');
-swap('id="newChatTop" aria-label="New chat"', 'id="newChatTop" aria-label="New agent"');
-swap("<!-- your chats and projects:", '<div class="tg-team" id="tgTeam" aria-label="Your team"></div>\n\t\t<!-- your chats and projects:');
-swap("</head>", '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">\n</head>');
 writeFileSync(new URL("together.html", dir), s);
 console.log("together.html built");
