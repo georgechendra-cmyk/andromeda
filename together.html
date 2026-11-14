@@ -12739,6 +12739,8 @@ function addFresh() {
 }
 function signOut(quiet) {
 	if (account && !quiet) api("/api/logout", { method: "POST" }).catch(() => {});
+	// (signed out on purpose: not signed straight back in by Google, until they choose Google again)
+	if (!quiet) { store.set("viaGoogle", false); try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch {} }
 	account = null;
 	me = null;
 	store.set("account", null);
@@ -12885,10 +12887,16 @@ async function googleButton(clientId, mode) {
 	if (!box) return;
 	try { await needGsi(); } catch { if ($("#gsiBtn")) $("#gsiBtn").innerHTML = '<div class="help">Google sign-in couldn\'t load here. Use your email below.</div>'; return; }
 	if (!$("#gsiBtn")) return;
-	google.accounts.id.initialize({ client_id: clientId, callback: (r) => googleDone(r && r.credential), ux_mode: "popup", auto_select: false, cancel_on_tap_outside: true, itp_support: true });
+	// (someone who signed in with Google before is signed straight back in when the browser is signed in to that Google
+	// account: no button, no password, nothing; anyone else gets Google's own "Continue as …" without a click. The owner,
+	// Nov 14: "if i can sign in with google, no need to ask for verification or password or anything". A password Google
+	// itself asks for is Google's own check that the browser is signed in to it: nothing here can skip that)
+	const again = !!store.get("viaGoogle", false);
+	google.accounts.id.initialize({ client_id: clientId, callback: (r) => googleDone(r && r.credential), ux_mode: "popup", auto_select: again, cancel_on_tap_outside: true, itp_support: true, use_fedcm_for_prompt: true });
 	const dark = document.documentElement.getAttribute("data-theme") !== "light";
 	// (in the page's language, like the rest of the card, not the browser's)
 	google.accounts.id.renderButton($("#gsiBtn"), { type: "standard", theme: dark ? "filled_black" : "outline", size: "large", shape: "pill", text: mode === "in" ? "signin_with" : "signup_with", logo_alignment: "center", locale: document.documentElement.lang || "en", width: Math.max(220, Math.min(400, $("#gsiBtn").clientWidth || 320)) });
+	try { google.accounts.id.prompt(); } catch {}
 }
 async function googleDone(credential) {
 	const st = $("#acStatus");
@@ -12897,6 +12905,7 @@ async function googleDone(credential) {
 	say("Signing in with Google…");
 	try {
 		const j = await api("/api/auth/google", { method: "POST", body: JSON.stringify({ credential }) });
+		store.set("viaGoogle", true);
 		signedIn(j, j.made);
 	} catch (e) { say(e.message, true); }
 }
