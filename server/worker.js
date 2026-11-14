@@ -137,7 +137,7 @@ export default {
 			.then(() => runDueAgents(env, ctx)).catch(() => {})
 			.then(() => warmFeeds(env)).catch(() => {})
 			.then(() => runBriefs(env)).catch(() => {})
-			.then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3)])).catch(() => {}));
+			.then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3), env.DB.prepare("DELETE FROM config WHERE k LIKE 'browser:%' AND k < ?").bind(browserDay())])).catch(() => {}));
 	},
 };
 
@@ -3756,15 +3756,10 @@ async function agentSave(req, env, user, ctx) {
 	const kinds = (x) => [...new Set((Array.isArray(x) ? x : []).filter((k) => CONN_KINDS.includes(k)))];
 	const act = JSON.stringify({ send: kinds(b.send).filter((k) => k === "telegram" || k === "discord"), posts: kinds(b.posts), email: b.emails === "auto" || b.emails === "ask" ? b.emails : "" });
 	const notify = String(b.notify || "").trim().slice(0, 600), email = b.email ? 1 : 0, tz = tzIn(b.tz);
-	// (nothing to watch: it works every time, so never more often than hourly; a free account runs one background agent,
-	// hourly at most: the free budget is everyone's)
+	// (nothing to watch: it works every time, so never more often than hourly. No cap by plan: as many agents as anyone
+	// wants, each running on its owner's credits and stopping when they run out. The owner, Nov 14: "do we put a limit on
+	// agents depending on your plan, i think we shouldn't")
 	if (every > 0 && every < 60 && !sources.length) every = 60;
-	const paid = !!user.owner || Number(((await env.DB.prepare("SELECT balance_mc FROM users WHERE id = ?").bind(user.id).first()) || {}).balance_mc) > 0;
-	if (!paid) {
-		if (every > 0 && every < 60) every = 60;
-		const others = await env.DB.prepare("SELECT COUNT(*) AS n FROM agents WHERE user_id = ? AND active = 1 AND id != ?").bind(user.id, String(b.id || "")).first();
-		if (others && others.n >= 1 && b.active !== false) throw fail(402, "Free accounts run one agent in the background at a time. Pause the other one, or add credits to run more.");
-	}
 	const models = JSON.stringify({ quick: (Array.isArray(b.quick) ? b.quick : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 2), work: (Array.isArray(b.work) ? b.work : []).filter((x) => typeof x === "string" && x.length < 120).slice(0, 3) });
 	if (/^[a-f0-9]{24}$/.test(String(b.id || ""))) {
 		const r = await env.DB.prepare("UPDATE agents SET name = ?, goal = ?, every_min = ?, sources = ?, notify = ?, email = ?, models = ?, tz = ?, tzname = ?, act = ?, active = ? WHERE id = ? AND user_id = ?").bind(name, goal, every, JSON.stringify(sources), notify, email, models, tz, tzName(b.tzName), act, b.active === false ? 0 : 1, b.id, user.id).run();
@@ -3824,9 +3819,37 @@ async function runDueAgents(env, ctx) {
 // sees (a screenshot), for the sites that only show themselves to a real browser (the owner, Nov 14: "so it can basically
 // have its own computer"). Public pages only: never a login, never typing into a password box, never paying. Cloudflare's
 // free plan gives 10 minutes of it a day for everyone together, so it's used only when a plain look can't see the page
+// (Cloudflare's free plan: 10 minutes of browser a day for everyone together. Kept under it by the server's own count,
+// so it never runs into a refusal; each person a fair share of it, the owner none needed; a page opened in the last half
+// hour is read from memory, not opened again. The owner, Nov 14: "for the limits… just try to fix it so we can launch")
+const BROWSER_DAY_S = 540, BROWSER_EACH_S = 90, BROWSE_MEM = new Map();
+const browserDay = () => "browser:" + new Date().toISOString().slice(0, 10);
+async function browserLeft(env, who) {
+	const k = browserDay(), mine = k + ":" + ((who && who.uid) || "-");
+	const rows = (await env.DB.prepare("SELECT k, v FROM config WHERE k IN (?, ?)").bind(k, mine).all().catch(() => ({ results: [] }))).results || [];
+	const used = Object.fromEntries(rows.map((r) => [r.k, Number(r.v) || 0]));
+	return Math.min(BROWSER_DAY_S - (used[k] || 0), who && who.uid && !isOwner(who.uid) ? BROWSER_EACH_S - (used[mine] || 0) : Infinity);
+}
+async function browserUsed(env, who, sec) {
+	const k = browserDay();
+	for (const key of [k, ...(who && who.uid ? [k + ":" + who.uid] : [])]) await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = CAST(v AS REAL) + ?").bind(key, String(sec), sec).run().catch(() => {});
+}
+// a page through a free reading service (it renders a page's scripts too): for reading only, when the browser's day is
+// done; public pages only, as everything here
+async function readerText(href, max) {
+	try {
+		const r = await fetch("https://r.jina.ai/" + href, { headers: { "X-Return-Format": "text", Accept: "text/plain" }, signal: AbortSignal.timeout(25000) });
+		if (!r.ok) return null;
+		const t = (await r.text()).replace(/^[\s\S]*?\n(Markdown Content|Text Content):\s*\n/, "");
+		const title = ((/^Title: (.*)$/m.exec(t) || [])[1] || "").slice(0, 200);
+		return t.trim() ? { raw: "", title, type: "text/plain", text: t.slice(0, max), read: true } : null;
+	} catch { return null; }
+}
 const publicUrl = (x) => { try { const u = new URL(String(x)); return /^https?:$/.test(u.protocol) && !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[?::1)/.test(u.hostname) ? u.toString() : null; } catch { return null; } };
-async function browse(env, steps, max = 30000) {
+async function browse(env, steps, max = 30000, who) {
 	if (!env.BROWSER) return { error: "no browser here" };
+	if ((await browserLeft(env, who)) <= 0) return { error: "its browser time for today is used up (it's back tomorrow)", out: true };
+	const t0 = Date.now();
 	let puppeteer, b;
 	// (Cloudflare starts only so many browsers a minute: when it's too soon, it waits and tries once more. Probed Nov 14)
 	for (let k = 0; k < 2 && !b; k++) {
@@ -3868,18 +3891,26 @@ async function browse(env, steps, max = 30000) {
 		out.text = String(await p.evaluate(() => (document.body ? document.body.innerText : "")).catch(() => "")).replace(/\n{3,}/g, "\n\n").slice(0, max);
 		if ((Array.isArray(steps) ? steps : []).some((s) => s && s.shot)) out.shot = "data:image/jpeg;base64," + (await p.screenshot({ type: "jpeg", quality: 60, encoding: "base64" }));
 	} catch (e) { out.error = String((e && e.message) || e).slice(0, 300); }
-	finally { await b.close().catch(() => {}); }
+	finally { await b.close().catch(() => {}); await browserUsed(env, who, Math.ceil((Date.now() - t0) / 1000)); }
 	return out;
 }
 // a page as an agent sees it: read plainly, and when that finds next to nothing (a page its scripts build), opened in the
 // real browser (for a page it keeps watching: at most once an hour, so the day's browser time lasts)
-async function pageSee(env, href, max = 30000, st, key) {
+async function pageSee(env, href, max = 30000, st, key, who) {
 	const p = await pageText(href, max);
-	const thin = !p || p.error || String(p.text || "").replace(/\s+/g, " ").trim().length < 400;
-	if (!thin || !env.BROWSER) return p;
+	const len = (x) => String((x && x.text) || "").replace(/\s+/g, " ").trim().length;
+	if (len(p) >= 400 && !(p && p.error)) return p;
 	if (st && key) { st.br = st.br || {}; if (now() - (st.br[key] || 0) < 3600e3) return p; st.br[key] = now(); }
-	const b = await browse(env, [{ go: href }], max);
-	return b && !b.error && b.text.trim().length > String((p && p.text) || "").trim().length ? { raw: "", title: b.title, type: "text/html", text: b.text, browsed: true } : p;
+	const mem = BROWSE_MEM.get(href);
+	if (mem && now() - mem.at < 1800e3) return { ...mem.page, text: mem.page.text.slice(0, max) };
+	let seen = env.BROWSER ? await browse(env, [{ go: href }], max, who) : null;
+	seen = seen && !seen.error && len(seen) > len(p) ? { raw: "", title: seen.title, type: "text/html", text: seen.text, browsed: true } : null;
+	// (no browser time left today, or it couldn't open it: the free reader)
+	if (!seen) { const r = await readerText(href, max); if (r && len(r) > len(p)) seen = r; }
+	if (!seen) return p;
+	if (BROWSE_MEM.size > 200) BROWSE_MEM.delete(BROWSE_MEM.keys().next().value);
+	BROWSE_MEM.set(href, { at: now(), page: seen });
+	return seen;
 }
 // a page as text (the same rules as the fetch tool: public pages only)
 async function pageText(href, max = 30000) {
@@ -3925,7 +3956,7 @@ async function agentLook(src, st, env, uid) {
 		return { key, label: "your Gmail (" + (src.value || "unread") + ")", fresh: list.filter((m) => !was.has(String(m.id))).slice(0, 10).map((m) => ({ title: "Email from " + m.from + ": " + m.subject, text: "[thread " + m.threadId + ", " + m.date + "] " + String(m.text || "").slice(0, 1500) })), keep: [...new Set([...ids, ...was])].slice(0, 400), mail: true, first };
 	}
 	if (src.type === "url") {
-		const p = await pageSee(env, src.value, 60000, st, key);
+		const p = await pageSee(env, src.value, 60000, st, key, { uid });
 		if (!p || p.error) return { key, error: src.value + ": " + ((p && p.error) || "not a page"), fresh: [], keep: [...was] };
 		const lines = p.text.split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3);
 		const hashes = await Promise.all(lines.map(fp));
@@ -4012,7 +4043,7 @@ async function runAgent(env, ctx, a, manual) {
 			// (research first, when it asks for it: two more rounds at most)
 			for (let round = 0; round < 2 && j && j.more && !j.report && !spent.broke; round++) {
 				const mo = j.more || {}, urls = (Array.isArray(mo.read) ? mo.read : []).filter((x) => /^https?:\/\//.test(String(x))).slice(0, 4);
-				const [pages, news, wiki, seen] = await Promise.all([Promise.all(urls.map((u) => pageSee(env, u, 7000))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiSearch(String(q), 3))), Array.isArray(mo.browse) && mo.browse.length && env.BROWSER ? browse(env, mo.browse, 12000) : null]);
+				const [pages, news, wiki, seen] = await Promise.all([Promise.all(urls.map((u) => pageSee(env, u, 7000, null, null, { uid: a.user_id }))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiSearch(String(q), 3))), Array.isArray(mo.browse) && mo.browse.length && env.BROWSER ? browse(env, mo.browse, 12000, { uid: a.user_id }) : null]);
 				found += "\n\n" + [...pages.map((p, i) => p && !p.error ? "Read " + urls[i] + ":\n" + p.text : "Couldn't read " + urls[i]), ...news.flat().map((x) => "- " + x.title + " · " + x.url + " · " + x.text), ...wiki.flat().map((x) => "- " + x.title + " · " + x.url + "\n" + x.text), ...(seen ? ["In your browser (" + (seen.did || []).join(", ") + ")" + (seen.error ? ": " + seen.error : ", now at " + seen.url + ":\n" + seen.text)] : [])].join("\n\n");
 				look = "Researched (" + (round + 1) + ")";
 				j = jsonIn(await ask(round === 1));
