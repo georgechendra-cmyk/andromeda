@@ -3487,6 +3487,10 @@ const AI_TELLS = {
 };
 // (never one default swapped for the next: every choice comes from this subject, these people and the decided look)
 const tellsFor = (...k) => "Never the generic AI look. Each of these marks work as AI-made at a glance (unless they asked for it, or it's their own brand's), and don't swap one for the next default either: every choice comes from this subject, these people and the decided look.\n- " + k.map((x) => AI_TELLS[x]).filter(Boolean).join("\n- ");
+// Typefaces that come with PowerPoint (on Windows and Mac), so a deck looks as it was made on any computer, each with what
+// it says: a deck's type is chosen for its occasion too, never one typeface for every deck
+const OFFICE_FONTS = { Georgia: "warm, classic, very readable serif", Cambria: "sturdy, formal serif", Garamond: "classic, literary, elegant serif", "Palatino Linotype": "elegant, humanist serif", "Book Antiqua": "old-style, bookish serif", "Baskerville Old Face": "refined, traditional serif for headings", "Bodoni MT": "high-contrast fashion and luxury serif", Constantia: "calm, refined serif", "Century Schoolbook": "friendly schoolbook serif", Rockwell: "sturdy, vintage slab serif", Calibri: "neutral, soft sans", Aptos: "modern, neutral sans", "Franklin Gothic Medium": "confident, news-like sans", "Gill Sans MT": "classic, friendly British sans", "Century Gothic": "geometric, airy, fashion sans", "Tw Cen MT": "condensed, technical sans", "Trebuchet MS": "friendly, informal sans", Corbel: "calm, modern sans", Candara: "soft, warm sans", Verdana: "wide, plain, very readable sans", "Arial Black": "heavy, loud headings", Impact: "condensed, shouting headings", "Lucida Handwriting": "flowing handwriting, for a word or two", Consolas: "code and figures, monospace" };
+const officeFont = (f, d) => Object.keys(OFFICE_FONTS).find((x) => x.toLowerCase() === String(f || "").trim().toLowerCase()) || d;
 const SKILLBOOK = {
 	design: ["building anything visual people use: sites, apps, games, dashboards, slides", "Design like a top product designer: a clear visual hierarchy, generous spacing on a consistent scale, one typeface family with two or three weights, a restrained palette with one accent, real content (never lorem ipsum), smooth 150-300ms transitions, hover, focus, empty and loading states, responsive down to 360px, accessible contrast and labels. It must look finished and premium, never like a template."],
 	color: ["choosing or using colour anywhere: palettes, themes, brands and logos, sites and apps, slides, posters, pictures and films", "Use colour like a senior designer and colourist. (1) Start from meaning and audience, not a favourite hue: what it should feel like, for whom, in which culture and industry. Colour feelings are broadly shared across cultures (a 30-nation study found strong agreement) but local meanings shift them: red is luck and celebration in China and Indonesia but urgency or danger in the West; white is purity in the West and mourning across much of East Asia; green is Islam, wealth and fertility in the Middle East but can hint at infidelity in China; yellow is sunny in Latin America and Africa, envy in Germany. (2) What colours commonly say: blue calm, trust and competence (finance, tech, health) but the most used brand colour, so it stands out least; green growth, health, nature, money; red energy, appetite, urgency, love or danger (food, sales, alerts); orange warm, friendly, playful; yellow optimism and attention (small doses: poor contrast on white); purple luxury, creativity, spirituality; pink tender or bold-playful; browns and earth tones warmth, craft, honesty; black authority, luxury, edge; white clean and spacious; gold or brass premium heritage; muted, greyed tones calm and grown-up; neon and high chroma youth, nightlife, energy. (3) Harmony picks the hues: monochromatic (one hue, many lightnesses: calm, elegant), analogous (neighbours: cohesive, natural), complementary (opposites: vivid, one must dominate), split-complementary (a hue and the two beside its opposite: contrast with less tension), triadic (three evenly spaced: playful, one dominant). Proportion makes it work: about 60% dominant (usually a neutral tinted toward the main hue), 30% secondary, 10% accent, and the accent only on what matters (the main action, the key word). (4) Lightness before hue: readability comes from lightness contrast (squint to check); text at least 4.5:1 against its background, 3:1 for large text and controls; never colour alone to carry meaning (about 1 in 12 men has a red-green deficiency): add a label, icon or shape. (5) Build palettes perceptually (OKLCH): a neutral scale that is the main hue at very low chroma (never dead grey), one accent scale with even lightness steps and steady chroma, and success, warning and error pulled slightly toward the palette; derive hover states and tints by mixing, not new hues. (6) Dark themes: near-black, not pure black; off-white text, not pure white; higher surfaces lighter, not shadowed; accents a little desaturated and lighter so they don't vibrate. (7) Mood lives in saturation and temperature: warm colours advance and energise, cool ones recede and calm; high chroma shouts (use little), muted reads expensive; a warm and cool contrast gives depth, but everywhere it becomes a cliché. (8) Films and pictures: plan colour per scene like a colour script, shifting with the story (cool and desaturated for loss or tension, warm and saturated for joy, one saturated colour to point the eye); light has a colour (golden hour, overcast, neon, tungsten) and everything in the scene takes it on. (9) Never the generic AI look: purple or violet-to-blue gradients, neon on black, rainbow gradients, everything saturated. Fewer colours, each chosen for a reason, always win."],
@@ -8025,6 +8029,112 @@ async function lookEvidence(plan, text, atts, hold) {
 	}
 	return ev;
 }
+// ---- Typefaces for the occasion, out of all of Google Fonts (fonts.json: every family with Google's own tags for how it
+// feels, its themes and seasons, and how well it's made): the request's words, its occasion and what was researched about
+// the occasion's look are matched to Google's tags, and the art director picks from the typefaces that fit best, never from
+// a short list or a habit; the curated FONT_LIST when nothing matches
+// (words people use, and Google's tags for typefaces that feel that way, with how much)
+const FEEL_WORDS = Object.entries({
+	"beach|seaside|island|bali|surf|tropical|summer|sunny|sunshine": "happy 1, calm .6, playful .6, informal script .3",
+	"morning|sunday|breakfast|brunch|slow": "calm .9, happy .5, sincere .4",
+	"cafe|coffee|kopi|tea|bakery|bread": "sincere .7, vintage .5, calm .5, happy .4",
+	"cake|cakes|pastry|dessert|sweet|sweets|candy|ice cream|donut|cupcake": "cute .9, happy .8, playful .7, rounded sans .4",
+	"kid|kids|children|child|school|toy|toys|daycare|nursery|playground": "childlike 1, playful .8, cute .6, rounded sans .5, learn to write .3",
+	"baby|newborn|birth": "cute 1, childlike .7, calm .5",
+	"luxury|premium|elegant|elegance|exclusive|boutique|haute": "sophisticated 1, fancy .7, didone serif .4",
+	"fashion|beauty|salon|cosmetic|cosmetics|perfume|jewelry|jewellery|skincare": "sophisticated 1, fancy .6, didone serif .4",
+	"wedding|bridal|bride|invitation|engagement|anniversary": "fancy 1, sophisticated .8, formal script .7, calm .3",
+	"love|romance|romantic|valentine|valentine's": "valentine's day 1, fancy .5, formal script .5, cute .3",
+	"spa|wellness|yoga|meditation|zen|relax|relaxing|peaceful|serene|calm|quiet": "calm 1, sophisticated .4, sincere .4",
+	"clinic|medical|health|hospital|dentist|doctor|pharmacy|therapy|care": "competent 1, calm .8, business .4, humanist sans .4",
+	"law|legal|lawyer|attorney|notary|court": "competent 1, stiff .8, business .8, transitional serif .5",
+	"bank|finance|financial|accounting|insurance|invest|investment|tax|payroll": "business 1, competent 1, stiff .5",
+	"corporate|business|consulting|b2b|enterprise|company|office|report|proposal|professional": "business 1, competent .9",
+	"saas|software|app|platform|startup|dashboard|product": "innovative .8, competent .7, futuristic .4, business .4, geometric sans .3",
+	"tech|technology|ai|robot|robotics|cyber|crypto|blockchain|data|digital|developer": "futuristic 1, innovative .9, techno .5",
+	"space|sci-fi|scifi|galaxy|rocket|future|futuristic|astronaut": "futuristic 1, techno .6",
+	"game|games|gaming|esports|arcade|gamer": "excited .8, loud .7, futuristic .5, playful .5",
+	"pixel|8-bit|8bit|retro game|minecraft": "pixel 1",
+	"retro|vintage|classic|nostalgic|old-school|heritage|antique|traditional": "vintage 1, sincere .3",
+	"barber|barbershop|barbers": "vintage 1, rugged .8, loud .4",
+	"whiskey|bourbon|saloon|western|cowboy|rodeo|ranch": "woodtype .8, rugged 1, vintage .8",
+	"brewery|beer|bar|pub|tavern": "rugged .8, vintage .7, loud .4",
+	"diner|50s|1950s|rockabilly|milkshake": "vintage 1, upright script .5, happy .4",
+	"70s|1970s|disco|groovy|hippie": "vintage 1, playful .6, blobby .4",
+	"1920s|gatsby|art deco|cocktail|cocktails|jazz|speakeasy": "art deco 1, sophisticated .7, vintage .6",
+	"outdoor|outdoors|adventure|camping|hiking|mountain|expedition|trek|surfing": "rugged 1, active .6",
+	"garage|mechanic|workshop|construction|tools|industrial|factory|carpentry": "rugged 1, loud .5, stencil .4",
+	"military|army|crate|tactical": "stencil 1, rugged .8",
+	"gym|fitness|workout|sport|sports|athletic|football|soccer|basketball|running|race|racing|boxing|martial": "active 1, loud .9, excited .7",
+	"sale|promo|discount|deal|flash sale|black friday": "loud 1, excited .8",
+	"festival|concert|music|band|party|club|nightlife|rave|dj|nightclub": "excited 1, loud .8, techno .4",
+	"edm|techno|electronic|synth|synthwave": "techno 1, futuristic .6",
+	"art|gallery|artist|museum|creative|design|studio|portfolio|exhibition|illustration": "artistic 1, sophisticated .4, innovative .3",
+	"theatre|theater|cinema|film|movie|premiere": "artistic .7, loud .5, vintage .3",
+	"horror|scary|spooky|halloween|haunted|zombie": "halloween 1, distressed .8",
+	"grunge|punk|rock|metal|tattoo|skate|skateboard": "distressed .8, rugged .7, loud .6, blackletter .5",
+	"gothic|medieval|fantasy|castle|rpg|dragon|knight|kingdom": "medieval 1, blackletter .6, fancy .3",
+	"christmas|xmas|santa|noel": "christmas 1, happy .5",
+	"chinese new year|lunar new year|imlek|lunar": "lunar new year 1",
+	"diwali": "diwali 1", "holi": "holi 1", "hanukkah": "hanukkah 1", "kwanzaa": "kwanzaa 1",
+	"eid|ramadan|lebaran|idul fitri": "sincere .7, calm .6, fancy .5",
+	"funeral|memorial|obituary|condolence|condolences|sympathy|remembrance|grief": "calm 1, sincere 1, stiff .5, sophisticated .4, old style garalde serif .4",
+	"charity|nonprofit|non-profit|community|volunteer|church|mosque|temple|donation": "sincere 1, calm .6, happy .4",
+	"handmade|craft|crafts|diy|artisan|florist|flower|flowers|garden|plants|pottery": "sincere .8, artistic .5, calm .4, handwritten script .4",
+	"farm|organic|natural|eco|sustainable|vegan|green": "sincere .8, calm .5, rugged .4",
+	"food|restaurant|menu|warung|street food|noodle|noodles|kitchen|catering": "happy .6, sincere .6, loud .3",
+	"sushi|ramen|japanese|brush|calligraphy|ink": "brush .8, artistic .4",
+	"comic|comics|cartoon|funny|silly|wacky|meme|joke": "wacky 1, playful .9, childlike .5",
+	"pet|pets|dog|dogs|cat|cats|puppy|kitten|vet|grooming": "cute 1, playful .8, happy .6",
+	"newspaper|news|magazine|editorial|journal|blog|article|newsletter": "competent .8, easy reading .6, old style garalde serif .5, transitional serif .5",
+	"book|books|novel|story|stories|poetry|poem|literary|library|author": "old style garalde serif .8, sincere .6, calm .5, easy reading .5",
+	"education|learning|course|study|tutor|lesson|teacher|university|campus": "competent .8, easy reading .8, sincere .4, happy .3",
+	"government|official|civic|council|ministry|embassy": "stiff 1, competent 1, business .5",
+	"hotel|resort|villa|retreat": "sophisticated .9, calm .7",
+	"real estate|property|properties|architecture|architect|interior|furniture": "sophisticated .7, competent .7, geometric sans .5",
+	"car|cars|automotive|motor|motorcycle|dealership": "active .8, rugged .5, loud .5, futuristic .5",
+	"travel|tour|tours|trip|vacation|journey|explore": "happy .8, calm .5, playful .4, active .3",
+	"bold|loud|strong|powerful|shout|impact": "loud 1",
+	"minimal|minimalist|clean|simple|plain": "calm 1, competent .5, neo grotesque sans .4",
+	"friendly|warm|welcoming|cozy|cosy|homely|family": "sincere .8, happy .6, humanist sans .4",
+	"fun|playful|cheerful|joyful|happy|bright|colourful|colorful": "playful 1, happy 1",
+	"rounded|soft|gentle|bubbly": "rounded sans 1, cute .4, blobby .3",
+	"formal|serious|official": "stiff .8, competent .8",
+	"handwritten|handwriting|personal|note|letter|diary|journaling": "handwritten script 1, informal script .6, sincere .6",
+	"script|cursive": "formal script .8, upright script .5",
+	"modern|innovative|contemporary": "innovative .8, competent .4",
+}).flatMap(([ks, v]) => ks.split("|").map((k) => [k, v.split(",").map((x) => { const t = x.trim(), i = t.lastIndexOf(" "); return [t.slice(0, i), Number(t.slice(i + 1))]; })]));
+const LANG_SCRIPT = { japanese: "jpn", korean: "kor", chinese: "zhs", arabic: "ara", persian: "ara", urdu: "ara", hebrew: "heb", thai: "tha", russian: "cyr", ukrainian: "cyr", bulgarian: "cyr", serbian: "cyr", greek: "grk", hindi: "dev", marathi: "dev", nepali: "dev", vietnamese: "vie" };
+var FONTS_ALL = null;
+async function allFonts() {
+	if (FONTS_ALL) return FONTS_ALL;
+	try { const r = await fetch("fonts.json", { cache: "force-cache" }); FONTS_ALL = r.ok ? ((await r.json()).fonts || []) : []; } catch { FONTS_ALL = []; }
+	return FONTS_ALL;
+}
+// the typefaces that fit these words best (headings and text), by Google's tags and quality, never one just used for
+// something else, in a different order each time; null when the words say nothing about the feel
+async function fontPool(words, lang, used) {
+	const all = await allFonts();
+	if (!all.length) return null;
+	const text = " " + String(words || "").toLowerCase().replace(/[^a-z0-9'&\- ]+/g, " ").replace(/\s+/g, " ") + " ";
+	const want = {};
+	for (const [k, tags] of FEEL_WORDS) if (text.includes(" " + k + " ")) for (const [t, w] of tags) want[t] = Math.max(want[t] || 0, w);
+	if (!Object.keys(want).length) return null;
+	const sc = LANG_SCRIPT[String(lang || "").toLowerCase()] || "";
+	// (made for the text's own script: for Latin text, only typefaces made for Latin first; and none of the least well made,
+	// by Google's own quality scores)
+	const fits = (f) => (sc ? String(f[6]).split(" ").includes(sc) : f[5] && !f[8]) && (!f[3] || f[3] >= 60) && !used.has(String(f[0]).toLowerCase());
+	const feelOf = (f) => Object.fromEntries(String(f[7] || "").split(", ").filter(Boolean).map((x) => { const i = x.lastIndexOf(" "); return [x.slice(0, i), Number(x.slice(i + 1))]; }));
+	const scored = all.filter(fits).map((f) => { const feel = feelOf(f); return { f, fit: Object.entries(want).reduce((a, [t, w]) => a + w * (feel[t] || 0) / 100, 0) + (f[3] || 50) / 500 + Math.random() * 0.12 }; }).filter((x) => x.fit > 0.35).sort((a, b) => b.fit - a.fit);
+	const pick = (ok, max) => { const out = [], per = {}; for (const x of scored) { if (out.length >= max) break; if (!ok(x.f)) continue; per[x.f[1]] = (per[x.f[1]] || 0) + 1; if (per[x.f[1]] > Math.ceil(max / 2)) continue; out.push(x.f); } return out; };
+	const heads = pick(() => true, 26);
+	let texts = pick((f) => f[2] === "b", 16);
+	// (text faces too, when the feel is all display faces: the best-made readable ones, a few each time)
+	if (texts.length < 6) texts = [...texts, ...all.filter((f) => fits(f) && f[2] === "b" && !texts.includes(f) && /calm|competent|sincere|easy reading/.test(f[7] || "")).sort((a, b) => (b[3] || 0) - (a[3] || 0)).slice(0, 60).map((f) => [Math.random(), f]).sort((a, b) => a[0] - b[0]).slice(0, 8 - texts.length).map(([, f]) => f)];
+	const both = [...new Set([...heads, ...texts])];
+	if (both.length < 10) return null;
+	return both.map((f) => ({ name: f[0], kind: f[1], use: f[2], tags: f[7] || f[1] })).map((x) => [Math.random(), x]).sort((a, b) => a[0] - b[0]).map(([, x]) => x);
+}
 // the art director's decision, checked: real hex colours, text that reads (4.5:1) and controls that stand out (3:1),
 // fixed in code where they don't; typefaces only from the list (or the brand's own), never one just used for something else
 async function lookFor(plan, text, atts) {
@@ -8044,7 +8154,9 @@ async function lookFor(plan, text, atts) {
 		const used = new Set(past.slice(-6).flatMap((l) => l.fonts || []).map((f) => String(f).toLowerCase()));
 		const brandType = ((ev.site && ev.site.fonts) || []).filter((f) => f.google).map((f) => f.name);
 		// (in a different order each time: a list read top-down always hands its first lines the most picks)
-		const offer = FONT_LIST.filter((f) => !used.has(f.name.toLowerCase())).map((f) => [Math.random(), f]).sort((a, b) => a[0] - b[0]).map(([, f]) => f);
+		// (typefaces for this occasion out of all of Google Fonts, by Google's own tags; the curated list when nothing matches)
+		const pool = await fontPool([plan.mood, plan.craft, plan.request || text, moodNote].join(" "), plan.profile && plan.profile.language, used);
+		const offer = pool || FONT_LIST.filter((f) => !used.has(f.name.toLowerCase())).map((f) => [Math.random(), f]).sort((a, b) => a[0] - b[0]).map(([, f]) => f);
 		const m = bestFor("look")[0];
 		if (!m) return null;
 		const id = (m.m || m).id;
@@ -8059,7 +8171,7 @@ async function lookFor(plan, text, atts) {
 		const prompt = "You are the art director for this: " + String(plan.request || text).slice(0, 2500) + "\nWhat it is: " + (plan.craft || plan.way) + (plan.brand ? ", for " + plan.brand : "") + "." + (lang ? " Its audience reads " + lang + "." : "") +
 			"\n\nDecide its colours and typefaces from evidence, never from habit: an art director who reaches for the same palette and the same fonts every time is guessing. In this order:\n1. The brand's own look, measured below from its real site, logo or pictures: when there is one, keep it (its colours exactly; its typefaces when they're on Google Fonts, else the closest in the list).\n2. What the person said about the look (colours, mood, light or dark, references).\n3. Only then the occasion and the subject: what this occasion's look is (researched below, when it is: build from the palette in it that fits this project best, not always its first), the subject's materials, its place, its era and its light (a barbershop: leather, brass and chalk; a clinic: clean linen and one calm colour), who it's for and their culture, and its category (fit what people expect of it, then stand apart from what every competitor does)." +
 			"\n\nHow colour works (follow it):\n" + SKILLBOOK.color[1] + "\n\n" + tellsFor("colour", "type") +
-			"\n\nTypefaces: ONLY from this list (name | kind | d: headings only, t: text, b: both | its personality)" + (brandType.length ? ", or the brand's own (" + brandType.join(", ") + ")" : "") + ". A display face for headings and a text face for everything else (or one \"b\" family for both); a \"d\" face never sets text:\n" + offer.map((f) => f.name + " | " + f.kind + " | " + f.use + " | " + f.tags).join("\n") +
+			"\n\nTypefaces: ONLY from this list (name | kind | d: headings only, t: text only, b: headings and text | how it feels" + (pool ? ", from Google's own tags, each 0 to 100: the ones that fit this occasion best, out of all " + FONTS_ALL.length + " on Google Fonts" : "") + "). Pick what fits this occasion best by how it feels, not the most familiar name" + (brandType.length ? ", or the brand's own (" + brandType.join(", ") + ")" : "") + ". A display face for headings and a text face for everything else (or one \"b\" family for both); a \"d\" face never sets text:\n" + offer.map((f) => f.name + " | " + f.kind + " | " + f.use + " | " + f.tags).join("\n") +
 			(past.length ? "\n\nPalettes already used for other recent work (background and accent), so not again unless it's the same brand: " + past.map((l) => (l.colors || []).join(" ")).join("; ") + "." : "") +
 			(moodNote ? "\n\nWhat the look of this occasion (" + moodK + ") is, researched:\n" + moodNote : "") +
 			(evid ? "\n\nThe evidence:\n" + evid : "\n\nThere's no brand look to measure: decide from what they said and from the subject.") +
@@ -8079,7 +8191,7 @@ async function lookFor(plan, text, atts) {
 		L.onAccent = [bg, L.text, "#ffffff", "#111111"].sort((p, q) => contrastOf(q, L.accent) - contrastOf(p, L.accent))[0];
 		if (contrastOf(L.onAccent, L.accent) < 4.5 && !brandish) L.accent = readOn(L.accent, L.onAccent, 4.5);
 		L.accentInk = readOn(L.accent, bg, 4.5);
-		const allowed = new Map(FONT_LIST.map((f) => [f.name.toLowerCase(), f]));
+		const allowed = new Map([...FONT_LIST, ...offer].map((f) => [f.name.toLowerCase(), f]));
 		for (const b of brandType) if (!allowed.has(b.toLowerCase())) allowed.set(b.toLowerCase(), { name: b, kind: "", use: "b", tags: "" });
 		const words = L.feel.join(" ").toLowerCase().split(/[^a-z0-9-]+/).filter((w) => w.length > 2);
 		const fit = (uses) => (offer.filter((f) => uses.includes(f.use)).map((f) => [words.filter((w) => f.tags.includes(w)).length, f]).sort((a, b) => b[0] - a[0])[0] || [])[1];
@@ -10616,13 +10728,36 @@ function fileIntent(text, atts) {
 	return null;
 }
 const FILE_ASK = {
-	pptx: tellsFor("slides", "writing") + "\n" + 'A presentation. 8-14 slides unless they say otherwise. One idea per slide; titles state the takeaway ("Costs fall 30% in year two"), not just the topic; at most 5 bullets of a few words each. Use a stat, chart or table slide wherever there are numbers, and never invent precise statistics: use the material given, or round, clearly illustrative figures. Every slide gets 2-4 sentences of speaker notes. Use the look decided for it when the request gives one (its background, text and accent); otherwise pick a palette that suits the subject (light background unless a dark one clearly fits).\nJSON: {"title":"...","subtitle":"...","theme":{"bg":"#FFFFFF","text":"#1A1A1A","accent":"#2F5BEA"},"slides":[{"layout":"title","title":"...","subtitle":"..."},{"layout":"bullets","title":"...","bullets":["..."],"notes":"..."},{"layout":"two","title":"...","left":{"heading":"...","bullets":["..."]},"right":{"heading":"...","bullets":["..."]},"notes":"..."},{"layout":"stat","title":"...","stats":[{"value":"87%","label":"..."}],"notes":"..."},{"layout":"chart","title":"...","chart":{"type":"bar|line|pie","labels":["..."],"series":[{"name":"...","values":[1,2]}]},"notes":"..."},{"layout":"table","title":"...","table":{"head":["..."],"rows":[["..."]]},"notes":"..."},{"layout":"quote","quote":"...","by":"...","notes":"..."},{"layout":"section","title":"...","subtitle":"..."}]}',
+	pptx: tellsFor("slides", "writing") + "\nThe deck's two typefaces (theme.heading and theme.body), chosen for this occasion only from these, which come with PowerPoint so it looks right on any computer (when a look was decided for it, the closest to its typefaces): " + Object.entries(OFFICE_FONTS).map(([k, v]) => k + " (" + v + ")").join(", ") + ".\n" + 'A presentation. 8-14 slides unless they say otherwise. One idea per slide; titles state the takeaway ("Costs fall 30% in year two"), not just the topic; at most 5 bullets of a few words each. Use a stat, chart or table slide wherever there are numbers, and never invent precise statistics: use the material given, or round, clearly illustrative figures. Every slide gets 2-4 sentences of speaker notes. Use the look decided for it when the request gives one (its background, text and accent); otherwise pick a palette that suits the subject (light background unless a dark one clearly fits).\nJSON: {"title":"...","subtitle":"...","theme":{"bg":"#FFFFFF","text":"#1A1A1A","accent":"#2F5BEA","heading":"one from the list","body":"one from the list"},"slides":[{"layout":"title","title":"...","subtitle":"..."},{"layout":"bullets","title":"...","bullets":["..."],"notes":"..."},{"layout":"two","title":"...","left":{"heading":"...","bullets":["..."]},"right":{"heading":"...","bullets":["..."]},"notes":"..."},{"layout":"stat","title":"...","stats":[{"value":"87%","label":"..."}],"notes":"..."},{"layout":"chart","title":"...","chart":{"type":"bar|line|pie","labels":["..."],"series":[{"name":"...","values":[1,2]}]},"notes":"..."},{"layout":"table","title":"...","table":{"head":["..."],"rows":[["..."]]},"notes":"..."},{"layout":"quote","quote":"...","by":"...","notes":"..."},{"layout":"section","title":"...","subtitle":"..."}]}',
 	xlsx: 'A spreadsheet that works: a header row, realistic rows, and real formulas (strings starting with =, using A1 references, e.g. "=SUM(B2:B13)" or "=B2*C2") for every total and derived value so it recalculates when they change a number. Several sheets only when it helps (e.g. Inputs, Monthly, Summary). Column format is one of currency, percent, number, integer, date, text, or an Excel format string.\nJSON: {"title":"...","sheets":[{"name":"...","columns":[{"header":"...","format":"text","width":18}],"rows":[["...", 1200, "=B2*12"]]}]}',
 	docx: 'A complete, well-structured document: a title, then headings, paragraphs, lists and tables where they help. Plain, specific writing with no filler. **bold** and *italic* are allowed inside text.\nJSON: {"title":"...","subtitle":"...","blocks":[{"type":"h1","text":"..."},{"type":"p","text":"..."},{"type":"bullets","items":["..."]},{"type":"numbered","items":["..."]},{"type":"table","head":["..."],"rows":[["..."]]},{"type":"quote","text":"..."},{"type":"h2","text":"..."}]}',
 };
 FILE_ASK.pdf = FILE_ASK.docx;
 // the values worked out for a spreadsheet are for showing, not for the model to copy
 const noCalc = (k, v) => (k === "calc" ? undefined : v);
+// The marks of AI-made slides and writing, found in what was written (free: no model reads it): the same layout on every
+// slide, walls of text, stock slides, stock AI words and phrases, em dashes all through it
+function fileTells(fmt, d) {
+	const out = [];
+	if (fmt === "xlsx" || !d) return out;
+	const slides = d.slides || [];
+	const words = JSON.stringify(fmt === "pptx" ? slides.map((x) => [x.title, x.subtitle, x.bullets, x.left, x.right, x.quote, (x.stats || []).map((y) => y.label)]) : d.blocks || []);
+	if (fmt === "pptx" && slides.length >= 5) {
+		const count = slides.reduce((a, x) => ((a[x.layout] = (a[x.layout] || 0) + 1), a), {}), top = Object.entries(count).sort((a, b) => b[1] - a[1])[0];
+		if (top && top[1] / slides.length > 0.6) out.push("The same layout (" + top[0] + ") on " + top[1] + " of " + slides.length + " slides: give each idea the layout that suits it (a big number, a chart, two sides, a quote, a table).");
+		const walls = slides.filter((x) => (x.bullets || []).length > 5 || plain([...(x.bullets || []), ...((x.left && x.left.bullets) || []), ...((x.right && x.right.bullets) || [])].join(" ")).split(/\s+/).length > 60).length;
+		if (walls) out.push(walls + " slide" + (walls > 1 ? "s" : "") + " with a wall of text: at most 4 short points on a slide, the rest in its speaker notes.");
+		const stock = slides.map((x) => String(x.title || "").trim()).filter((t) => /^(agenda|introduction|overview|conclusion|summary|thank you!?|thanks!?|questions\??|q ?& ?a|any questions\??)$/i.test(t));
+		if (stock.length) out.push("Stock slides (" + stock.join(", ") + "): cut them, or make each one say something specific.");
+	}
+	const w = [...new Set((words.match(TELL_WORDS) || []).map((x) => x.toLowerCase()))];
+	if (w.length) out.push("Stock AI words (" + w.slice(0, 6).join(", ") + "): plain, specific words instead.");
+	const ph = [...new Set((words.match(/\b(it'?s worth noting|in conclusion|in today'?s (?:fast[- ]paced|digital) world|not only\b[^.]{0,80}?\bbut also|it'?s not just\b)/gi) || []).map((x) => x.toLowerCase().slice(0, 40)))];
+	if (ph.length) out.push("Stock AI phrases (" + ph.slice(0, 4).join("; ") + "): say it directly.");
+	const dashes = (words.match(/\u2014/g) || []).length;
+	if (dashes >= 3) out.push("Em dashes all through it (" + dashes + "): commas, full stops or colons.");
+	return out;
+}
 async function runFile(text, atts, pick) {
 	const lastFile = [...current.msgs].reverse().find((m) => m.kind === "file" && m.data);
 	const prev = pick.edit ? lastFile : null, src = pick.from ? lastFile : null;
@@ -10636,7 +10771,7 @@ async function runFile(text, atts, pick) {
 		: "Make this: " + text + "\n\n" + FILE_ASK[fmt] + (src ? "\n\nMake it from this " + FILE_INFO[src.data.fmt].label + " file's content (JSON), keeping its substance:\n" + JSON.stringify(src.data.spec, noCalc) : "") + (material ? "\n\nUse this material (it's the source of truth for names, facts and numbers):\n" + material : "")) +
 		"\n\nReturn ONLY the JSON." + (langLine() ? "\n" + langLine() + " Keep the JSON keys in English." : "");
 	// Word and PDF hold the same content: one becomes the other as it is, nothing rewritten
-	let spec = src && (src.data.fmt === fmt || (/^(docx|pdf)$/.test(src.data.fmt) && /^(docx|pdf)$/.test(fmt))) ? src.data.spec : null, lastErr = null;
+	let spec = src && (src.data.fmt === fmt || (/^(docx|pdf)$/.test(src.data.fmt) && /^(docx|pdf)$/.test(fmt))) ? src.data.spec : null, lastErr = null, writer = null;
 	if (spec) msg.used = [{ name: "Celestin", desc: info.label + ": made from the " + FILE_INFO[src.data.fmt].label + " file, unchanged" }];
 	// (the pick and two backups, as everywhere else: found Nov 7, five each time, and the "find another way" retry runs
 	// this up to three times, so an output that keeps failing could be paid for fifteen times)
@@ -10647,6 +10782,7 @@ async function runFile(text, atts, pick) {
 			spec = parseJSON(out);
 			if (fmt === "pptx" ? !(spec.slides || []).length : fmt === "xlsx" ? !(spec.sheets || []).length : !(spec.blocks || []).length) throw new Error("The content came back empty");
 			lastErr = null;
+			writer = c.id;
 			break;
 		} catch (e) {
 			if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
@@ -10654,6 +10790,17 @@ async function runFile(text, atts, pick) {
 		}
 	}
 	if (!spec) throw lastErr || new Error("No model could write that file.");
+	// the marks of AI-made slides and writing: found in what was written, and written once more without them
+	const tells = writer && !prev ? fileTells(fmt, spec) : [];
+	if (tells.length) {
+		msg.status = "Taking out what makes it look AI-made";
+		updateLast();
+		try {
+			const out = await stream(writer, [{ role: "user", content: prompt }, { role: "assistant", content: JSON.stringify(spec) }, { role: "user", content: "Marks of AI-made work were found in it:\n- " + tells.join("\n- ") + "\n\nReturn the whole thing again as the same JSON without them, keeping everything that's good. Return ONLY the JSON." }], () => {}, busy.signal, { response_format: { type: "json_object" }, ...effortExtra(writer) }, msg);
+			const again = parseJSON(out);
+			if (again && (fmt === "pptx" ? (again.slides || []).length : (again.blocks || []).length)) { spec = again; msg.used.push({ name: "Celestin", desc: "AI-look check: found " + tells.length + " mark" + (tells.length > 1 ? "s" : "") + " of AI-made work, written again without them" }); }
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
 	msg.status = "Building the " + info.label + " file";
 	updateLast();
 	await loadFileLib(fmt);
@@ -10671,11 +10818,10 @@ async function makePptx(d) {
 	p.title = plain(d.title) || "Presentation";
 	p.company = "Made with Celestin";
 	const bg = hex6(d.theme?.bg, "FFFFFF"), text = hex6(d.theme?.text, lum(bg) < 0.45 ? "F5F5F5" : "1A1A1A"), accent = hex6(d.theme?.accent, "2F5BEA");
-	const muted = lum(bg) < 0.45 ? "A0A0A0" : "6B6B6B", font = "Calibri";
+	const muted = lum(bg) < 0.45 ? "A0A0A0" : "6B6B6B", font = officeFont(d.theme?.body, "Calibri"), headFont = officeFont(d.theme?.heading, font);
 	const T = (o) => ({ fontFace: font, color: text, valign: "top", margin: 0, ...o });
 	const title = (sl, t) => {
-		sl.addText(plain(t), T({ x: 0.6, y: 0.45, w: 12.1, h: 0.95, fontSize: 30, bold: true, valign: "bottom", fit: "shrink" }));
-		sl.addShape(p.ShapeType.rect, { x: 0.6, y: 1.5, w: 1.1, h: 0.07, fill: { color: accent }, line: { color: accent } });
+		sl.addText(plain(t), T({ x: 0.6, y: 0.45, w: 12.1, h: 0.95, fontSize: 30, bold: true, valign: "bottom", fit: "shrink", fontFace: headFont }));
 	};
 	const bullets = (sl, items, x, y, w, h, size = 20) => sl.addText((items || []).slice(0, 7).map((b) => ({ text: plain(b), options: { bullet: { indent: 18 }, paraSpaceAfter: 10 } })), T({ x, y, w, h, fontSize: size, fit: "shrink" }));
 	(d.slides || []).slice(0, 40).forEach((s, k) => {
@@ -10684,7 +10830,7 @@ async function makePptx(d) {
 		const L = s.layout;
 		if (L === "title" || L === "section") {
 			sl.addShape(p.ShapeType.rect, { x: 0, y: 0, w: 0.28, h: 7.5, fill: { color: accent }, line: { color: accent } });
-			sl.addText(plain(s.title || d.title), T({ x: 1, y: L === "title" ? 2.3 : 2.7, w: 11.3, h: 1.6, fontSize: L === "title" ? 44 : 36, bold: true, valign: "bottom", fit: "shrink" }));
+			sl.addText(plain(s.title || d.title), T({ x: 1, y: L === "title" ? 2.3 : 2.7, w: 11.3, h: 1.6, fontSize: L === "title" ? 44 : 36, bold: true, valign: "bottom", fit: "shrink", fontFace: headFont }));
 			if (s.subtitle || (L === "title" && d.subtitle)) sl.addText(plain(s.subtitle || d.subtitle), T({ x: 1, y: L === "title" ? 4.05 : 4.45, w: 11.3, h: 1, fontSize: 20, color: muted }));
 		} else if (L === "two") {
 			title(sl, s.title);
@@ -10697,7 +10843,7 @@ async function makePptx(d) {
 			title(sl, s.title);
 			const st = (s.stats || []).slice(0, 4), w = 12.1 / Math.max(1, st.length);
 			st.forEach((x, j) => {
-				sl.addText(plain(x.value), T({ x: 0.6 + j * w, y: 2.4, w: w - 0.3, h: 1.4, fontSize: st.length > 3 ? 44 : 60, bold: true, color: accent, valign: "bottom", fit: "shrink" }));
+				sl.addText(plain(x.value), T({ x: 0.6 + j * w, y: 2.4, w: w - 0.3, h: 1.4, fontSize: st.length > 3 ? 44 : 60, bold: true, color: accent, valign: "bottom", fit: "shrink", fontFace: headFont }));
 				sl.addText(plain(x.label), T({ x: 0.6 + j * w, y: 3.95, w: w - 0.3, h: 1.6, fontSize: 18, color: muted }));
 			});
 		} else if (L === "chart" && s.chart) {
@@ -10705,7 +10851,8 @@ async function makePptx(d) {
 			const type = { line: p.ChartType.line, pie: p.ChartType.pie, doughnut: p.ChartType.doughnut }[s.chart.type] || p.ChartType.bar;
 			const labels = (s.chart.labels || []).map(plain);
 			const series = (s.chart.series || []).slice(0, 6).map((x) => ({ name: plain(x.name), labels, values: (x.values || []).map(Number) }));
-			const pal = [accent, "7F8C9A", "E2683C", "16A085", "C99415", "8B5CF6"];
+			// (the deck's own colours: its accent, then shades of it toward its text and its background)
+		const pal = [accent, ...[0.4, 0.65].map((t) => mixHex("#" + accent, "#" + text, t)), ...[0.4, 0.62].map((t) => mixHex("#" + accent, "#" + bg, t)), "#" + muted].map((c) => c.replace(/^#/, "").toUpperCase());
 			sl.addChart(type, series.length ? series : [{ name: "", labels, values: [] }], { x: 0.6, y: 1.8, w: 12.1, h: 5.2, chartColors: pal, showLegend: series.length > 1 || type === p.ChartType.pie, legendPos: "b", legendColor: text, catAxisLabelColor: text, valAxisLabelColor: muted, dataLabelColor: text, showValue: type === p.ChartType.pie, showPercent: false, valGridLine: { color: lum(bg) < 0.45 ? "333333" : "E5E5E5", size: 0.5 } });
 		} else if (L === "table" && s.table) {
 			title(sl, s.title);
@@ -10713,7 +10860,7 @@ async function makePptx(d) {
 			const rows = (s.table.rows || []).slice(0, 12).map((r) => r.map((c) => ({ text: plain(c) })));
 			sl.addTable(head.length ? [head, ...rows] : rows, { x: 0.6, y: 1.85, w: 12.1, fontFace: font, fontSize: 14, color: text, border: { type: "solid", pt: 0.5, color: lum(bg) < 0.45 ? "444444" : "D9D9D9" }, autoPage: false });
 		} else if (L === "quote") {
-			sl.addText("“" + plain(s.quote).replace(/^["“]|["”]$/g, "") + "”", T({ x: 1.2, y: 1.6, w: 10.9, h: 3.4, fontSize: 32, italic: true, valign: "middle", fit: "shrink" }));
+			sl.addText("“" + plain(s.quote).replace(/^["“]|["”]$/g, "") + "”", T({ x: 1.2, y: 1.6, w: 10.9, h: 3.4, fontSize: 32, italic: true, valign: "middle", fit: "shrink", fontFace: headFont }));
 			if (s.by) sl.addText("— " + plain(s.by), T({ x: 1.2, y: 5.15, w: 10.9, h: 0.6, fontSize: 18, color: accent }));
 		} else {
 			title(sl, s.title);
@@ -11219,6 +11366,7 @@ Each shot is one of two kinds, and you choose for every shot:
 Choose the medium that serves the film: a live-action look mixes stills with real movement where it carries the story; an explainer, a story about an idea, an animated short or a channel-style video can be drawn all the way through, or drawn with stills between. Whatever you choose, keep one consistent look.
 
 Write the plan so the result looks expensive and real:
+- It must not look AI-made: ${AI_TELLS.picture} ${AI_TELLS.film}
 - One consistent LOOK for every shot: the medium (photoreal live action unless they ask for animation, 3D, anime, claymation...), lens and camera language, lighting, colour grade. Describe every recurring person and product IDENTICALLY each time (age, face, hair, clothes, colours, logo text), because each shot is generated separately.
 - Video shots are 4 to 8 seconds, stills 4 to 10, drawn shots 3 to 15. Each "shot" is a prompt of 50-110 words: subject, action, setting, camera move (slow dolly in, orbit, handheld follow, crane up...), framing, lighting, mood. One clear action per shot; no on-screen text in the shot itself (the editor adds captions). Never ask for a split screen or a collage.
 - "frame" is the shot as a still photograph (composition, pose, light): the first frame of a video shot, or the whole of a still, so it must be a beautiful picture on its own.
@@ -12381,7 +12529,7 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 	if (!critics.length) return null;
 	const sheet = await filmSheet(html, total, W, H);
 	const text = "You're the creative director of a top motion-design studio. This is a contact sheet: 12 frames taken evenly through a " + total + "-second film (each one's time under it), made from this brief:\n\n" + brief +
-		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (purple or blue-to-cyan gradients, neon glow, glassy blobs, a typeface every AI uses); a real object at the wrong proportions (a phone drawn like a chunky tablet); a camera that never moves (no push-ins, pans or depth)). Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
+		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (" + AI_TELLS.film + " " + AI_TELLS.picture + " " + AI_TELLS.colour + " " + AI_TELLS.type + "); a real object at the wrong proportions (a phone drawn like a chunky tablet); a camera that never moves (no push-ins, pans or depth)). Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
 	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: [{ type: "text", text }, { type: "image_url", image_url: { url: sheet } }] }], msg, undefined, "high");
 	const j = parseJSON(r.out) || {};
 	return { by: r.model, ship: !!j.ship, fixes: (Array.isArray(j.fixes) ? j.fixes : []).map((x) => String(x).slice(0, 500)).filter((x) => x.trim()).slice(0, 4) };
@@ -12616,21 +12764,71 @@ async function runDrawnImage(text, atts) {
 	const ask = (before
 		? "Here is a picture as SVG:\n" + before.slice(0, 60000) + "\n\n" + text.replace(/^Change this image:\s*/i, "Change it: ") + "\nKeep everything else as it is."
 		: "Draw this as one SVG picture: " + text) +
-		"\n\n" + tellsFor("picture") + "\n\nMake it beautiful, the way a top illustrator and designer would: a strong composition, a considered palette (the one decided for it, when the request gives one), light and depth where they help, crisp shapes, and any words set in clean, readable type (font-family=\"Inter, Helvetica, Arial, sans-serif\"). Nothing external: no images, fonts, scripts or links. Pick the shape that suits it: viewBox=\"0 0 1024 1024\" square, \"0 0 1536 1024\" wide, \"0 0 1024 1536\" tall. Reply with ONLY the SVG, from <svg to </svg>.";
-	let made = null, title = pictureTitle(text);
+		"\n\n" + tellsFor("picture") + "\n\nMake it beautiful, the way a top illustrator and designer would: a strong composition, a considered palette (the one decided for it, when the request gives one), light and depth where they help, crisp shapes, and any words set in clean, readable type, in a font-family every computer has that fits its mood (Georgia or Palatino for warm and classic, Verdana or Trebuchet MS for friendly, Helvetica for plain, Courier for typewritten, Impact for loud), never Inter. Nothing external: no images, fonts, scripts or links. Pick the shape that suits it: viewBox=\"0 0 1024 1024\" square, \"0 0 1536 1024\" wide, \"0 0 1024 1536\" tall. Reply with ONLY the SVG, from <svg to </svg>.";
+	let made = null, title = pictureTitle(text), drawer = null;
+	const clean = (svg) => svg.replace(/<script\b[\s\S]*?<\/script>/gi, "").replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, "");
 	for (const m of bestFor("drawn").slice(0, 3)) {
 		try {
 			const out = await once(m.id, [{ role: "user", content: ask }], { ...effortExtra(m.id) }, msg);
 			const svg = (String(out).match(/<svg\b[\s\S]*<\/svg>/i) || [])[0];
 			if (!svg) continue;
-			made = await svgToPng(svg.replace(/<script\b[\s\S]*?<\/script>/gi, "").replace(/\son\w+\s*=\s*("[^"]*"|'[^']*')/gi, ""));
+			made = await svgToPng(clean(svg));
+			drawer = m;
 			msg.used.push({ name: shortName(m), desc: "Drew it in code" });
 			break;
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 	}
 	if (!made) throw new Error("The picture couldn't be drawn. Try again, or say it differently.");
+	// the AI-look check: a model that sees looks at it; drawn once more without what gave it away
+	try {
+		msg.status = "Checking it doesn't look AI-made";
+		updateLast();
+		const seen = await pictureTells([await shrinkPic(made.png)], text, msg);
+		if (seen) msg.used.push({ name: shortName(seen.by), desc: "AI-look check: looked at it for the marks of AI" });
+		if (seen && seen.tells[0].length >= 2 && drawer) {
+			msg.status = "Drawing it again without the AI look";
+			updateLast();
+			const out = await once(drawer.id, [{ role: "user", content: ask }, { role: "assistant", content: await made.svg.text() }, { role: "user", content: "Someone who has seen thousands of AI pictures says this gives it away as AI-made:\n- " + seen.tells[0].join("\n- ") + "\n\nDraw it again without them, keeping what's good. Reply with ONLY the SVG." }], { ...effortExtra(drawer.id) }, msg);
+			const svg = (String(out).match(/<svg\b[\s\S]*<\/svg>/i) || [])[0];
+			if (svg) { made = await svgToPng(clean(svg)); msg.used.push({ name: shortName(drawer), desc: "Drew it again without what gave it away" }); }
+		}
+	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 	msg.data = { kind: "image", drawn: true, spec: { title, prompt: text }, images: [await vault.put(made.png)], svgs: [await vault.put(made.svg)] };
 	msg.text = "**" + (prev && change ? (prev.data.spec && prev.data.spec.title) || "Your picture" : title || "Your picture") + "** · drawn in code";
+}
+// a picture made small enough to look at (a model that sees needs no more than this)
+async function shrinkPic(b, max = 768) {
+	const url = URL.createObjectURL(b);
+	try {
+		const img = new Image();
+		img.src = url;
+		await img.decode();
+		const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+		const c = document.createElement("canvas");
+		c.width = Math.max(1, Math.round(img.naturalWidth * k));
+		c.height = Math.max(1, Math.round(img.naturalHeight * k));
+		c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+		return c.toDataURL("image/jpeg", 0.82);
+	} finally { URL.revokeObjectURL(url); }
+}
+// The AI-look check for pictures: the model measured best at looking at pictures and saying what matters in them looks at
+// each one, as someone who has seen thousands of AI pictures, for the marks that it was made by AI. { tells: [[...] per
+// picture], by }, or null when nothing could look
+async function pictureTells(urls, what, msg) {
+	const ranked = arenaRank("vision", { "vision:overall": 0.5, "vision:captioning": 0.3, "vision:creative_writing_vision": 0.2 }).filter((x) => (x.m.input || []).includes("image"));
+	for (const e of bestFirst(quarkFirst(ranked, "low")).filter((x) => !NO_EYES.has(x.m.id)).slice(0, 3)) {
+		try {
+			const out = await stream(e.m.id, [{ role: "user", content: [{ type: "text", text: (urls.length > 1 ? "These are " + urls.length + " pictures" : "This is a picture") + " made for: " + String(what).slice(0, 1500) + "\n\nLook at " + (urls.length > 1 ? "each one" : "it") + " as someone who has seen thousands of AI-made pictures would. Name only the real marks that it was made by AI that a viewer would notice, from these and anything else that clearly gives it away: " + AI_TELLS.picture + "\n\nReply with ONLY this JSON: {\"pictures\": [{\"tells\": [\"what gives it away, where\"]}]}, one entry per picture in order, with an empty list for one that looks made by a person." }, ...urls.map((url) => ({ type: "image_url", image_url: { url } }))] }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor(e.m.id, "low") }, msg);
+			const j = parseJSON(out) || {};
+			const list = (Array.isArray(j.pictures) ? j.pictures : []).map((p) => (Array.isArray(p && p.tells) ? p.tells : []).map((t) => String(t).slice(0, 200)).filter(Boolean).slice(0, 5));
+			if (list.length !== urls.length) continue;
+			return { tells: list, by: e.m };
+		} catch (err) {
+			if (err.name === "AbortError" || err.status === 401 || err.status === 402) throw err;
+			if (err.status >= 400 && err.status < 500 && err.status !== 429) { NO_EYES.add(e.m.id); NO_EYES_AT[e.m.id] = Date.now(); store.set("noEyes", NO_EYES_AT); }
+		}
+	}
+	return null;
 }
 async function runImage(text, atts) {
 	// (no picture model connected: drawn in code)
@@ -12661,8 +12859,27 @@ async function runImage(text, atts) {
 	const refs = imgs.map((a) => a.data);
 	const one = () => firstThatWorks(imageModels(kind), (m) => makeImage(m, spec.prompt, { ar: spec.aspect, res: "2K", refs }, msg, busy.signal));
 	const sets = await Promise.allSettled(Array.from({ length: n }, one));
-	const blobs = sets.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+	let blobs = sets.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
 	if (!blobs.length) throw sets.find((r) => r.status === "rejected")?.reason || new Error("The image model didn't return a picture");
+	// the AI-look check: each picture looked at; the most natural first; when every one looks AI-made, made once more,
+	// steering clear of exactly what gave them away
+	try {
+		msg.status = "Checking it doesn't look AI-made";
+		updateLast();
+		const seen = await pictureTells(await Promise.all(blobs.map((b) => shrinkPic(b))), spec.prompt, msg);
+		if (seen) {
+			msg.used.push({ name: shortName(seen.by), desc: "AI-look check: looked at every picture for the marks of AI" });
+			blobs = blobs.map((b, k) => [seen.tells[k].length, k, b]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , b]) => b);
+			if (seen.tells.every((t) => t.length >= 2)) {
+				const avoid = [...new Set(seen.tells.flat())].slice(0, 6);
+				spec.prompt = spec.prompt + " It must not look AI-made: avoid " + avoid.join("; ") + ".";
+				msg.status = "Making it again without the AI look";
+				updateLast();
+				const again = (await Promise.allSettled(Array.from({ length: Math.min(2, n) }, one))).flatMap((r) => (r.status === "fulfilled" ? r.value : []));
+				if (again.length) { blobs = [...again, ...blobs].slice(0, Math.max(n, again.length)); msg.used.push({ name: im.name, desc: "Made it again without what gave the first ones away" }); }
+			}
+		}
+	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 	msg.data = { kind: "image", spec, images: [] };
 	for (const b of blobs) msg.data.images.push(await vault.put(b));
 	msg.text = "**" + (spec.title || "Your image") + "**";
