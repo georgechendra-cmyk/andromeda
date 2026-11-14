@@ -3993,6 +3993,9 @@ async function runAgent(env, ctx, a, manual) {
 	try { sources = JSON.parse(a.sources || "[]"); } catch {}
 	try { act = JSON.parse(a.act || "{}") || {}; } catch {}
 	const posts = (act.posts || []).filter((k) => CONN_KINDS.includes(k)), send = (act.send || []).filter((k) => k === "telegram" || k === "discord"), mail = act.email === "auto" || act.email === "ask" ? act.email : "";
+	// (their Google, through the script in their own account, version 3: a Google Sheet it keeps for them, Google Docs it
+	// writes, and what's coming up in their calendar. "Do every job": the office ones live in Sheets, Docs and a calendar)
+	const gw = await gmailOf(env, a.user_id).then((g) => (Number(g.meta && g.meta.version) >= 3 ? g : null)).catch(() => null);
 	try { models = JSON.parse(a.models || "{}"); } catch {}
 	const quick = (models.quick || []).length ? models.quick : ["deepseek/deepseek-v4.1-flash"], work = (models.work || []).length ? models.work : quick;
 	const once = Number(a.every_min) === 0;
@@ -4028,21 +4031,27 @@ async function runAgent(env, ctx, a, manual) {
 			let found = (await Promise.all(read.map((u) => pageText(u, 8000)))).map((p, i) => p && !p.error ? "Read in full, " + read[i] + ":\n" + p.text : "").filter(Boolean).join("\n\n");
 			const can = [
 				posts.length ? "post for the owner, as them, to: " + posts.join(", ") + " (x and bluesky: under 280 characters; telegram: their channel or chat; discord: their server). Only when posting is part of your job, in their voice, never anything made up" : "",
+				gw ? "keep a Google Sheet for the owner (\"sheet\": rows added to a sheet you name, made the first time with your header; a log of leads, orders, prices, stock, anything worth keeping in rows), write a Google Doc (\"doc\": a quote, a report, a letter, a plan), and read their sheet or calendar first when you need to (in \"more\")" : "",
 				mail ? "write and send email from the owner's Gmail (" + (mail === "ask" ? "each one waits for the owner to approve it before it goes" : "it goes out at once") + "): new emails to real addresses you know, or replies in a thread from their inbox (use its thread id). Sign as the owner's business, in the reader's language, and never promise what the owner didn't say" : "",
 			].filter(Boolean);
 			const ask = (extra) => agentAsk(env, ctx, owner, work, [
 				{ role: "system", content: "You are an AI agent that works by itself, in the background, day and night, for its owner, on Celestin. Do the job completely, like a capable assistant would: real findings, numbers, names, links, and what to do about it. Never make anything up; say what you couldn't find out. Write in the language the job is written in." },
 				{ role: "user", content: what + (newText ? "\n\nNew since your last look:\n" + newText : "") + (found ? "\n\nWhat you've read and found:\n" + found.slice(0, 24000) : "") + (errors.length ? "\n\n(Couldn't look at: " + errors.join("; ") + ")" : "") +
 					(can.length ? "\n\nWhat you can do besides reporting:\n- " + can.join("\n- ") : "") +
-					"\n\nIt's " + local + " where your owner is. " + (extra ? "Research is done: finish the job now." : "If you need to read pages or look things up first to do this well, reply with ONLY {\"more\": {\"read\": [up to 4 links], \"news\": [up to 2 news searches], \"wiki\": [up to 2 encyclopedia searches]" + (env.BROWSER ? ", \"browse\": [steps in your own web browser, for a site that needs one: {\"go\": \"https://...\"}, {\"click\": \"the words on a button or link\"}, {\"type\": [\"a CSS selector\", \"text\"]}, {\"press\": \"Enter\"}, {\"scroll\": true}; public pages only, never logging in or paying]" : "") + "}}. Otherwise do the job now.") +
+					"\n\nIt's " + local + " where your owner is. " + (extra ? "Research is done: finish the job now." : "If you need to read pages or look things up first to do this well, reply with ONLY {\"more\": {\"read\": [up to 4 links], \"news\": [up to 2 news searches], \"wiki\": [up to 2 encyclopedia searches]" + (gw ? ", \"sheet\": \"the name of your sheet, to read it\", \"calendar\": days ahead to read their calendar" : "") + (env.BROWSER ? ", \"browse\": [steps in your own web browser, for a site that needs one: {\"go\": \"https://...\"}, {\"click\": \"the words on a button or link\"}, {\"type\": [\"a CSS selector\", \"text\"]}, {\"press\": \"Enter\"}, {\"scroll\": true}; public pages only, never logging in or paying]" : "") + "}}. Otherwise do the job now.") +
 					" Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already done, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"" +
-					(posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}]" : "") + (mail ? ", \"emails\": [{\"to\": \"an address, or empty for a reply\", \"thread\": \"the thread id when it's a reply\", \"subject\": \"...\", \"body\": \"the whole email\"}]" : "") + "}" },
+					(posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}]" : "") + (mail ? ", \"emails\": [{\"to\": \"an address, or empty for a reply\", \"thread\": \"the thread id when it's a reply\", \"subject\": \"...\", \"body\": \"the whole email\"}]" : "") + (gw ? ", \"sheet\": null or {\"name\": \"its name\", \"header\": [\"column\"], \"rows\": [[\"a row\"]]}, \"doc\": null or {\"title\": \"...\", \"text\": \"the whole document\"}" : "") + "}" },
 			], 3000, spent);
 			// (research rounds for one-offs and looks asked for; a standing agent works from what it was given)
 			let j = jsonIn(await ask(!(once || manual)));
 			// (research first, when it asks for it: two more rounds at most)
 			for (let round = 0; round < 2 && j && j.more && !j.report && !spent.broke; round++) {
 				const mo = j.more || {}, urls = (Array.isArray(mo.read) ? mo.read : []).filter((x) => /^https?:\/\//.test(String(x))).slice(0, 4);
+				// (their sheet and calendar, when it asks to read them)
+				if (gw && (mo.sheet || mo.calendar)) {
+					try { if (mo.sheet) { const r = await gmailCall(gw.c, { action: "sheetRead", name: String(mo.sheet).slice(0, 100), max: 100 }); found += "\n\nYour sheet \"" + mo.sheet + "\":\n" + (r.rows || []).map((x) => x.join(" | ")).join("\n").slice(0, 8000); } } catch (e) { found += "\n\nCouldn't read the sheet: " + (e.message || e); }
+					try { if (mo.calendar) { const r = await gmailCall(gw.c, { action: "calendar", days: Math.min(31, Number(mo.calendar) || 7) }); found += "\n\nTheir calendar:\n" + (r.events || []).map((x) => x.start + " " + x.title + (x.where ? " @ " + x.where : "")).join("\n").slice(0, 6000); } } catch (e) { found += "\n\nCouldn't read the calendar: " + (e.message || e); }
+				}
 				const [pages, news, wiki, seen] = await Promise.all([Promise.all(urls.map((u) => pageSee(env, u, 7000, null, null, { uid: a.user_id }))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiSearch(String(q), 3))), Array.isArray(mo.browse) && mo.browse.length && env.BROWSER ? browse(env, mo.browse, 12000, { uid: a.user_id }) : null]);
 				found += "\n\n" + [...pages.map((p, i) => p && !p.error ? "Read " + urls[i] + ":\n" + p.text : "Couldn't read " + urls[i]), ...news.flat().map((x) => "- " + x.title + " · " + x.url + " · " + x.text), ...wiki.flat().map((x) => "- " + x.title + " · " + x.url + "\n" + x.text), ...(seen ? ["In your browser (" + (seen.did || []).join(", ") + ")" + (seen.error ? ": " + seen.error : ", now at " + seen.url + ":\n" + seen.text)] : [])].join("\n\n");
 				look = "Researched (" + (round + 1) + ")";
@@ -4064,6 +4073,16 @@ async function runAgent(env, ctx, a, manual) {
 					if (mail === "ask" && !autoAll) { logs.push({ kind: "approve", text: JSON.stringify(m) }); continue; }
 					try { await emailSend(env, a.user_id, m); logs.push({ kind: "action", text: "Emailed " + (m.to || "a reply in the thread") + (m.subject ? ": " + m.subject : "") + "\n\n" + m.body.slice(0, 3000) }); }
 					catch (err) { logs.push({ kind: "note", text: "Couldn't send the email to " + (m.to || "the thread") + ": " + (err.message || err) }); }
+				}
+				// (its sheet and its docs, in their Google: each one's link in its log)
+				if (gw && j.sheet && Array.isArray(j.sheet.rows) && j.sheet.rows.length) {
+					const name = String(j.sheet.name || a.name).slice(0, 100), rows = j.sheet.rows.filter(Array.isArray).slice(0, 200).map((r) => r.slice(0, 30).map((x) => String(x == null ? "" : x).slice(0, 2000)));
+					try { const r = await gmailCall(gw.c, { action: "sheet", name, header: Array.isArray(j.sheet.header) ? j.sheet.header.slice(0, 30).map(String) : [], rows }); logs.push({ kind: "action", text: "Added " + rows.length + (rows.length === 1 ? " row" : " rows") + " to your sheet \"" + name + "\"" + (r.url ? " (" + r.url + ")" : "") }); }
+					catch (e) { logs.push({ kind: "note", text: "Couldn't add to the sheet \"" + name + "\": " + (e.message || e) }); }
+				}
+				if (gw && j.doc && String(j.doc.text || "").trim()) {
+					try { const r = await gmailCall(gw.c, { action: "doc", title: String(j.doc.title || a.name).slice(0, 200), text: String(j.doc.text).slice(0, 100000) }); logs.push({ kind: "action", text: "Wrote a Google Doc: " + String(j.doc.title || a.name).slice(0, 200) + (r.url ? " (" + r.url + ")" : "") }); }
+					catch (e) { logs.push({ kind: "note", text: "Couldn't write the doc: " + (e.message || e) }); }
 				}
 				look = String(j.look || look || (j.report ? "Reported" : "Worked: nothing to report")).slice(0, 160);
 			} else if (!spent.broke) look = "Couldn't finish it this time: tries again next look";

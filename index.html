@@ -14694,7 +14694,7 @@ const CONN_INFO = {
 	telegram: { name: "Telegram", c: "#2aabee", what: "Your agents' reports on your phone the moment they find something, and posts to your channel.", how: "In Telegram, open @BotFather, send /newbot and copy the token it gives you. For messages to you: send any message to your new bot. For a channel: add the bot as an admin and write the channel's @name below.", fields: [["token", "Bot token", "123456789:AA…"], ["chat", "Channel (optional)", "@yourchannel, or empty for messages to you"]] },
 	discord: { name: "Discord", c: "#5865f2", what: "Posts and reports in a channel of your server.", how: "In Discord: Server settings → Integrations → Webhooks → New webhook, pick the channel, then Copy webhook URL.", fields: [["webhook", "Webhook URL", "https://discord.com/api/webhooks/…"]] },
 	bluesky: { name: "Bluesky", c: "#1185fe", what: "Marketing posts go out by themselves at the best moment.", how: "In Bluesky: Settings → Privacy and security → App passwords → Add app password. Use it here with your handle (never your real password).", fields: [["handle", "Handle", "yourname.bsky.social"], ["appPassword", "App password", "xxxx-xxxx-xxxx-xxxx"]] },
-	gmail: { name: "Gmail", c: "#ea4335", what: "Your agents read your inbox and send email for you, and front desk bookings go in your Google Calendar.", how: "", fields: [["url", "Your script's web app link", "https://script.google.com/macros/s/…/exec"]] },
+	gmail: { name: "Gmail & Google", c: "#ea4335", what: "Your agents read your inbox and send email for you, keep Google Sheets, write Google Docs and see your Google Calendar; front desk bookings go in it too.", how: "", fields: [["url", "Your script's web app link", "https://script.google.com/macros/s/…/exec"]] },
 	twilio: { name: "Phone calls (Twilio)", c: "#f22f46", what: "Bring customers back can phone them for you: your AI assistant calls, talks and writes down what they said.", how: "On twilio.com: create an account (a paid one calls any number; a trial only calls numbers you've verified), buy a phone number with Voice (Phone Numbers → Buy a number), then copy the Account SID and Auth Token from the console's front page.", fields: [["sid", "Account SID", "AC…"], ["token", "Auth Token", ""], ["from", "Your Twilio number", "+62…"]] },
 	x: { name: "X", c: "#000000", what: "Marketing posts go out by themselves at the best moment.", how: "On developer.x.com: sign up for the free plan, open your app → Settings → User authentication: Read and write. Then Keys and tokens: copy the API key and secret, and generate an access token and secret.", fields: [["apiKey", "API key", ""], ["apiSecret", "API key secret", ""], ["accessToken", "Access token", ""], ["accessSecret", "Access token secret", ""]] },
 };
@@ -14708,7 +14708,8 @@ async function openConns(kind) {
 }
 // the little script that lets their agents use their Gmail: it runs in their own Google account and answers only to the
 // key in it (made here, for them)
-const gmailScript = (key) => `// Celestin: lets your agents read your Gmail, send email for you, and put bookings in your Google Calendar.
+const gmailScript = (key) => `// Celestin: lets your agents read your Gmail, send email for you, put bookings in your Google Calendar, see what's
+// coming up in it, keep a Google Sheet for you and write Google Docs.
 // Only this key can use it.
 const KEY = "${key}";
 function doPost(e) {
@@ -14716,7 +14717,7 @@ function doPost(e) {
   if (b.key !== KEY) return out({ ok: false, error: "wrong key" });
   try {
     var me = Session.getActiveUser().getEmail();
-    if (b.action === "whoami") return out({ ok: true, email: me, left: MailApp.getRemainingDailyQuota(), version: 2 });
+    if (b.action === "whoami") return out({ ok: true, email: me, left: MailApp.getRemainingDailyQuota(), version: 3 });
     if (b.action === "send") {
       if (b.threadId) { var th = GmailApp.getThreadById(b.threadId), ms = th.getMessages().filter(function (x) { return x.getFrom().indexOf(me) < 0; }); (ms.length ? ms[ms.length - 1] : th).reply(b.body); }
       else GmailApp.sendEmail(b.to, b.subject || "", b.body || "");
@@ -14736,6 +14737,26 @@ function doPost(e) {
       var start = new Date(b.start);
       CalendarApp.getDefaultCalendar().createEvent(b.title || "Booking", start, new Date(start.getTime() + (b.minutes || 30) * 60000), { description: b.details || "" });
       return out({ ok: true });
+    }
+    if (b.action === "sheet" || b.action === "sheetRead") {
+      var props = PropertiesService.getScriptProperties(), name = String(b.name || "Celestin").slice(0, 100), sid = props.getProperty("sheet:" + name), ss = null;
+      try { if (sid) ss = SpreadsheetApp.openById(sid); } catch (x) { ss = null; }
+      if (!ss && b.action === "sheetRead") return out({ ok: true, rows: [] });
+      if (!ss) { ss = SpreadsheetApp.create(name); props.setProperty("sheet:" + name, ss.getId()); if (b.header && b.header.length) ss.getSheets()[0].appendRow(b.header); }
+      var sh = ss.getSheets()[0];
+      if (b.action === "sheetRead") return out({ ok: true, url: ss.getUrl(), rows: sh.getDataRange().getValues().slice(-Math.min(300, b.max || 100)) });
+      (b.rows || []).slice(0, 200).forEach(function (r) { sh.appendRow(r); });
+      return out({ ok: true, url: ss.getUrl(), rows: sh.getLastRow() });
+    }
+    if (b.action === "doc") {
+      var d = DocumentApp.create(String(b.title || "From Celestin").slice(0, 200));
+      d.getBody().setText(String(b.text || "").slice(0, 100000));
+      d.saveAndClose();
+      return out({ ok: true, url: d.getUrl() });
+    }
+    if (b.action === "calendar") {
+      var from = new Date(), to = new Date(from.getTime() + Math.min(31, b.days || 7) * 86400000);
+      return out({ ok: true, events: CalendarApp.getDefaultCalendar().getEvents(from, to).slice(0, 100).map(function (x) { return { title: x.getTitle(), start: x.getStartTime().toISOString(), end: x.getEndTime().toISOString(), where: x.getLocation() }; }) });
     }
     return out({ ok: false, error: "unknown action" });
   } catch (err) { return out({ ok: false, error: String(err) }); }
@@ -14779,7 +14800,7 @@ function drawConns(kind) {
 	box.innerHTML = back + '<div class="field desk"><label class="chk" style="font-weight:600"><input type="checkbox" id="cnAuto"' + (PREFS.auto ? " checked" : "") + '> Act without asking</label><div class="help" style="margin:2px 0 0 24px">Emails and replies go out without waiting for your OK. Everything it does is in its log, and it never spends money.</div></div>' +
 		'<div class="field desk"><label class="chk" style="font-weight:600"><input type="checkbox" id="cnBrief"' + (PREFS.brief ? " checked" : "") + '> A morning message when something needs me</label><div class="help" style="margin:2px 0 0 24px">At 8 your time, on Telegram, only on days something is waiting for you. Off unless you turn it on.</div></div>' +
 		(Object.keys(CONN_INFO).some((k) => !connOf(k)) ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn dark" id="cnAll">Connect everything, one after another</button></div>' : "") + Object.entries(CONN_INFO).map(([k, x]) => { const c = connOf(k); return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div class="row" style="gap:10px;align-items:center"><span class="tav" style="--c:' + x.c + ';--s:30px"><b style="color:#fff;font-size:13px">' + esc(x.name[0]) + "</b></span><div><b>" + esc(x.name) + '</b><div class="help">' + esc(c ? "Connected: " + c.name : x.what) + "</div></div></div>" +
-		'<div class="row" style="gap:8px">' + (c ? (k === "gmail" && !((c.meta || {}).version >= 2) ? '<button class="btn dark" data-cnon="gmail">Update its script</button>' : "") + (POST_KINDS.includes(k) || k === "gmail" ? '<button class="btn" data-cntest="' + k + '">Send a test</button>' : "") + '<button class="btn" data-cnoff="' + k + '">Disconnect</button>' : '<button class="btn dark" data-cnon="' + k + '">Connect</button>') + "</div></div></div>"; }).join("") +
+		'<div class="row" style="gap:8px">' + (c ? (k === "gmail" && !((c.meta || {}).version >= 3) ? '<button class="btn dark" data-cnon="gmail">Update its script</button>' : "") + (POST_KINDS.includes(k) || k === "gmail" ? '<button class="btn" data-cntest="' + k + '">Send a test</button>' : "") + '<button class="btn" data-cnoff="' + k + '">Disconnect</button>' : '<button class="btn dark" data-cnon="' + k + '">Connect</button>') + "</div></div></div>"; }).join("") +
 		'<p class="help">Instagram, TikTok, Facebook, LinkedIn and Threads stay one tap for now: they only let apps they have approved post for you.</p>';
 	$$("[data-cnon]").forEach((b) => (b.onclick = () => drawConns(b.dataset.cnon)));
 	if ($("#cnSetup")) $("#cnSetup").onclick = () => openSetup();
@@ -14901,7 +14922,7 @@ function openAgents(edit, ask) {
 // words → a plan to check: what to watch, how often, when to tell you
 async function planAgent(text) {
 	const ask = "Turn this into an AI agent that runs by itself on a server, again and again, while its owner is away.\nWhat they want: " + text +
-		'\n\nIt can: read pages, the news, feeds and the owner\'s Gmail inbox; use its own web browser on our server for sites that need a real one (open, click, type, read, see; public pages only, never logging in or paying); research before it acts; write and send email from their Gmail; post to their X, Bluesky, Telegram or Discord; run once in the background or again and again.' +
+		'\n\nIt can: read pages, the news, feeds and the owner\'s Gmail inbox; use its own web browser on our server for sites that need a real one (open, click, type, read, see; public pages only, never logging in or paying); keep a Google Sheet, write Google Docs and read the owner\'s Google Calendar (through their Google connection); research before it acts; write and send email from their Gmail; post to their X, Bluesky, Telegram or Discord; run once in the background or again and again.' +
 		'\n\nReply with ONLY JSON: {"name": "2 to 4 words", "goal": "its job, written out fully and clearly in the language they wrote in: what to do each time, what good work looks like, what to include in a report", "every": one of 0, 10, 30, 60, 180, 360, 720, 1440 (minutes; 0 = do it once, now, in the background, for a one-time job; otherwise as often as the job truly needs: prices or tickets 10 to 30, an inbox 10 to 30, news 60 to 180, a daily brief or daily writing 1440), "sources": [{"type": "url" or "news" or "rss" or "hn" or "gmail", "value": "a full https link for url or rss, search words for news or hn, or a Gmail search for gmail (e.g. is:unread)"}] (what it should keep an eye on; use only links they gave or that you are sure exist; [] when it just does something), "notify": "when it should tell them, in a few words", "emails": "" or "ask" or "auto" (ask when the job means sending email and they didn\'t say to send without asking; auto only when they did), "posts": [the accounts it should post to, when posting is the job: x, bluesky, telegram, discord]}';
 	for (const m of bestFor("spec").slice(0, 3)) {
 		try { const p = parseJSON(await once(m.id, [{ role: "user", content: ask }], { response_format: { type: "json_object" }, ...effortExtra(m.id) })); if (p && p.goal) return p; } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
