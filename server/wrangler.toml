@@ -1,6 +1,9 @@
 name = "andromeda-credits"
 main = "worker.js"
 compatibility_date = "2025-06-01"
+compatibility_flags = ["nodejs_compat"]
+# its own computer: a real browser on Cloudflare (the free plan: 10 minutes a day for everyone, 3 at once)
+browser = { binding = "BROWSER" }
 
 [vars]
 # the site allowed to call this server (your GitHub Pages address)
@@ -29,3 +32,4 @@ crons = ["*/10 * * * *"]
 #   npx wrangler secret put TAVILY_KEY      (live web search for Gemini and Grok through Cloudflare; 1,000 free a month)
 #   npx wrangler secret put LEMON_SECRET    (only when card payments are set up)
 #   npx wrangler secret put GOOGLE_CLIENT_ID (the "Continue with Google" button: an OAuth client ID for the site's address)
+

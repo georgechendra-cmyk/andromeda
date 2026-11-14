@@ -3820,6 +3820,67 @@ async function runDueAgents(env, ctx) {
 	const due = (await env.DB.prepare("SELECT * FROM agents WHERE active = 1 AND next_at <= ? ORDER BY next_at LIMIT ?").bind(now(), AGENT_TICK).all()).results || [];
 	for (const a of due) { try { await runAgent(env, ctx, a, false); } catch {} }
 }
+// ---- ITS OWN COMPUTER: a real browser on Cloudflare's servers that an agent opens pages in, clicks, types and reads, and
+// sees (a screenshot), for the sites that only show themselves to a real browser (the owner, Nov 14: "so it can basically
+// have its own computer"). Public pages only: never a login, never typing into a password box, never paying. Cloudflare's
+// free plan gives 10 minutes of it a day for everyone together, so it's used only when a plain look can't see the page
+const publicUrl = (x) => { try { const u = new URL(String(x)); return /^https?:$/.test(u.protocol) && !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[?::1)/.test(u.hostname) ? u.toString() : null; } catch { return null; } };
+async function browse(env, steps, max = 30000) {
+	if (!env.BROWSER) return { error: "no browser here" };
+	let puppeteer, b;
+	// (Cloudflare starts only so many browsers a minute: when it's too soon, it waits and tries once more. Probed Nov 14)
+	for (let k = 0; k < 2 && !b; k++) {
+		try { puppeteer = puppeteer || (await import("@cloudflare/puppeteer")).default; b = await puppeteer.launch(env.BROWSER); }
+		catch (e) {
+			const busy = /429|limit|quota|too many/i.test(String(e && e.message));
+			if (busy && k === 0) { await new Promise((r) => setTimeout(r, 15000)); continue; }
+			return { error: busy ? "the browser is busy, or its free time for today is used up: try again later" : "the browser couldn't start: " + String((e && e.message) || e).slice(0, 160) };
+		}
+	}
+	const out = { did: [], text: "", title: "", url: "" };
+	try {
+		const p = await b.newPage();
+		await p.setViewport({ width: 1280, height: 900 });
+		const settle = () => p.waitForNetworkIdle({ idleTime: 500, timeout: 8000 }).catch(() => {});
+		for (const s of (Array.isArray(steps) ? steps : []).slice(0, 10)) {
+			if (!s || typeof s !== "object") continue;
+			if (s.go) { const u = publicUrl(s.go); if (!u) { out.did.push("not a public page: " + String(s.go).slice(0, 80)); continue; } await p.goto(u, { waitUntil: "networkidle2", timeout: 20000 }).catch(() => {}); out.did.push("opened " + u); }
+			else if (s.click) {
+				const what = String(s.click).slice(0, 120);
+				// (a CSS selector, or the words on a button or link, as a person would click it)
+				const hit = await p.evaluate((w) => { let el = null; try { el = document.querySelector(w); } catch {} if (!el) { const t = w.toLowerCase(); el = [...document.querySelectorAll("a,button,[role=button],input[type=submit],input[type=button],summary,label")].find((x) => (x.innerText || x.value || x.getAttribute("aria-label") || "").trim().toLowerCase().includes(t)); } if (!el) return false; el.scrollIntoView({ block: "center" }); el.click(); return true; }, what).catch(() => false);
+				out.did.push((hit ? "clicked " : "couldn't find ") + what);
+				await settle();
+			}
+			else if (Array.isArray(s.type) && s.type.length === 2) {
+				const [sel, words] = s.type.map(String);
+				const secret = await p.$eval(sel, (e) => e.type === "password" || /pass|card|cvv|ssn/i.test(e.name + " " + e.id + " " + e.autocomplete)).catch(() => null);
+				if (secret === null) out.did.push("couldn't find " + sel.slice(0, 80));
+				else if (secret) out.did.push("won't type into a password or card box");
+				else { await p.type(sel, words.slice(0, 500), { delay: 15 }).catch(() => {}); out.did.push("typed into " + sel.slice(0, 80)); }
+			}
+			else if (s.press) { await p.keyboard.press(String(s.press).slice(0, 20)).catch(() => {}); out.did.push("pressed " + s.press); await settle(); }
+			else if (s.scroll) { await p.evaluate(() => window.scrollBy(0, innerHeight * 0.9)).catch(() => {}); out.did.push("scrolled"); }
+			else if (s.wait) await new Promise((r) => setTimeout(r, Math.min(5000, Number(s.wait) || 1000)));
+		}
+		out.url = p.url();
+		out.title = String(await p.title().catch(() => "")).slice(0, 200);
+		out.text = String(await p.evaluate(() => (document.body ? document.body.innerText : "")).catch(() => "")).replace(/\n{3,}/g, "\n\n").slice(0, max);
+		if ((Array.isArray(steps) ? steps : []).some((s) => s && s.shot)) out.shot = "data:image/jpeg;base64," + (await p.screenshot({ type: "jpeg", quality: 60, encoding: "base64" }));
+	} catch (e) { out.error = String((e && e.message) || e).slice(0, 300); }
+	finally { await b.close().catch(() => {}); }
+	return out;
+}
+// a page as an agent sees it: read plainly, and when that finds next to nothing (a page its scripts build), opened in the
+// real browser (for a page it keeps watching: at most once an hour, so the day's browser time lasts)
+async function pageSee(env, href, max = 30000, st, key) {
+	const p = await pageText(href, max);
+	const thin = !p || p.error || String(p.text || "").replace(/\s+/g, " ").trim().length < 400;
+	if (!thin || !env.BROWSER) return p;
+	if (st && key) { st.br = st.br || {}; if (now() - (st.br[key] || 0) < 3600e3) return p; st.br[key] = now(); }
+	const b = await browse(env, [{ go: href }], max);
+	return b && !b.error && b.text.trim().length > String((p && p.text) || "").trim().length ? { raw: "", title: b.title, type: "text/html", text: b.text, browsed: true } : p;
+}
 // a page as text (the same rules as the fetch tool: public pages only)
 async function pageText(href, max = 30000) {
 	let u;
@@ -3864,7 +3925,7 @@ async function agentLook(src, st, env, uid) {
 		return { key, label: "your Gmail (" + (src.value || "unread") + ")", fresh: list.filter((m) => !was.has(String(m.id))).slice(0, 10).map((m) => ({ title: "Email from " + m.from + ": " + m.subject, text: "[thread " + m.threadId + ", " + m.date + "] " + String(m.text || "").slice(0, 1500) })), keep: [...new Set([...ids, ...was])].slice(0, 400), mail: true, first };
 	}
 	if (src.type === "url") {
-		const p = await pageText(src.value, 60000);
+		const p = await pageSee(env, src.value, 60000, st, key);
 		if (!p || p.error) return { key, error: src.value + ": " + ((p && p.error) || "not a page"), fresh: [], keep: [...was] };
 		const lines = p.text.split(/\n+/).map((l) => l.trim()).filter((l) => l.length > 3);
 		const hashes = await Promise.all(lines.map(fp));
@@ -3942,7 +4003,7 @@ async function runAgent(env, ctx, a, manual) {
 				{ role: "system", content: "You are an AI agent that works by itself, in the background, day and night, for its owner, on Celestin. Do the job completely, like a capable assistant would: real findings, numbers, names, links, and what to do about it. Never make anything up; say what you couldn't find out. Write in the language the job is written in." },
 				{ role: "user", content: what + (newText ? "\n\nNew since your last look:\n" + newText : "") + (found ? "\n\nWhat you've read and found:\n" + found.slice(0, 24000) : "") + (errors.length ? "\n\n(Couldn't look at: " + errors.join("; ") + ")" : "") +
 					(can.length ? "\n\nWhat you can do besides reporting:\n- " + can.join("\n- ") : "") +
-					"\n\nIt's " + local + " where your owner is. " + (extra ? "Research is done: finish the job now." : "If you need to read pages or look things up first to do this well, reply with ONLY {\"more\": {\"read\": [up to 4 links], \"news\": [up to 2 news searches], \"wiki\": [up to 2 encyclopedia searches]}}. Otherwise do the job now.") +
+					"\n\nIt's " + local + " where your owner is. " + (extra ? "Research is done: finish the job now." : "If you need to read pages or look things up first to do this well, reply with ONLY {\"more\": {\"read\": [up to 4 links], \"news\": [up to 2 news searches], \"wiki\": [up to 2 encyclopedia searches]" + (env.BROWSER ? ", \"browse\": [steps in your own web browser, for a site that needs one: {\"go\": \"https://...\"}, {\"click\": \"the words on a button or link\"}, {\"type\": [\"a CSS selector\", \"text\"]}, {\"press\": \"Enter\"}, {\"scroll\": true}; public pages only, never logging in or paying]" : "") + "}}. Otherwise do the job now.") +
 					" Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already done, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"" +
 					(posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}]" : "") + (mail ? ", \"emails\": [{\"to\": \"an address, or empty for a reply\", \"thread\": \"the thread id when it's a reply\", \"subject\": \"...\", \"body\": \"the whole email\"}]" : "") + "}" },
 			], 3000, spent);
@@ -3951,8 +4012,8 @@ async function runAgent(env, ctx, a, manual) {
 			// (research first, when it asks for it: two more rounds at most)
 			for (let round = 0; round < 2 && j && j.more && !j.report && !spent.broke; round++) {
 				const mo = j.more || {}, urls = (Array.isArray(mo.read) ? mo.read : []).filter((x) => /^https?:\/\//.test(String(x))).slice(0, 4);
-				const [pages, news, wiki] = await Promise.all([Promise.all(urls.map((u) => pageText(u, 7000))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiSearch(String(q), 3)))]);
-				found += "\n\n" + [...pages.map((p, i) => p && !p.error ? "Read " + urls[i] + ":\n" + p.text : "Couldn't read " + urls[i]), ...news.flat().map((x) => "- " + x.title + " · " + x.url + " · " + x.text), ...wiki.flat().map((x) => "- " + x.title + " · " + x.url + "\n" + x.text)].join("\n\n");
+				const [pages, news, wiki, seen] = await Promise.all([Promise.all(urls.map((u) => pageSee(env, u, 7000))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiSearch(String(q), 3))), Array.isArray(mo.browse) && mo.browse.length && env.BROWSER ? browse(env, mo.browse, 12000) : null]);
+				found += "\n\n" + [...pages.map((p, i) => p && !p.error ? "Read " + urls[i] + ":\n" + p.text : "Couldn't read " + urls[i]), ...news.flat().map((x) => "- " + x.title + " · " + x.url + " · " + x.text), ...wiki.flat().map((x) => "- " + x.title + " · " + x.url + "\n" + x.text), ...(seen ? ["In your browser (" + (seen.did || []).join(", ") + ")" + (seen.error ? ": " + seen.error : ", now at " + seen.url + ":\n" + seen.text)] : [])].join("\n\n");
 				look = "Researched (" + (round + 1) + ")";
 				j = jsonIn(await ask(round === 1));
 			}
