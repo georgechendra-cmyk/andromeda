@@ -7950,6 +7950,8 @@ async function lookEvidence(plan, text, atts, hold) {
 		try {
 			const j = await toolCall("/api/tools/fetch", { url, look: true }, 25000);
 			if (j && j.look) ev.site = { url: j.url || url, ...j.look };
+			// (a typeface their site hosts itself may still be on Google Fonts: asked, not assumed)
+			if (ev.site && ev.site.fonts) await Promise.all(ev.site.fonts.filter((f) => !f.google && /^[A-Za-z0-9 ]{2,40}$/.test(f.name)).map(async (f) => { try { f.google = (await fetch("https://fonts.googleapis.com/css2?family=" + f.name.trim().replace(/\s+/g, "+"), { signal: AbortSignal.timeout(5000) })).ok; } catch {} }));
 			if (j && j.text) ev.facts = ("From their own site (" + (j.url || url) + "):\n" + String(j.text).slice(0, 2500) + (ev.facts ? "\n\nFrom a web search:\n" + ev.facts : "")).slice(0, 4500);
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 	}
