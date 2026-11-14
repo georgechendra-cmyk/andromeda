@@ -647,13 +647,13 @@ textarea.inp { height: auto; min-height: 72px; padding: 10px 12px; line-height: 
 @media (max-width: 760px) { .team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* the Together app, by Apple's design rules: SF Pro where there is one, one accent (Apple's blue) for what can be
    pressed, calm surfaces, soft depth only where something sits over something, everything on an 8px rhythm */
-html[data-app="together"] { --brand: #0071e3; --brand-rgb: 0, 113, 227; }
-html[data-app="together"] body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter Tight", "Segoe UI", system-ui, sans-serif; letter-spacing: -.003em; }
-html[data-app="together"] .welcome .greet { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Tight", "Segoe UI", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
+html[data-app="together"] { --brand: #0e7a5f; --brand-rgb: 14, 122, 95; }
+html[data-app="together"] body { font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; letter-spacing: -.003em; }
+html[data-app="together"] .welcome .greet { font-family: "Bricolage Grotesque", "DM Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
 html[data-app="together"] .mate { border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 html[data-app="together"] .mate:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
 html[data-app="together"] .sug { border-radius: 14px; }
-html[data-app="together"] #sendBtn, html[data-app="together"] .send { background: #0071e3; color: #fff; }
+html[data-app="together"] #sendBtn, html[data-app="together"] .send { background: var(--brand); color: #fff; }
 html[data-app="together"] .mtag { font-size: 13px; }
 @media (max-width: 420px) { .team { gap: 6px; } .mate { padding: 10px 12px; } .mate .mr { font-size: 12px; } }
 .sug:hover .v { color: var(--text); }
@@ -1704,9 +1704,9 @@ html { scroll-behavior: smooth; }
 .legal-links { color: var(--faint); font-size: 12.5px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app, .auth, .auth-card { transition: none !important; } }
 /* ==== Celestin Together's own look: Apple's Messages (system colours on grouped greys, SF Pro), never Celestin's sky */
-html[data-app="together"]:not([data-theme="light"]) { --bg: #000; --bg2: #1c1c1e; --bg3: #2c2c2e; --bg4: #3a3a3c; --line: rgba(84,84,88,.36); --line2: rgba(84,84,88,.62); --text: #fff; --muted: rgba(235,235,245,.62); --faint: rgba(235,235,245,.32); --ink: #fff; --onink: #000; --brand: #0a84ff; --brand-rgb: 10,132,255; --brand-soft: rgba(10,132,255,.16); --brand-grad: linear-gradient(#0a84ff, #0a84ff); --glass: rgba(28,28,30,.72); --glass-line: rgba(84,84,88,.36); --sky: none; --tgb: #26262a; --hi: none; }
-html[data-app="together"][data-theme="light"] { --bg: #f2f2f7; --bg2: #fff; --bg3: #e9e9eb; --bg4: #d1d1d6; --line: rgba(60,60,67,.13); --line2: rgba(60,60,67,.25); --text: #000; --muted: rgba(60,60,67,.62); --faint: rgba(60,60,67,.32); --ink: #000; --onink: #fff; --brand: #007aff; --brand-rgb: 0,122,255; --brand-soft: rgba(0,122,255,.1); --brand-grad: linear-gradient(#007aff, #007aff); --glass: rgba(249,249,251,.78); --glass-line: rgba(60,60,67,.13); --sky: none; --tgb: #e9e9eb; --hi: none; }
-html[data-app="together"] body { background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Inter Tight", "Segoe UI", system-ui, sans-serif; }
+html[data-app="together"]:not([data-theme="light"]) { --bg: #10120e; --bg2: #191c16; --bg3: #22261f; --bg4: #2d3229; --line: rgba(214,224,200,.12); --line2: rgba(214,224,200,.24); --text: #eef1e8; --muted: rgba(226,232,216,.64); --faint: rgba(226,232,216,.34); --ink: #eef1e8; --onink: #10120e; --brand: #34d399; --brand-rgb: 52,211,153; --brand-soft: rgba(52,211,153,.14); --brand-grad: linear-gradient(#34d399, #34d399); --glass: rgba(25,28,22,.82); --glass-line: rgba(214,224,200,.12); --sky: none; --tgb: #22261f; --hi: none; }
+html[data-app="together"][data-theme="light"] { --bg: #f4f1e9; --bg2: #fffdf7; --bg3: #ebe6da; --bg4: #dcd5c5; --line: rgba(46,38,22,.13); --line2: rgba(46,38,22,.26); --text: #1d1a14; --muted: rgba(46,38,22,.62); --faint: rgba(46,38,22,.34); --ink: #1d1a14; --onink: #fffdf7; --brand: #0e7a5f; --brand-rgb: 14,122,95; --brand-soft: rgba(14,122,95,.1); --brand-grad: linear-gradient(#0e7a5f, #0e7a5f); --glass: rgba(255,253,247,.88); --glass-line: rgba(46,38,22,.13); --sky: none; --tgb: #ebe6da; --hi: none; }
+html[data-app="together"] body { background: var(--bg); font-family: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif; }
 html[data-app="together"] #appSky, html[data-app="together"] .sky { display: none !important; }
 html[data-app="together"] .sidebar { background: var(--glass); }
 /* a teammate's round icon */
@@ -1829,6 +1829,89 @@ html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-
 .tw-job .twgo { flex: none; font-size: 14px; font-weight: 600; color: var(--brand); }
 .desk { padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; }
 html[data-app="together"] .btn.dark { background: var(--brand); color: #fff; border-color: transparent; }
+
+/* ==== Celestin Together, its own place (the owner, Nov 14: "the layout and design for both still looks EXACTLY the same"):
+   a team's workplace in warm paper and ink with a green accent, its own type (Bricolage Grotesque, DM Sans), a labelled
+   team sidebar instead of a rail of icons, and HQ instead of a chat's welcome */
+html[data-app="together"] h1, html[data-app="together"] h2, html[data-app="together"] .modal h2 { font-family: "Bricolage Grotesque", "DM Sans", system-ui, sans-serif; letter-spacing: -.02em; }
+html[data-app="together"] .sb-panel, html[data-app="together"] .chats-scrim { display: none !important; }
+.tg-team { display: none; }
+.w-other { margin: 18px auto 0; max-width: 560px; text-align: center; font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+.w-other a { color: var(--text); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.w-other a:hover { text-decoration: underline; }
+html[data-app="together"] .tg-team { display: block; flex: 1; min-height: 0; overflow-y: auto; padding: 2px 12px 8px; border-top: 1px solid var(--line); margin-top: 4px; }
+html[data-app="together"] .nav-i .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+html[data-app="together"] .nav-i .nb { margin-left: auto; }
+@media (min-width: 861px) {
+	html[data-app="together"] body .app, html[data-app="together"] body.sb-closed .app { --c1: 248px; }
+	html[data-app="together"] body .sidebar { background: var(--bg2); }
+	html[data-app="together"] body .sidebar .brand { justify-content: flex-start; height: 64px; padding: 0 20px; }
+	html[data-app="together"] body .sidebar .brand-link { gap: 10px; }
+	html[data-app="together"] body .sidebar .brand-name { display: inline; font: 700 16px "Bricolage Grotesque", "DM Sans", sans-serif; letter-spacing: -.02em; }
+	html[data-app="together"] body .sidebar .sb-nav { justify-items: stretch; gap: 2px; padding: 4px 12px 10px; }
+	html[data-app="together"] body .sidebar .nav-i { width: 100%; height: 38px; padding: 0 10px; justify-content: flex-start; gap: 11px; border-radius: 10px; color: var(--text); font-size: 14px; }
+	html[data-app="together"] body .sidebar .nav-i .lbl { display: inline; }
+	html[data-app="together"] body .sidebar .nav-i.new { justify-content: center; height: 42px; margin: 0 0 6px; background: var(--brand); color: #fff; font-weight: 650; border-radius: 12px; }
+	html[data-app="together"] body .sidebar .nav-i.new .ic { color: #fff; }
+	html[data-app="together"] .sidebar [data-tip]::after { display: none; }
+	html[data-app="together"] body .sidebar .sb-foot { justify-content: flex-start; padding: 10px 14px 16px; border-top: 1px solid var(--line); }
+}
+html[data-app="together"] #togetherNav { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.tgt-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
+.tgt-add { width: 24px; height: 24px; border-radius: 8px; border: 1px solid var(--line2); color: var(--text); font-size: 16px; line-height: 1; display: grid; place-items: center; }
+.tgt-add:hover { border-color: var(--brand); color: var(--brand); }
+.tgt-m { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 10px; text-align: left; color: var(--text); }
+.tgt-m:hover { background: var(--bg3); }
+.tgt-av, .hq-av { position: relative; flex: none; display: grid; place-items: center; background: var(--h, var(--bg3)); color: #fff; font-family: "Bricolage Grotesque", "DM Sans", sans-serif; font-weight: 800; }
+.tgt-av { width: 30px; height: 30px; border-radius: 9px; font-size: 13px; }
+.tgt-av i { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg2); background: var(--faint); }
+.tgt-av i.on { background: #22c55e; }
+.tgt-av i.need { background: #f59e0b; }
+.tgt-t { min-width: 0; display: grid; }
+.tgt-t b { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tgt-t small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tgt-m em { margin-left: auto; font-style: normal; font-size: 11px; font-weight: 700; background: #f59e0b; color: #1d1a14; border-radius: 99px; padding: 1px 7px; }
+.tgt-none { font-size: 12.5px; color: var(--muted); padding: 2px 8px 8px; line-height: 1.5; margin: 0; }
+.hq { max-width: 1060px; margin: 0 auto; padding: 38px 32px 44px; }
+.hq-top { display: flex; gap: 24px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; padding-bottom: 24px; border-bottom: 1px solid var(--line); }
+.hq-hl { min-width: 0; flex: 1 1 420px; }
+.hq-k { font-size: 12px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--brand); margin-bottom: 10px; }
+.hq h1 { font: 800 clamp(30px, 4.4vw, 46px)/1.04 "Bricolage Grotesque", "DM Sans", sans-serif; letter-spacing: -.035em; margin: 0 0 12px; }
+.hq-top p { margin: 0; max-width: 580px; color: var(--muted); font-size: 15.5px; line-height: 1.55; }
+.hq-acts { display: grid; gap: 10px; justify-items: end; }
+.hq-acts .btn.dark { height: 46px; padding: 0 22px; border-radius: 13px; font-weight: 650; font-size: 15px; }
+.hq-ai { font-size: 13px; color: var(--muted); text-decoration: none; }
+.hq-ai b { color: var(--text); font-weight: 600; }
+.hq-ai:hover b { color: var(--brand); }
+.hq-needs { display: flex; justify-content: space-between; align-items: center; width: 100%; margin: 22px 0 0; padding: 14px 18px; border-radius: 14px; background: #fef3c7; color: #78350f; border: 1px solid #fcd34d; font-size: 15px; text-align: left; }
+html[data-app="together"]:not([data-theme="light"]) .hq-needs { background: rgba(245, 158, 11, .14); color: #fcd34d; border-color: rgba(245, 158, 11, .35); }
+.hq-sec { margin-top: 32px; }
+.hq-sec h2 { font: 700 12.5px "DM Sans", system-ui, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 12px; }
+.hq-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(232px, 1fr)); gap: 12px; }
+.hq-m { display: grid; grid-template-columns: 44px minmax(0, 1fr); column-gap: 12px; row-gap: 12px; align-items: center; padding: 16px; border-radius: 16px; background: var(--bg2); border: 1px solid var(--line2); box-shadow: 4px 4px 0 color-mix(in srgb, var(--text) 7%, transparent); text-align: left; color: var(--text); transition: transform .15s var(--ease), box-shadow .15s var(--ease); }
+.hq-m:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 color-mix(in srgb, var(--brand) 22%, transparent); }
+.hq-av { width: 44px; height: 44px; border-radius: 13px; font-size: 18px; }
+.hq-mt { display: grid; min-width: 0; }
+.hq-mt b { font-size: 15.5px; font-weight: 700; }
+.hq-mt small { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hq-st { grid-column: 1 / -1; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.hq-st::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.hq-st.on { color: var(--text); }
+.hq-st.on::before { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, .18); }
+.hq-st.need { color: #b45309; }
+.hq-st.need::before { background: #f59e0b; }
+.hq-add { border-style: dashed; box-shadow: none; background: transparent; }
+.hq-add .hq-av { background: var(--bg3); color: var(--text); }
+.hq-empty { padding: 24px; border: 1px dashed var(--line2); border-radius: 16px; color: var(--muted); font-size: 15px; line-height: 1.5; }
+.hq-empty b { color: var(--text); }
+.hq-give #slot .composer { margin: 0; }
+.hq-hire, .hq-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.hq-chip { padding: 8px 14px; border-radius: 99px; border: 1px solid var(--line2); background: var(--bg2); font-size: 13.5px; color: var(--text); }
+.hq-chip:hover { border-color: var(--brand); color: var(--brand); }
+.hq-mates p { margin: -4px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.5; max-width: 640px; }
+.hq-mate { display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 10px; background: var(--bg3); font-size: 13px; color: var(--text); }
+.hq-mate i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); }
+@media (max-width: 760px) { .hq { padding: 22px 16px 32px; } .hq-acts { justify-items: start; } .hq-grid { grid-template-columns: 1fr; } }
 a.btn, a.btn:hover { text-decoration: none; }
 .desk-it { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
 .desk-it.new { border-color: var(--brand); }
@@ -1870,6 +1953,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 .twj-h { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 4px 2px; }
 
 </style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=DM+Sans:opsz,wght@9..40,400..700&display=swap">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/></symbol><symbol id="logoT" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/><circle cx="26.5" cy="26.7" r="2.5" fill="currentColor"/></symbol></defs></svg>
@@ -2020,7 +2104,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<button class="sb-hide" id="sbHide" title="Close the sidebar" aria-label="Close the sidebar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg></button>
 		</div>
 		<nav class="sb-nav" aria-label="Celestin">
-			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
+			<button class="nav-i new" id="newChat" data-tip="New agent" aria-label="New agent"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
 			<button class="nav-i tg-only" id="tgNeedsNav" style="--c:#ff3b30" data-tip="Needs you: everything waiting for your decision" aria-label="Needs you"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="lbl">Needs you</span><span class="nb" id="tgNeedsNb"></span></button>
 			<button class="nav-i tg-only" id="tgAgentNav" style="--c:#5e5ce6" data-tip="Agents: any job, done by itself day and night" aria-label="Agents"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/><circle cx="12" cy="4" r="1"/></svg><span class="lbl">Agents</span><span class="nb" id="tgAgentNb"></span></button>
 			<button class="nav-i tg-only" id="tgDeskNav" style="--c:#30b0c7" data-tip="Front desk: your receptionist on a link" aria-label="Front desk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg><span class="lbl">Front desk</span><span class="nb" id="tgDeskNb"></span></button>
@@ -2035,6 +2119,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<button class="nav-i" id="codeNav" data-tip="Code: build or change a project" aria-label="Celestin Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
 			<button class="nav-i" id="appsNav" data-tip="Connect apps: your computer, Blender, Figma…" aria-label="Connect apps"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
 		</nav>
+		<div class="tg-team" id="tgTeam" aria-label="Your team"></div>
 		<!-- your chats and projects: a panel that slides out beside the rail (inline in the drawer on a phone) -->
 		<div class="sb-panel" id="sbPanel">
 			<div class="sbp-h"><b>Chats</b><button class="sbp-x" id="sbpClose" aria-label="Close the chats"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
@@ -2067,7 +2152,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<div class="spacer"></div>
 			<span class="chip" id="topChip"><span class="dot"></span><span id="topChipText">Not connected</span></span>
 			<button class="menu-btn always" id="tempBtn" aria-pressed="false" title="Temporary chat: not saved, and Celestin won't remember it" aria-label="Temporary chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z" stroke-dasharray="3.2 3.2"/></svg></button><button class="menu-btn always" id="chatMenuBtn" aria-label="This chat: export, print, rename, delete" aria-haspopup="menu" aria-controls="chatPop" aria-expanded="false" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
-			<button class="menu-btn" id="newChatTop" aria-label="New chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+			<button class="menu-btn" id="newChatTop" aria-label="New agent"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
 			<div class="pop" id="chatPop" role="menu" hidden>
 				<button role="menuitem" data-chat="share"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>Share a link</button>
 				<button role="menuitem" data-chat="copy"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>Copy the chat as Markdown</button>
@@ -4511,7 +4596,9 @@ function renderWelcome() {
 	document.body.classList.add("at-welcome");
 	if (TEMP) { $("#view").innerHTML = '<section class="welcome temp"><h1 class="greet"><span class="g1">Temporary chat</span></h1><p class="temp-note">It won\'t be saved to your chats, and Celestin won\'t remember it or use what it remembers.</p><div class="slot" id="slot"></div></section>'; $("#slot").appendChild($("#composer")); $("#dock").classList.add("hide"); return; }
 	if (TOGETHER) { renderTogetherWelcome(); return; }
-	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="g1">' + esc(first) + '</span><span class="g2">' + esc(second) + '</span></h1><div class="slot" id="slot"></div></section>';
+	// (what this app is for, and where the other one is: chatting, writing, learning and making here; a business's work done
+	// by itself in the background, in Celestin Together. The owner, Nov 14: "make it very clear")
+	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="g1">' + esc(first) + '</span><span class="g2">' + esc(second) + '</span></h1><div class="slot" id="slot"></div><p class="w-other">Chat, write, learn and make anything here. Want work done for your business while you\'re away? <a href="together.html#app">Celestin Together →</a></p></section>';
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 	// the galaxy, quietly behind it, thinning out round the words and the box
@@ -4763,7 +4850,7 @@ function updateRoute() {
 	el.innerHTML = proj + (noticed >= 3 ? '<span class="chip click" data-selffix><span class="dot" style="background:var(--warn)"></span>' + noticed + " problems noticed · let Celestin fix itself</span>" : "");
 	// (a phone gets the short version: the long one was cut off mid-sentence)
 	const narrow = innerWidth < 560;
-	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : !(current && current.msgs.length) && spaceOf(SPACE_VIEW) ? "Start a chat in " + spaceOf(SPACE_VIEW).name : TOGETHER ? (narrow ? "Message the team" : "Message the team · @Builder, @Researcher… to ask one directly") : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
+	$("#input").placeholder = TOOL && TOOLS[TOOL] ? TOOLS[TOOL].ph : !(current && current.msgs.length) && spaceOf(SPACE_VIEW) ? "Start a chat in " + spaceOf(SPACE_VIEW).name : TOGETHER ? (narrow ? "Tell your team what to do" : "Tell your team what to do, or hire someone new · @Builder… asks one directly") : PROJECT ? (narrow ? "Ask for a change in " + PROJECT.name : "Ask for a change, a fix, or how something works in " + PROJECT.name) : narrow ? "Ask anything" : "Ask anything, or make anything";
 	$("#topChipText").textContent = creditsMode() ? (me ? creditsText(me.credits) + " credits" : "Credits") : "Sign in";
 }
 
@@ -7215,33 +7302,42 @@ function mateModel(t) {
 		return r[0] ? shortName(r[0].m) : "";
 	} catch { return ""; }
 }
+// Together's home: HQ, the team at work. Who works here and what each is doing, what needs you, the work to give them, and
+// the specialists on call for one-off work (the owner, Nov 14: Together is a workplace, chatting is Celestin AI's)
+const HQ_HIRE = [
+	["Jim, for marketing", "Hire Jim to run my marketing: posts every day where my customers are, in my voice"],
+	["A receptionist", "Set up a front desk that answers my customers, takes bookings and answers my business phone and texts"],
+	["Competitor watch", "Hire an agent that watches my competitors' prices and offers and tells me when they change"],
+	["Inbox assistant", "Hire someone to answer my business emails, asking me before anything goes out"],
+	["Bring customers back", "Bring back customers who haven't been in for a while, with a personal message each"],
+	["My whole business", "Set up my whole business: front desk, marketing, bringing customers back and my inbox"],
+];
 function renderTogetherWelcome() {
 	// (the composer is about to be redrawn round: kept safe in its dock first)
 	if ($("#composer") && $("#composer").parentElement !== $("#dock")) $("#dock").appendChild($("#composer"));
-	// (the six teammates; the Lead is the one who hands out the work, said in the line above them)
-	const cards = TEAM.filter((t) => t.id !== "lead").map((t) => '<button class="tw-mate" data-mate="' + t.id + '" title="Ask the ' + esc(t.name) + ' directly' + (mateModel(t) ? " (now: " + esc(mateModel(t)) + ")" : "") + '">' + '<span class="medit" role="button" tabindex="0" data-medit="' + t.id + '" aria-label="How the ' + esc(t.name) + ' works for you" title="How the ' + esc(t.name) + ' works for you"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></span>' + mateAvatar(t.id) + '<span class="twn">' + esc(t.name) + '</span><span class="twr">' + esc(t.short || t.role) + "</span>" + (mateNote(t.id) ? '<span class="tww">Your way</span>' : mateModel(t) ? '<span class="twm">' + esc(mateModel(t)) + "</span>" : "") + "</button>").join("");
-	const sugs = [["Team", "Plan and build a landing page for my coffee shop"], ["@Researcher", "Every weekday at 7, the AI news that matters, with sources"], ["@Analyst", LOC.id ? "Make a monthly budget for a student with Rp2jt" : "Make a monthly budget for a student on $1,000"], ["Team", "Research the best study methods, then make me flashcards"]];
-	// (always on: what the teammates keep doing by themselves, from the last look at the tasks)
-	const on = TEAM_TASKS.slice(0, 4).map((t) => '<button class="aon" data-tasks="1"><i style="--c:' + MATE[t.member].c + '"></i><b>' + esc(MATE[t.member].name) + "</b> " + esc(t.title.length > 48 ? t.title.slice(0, 46).trimEnd() + "…" : t.title) + ' <span class="when">' + esc(whenText(t)) + "</span></button>").join("");
-	const nd = deskNew(), desk = '<button class="tw-job" id="twDesk"><span class="tav" style="--c:#30b0c7"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><span class="twj"><b>Front desk</b><span>' + (DESKS.bots.length ? (nd ? nd + " new from your customers" : (() => { const t = DESKS.bots.reduce((a, b) => ({ people: a.people + ((b.week && b.week.people) || 0), answered: a.answered + ((b.week && b.week.answered) || 0), booked: a.booked + ((b.week && b.week.booked) || 0) }), { people: 0, answered: 0, booked: 0 }); return deskWeek({ week: t }) ? "This week: " + deskWeek({ week: t }) : "Answering on " + DESKS.bots.length + " link" + (DESKS.bots.length > 1 ? "s" : "") + ", day and night"; })()) : "A receptionist on a link you share: answers customers day and night and books them at your free times") + '</span></span><span class="twgo">' + (DESKS.bots.length ? (nd ? "Open inbox" : "Open") : "Set it up") + "</span></button>";
-	const un = agentUnseen(), agentCard = '<button class="tw-job" id="twAgents"><span class="tav" style="--c:#5e5ce6"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/></svg></span><span class="twj"><b>Agents</b><span>' + (AGENTS.agents.length ? (un ? un + " new report" + (un > 1 ? "s" : "") + " for you" : AGENTS.agents.filter((a) => a.active).length + " working by themselves, day and night") : "Any job, done by itself day and night: describe it, and it starts") + '</span></span><span class="twgo">' + (AGENTS.agents.length ? "Open" : "Make one") + "</span></button>";
-	const jobsHtml = Object.entries(JOB_INFO).map(([k, x]) => { const mine = JOBS.jobs.filter((j) => j.kind === k), r = jobReady(k); return '<button class="tw-job" data-job="' + k + '"><span class="tav" style="--c:' + x.c + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">' + x.icon + '</svg></span><span class="twj"><b>' + esc(x.name) + "</b><span>" + esc(mine.length ? (r ? r + " ready for you" : "On, working by itself") : x.what) + '</span></span><span class="twgo">' + (mine.length ? (r ? "Open" : "Open") : "Set it up") + "</span></button>"; }).join("");
-	$("#view").innerHTML = '<section class="welcome together">' + (NEEDS.items.length ? '<button class="tw-needs" id="twNeeds"><b>' + NEEDS.items.length + (NEEDS.items.length === 1 ? " thing needs you" : " things need you") + "</b><span>Open</span></button>" : "") + '<h1 class="greet"><span class="g1">Your team.</span><span class="g2">Each one the AI model measured best at their job, right now.</span></h1><div class="tw-team">' + cards + "</div>" +
-		'<p class="lead-t">Ask for anything. The Lead gives each part to the right teammate, and they work at the same time. Tap one, or type @ and a name, to ask them directly.</p>' + (on ? '<div class="always"><div class="al">Always on</div>' + on + "</div>" : "") + '<div class="slot" id="slot"></div><div class="sugs">' + sugs.map(([k, v]) => '<button class="sug" data-tsug="' + esc(k === "Team" ? v : k + " " + v) + '"><span class="k">' + esc(k) + '</span><span class="v">' + esc(v) + "</span></button>").join("") + '</div><div class="tw-jobs"><div class="twj-h">Jobs it does by itself</div>' + agentCard + desk + jobsHtml + "</div></section>";
+	const ms = teamMembers(), nd = NEEDS.items.length, working = ms.filter((x) => x.on).length;
+	const card = (x, k) => '<button class="hq-m" data-hqm="' + k + '">' + tgAv(x, "hq-av") + '<span class="hq-mt"><b>' + esc(x.name) + "</b><small>" + esc(x.role || "") + '</small></span><span class="hq-st ' + (x.need ? "need" : x.on ? "on" : "off") + '">' + esc(x.status) + "</span></button>";
+	$("#view").innerHTML = '<section class="hq">' +
+		'<header class="hq-top"><div class="hq-hl"><div class="hq-k">Celestin Together · HQ</div><h1>' + (ms.length ? (working ? working + (working === 1 ? " agent is" : " agents are") + " working for you" : "Your team") : "Hire your AI team") + "</h1>" +
+		"<p>Agents that run parts of your business by themselves, day and night, even with this page closed. You hand out the work; they do it, and only come to you when something needs you.</p></div>" +
+		'<div class="hq-acts"><button class="btn dark" id="hqNew">+ New agent</button><a class="hq-ai" href="./#app">Just want to chat, write or learn? <b>Celestin AI →</b></a></div></header>' +
+		(nd ? '<button class="hq-needs" id="twNeeds"><b>' + nd + (nd === 1 ? " thing needs you" : " things need you") + "</b><span>Open</span></button>" : "") +
+		'<div class="hq-sec"><h2>Your team</h2>' + (ms.length
+			? '<div class="hq-grid">' + ms.map(card).join("") + '<button class="hq-m hq-add" id="hqAdd"><span class="hq-av">+</span><span class="hq-mt"><b>Hire someone new</b><small>Any job: describe it in a sentence</small></span></button></div>'
+			: '<div class="hq-empty"><b>No one works here yet.</b> Hire your first agent: describe the job in a sentence below, press New agent, or pick one to start from.</div>') + "</div>" +
+		'<div class="hq-sec hq-give"><h2>Give your team work</h2><div id="slot"></div><div class="hq-hire">' + HQ_HIRE.map(([t, s]) => '<button class="hq-chip" data-hqsug="' + esc(s) + '">' + esc(t) + "</button>").join("") + "</div></div>" +
+		'<div class="hq-sec hq-mates"><h2>Specialists on call</h2><p>For one-off work here, the Lead gives each part to the specialist measured best at it, and they work at the same time. Type @ and a name to ask one directly.</p><div class="hq-row">' +
+		TEAM.filter((t) => t.id !== "lead").map((t) => '<button class="hq-mate" data-mate="' + t.id + '"><i style="--c:' + t.c + '"></i>' + esc(t.name) + "</button>").join("") + "</div></div>" +
+		"</section>";
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
-	$$("[data-medit]").forEach((x) => {
-		x.onclick = (e) => { e.stopPropagation(); e.preventDefault(); editMate(x.dataset.medit); };
-		x.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); e.preventDefault(); editMate(x.dataset.medit); } };
-	});
-	$$("[data-mate]").forEach((b) => (b.onclick = () => { const inp = $("#input"), tag = "@" + MATE[b.dataset.mate].name + " "; if (!inp.value.startsWith(tag)) inp.value = tag + inp.value.replace(MATE_RE, "").trimStart(); inp.focus(); autosize(); }));
-	$$("[data-tsug]").forEach((b) => (b.onclick = () => { $("#input").value = b.dataset.tsug; autosize(); send(); }));
-	$$("[data-tasks]").forEach((b) => (b.onclick = () => openTasks()));
-	if ($("#twDesk")) $("#twDesk").onclick = () => openDesks();
-	if ($("#twAgents")) $("#twAgents").onclick = () => openAgents();
+	$("#hqNew").onclick = () => openAgents("new");
+	if ($("#hqAdd")) $("#hqAdd").onclick = () => openAgents("new");
 	if ($("#twNeeds")) $("#twNeeds").onclick = () => openNeeds();
-	$$("[data-job]").forEach((b) => (b.onclick = () => openJob(b.dataset.job)));
-	// (no sky here: the Together app is Apple-plain; the team is the picture)
+	$$("[data-hqm]").forEach((b) => (b.onclick = () => tgOpenMember(ms[+b.dataset.hqm])));
+	// (a suggestion is put in the box to change or send, never sent by itself: hiring is the person's call)
+	$$("[data-hqsug]").forEach((b) => (b.onclick = () => { const inp = $("#input"); inp.value = b.dataset.hqsug; autosize(); inp.focus(); }));
+	$$("[data-mate]").forEach((b) => (b.onclick = () => { const inp = $("#input"), tag = "@" + MATE[b.dataset.mate].name + " "; if (!inp.value.startsWith(tag)) inp.value = tag + inp.value.replace(MATE_RE, "").trimStart(); inp.focus(); autosize(); }));
 }
 // one teammate's piece, served the Celestin way with the teammate's field weighed in. o.brief: a piece the Lead gave out
 // (its brief is the newest turn the teammate reads, since every way answers the chat's latest message; kept, not shown.
@@ -13200,7 +13296,7 @@ function autosize() { const t = $("#input"); t.style.height = "auto"; t.style.he
 function setMode() {
 	mode = "auto";
 	drawSpend();
-	$("#input").placeholder = TOGETHER_APP ? (innerWidth < 600 ? "Message the team" : "Message the team · @Builder, @Researcher… to ask one directly") : innerWidth < 600 ? "Ask anything" : "Ask anything, or ask for flashcards, a simulation or an app to build";
+	$("#input").placeholder = TOGETHER_APP ? (innerWidth < 600 ? "Tell your team what to do" : "Tell your team what to do, or hire someone new · @Builder… asks one directly") : innerWidth < 600 ? "Ask anything" : "Ask anything, or ask for flashcards, a simulation or an app to build";
 	if (!current || !current.msgs.length) renderThread();
 	updateRoute();
 }
@@ -13316,6 +13412,49 @@ document.addEventListener("click", (e) => {
 });
 $("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = TOGETHER_APP; render(); }); setTimeout(() => $("#input").focus(), 60); };
 $("#togetherNav").onclick = () => { location.href = TOGETHER_APP ? "./#app" : "together.html#app"; };
+// ---- Celestin Together, its own place: a team's workplace, not a chat. Its "+" hires an agent, its sidebar is the team
+// with labels, HQ is its home, and chatting is Celestin AI's (the owner, Nov 14: "the plus button should be called new
+// agent… if u wanna chat go on celestin ai… the layout and design for both still looks EXACTLY the same")
+if (TOGETHER_APP) {
+	for (const id of ["chatsNav", "searchNav", "libNav", "tasksNav", "codeNav", "appsNav", "tempBtn"]) { const e = $("#" + id); if (e) e.style.display = "none"; }
+	$("#newChat").onclick = $("#newChatTop").onclick = () => { openSidebar(false); openAgents("new"); };
+	const tn = $("#togetherNav");
+	tn.setAttribute("aria-label", "Just chat? Celestin AI");
+	tn.dataset.tip = "Chatting, writing, learning and building are Celestin AI's";
+	$("#newChat").insertAdjacentHTML("afterend", '<button class="nav-i" id="tgHqNav" aria-label="HQ" data-tip="HQ: your team at work"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></button>');
+	$("#tgHqNav").onclick = () => { openSidebar(false); navTo(() => { current = null; SPACE_VIEW = null; EDITING = -1; TOGETHER = true; render(); }); };
+	$$(".sb-nav .nav-i").forEach((b) => { if (!b.querySelector(".lbl")) b.insertAdjacentHTML("beforeend", '<span class="lbl">' + esc(b.getAttribute("aria-label") || "") + "</span>"); });
+	$("#newChat .lbl").textContent = "New agent";
+	$("#togetherNav .lbl").textContent = "Just chat? Celestin AI";
+	const bn = $(".sidebar .brand-name");
+	if (bn) bn.textContent = "Celestin Together";
+}
+// the team, down Together's side: every agent, the front desk and the jobs, each with what it's doing right now
+const TG_HUES = ["#0e7a5f", "#b45309", "#7c3aed", "#be123c", "#0369a1", "#4d7c0f", "#a21caf", "#c2410c"];
+const tgHue = (s) => TG_HUES[[...String(s || "?")].reduce((n, c) => (n * 31 + c.charCodeAt(0)) >>> 0, 7) % TG_HUES.length];
+function teamMembers() {
+	const out = [];
+	for (const a of AGENTS.agents || []) {
+		const need = (AGENTS.log || []).filter((l) => l.agent === a.id && (l.kind === "approve" || (l.kind === "report" && !l.seen))).length;
+		out.push({ kind: "agent", id: a.id, name: a.name, role: String(a.goal || "").split(/\n|(?<=[.!?])\s/)[0].slice(0, 90), on: !!a.active, need, status: need ? need + " waiting for you" : a.active ? (a.every ? "Works " + everyText(a.every) : "Working on it now") : a.every ? "Paused" : "Done" });
+	}
+	for (const b of DESKS.bots || []) { const need = DESKS.items.filter((x) => x.bot === b.id && x.status === "new").length; out.push({ kind: "desk", id: b.id, name: "Front desk", role: b.name, on: !!b.active, need, status: need ? need + " for you" : b.phone && b.phone.on ? "Answering chat, calls and texts" : "Answering on its link" }); }
+	for (const j of JOBS.jobs || []) { const info = JOB_INFO[j.kind] || {}, need = JOBS.items.filter((x) => x.status === "ready" && x.job === j.id).length; out.push({ kind: "job", id: j.kind, name: info.name || j.kind, role: j.name, on: j.active !== false, need, status: need ? need + " ready for you" : "Working for " + j.name }); }
+	// (each one a colour of its own, in the order they stand)
+	out.forEach((x, k) => (x.hue = TG_HUES[k % TG_HUES.length]));
+	return out;
+}
+const tgOpenMember = (x) => (x.kind === "agent" ? openAgents(x.id) : x.kind === "desk" ? openDesks() : openJob(x.id));
+const tgAv = (x, cls) => '<span class="' + cls + '" style="--h:' + (x.hue || tgHue(x.name + x.role)) + '">' + esc((String(x.name || "?").trim()[0] || "?").toUpperCase()) + (cls === "tgt-av" ? '<i class="' + (x.need ? "need" : x.on ? "on" : "off") + '"></i>' : "") + "</span>";
+function drawTeamList() {
+	const box = $("#tgTeam");
+	if (!box || !TOGETHER_APP) return;
+	const ms = teamMembers();
+	box.innerHTML = '<div class="tgt-h"><span>Your team</span><button class="tgt-add" id="tgtAdd" aria-label="New agent" title="New agent">+</button></div>' +
+		(ms.length ? ms.map((x, k) => '<button class="tgt-m" data-tgm="' + k + '">' + tgAv(x, "tgt-av") + '<span class="tgt-t"><b>' + esc(x.name) + "</b><small>" + esc(x.status) + "</small></span>" + (x.need ? "<em>" + x.need + "</em>" : "") + "</button>").join("") : '<p class="tgt-none">No one yet. Press New agent, or tell your team what you need and it hires them.</p>');
+	$("#tgtAdd").onclick = () => { openSidebar(false); openAgents("new"); };
+	$$("[data-tgm]").forEach((b) => (b.onclick = () => { openSidebar(false); tgOpenMember(ms[+b.dataset.tgm]); }));
+}
 // (Celestin opens the Together app, its own app, in one click: the owner couldn't find it with this hidden, Nov 8)
 if (!TOGETHER_APP) $("#togetherNav").dataset.tip = "Open Celestin Together, your AI team (its own app)";
 if (TOGETHER_APP) {
@@ -14359,6 +14498,7 @@ function railBadges() {
 	put("#tgNeedsNb", NEEDS.items.length);
 	put("#tgMarketNb", jobReady("marketing"));
 	put("#tgBackNb", jobReady("winback"));
+	drawTeamList();
 }
 function jobModels() {
 	try { return pinFirst(diversify(bestFirst(quarkFirst(arenaRank("write", { "text:creative_writing": 0.6, "text:instruction_following": 0.4 }), undefined, null, (x, c) => callCost(x, c, 600, 2500)))), "write").slice(0, 3).map((m) => m.id); } catch { return []; }
