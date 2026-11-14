@@ -2978,6 +2978,8 @@ const FEATURE_W = {
 	// still reading)
 	// a craft brief: how the best make a kind of thing, written by the one who knows the field cold and gets facts right
 	craft: { task: "research", out: 900, w: { "text:expert": 0.4, "factuality:overall": 0.35, "text:instruction_following": 0.25 } },
+	// an art director deciding a look (colours and type) from evidence: a web designer's taste, held to the brief
+	look: { task: "write", out: 600, in: 4500, w: { "webdev:overall": 0.45, "text:instruction_following": 0.3, "text:creative_writing": 0.25 } },
 	reader: { task: "quick", out: 300, in: 4500, fast: true, own: true, bench: 0.15, w: { "text:instruction_following": 0.5, "text:hard_prompts": 0.3, "text:expert": 0.2 } },
 	// splitting a request into its smallest pieces of work, and putting the pieces back together into one answer
 	planner: { task: "reasoning", out: 900, in: 3500, own: true, bench: 0.3, w: { "text:hard_prompts": 0.4, "text:instruction_following": 0.4, "text:expert": 0.2 } },
@@ -3709,10 +3711,10 @@ async function conduct(text, atts, tried, only, team) {
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
 		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or an agent: ANY other job they want done by itself in the background, once or again and again, while they're away (answer or write emails; watch prices, pages, tickets, competitors or their inbox; follow news; research something and email or report it; post for them; write something every day; anything else). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for an agent, what: the job in their words, and staff [{name, role}] with the name they gave it, if any). When they ask for several of these for their business at once (a front desk that also calls or emails customers to rebook, answers email, markets…), kind setup, with kinds listing the parts (desk, winback, email, marketing), type place (customers come to it: a shop, salon, clinic) or online, assistant (a name they gave it, if any) and everything else they told you. When they want several agents at once, each for a role (\"Jim for marketing, Cindy for finance\", \"agents for every job my company needs\"), kind team, with staff listing each one as {name, role} (the names they gave; for \"every job\", the roles that business truly needs to grow, at most 8, each with a short first name) and name and brief about the business. Never ask them what you can decide yourself: fill in anything missing with the most likely choice and say in one line what you assumed; ask only when nothing useful can be done without the answer.\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup|team\", \"staff\": [{\"name\": \"\", \"role\": \"\"}], \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\", \"craft\": \"barbershop website\", \"lesson\": \"\", \"brand\": \"\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup|team\", \"staff\": [{\"name\": \"\", \"role\": \"\"}], \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
-		+ " \"craft\": when something is being made (an app, a site, a game, a film, a picture, a document, a deck), the kind of thing it is in 2 to 5 general words anyone could ask for too (\"product trailer video\", \"barbershop website\", \"3D product model\", \"logo\"), never personal details. \"lesson\": only when this message complains about or corrects the last thing made, the general rule a maker should always follow from now on, in one line, without personal details (\"a phone is 9 wide by 19.5 tall, never a chunky tablet\")."
+		+ " \"craft\": when something is being made (an app, a site, a game, a film, a picture, a document, a deck), the kind of thing it is in 2 to 5 general words anyone could ask for too (\"product trailer video\", \"barbershop website\", \"3D product model\", \"logo\"), never personal details. \"lesson\": only when this message complains about or corrects the last thing made, the general rule a maker should always follow from now on, in one line, without personal details (\"a phone is 9 wide by 19.5 tall, never a chunky tablet\"). \"brand\": when the work is for or about a real, existing business, brand or product (theirs or a known one; never a private person), its name exactly as written, without the town; else empty."
 		+ " \"refs\": only when the request asks for something like, in the style of, or replicating a specific named thing it should match (a creator or channel, a game, a film or show, a brand, a website, an artist, a particular video or page): each one's name as they wrote it, what it is, and exactly what to take from it; never for a plain topic (a video ABOUT black holes has none)."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
@@ -3767,7 +3769,7 @@ async function conduct(text, atts, tried, only, team) {
 		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader,
 		made: j.made === "coded" || j.made === "filmed" ? j.made : "",
 		job: team && j.job && typeof j.job === "object" ? j.job : null,
-		craft: craftKey(j.craft), lesson: String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300),
+		craft: craftKey(j.craft), lesson: String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300), brand: String(j.brand || "").replace(/\s+/g, " ").trim().slice(0, 80),
 		refs: (Array.isArray(j.refs) ? j.refs : []).filter((x) => x && String(x.name || "").trim()).slice(0, 2).map((x) => ({ name: String(x.name).trim().slice(0, 80), kind: String(x.kind || "").slice(0, 60), take: String(x.take || "").slice(0, 200) })) };
 }
 // the way it chose, done by the part of Celestin that does it
@@ -7747,6 +7749,306 @@ function useCraft(plan, text, raw, c) {
 	PLAN_NOTE = (PLAN_NOTE ? PLAN_NOTE + "\n" : "") + note;
 	CRAFT_NOTE = note;
 }
+// The look (its colours and typefaces) is decided from evidence, never by habit or a guess: the brand's own, measured from
+// its real site, its logo or a picture they attached; what they said; and only then the subject's own world. An art
+// director picks type only from typefaces checked to exist on Google Fonts, never the ones just used for something else,
+// and the contrast is measured and fixed in code afterwards (the owner, Nov 14: "i dont want celestin to guess on
+// anything ... colors ... font ... the guess is always the same")
+const LOOK_WAYS = ["app", "project", "sim", "video", "image", "pptx"];
+// (each checked to exist on Google Fonts, Nov 14: name | kind | d: headings only, t: text, b: both | its personality)
+const FONT_LIST = `Young Serif|serif|d|warm, friendly, old-style, bakery, cafe, homely
+Gloock|serif|d|elegant, editorial, high-contrast, fashion, luxury
+Cormorant Garamond|serif|d|elegant, luxury, literary, wedding, spa, delicate
+EB Garamond|serif|b|classic, literary, academic, heritage, books
+Libre Caslon Display|serif|d|classic, editorial, trustworthy, refined
+Libre Caslon Text|serif|t|classic, trustworthy, law, finance, reports
+Lora|serif|b|warm, friendly, stories, blog, gentle
+Newsreader|serif|b|editorial, news, serious, journalism
+Source Serif 4|serif|t|neutral, serious, reports, documents
+Bodoni Moda|serif|d|fashion, luxury, high-contrast, beauty, magazine
+Spectral|serif|t|literary, refined, quiet
+Crimson Pro|serif|t|book, literary, classic
+Literata|serif|t|book, reading, calm, long text
+Abril Fatface|serif|d|bold, retro, poster, loud, magazine
+Rozha One|serif|d|bold, heavy, dramatic, headline
+Yeseva One|serif|d|feminine, elegant, beauty, boutique
+Petrona|serif|b|warm, editorial, friendly
+Brygada 1918|serif|b|heritage, historic, trustworthy, old institution
+Besley|serif|b|bold, victorian, characterful
+Gelasio|serif|t|classic, neutral, reports
+Noticia Text|serif|t|news, sturdy, readable
+Vollkorn|serif|b|sturdy, warm, books, rustic, farm
+Libre Baskerville|serif|t|classic, trustworthy, academic, law
+Old Standard TT|serif|b|victorian, antique, heritage, apothecary
+IM Fell English|serif|d|antique, old, historic, handmade, folklore
+Alegreya|serif|b|literary, calligraphic, warm
+Cinzel|serif|d|classical, roman, luxury, epic, fantasy, monuments
+Marcellus|serif|d|classical, calm, spa, elegant, hotel
+Inria Serif|serif|b|modern, friendly, editorial
+IBM Plex Serif|serif|t|technical, corporate, serious
+Alfa Slab One|slab|d|bold, sporty, western, poster
+Zilla Slab|slab|b|friendly, techy, editorial
+Bitter|slab|t|sturdy, readable, friendly
+Arvo|slab|b|geometric, retro, sturdy, workshop
+Ultra|slab|d|heavy, western, poster, loud
+Rye|display|d|western, saloon, rustic, whiskey
+Schibsted Grotesk|sans|b|news, confident, clean
+Familjen Grotesk|sans|b|quirky, modern, friendly, startup
+Archivo|sans|b|sturdy, clean, industrial
+Archivo Black|sans|d|bold, loud, confident, headline
+Archivo Narrow|sans|b|condensed, compact, news, data
+Anton|sans|d|condensed, loud, bold, sport, trailer
+Bebas Neue|sans|d|condensed, caps, loud, sport, cinema
+Oswald|sans|d|condensed, bold, news, sport
+Barlow|sans|b|industrial, signage, clean, transport, logistics
+Barlow Condensed|sans|d|condensed, industrial, sport
+Big Shoulders Display|sans|d|condensed, industrial, urban, city
+Chivo|sans|b|grotesk, confident, editorial
+Work Sans|sans|b|neutral, friendly, clean
+IBM Plex Sans|sans|b|technical, corporate, engineering, enterprise
+IBM Plex Mono|mono|b|technical, code, engineering, data
+Public Sans|sans|b|neutral, government, civic, trustworthy
+Figtree|sans|b|friendly, clean, geometric, approachable, app
+Onest|sans|b|clean, modern, neutral, product
+Hanken Grotesk|sans|b|clean, modern, calm
+Albert Sans|sans|b|geometric, nordic, clean, minimal
+Red Hat Display|sans|d|confident, tech, clean
+Red Hat Text|sans|t|tech, readable
+Rubik|sans|b|rounded, friendly, playful, app
+Nunito|sans|b|rounded, soft, kids, friendly, care
+Quicksand|sans|b|rounded, light, soft, gentle, baby
+Fredoka|sans|d|playful, rounded, kids, toys, sweets
+Baloo 2|sans|b|playful, rounded, kids, warm, snacks
+Lexend|sans|b|readable, education, calm, learning
+Atkinson Hyperlegible|sans|t|accessible, readable, health, civic
+Syne|sans|d|experimental, art, gallery, edgy
+Unbounded|sans|d|wide, tech, futuristic, bold, web3
+Michroma|sans|d|wide, tech, automotive, futuristic
+Chakra Petch|sans|b|tech, gaming, esports
+Rajdhani|sans|b|tech, condensed, gaming, hud
+Saira|sans|b|sporty, tech, motion
+Saira Condensed|sans|d|condensed, sporty, racing
+Teko|sans|d|condensed, sporty, bold, gym
+Exo 2|sans|b|sci-fi, tech, futuristic, gaming
+Kanit|sans|b|bold, sporty, modern, gym, fitness
+Karla|sans|b|quirky, friendly, indie
+Epilogue|sans|b|editorial, confident, modern, studio
+Be Vietnam Pro|sans|b|clean, friendly, app
+Golos Text|sans|t|clean, neutral, readable
+Geologica|sans|b|geometric, modern, clean
+Gabarito|sans|d|bold, friendly, geometric
+Bricolage Grotesque|sans|b|quirky, characterful, indie, food
+Darker Grotesque|sans|d|condensed, stylish, fashion
+Inria Sans|sans|b|friendly, humanist, calm
+Alegreya Sans|sans|b|humanist, warm, literary
+Josefin Sans|sans|b|vintage, geometric, elegant, art deco
+Tenor Sans|sans|d|elegant, fashion, beauty, calm, salon
+Poiret One|display|d|art deco, elegant, 1920s, cocktail
+Limelight|display|d|art deco, cinema, glamour, theatre
+Righteous|display|d|retro, 70s, playful, arcade
+Bungee|display|d|signage, street, urban, bold
+Bowlby One|display|d|heavy, loud, poster
+Titan One|display|d|bubbly, heavy, fun, kids, candy
+Lilita One|display|d|bold, friendly, fun, games
+Luckiest Guy|display|d|comic, fun, cartoon, loud
+Bangers|display|d|comic, action, superhero
+Shrikhand|display|d|retro, bold, italic, food, 70s
+Dela Gothic One|display|d|heavy, japanese, street, bold, anime
+Orbitron|display|d|sci-fi, space, futuristic
+Press Start 2P|display|d|pixel, 8-bit, retro games
+VT323|mono|d|terminal, retro computer, hacker
+Silkscreen|display|d|pixel, retro, game
+Major Mono Display|mono|d|experimental, tech, minimal
+JetBrains Mono|mono|b|code, developer, technical
+Courier Prime|mono|t|typewriter, screenplay, journalism
+Special Elite|mono|d|typewriter, distressed, detective, vintage
+Cutive Mono|mono|t|typewriter, vintage, quiet
+Permanent Marker|hand|d|marker, street, bold, casual
+Caveat|hand|d|handwritten, casual, notes, friendly
+Kalam|hand|b|handwritten, friendly, warm
+Patrick Hand|hand|b|handwritten, friendly, kids, school
+Gochi Hand|hand|d|handwritten, playful, kids
+Shadows Into Light|hand|d|handwritten, light, personal
+Comic Neue|hand|b|comic, casual, kids
+Amatic SC|hand|d|handmade, craft, rustic, market
+Pacifico|script|d|retro, surf, beach, playful
+Dancing Script|script|d|script, romantic, cafe, florist
+Great Vibes|script|d|formal script, wedding, elegant
+Yellowtail|script|d|retro script, diner, 50s, barber
+Sacramento|script|d|thin script, delicate, beauty
+Pirata One|display|d|blackletter, gothic, tattoo, barber, metal
+UnifrakturMaguntia|display|d|blackletter, medieval, gothic`.trim().split("\n").map((l) => { const [name, kind, use, tags] = l.split("|"); return { name, kind, use, tags }; });
+var LOOK = null;
+const hexOf = (h) => { const m = String(h || "").trim().match(/^#?([0-9a-f]{3}|[0-9a-f]{6})$/i); if (!m) return null; const x = m[1].length === 3 ? m[1].split("").map((c) => c + c).join("") : m[1]; return "#" + x.toLowerCase(); };
+const rgbOf = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const toHex = (c) => "#" + c.map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+const lumOf = (h) => { const [r, g, b] = rgbOf(h).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const contrastOf = (a, b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const mixHex = (a, b, t) => { const x = rgbOf(a), y = rgbOf(b); return toHex(x.map((v, i) => v + (y[i] - v) * t)); };
+const rgbDist = (a, b) => { const x = rgbOf(a), y = rgbOf(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]); };
+// a colour moved toward black or white (whichever stands further from what it sits on) just until it reads against it
+function readOn(fg, bg, need) {
+	if (contrastOf(fg, bg) >= need) return fg;
+	const to = contrastOf("#000000", bg) >= contrastOf("#ffffff", bg) ? "#000000" : "#ffffff";
+	for (let k = 1; k <= 20; k++) { const c = mixHex(fg, to, k / 20); if (contrastOf(c, bg) >= need) return c; }
+	return to;
+}
+// the colours a picture really has (their logo, their shop, their product): measured, the most used first
+async function picColors(src) {
+	try {
+		const img = new Image();
+		img.src = src;
+		await img.decode();
+		const c = document.createElement("canvas");
+		c.width = c.height = 48;
+		const x = c.getContext("2d", { willReadFrequently: true });
+		x.drawImage(img, 0, 0, 48, 48);
+		const d = x.getImageData(0, 0, 48, 48).data, bins = new Map();
+		let total = 0;
+		for (let i = 0; i < d.length; i += 4) {
+			if (d[i + 3] < 128) continue;
+			total++;
+			const k = (d[i] >> 4) * 256 + (d[i + 1] >> 4) * 16 + (d[i + 2] >> 4), b = bins.get(k) || [0, 0, 0, 0];
+			b[0] += d[i]; b[1] += d[i + 1]; b[2] += d[i + 2]; b[3]++;
+			bins.set(k, b);
+		}
+		const out = [];
+		for (const b of [...bins.values()].sort((p, q) => q[3] - p[3])) {
+			const h = toHex([b[0] / b[3], b[1] / b[3], b[2] / b[3]]), same = out.find((o) => rgbDist(o.hex, h) < 40);
+			if (same) same.n += b[3]; else if (out.length < 8) out.push({ hex: h, n: b[3] });
+		}
+		return out.filter((o) => o.n / total >= 0.02).sort((p, q) => q.n - p.n).slice(0, 6).map((o) => o.hex + " (" + Math.round(o.n / total * 100) + "%)");
+	} catch { return []; }
+}
+// sites that are never a business's own (their look is the platform's)
+const NOT_THEIR_SITE = /(^|\.)(instagram|facebook|fb|tiktok|youtube|youtu|twitter|x|linkedin|tokopedia|shopee|lazada|bukalapak|blibli|gofood|grab|gojek|google|goo|tripadvisor|yelp|wikipedia|pinterest|threads|whatsapp|wa|linktr|linktree|bit|maps|foursquare|zomato|traveloka|booking|agoda|medium|reddit|quora)\.[a-z.]{2,}$/i;
+// what's real about its look: pictures they attached, measured; their own site (a link they gave, or found for a real
+// business by its name), its colours and type measured from its code; its logo's colours; and what the web says about
+// them, so its facts aren't made up either
+async function lookEvidence(plan, text, atts, hold) {
+	const ev = { pics: [], site: null, logo: [], facts: "", searched: false };
+	for (const a of (atts || []).filter((a) => a.kind === "image" && a.data).slice(0, 2)) { const c = await picColors(a.data); if (c.length) ev.pics.push((a.name || "a picture") + ": " + c.join(", ")); }
+	let url = (String(text).match(/https?:\/\/[^\s<>"')\]]+/g) || []).find((u) => { try { return !NOT_THEIR_SITE.test(new URL(u).hostname); } catch { return false; } }) || "";
+	const brand = String(plan.brand || "").trim();
+	if (!url && brand.length >= 3) {
+		hold.status = "Looking up " + brand + "'s own look";
+		updateLast();
+		ev.searched = true;
+		try {
+			const hits = (await toolCall("/api/tools/search", { query: brand + " official website", n: 5 }, 20000)).results || [];
+			const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, ""), want = norm(brand);
+			const hit = hits.find((h) => { try { const host = new URL(h.url).hostname.replace(/^www\./, ""); if (NOT_THEIR_SITE.test(host)) return false; const label = norm(host.split(".")[0]); return (label.length >= 4 && (want.includes(label) || label.includes(want))) || String(h.title || "").toLowerCase().includes(brand.toLowerCase()); } catch { return false; } });
+			if (hit) url = hit.url;
+			ev.facts = hits.slice(0, 4).map((h, i) => "[" + (i + 1) + "] " + h.title + " (" + h.url + "): " + String(h.text || "").slice(0, 600)).join("\n");
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	if (url) {
+		let host = "their site";
+		try { host = new URL(url).hostname.replace(/^www\./, ""); } catch {}
+		hold.status = "Measuring the colours and type on " + host;
+		updateLast();
+		try {
+			const j = await toolCall("/api/tools/fetch", { url, look: true }, 25000);
+			if (j && j.look) ev.site = { url: j.url || url, ...j.look };
+			if (j && j.text) ev.facts = ("From their own site (" + (j.url || url) + "):\n" + String(j.text).slice(0, 2500) + (ev.facts ? "\n\nFrom a web search:\n" + ev.facts : "")).slice(0, 4500);
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	// (their logo: an SVG's own colours, or a picture's, measured)
+	const logo = ev.site && ev.site.logo;
+	if (logo) {
+		try {
+			if (/\.svg(\?|$)/i.test(logo)) { const j = await toolCall("/api/tools/fetch", { url: logo }, 15000); ev.logo = [...new Set((String((j && j.text) || "").match(/(?:fill|stroke|stop-color)\s*[:=]\s*["']?#[0-9a-f]{3,6}\b/gi) || []).map((m) => hexOf(m.match(/#[0-9a-f]{3,6}/i)[0])).filter(Boolean))].slice(0, 6); }
+			else { const j = await toolCall("/api/tools/fetch", { url: logo, image: true }, 15000); if (j && j.image) ev.logo = await picColors(j.image); }
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	return ev;
+}
+// the art director's decision, checked: real hex colours, text that reads (4.5:1) and controls that stand out (3:1),
+// fixed in code where they don't; typefaces only from the list (or the brand's own), never one just used for something else
+async function lookFor(plan, text, atts) {
+	const key = String(plan.brand || plan.craft || plan.name || plan.way).toLowerCase().slice(0, 60);
+	const hold = { role: "assistant", text: "", streaming: true, status: "Choosing the look from what's real about it" };
+	current.msgs.push(hold);
+	updateLast();
+	try {
+		const ev = await lookEvidence(plan, text, atts, hold);
+		hold.status = "Choosing the look from what's real about it";
+		updateLast();
+		const past = (store.get("looks", null) || []).filter((l) => l && l.k !== key).slice(-8);
+		const used = new Set(past.slice(-6).flatMap((l) => l.fonts || []).map((f) => String(f).toLowerCase()));
+		const brandType = ((ev.site && ev.site.fonts) || []).filter((f) => f.google).map((f) => f.name);
+		// (in a different order each time: a list read top-down always hands its first lines the most picks)
+		const offer = FONT_LIST.filter((f) => !used.has(f.name.toLowerCase())).map((f) => [Math.random(), f]).sort((a, b) => a[0] - b[0]).map(([, f]) => f);
+		const m = bestFor("look")[0];
+		if (!m) return null;
+		const id = (m.m || m).id;
+		const measured = !!(ev.site || ev.logo.length || ev.pics.length);
+		const evid = [
+			ev.site ? "Measured from their own site's code (" + ev.site.url + "): its colours, the most used first, " + ((ev.site.colors || []).map((c) => c.hex).join(", ") || "none") + "; its neutrals " + ((ev.site.neutrals || []).map((c) => c.hex).join(", ") || "none") + (ev.site.theme ? "; its theme colour " + ev.site.theme : "") + "; its typefaces " + ((ev.site.fonts || []).map((f) => f.name + (f.google ? " (on Google Fonts)" : " (not on Google Fonts)")).join(", ") || "none found") + "." : "",
+			ev.logo.length ? "Measured from their logo: " + ev.logo.join(", ") + "." : "",
+			ev.pics.length ? "Measured from the pictures they attached (their logo, their place or their product; the most used colours first): " + ev.pics.join("; ") + "." : "",
+			plan.brand && !measured ? "Nothing of " + plan.brand + "'s own look could be found" + (ev.searched ? " (no site of theirs in a web search)" : "") + "." : "",
+		].filter(Boolean).join("\n");
+		const lang = plan.profile && plan.profile.language;
+		const prompt = "You are the art director for this: " + String(plan.request || text).slice(0, 2500) + "\nWhat it is: " + (plan.craft || plan.way) + (plan.brand ? ", for " + plan.brand : "") + "." + (lang ? " Its audience reads " + lang + "." : "") +
+			"\n\nDecide its colours and typefaces from evidence, never from habit: an art director who reaches for the same palette and the same fonts every time is guessing. In this order:\n1. The brand's own look, measured below from its real site, logo or pictures: when there is one, keep it (its colours exactly; its typefaces when they're on Google Fonts, else the closest in the list).\n2. What the person said about the look (colours, mood, light or dark, references).\n3. Only then the subject itself: its materials, its place, its era and its light (a barbershop: leather, brass and chalk; a clinic: clean linen and one calm colour), who it's for and their culture, and its category (fit what people expect of it, then stand apart from what every competitor does)." +
+			"\n\nHow colour works (follow it):\n" + SKILLBOOK.color[1] +
+			"\n\nTypefaces: ONLY from this list (name | kind | d: headings only, t: text, b: both | its personality)" + (brandType.length ? ", or the brand's own (" + brandType.join(", ") + ")" : "") + ". A display face for headings and a text face for everything else (or one \"b\" family for both); a \"d\" face never sets text:\n" + offer.map((f) => f.name + " | " + f.kind + " | " + f.use + " | " + f.tags).join("\n") +
+			(past.length ? "\n\nPalettes already used for other recent work (background and accent), so not again unless it's the same brand: " + past.map((l) => (l.colors || []).join(" ")).join("; ") + "." : "") +
+			(evid ? "\n\nThe evidence:\n" + evid : "\n\nThere's no brand look to measure: decide from what they said and from the subject.") +
+			"\n\nReply with ONLY this JSON: {\"feel\": [\"3 words for what it should feel like\"], \"from\": \"brand|said|subject\", \"background\": \"#hex\", \"surface\": \"#hex (cards, panels)\", \"text\": \"#hex\", \"muted\": \"#hex (secondary text)\", \"accent\": \"#hex (what can be pressed, the one thing that matters most)\", \"second\": \"#hex or empty (used sparingly)\", \"why_colour\": \"one sentence: where each colour comes from\", \"display\": \"typeface\", \"body\": \"typeface\", \"why_type\": \"one sentence\", \"missing\": \"what of their own look couldn't be found and would let it match exactly (their logo, a photo of the place), or empty\"}";
+		const raw = await stream(id, [{ role: "user", content: prompt }], () => {}, busy.signal, { max_tokens: 1200, temperature: 0.6, ...effortFor(id, "low") }, hold);
+		const j = parseJSON(raw) || {};
+		const bg = hexOf(j.background), tx = hexOf(j.text), ac = hexOf(j.accent);
+		if (!bg || !tx || !ac) return null;
+		const L = { from: ["brand", "said", "subject"].includes(j.from) ? j.from : "subject", feel: (Array.isArray(j.feel) ? j.feel : []).map(String).filter(Boolean).slice(0, 3), bg, brand: plan.brand || "", measured, by: id };
+		const brandish = L.from === "brand" && measured;
+		L.surface = hexOf(j.surface) || mixHex(bg, tx, 0.04);
+		L.text = readOn(readOn(tx, bg, 4.5), L.surface, 4.5);
+		L.muted = readOn(readOn(hexOf(j.muted) || mixHex(L.text, bg, 0.35), bg, 4.5), L.surface, 4.5);
+		// (a brand's own colour is kept exactly; a chosen one stands out from the background as a control must)
+		L.accent = brandish ? ac : readOn(ac, bg, 3);
+		L.second = hexOf(j.second) || "";
+		L.onAccent = [bg, L.text, "#ffffff", "#111111"].sort((p, q) => contrastOf(q, L.accent) - contrastOf(p, L.accent))[0];
+		if (contrastOf(L.onAccent, L.accent) < 4.5 && !brandish) L.accent = readOn(L.accent, L.onAccent, 4.5);
+		L.accentInk = readOn(L.accent, bg, 4.5);
+		const allowed = new Map(FONT_LIST.map((f) => [f.name.toLowerCase(), f]));
+		for (const b of brandType) if (!allowed.has(b.toLowerCase())) allowed.set(b.toLowerCase(), { name: b, kind: "", use: "b", tags: "" });
+		const words = L.feel.join(" ").toLowerCase().split(/[^a-z0-9-]+/).filter((w) => w.length > 2);
+		const fit = (uses) => (offer.filter((f) => uses.includes(f.use)).map((f) => [words.filter((w) => f.tags.includes(w)).length, f]).sort((a, b) => b[0] - a[0])[0] || [])[1];
+		const fresh = (f) => f && (!used.has(f.name.toLowerCase()) || brandType.includes(f.name));
+		let d = allowed.get(String(j.display || "").trim().toLowerCase());
+		if (!fresh(d)) d = fit("db") || offer[0];
+		let t = allowed.get(String(j.body || "").trim().toLowerCase());
+		if (!fresh(t) || t.use === "d") t = d.use !== "d" ? d : fit("tb") || offer.find((f) => f.use !== "d");
+		L.display = d.name;
+		L.body = t.name;
+		L.why = [j.why_colour, j.why_type].map((x) => String(x || "").trim()).filter(Boolean).join(" ").slice(0, 500);
+		L.missing = String(j.missing || "").trim().slice(0, 200);
+		L.facts = ev.facts;
+		L.site = ev.site ? ev.site.url : "";
+		const all = (store.get("looks", null) || []).filter(Boolean);
+		all.push({ k: key, fonts: [L.display, L.body], colors: [L.bg, L.accent], at: Date.now() });
+		store.set("looks", all.slice(-12));
+		noteTool("Look: " + (brandish ? "their own, measured" : "decided from " + (L.from === "said" ? "what they said" : "the subject")), "Colours " + [L.bg, L.text, L.accent].join(", ") + "; type " + L.display + (L.body !== L.display ? " and " + L.body : "") + (L.why ? ". " + L.why : ""));
+		return L;
+	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }
+	finally { current.msgs.splice(current.msgs.indexOf(hold), 1); }
+}
+// the decided look goes with the request to whoever makes it, with what was found about them (their real facts, so those
+// aren't made up either), and an honest line when their own look couldn't be found
+function useLook(plan, text, L) {
+	const look = "The look, decided for this from evidence" + (L.from === "brand" && L.measured ? " (their own brand's, measured" + (L.site ? " from " + L.site : "") + ")" : "") + ": use exactly these, and no other colours or typefaces:\n" +
+		"- Background " + L.bg + ", surfaces (cards, panels) " + L.surface + ", text " + L.text + ", secondary text " + L.muted + ".\n" +
+		"- Accent " + L.accent + " for what can be pressed and the one thing that matters most (text on it: " + L.onAccent + "); links and small accent text " + L.accentInk + (L.second ? "; a second colour " + L.second + ", sparingly" : "") + ". About 60% background, 30% surfaces and text, 10% accent.\n" +
+		"- Typefaces, from Google Fonts: \"" + L.display + "\" for headings" + (L.body !== L.display ? ", \"" + L.body + "\" for everything else" : " and everything else") + ".\n" +
+		(L.why || L.feel.length ? "- Why: " + L.why + (L.feel.length ? " It should feel " + L.feel.join(", ") + "." : "") + "\n" : "");
+	const facts = (L.facts ? "\nWhat was found about them online (use only what is clearly about them; never invent prices, hours, addresses, phone numbers, names or reviews; anything you must make up to finish it is a sample, named as one in your notes):\n" + L.facts + "\n" : "") +
+		(L.brand && !L.measured ? "\n" + L.brand + "'s own colours and logo couldn't be found" + (L.missing ? " (" + L.missing + ")" : "") + ": say so in one short line, and offer to match their brand exactly if they send their logo or a photo.\n" : "");
+	plan.request = wholeRequest(plan, text) + "\n\n" + look + facts;
+	PLAN_NOTE = (PLAN_NOTE ? PLAN_NOTE + "\n" : "") + look + (plan.way === "project" ? facts : "");
+	LOOK = L;
+}
 // the watcher watches the video again with what was made: does it match? ({ match, notes })
 async function refJudge(what, made, msg) {
 	const w = REF_WATCH;
@@ -7846,6 +8148,12 @@ async function serve(text, atts, tool, o = {}) {
 		if (current) current.craft = plan.craft;
 		const c = await craftBrief(plan.craft);
 		if (c) useCraft(plan, text, plan.craft, c);
+	}
+	// the look: decided from evidence (theirs, measured; what they said; the subject), never guessed or the usual
+	LOOK = null;
+	if (plan && !LANE && !plan.edit && LOOK_WAYS.includes(plan.way) && (plan.way !== "project" || /\b(site|website|web ?app|landing|page|app|ui|dashboard|game|store|shop|portfolio|blog|design)\b/i.test(String(plan.request || text)))) {
+		const l = await lookFor(plan, text, atts);
+		if (l) useLook(plan, text, l);
 	}
 	// a long run: what it'll likely cost, and a go-ahead, before anything is spent (not for Max's own extra rounds: only
 	// when they gave it time, or all the time it needs)
@@ -9466,8 +9774,8 @@ const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text },
 const NO_APPLE = /\b(no|not|don'?t|do not|without|skip|ignore|stop|never)\b[^.!?\n]{0,40}(\bapple[- ]?(like|style|ish|esque)\b|\bapple'?s?\b[^.!?\n]{0,12}\b(design|style|rules?|guidelines|look|hig|aesthetic)\b|\blike apple\b)|\bapple\b[^.!?\n]{0,20}\b(rules|design|guidelines|style)\b[^.!?\n]{0,15}\b(off|no)\b/i;
 const APPLE_RULES = "- Apple's design rules are the default here (the person's own words win: anything they ask for about the look replaces the rule it contradicts). For a website or an app, and a game's menus, HUD and settings (a game keeps its own art direction): " +
 	"clarity, deference and depth: the content is the hero and the interface recedes (thin bars, quiet controls), depth only to show what sits over what (a layer, a soft shadow, a sheet sliding up). " +
-	"Typography does the work: one precise sans family with SF Pro's character (on the web a refined grotesk from Google Fonts such as Inter Tight, Manrope, Plus Jakarta Sans or Geist; a characterful display face only where the subject wants it) on a strict scale: big, bold, tightly tracked headlines (about -0.02em; 48 to 96px on a desktop hero), 17px body text at about 1.5 line height, few weights. Headlines short, plain and confident. " +
-	"Colour: mostly white, #f5f5f7 and #1d1d1f (or their dark equivalents), ONE accent kept for what can be pressed; the colour comes from the content (the product, illustrations), not decoration. " +
+	"Typography does the work: the typefaces decided for this (given with the request; when none were given, ones chosen for this subject from evidence, never your usual picks) on a strict scale: big, bold, tightly tracked headlines (about -0.02em; 48 to 96px on a desktop hero), 17px body text at about 1.5 line height, few weights. Headlines short, plain and confident. " +
+	"Colour: the palette decided for this (given with the request): mostly its background and surfaces with its text colour, ONE accent kept for what can be pressed; the rest of the colour comes from the content (the product, photos, illustrations), not decoration. " +
 	"Layout: generous whitespace, one idea per section, a readable centred column (about 980px) with full-bleed moments for the hero, everything on an 8px grid with consistent margins. " +
 	"Controls: rounded or pill buttons with one corner radius across the app, at least 44px tall to tap, clear hover, pressed, disabled and keyboard-focus states; patterns people already know (tab bars, segmented controls, sheets, toggles). " +
 	"Motion: quick and physical (spring-like ease-out, 200 to 500 ms) and it shows where things come from and go; scroll reveals subtle (a fade and a 20px rise), never bouncing for show; prefers-reduced-motion respected. Translucency (backdrop blur) only for bars and sheets floating over content. " +
@@ -9516,8 +9824,9 @@ async function buildApp(text, atts, pick) {
 	const rules = "You are an expert engineer working in a browser sandbox with a live preview.\n" +
 		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no images or network requests from outside. Two things may load from outside: fonts from Google Fonts (a <link> to fonts.googleapis.com, two families at most, with a fallback stack), and, for real 3D, three.js r128 with <script src=\"" + THREE_SRC + "\"><\/script> before your own script (only that file: no add-ons such as OrbitControls or loaders, so write camera controls yourself; r128's API: BufferGeometry, no Geometry). Pictures and icons are drawn: inline SVG (icons in one consistent stroke style), CSS and canvas; emoji only where emoji is the content, never as icons.\n" +
 		"- Complete and working on the first run: no placeholders, no TODOs, no lorem ipsum: real, specific words for this subject.\n" +
+		"- Never guess facts: a real business's or person's prices, hours, address, phone numbers, staff, reviews and numbers come only from what they gave or what was found for this; anything you had to make up to finish it is named in NOTES as a sample to replace.\n" +
 		designRules(text) +
-		"- Design it like a top product studio (Apple's restraint, Emil Kowalski's craft), never the generic AI look. Never: Roboto, Arial, or plain Inter or an unstyled system font as the whole look; purple or blue gradients; glowing or neon buttons; glass blur everywhere; gradient text; emoji as icons; a centred hero over three equal feature cards; stock phrases (unlock, seamless, elevate, supercharge). Instead: a type pairing chosen for this subject (a characterful display face and a quiet text face) on a real type scale; a restrained palette taken from the subject (neutrals and one accent), light or dark as fits it; a layout built for the content (asymmetry where it helps, varied section rhythm, clear hierarchy, generous whitespace, edges that line up on an 8px grid); the details done properly (hover and pressed states without glows, visible keyboard focus, empty, loading and error states); motion with a purpose: 150 to 300 ms, ease-out, transform and opacity only, nothing looping for no reason, and prefers-reduced-motion respected. Responsive down to a phone; keyboard support where it makes sense. A game: one consistent art style and a clean, readable HUD.\n" +
+		"- Design it like a top product studio (Apple's restraint, Emil Kowalski's craft), never the generic AI look. Never: Roboto, Arial, or plain Inter or an unstyled system font as the whole look; purple or blue gradients; glowing or neon buttons; glass blur everywhere; gradient text; emoji as icons; a centred hero over three equal feature cards; stock phrases (unlock, seamless, elevate, supercharge). Instead: the typefaces and palette decided for this request, exactly as given (when none were given: chosen from evidence about this subject, never your usual picks), on a real type scale, light or dark as the palette says; a layout built for the content (asymmetry where it helps, varied section rhythm, clear hierarchy, generous whitespace, edges that line up on an 8px grid); the details done properly (hover and pressed states without glows, visible keyboard focus, empty, loading and error states); motion with a purpose: 150 to 300 ms, ease-out, transform and opacity only, nothing looping for no reason, and prefers-reduced-motion respected. Responsive down to a phone; keyboard support where it makes sense. A game: one consistent art style and a clean, readable HUD.\n" +
 		"- A game or simulation: play it through in your head before you finish. Every computer-controlled player or character acts in every state (one holding the ball passes, shoots or runs on; none just stands there), every timer and cooldown really runs out (never reset or counted back every frame), starting positions and rules follow the real thing (at a football kick-off each team is in its own half), and every control does what it says.\n" +
 		"- A game feels right: movement works with both WASD and the arrow keys unless asked otherwise; players and vehicles speed up and slow down (never full speed or a dead stop at once) and a ball rolls on with momentum and slows with friction; computer players think for themselves, each keeping its own position and job, reacting to the ball after a short delay and sometimes getting it wrong (difficulty changes how often), and never copying or mirroring the person's moves; it never restarts, resets or pauses by itself (only a goal, the clock or a key the person presses does that).\n" +
 		(MODEL3D_RE.test(text) ? "- It's a 3D model they'll use elsewhere (to sell, print or put in a game): they download what's on screen as .glb, .stl or .obj, so build it as a real object: real-world size in metres, its parts as separate meshes with clear names, MeshStandardMaterial with real colours, roughness and metalness, smooth enough geometry (enough segments), and nothing else in the scene that would end up in the file (no ground, grid, helpers or text); show it on a turntable with good studio lighting.\n" : "") +
@@ -10142,7 +10451,7 @@ function fileIntent(text, atts) {
 	return null;
 }
 const FILE_ASK = {
-	pptx: 'A presentation. 8-14 slides unless they say otherwise. One idea per slide; titles state the takeaway ("Costs fall 30% in year two"), not just the topic; at most 5 bullets of a few words each. Use a stat, chart or table slide wherever there are numbers, and never invent precise statistics: use the material given, or round, clearly illustrative figures. Every slide gets 2-4 sentences of speaker notes. Pick a palette that suits the subject (light background unless a dark one clearly fits).\nJSON: {"title":"...","subtitle":"...","theme":{"bg":"#FFFFFF","text":"#1A1A1A","accent":"#2F5BEA"},"slides":[{"layout":"title","title":"...","subtitle":"..."},{"layout":"bullets","title":"...","bullets":["..."],"notes":"..."},{"layout":"two","title":"...","left":{"heading":"...","bullets":["..."]},"right":{"heading":"...","bullets":["..."]},"notes":"..."},{"layout":"stat","title":"...","stats":[{"value":"87%","label":"..."}],"notes":"..."},{"layout":"chart","title":"...","chart":{"type":"bar|line|pie","labels":["..."],"series":[{"name":"...","values":[1,2]}]},"notes":"..."},{"layout":"table","title":"...","table":{"head":["..."],"rows":[["..."]]},"notes":"..."},{"layout":"quote","quote":"...","by":"...","notes":"..."},{"layout":"section","title":"...","subtitle":"..."}]}',
+	pptx: 'A presentation. 8-14 slides unless they say otherwise. One idea per slide; titles state the takeaway ("Costs fall 30% in year two"), not just the topic; at most 5 bullets of a few words each. Use a stat, chart or table slide wherever there are numbers, and never invent precise statistics: use the material given, or round, clearly illustrative figures. Every slide gets 2-4 sentences of speaker notes. Use the look decided for it when the request gives one (its background, text and accent); otherwise pick a palette that suits the subject (light background unless a dark one clearly fits).\nJSON: {"title":"...","subtitle":"...","theme":{"bg":"#FFFFFF","text":"#1A1A1A","accent":"#2F5BEA"},"slides":[{"layout":"title","title":"...","subtitle":"..."},{"layout":"bullets","title":"...","bullets":["..."],"notes":"..."},{"layout":"two","title":"...","left":{"heading":"...","bullets":["..."]},"right":{"heading":"...","bullets":["..."]},"notes":"..."},{"layout":"stat","title":"...","stats":[{"value":"87%","label":"..."}],"notes":"..."},{"layout":"chart","title":"...","chart":{"type":"bar|line|pie","labels":["..."],"series":[{"name":"...","values":[1,2]}]},"notes":"..."},{"layout":"table","title":"...","table":{"head":["..."],"rows":[["..."]]},"notes":"..."},{"layout":"quote","quote":"...","by":"...","notes":"..."},{"layout":"section","title":"...","subtitle":"..."}]}',
 	xlsx: 'A spreadsheet that works: a header row, realistic rows, and real formulas (strings starting with =, using A1 references, e.g. "=SUM(B2:B13)" or "=B2*C2") for every total and derived value so it recalculates when they change a number. Several sheets only when it helps (e.g. Inputs, Monthly, Summary). Column format is one of currency, percent, number, integer, date, text, or an Excel format string.\nJSON: {"title":"...","sheets":[{"name":"...","columns":[{"header":"...","format":"text","width":18}],"rows":[["...", 1200, "=B2*12"]]}]}',
 	docx: 'A complete, well-structured document: a title, then headings, paragraphs, lists and tables where they help. Plain, specific writing with no filler. **bold** and *italic* are allowed inside text.\nJSON: {"title":"...","subtitle":"...","blocks":[{"type":"h1","text":"..."},{"type":"p","text":"..."},{"type":"bullets","items":["..."]},{"type":"numbered","items":["..."]},{"type":"table","head":["..."],"rows":[["..."]]},{"type":"quote","text":"..."},{"type":"h2","text":"..."}]}',
 };
@@ -10754,7 +11063,7 @@ Write the plan so the result looks expensive and real:
 - Clear with no context: a stranger scrolling past must understand who this is, what they want, what happens and why it matters, in the first watch and with no explanation: establish the character and their goal in the first shots, show cause and effect on screen, one clear turn, a payoff. Where the story needs words and there's no voice, put short lines on screen (a title, a caption, a sign, a message on a screen), never symbols only you would understand.
 - For a product or brand film (a trailer, an ad, a launch): show what it is and what it does for the viewer, concretely, in the first 3 seconds (the product in use, the result it gives), then why it's better, then its name and where to get it. A story about a feeling never stands in for showing the product.
 - The end card: when the last shot already ends on the film's title (a title card drawn in it), leave "end" title and sub empty: a second card would only repeat it.
-- Typography: choose the film's two Google Fonts the way a title designer would, for this world: a pixel font ("Press Start 2P", "Silkscreen", "VT323") for pixel art and games, a warm serif ("Young Serif", "Gloock", "Cormorant Garamond") for a tender or literary story, a hand-drawn one ("Caveat", "Patrick Hand") for a sketchbook look, a heavy condensed grotesk ("Anton", "Bebas Neue", "Archivo Black") for an ad or trailer, a geometric display ("Unbounded", "Syne", "Familjen Grotesk") for tech: anything on Google Fonts that fits. Never Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins, Space Grotesk, Instrument Sans or Serif, DM Sans, Manrope, Outfit, Sora, Playfair Display or a system font: they look like every other AI video.
+- Typography and palette: when the request gives the look decided for it, use exactly its two typefaces and its colours. Otherwise choose the film's two Google Fonts the way a title designer would, for this world: a pixel font ("Press Start 2P", "Silkscreen", "VT323") for pixel art and games, a warm serif ("Young Serif", "Gloock", "Cormorant Garamond") for a tender or literary story, a hand-drawn one ("Caveat", "Patrick Hand") for a sketchbook look, a heavy condensed grotesk ("Anton", "Bebas Neue", "Archivo Black") for an ad or trailer, a geometric display ("Unbounded", "Syne", "Familjen Grotesk") for tech: anything on Google Fonts that fits. Never Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins, Space Grotesk, Instrument Sans or Serif, DM Sans, Manrope, Outfit, Sora, Playfair Display or a system font: they look like every other AI video.
 - The look comes from the subject's own world (its materials, its light, its era) or the brand's own, never the AI default (purple or blue-to-cyan gradients, neon glow on black, glassy blobs, sparkles): a viewer should wonder whether a person made it. In "look", give the palette and why, the texture (grain, paper, film), the light, and how the camera moves (push-ins, pans, tracking, whip pans, depth of field); every drawn shot has a camera move of its own.
 - A video for YouTube, a channel, Shorts or TikTok is made the way the best animation channels make theirs: a hook that grabs in the first 5 seconds, a clear arc (setup, rising stakes, a reveal or punchline, a payoff), recurring characters with names, roles and an identical look in every shot, and a reason to subscribe at the end. For one, also return "youtube": {"titles": ["3 title options, under 60 characters, curious and true"], "hook": "what the first 5 seconds show and say", "characters": [{"name": "...", "role": "...", "look": "described identically to the shots"}], "description": "2 to 4 sentences, then its chapters as 0:00 lines", "tags": ["8 to 15 search tags"], "thumbnail": {"text": "2 to 4 words, huge", "shot": the number of the shot whose picture it uses (1 is the first), "color": "#hex for the words"}}. Leave "youtube" out for anything else.
 
@@ -10857,7 +11166,7 @@ function cleanPlan(p, want, drawn) {
 const GENERIC_FONTS = /^(inter|roboto|arial|helvetica( neue)?|open sans|lato|montserrat|poppins|system-ui|sans-serif|serif|segoe ui|noto sans|source sans( pro| 3)?|space grotesk|instrument sans|instrument serif|dm sans|manrope|outfit|sora|plus jakarta sans|playfair display)$/i;
 function filmType(t, kind) {
 	const ok = (f) => typeof f === "string" && /^[A-Za-z0-9 ]{2,40}$/.test(f.trim()) && !GENERIC_FONTS.test(f.trim()) ? f.trim() : null;
-	const by = /ad|social/.test(String(kind)) ? ["Anton", "Schibsted Grotesk"] : /explainer/.test(String(kind)) ? ["Familjen Grotesk", "Schibsted Grotesk"] : ["Young Serif", "Schibsted Grotesk"];
+	const by = LOOK && LOOK.display ? [LOOK.display, LOOK.body] : /ad|social/.test(String(kind)) ? ["Anton", "Schibsted Grotesk"] : /explainer/.test(String(kind)) ? ["Familjen Grotesk", "Schibsted Grotesk"] : ["Young Serif", "Schibsted Grotesk"];
 	return { title: ok(t && t.title) || by[0], text: ok(t && t.text) || ok(t && t.title) || by[1] };
 }
 // the film's typefaces, loaded into this page so its titles, captions and thumbnail are drawn in them (a few seconds at
@@ -12140,7 +12449,7 @@ async function runDrawnImage(text, atts) {
 	const ask = (before
 		? "Here is a picture as SVG:\n" + before.slice(0, 60000) + "\n\n" + text.replace(/^Change this image:\s*/i, "Change it: ") + "\nKeep everything else as it is."
 		: "Draw this as one SVG picture: " + text) +
-		"\n\nMake it beautiful, the way a top illustrator and designer would: a strong composition, a considered palette, gradients, light and depth where they help, crisp shapes, and any words set in clean, readable type (font-family=\"Inter, Helvetica, Arial, sans-serif\"). Nothing external: no images, fonts, scripts or links. Pick the shape that suits it: viewBox=\"0 0 1024 1024\" square, \"0 0 1536 1024\" wide, \"0 0 1024 1536\" tall. Reply with ONLY the SVG, from <svg to </svg>.";
+		"\n\nMake it beautiful, the way a top illustrator and designer would: a strong composition, a considered palette (the one decided for it, when the request gives one), light and depth where they help, crisp shapes, and any words set in clean, readable type (font-family=\"Inter, Helvetica, Arial, sans-serif\"). Nothing external: no images, fonts, scripts or links. Pick the shape that suits it: viewBox=\"0 0 1024 1024\" square, \"0 0 1536 1024\" wide, \"0 0 1024 1536\" tall. Reply with ONLY the SVG, from <svg to </svg>.";
 	let made = null, title = pictureTitle(text);
 	for (const m of bestFor("drawn").slice(0, 3)) {
 		try {

@@ -2999,12 +2999,61 @@ async function toolFetch(req, env) {
 	if (!/text|json|xml|javascript/.test(type)) return json({ url: u.toString(), title: "", text: "(not a text page: " + type + ")" });
 	let t = (await r.text()).slice(0, 2_000_000);
 	const title = (t.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || "";
+	// (its own look, when asked: measured from its code before the code is stripped away)
+	const look = b.look && /html/.test(type) ? await pageLook(t, r.url || u.toString()).catch(() => null) : null;
 	if (/html/.test(type)) {
 		t = t.replace(/<(script|style|noscript|svg|nav|footer|header)[\s\S]*?<\/\1>/gi, " ").replace(/<br\s*\/?>|<\/(p|div|li|h\d|tr)>/gi, "\n").replace(/<[^>]+>/g, " ")
 			.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'")
 			.replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n\n").trim();
 	}
-	return json({ url: u.toString(), title: title.replace(/\s+/g, " ").trim().slice(0, 200), text: t.slice(0, 30000) });
+	return json({ url: u.toString(), title: title.replace(/\s+/g, " ").trim().slice(0, 200), text: t.slice(0, 30000), ...(look ? { look } : {}) });
+}
+// A site's own look, measured from its code, never guessed: the colours its styles use most (brand-named ones counted
+// more, a library's or a theme's preset swatches not at all), its theme colour, its typefaces (and which of them come
+// from Google Fonts, so they can be used as they are), and where its logo is
+const LOOK_SKIP_CSS = /bootstrap|font-?awesome|fontawesome|cdnjs|jsdelivr|unpkg|wp-includes|block-library|animate(\.min)?\.css|swiper|slick|owl\.carousel|jquery|normalize|reset\.css|icons?\.css|fonts\.googleapis/i;
+const LOOK_GENERIC_FONT = /^(inherit|initial|unset|revert|sans-serif|serif|monospace|cursive|fantasy|system-ui|-apple-system|blinkmacsystemfont|segoe ui|arial|helvetica( neue)?|roboto|ui-[a-z-]+|apple color emoji|segoe ui (emoji|symbol)|noto color emoji|times( new roman)?|georgia|verdana|tahoma|courier( new)?)$/i;
+async function pageLook(html, base) {
+	const safe = (h) => { try { const x = new URL(String(h).replace(/&amp;/g, "&"), base); return /^https?:$/.test(x.protocol) && !/^(localhost|127\.|10\.|192\.168\.|169\.254\.|\[?::1)/.test(x.hostname) ? x.toString() : ""; } catch { return ""; } };
+	let css = (html.match(/<style[^>]*>[\s\S]*?<\/style>/gi) || []).join("\n") + "\n" + (html.match(/style="[^"]*"/gi) || []).join(";\n");
+	const links = (html.match(/<link\b[^>]*>/gi) || []);
+	const hrefOf = (tag) => (tag.match(/href=["']([^"']+)["']/i) || [])[1] || "";
+	const fonts = new Map(), google = new Set();
+	const addFont = (f, w) => { f = String(f || "").replace(/["']/g, "").replace(/\s+/g, " ").trim(); if (!f || f.length > 40 || LOOK_GENERIC_FONT.test(f) || /^var\(/i.test(f) || /icon|awesome|material|glyph|swiper|slick|dashicons|eicons|wp-/i.test(f)) return; fonts.set(f, (fonts.get(f) || 0) + w); };
+	// (typefaces loaded from Google Fonts: real Google Fonts families, usable exactly)
+	for (const tag of links) { const g = hrefOf(tag).match(/fonts\.googleapis\.com\/css2?\?(.*)$/i); if (g) for (const part of g[1].replace(/&amp;/g, "&").split("&")) if (/^family=/i.test(part)) for (const fam of decodeURIComponent(part.slice(7)).split("|")) { const name = fam.split(":")[0].replace(/\+/g, " ").trim(); if (name) { google.add(name.toLowerCase()); addFont(name, 40); } } }
+	for (const m of html.matchAll(/@import\s+url\(["']?(https:\/\/fonts\.googleapis\.com[^"')]+)/gi)) for (const part of m[1].split("&")) if (/family=/i.test(part)) { const name = decodeURIComponent(part.split("family=")[1]).split(":")[0].replace(/\+/g, " ").trim(); if (name) { google.add(name.toLowerCase()); addFont(name, 40); } }
+	// (its own stylesheets, a few, never a library's)
+	const sheets = links.filter((tag) => /rel=["']?stylesheet/i.test(tag)).map(hrefOf).filter((h) => h && !LOOK_SKIP_CSS.test(h)).map(safe).filter(Boolean).slice(0, 4);
+	await Promise.all(sheets.map(async (h) => { try { const r = await fetch(h, { headers: { "User-Agent": "Mozilla/5.0 (compatible; Celestin/1.0)" }, signal: AbortSignal.timeout(8000) }); if (r.ok) css += "\n" + (await r.text()).slice(0, 600000); } catch {} }));
+	for (const m of css.matchAll(/@import\s+url\(["']?(https:\/\/fonts\.googleapis\.com[^"')]+)/gi)) for (const part of m[1].split("&")) if (/family=/i.test(part)) { const name = decodeURIComponent(part.split("family=")[1]).split(":")[0].replace(/\+/g, " ").trim(); if (name) { google.add(name.toLowerCase()); addFont(name, 40); } }
+	for (const m of css.matchAll(/font-family\s*:\s*([^;}{]+)/gi)) addFont(m[1].split(",")[0], 1);
+	// colours: each use counted where it's used; a custom property named for the brand counts much more; a theme's
+	// preset swatches (every WordPress site defines the same dozen) not at all
+	const hex = (r, g, b) => "#" + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0")).join("");
+	const parse = (v) => { let m = v.match(/^#([0-9a-f]{3,8})$/i); if (m) { let x = m[1]; if (x.length === 3 || x.length === 4) x = x.slice(0, 3).split("").map((c) => c + c).join(""); else if (x.length !== 6 && x.length !== 8) return null; return "#" + x.slice(0, 6).toLowerCase(); } m = v.match(/^rgba?\(\s*(\d{1,3})[\s,]+(\d{1,3})[\s,]+(\d{1,3})/i); return m ? hex(+m[1], +m[2], +m[3]) : null; };
+	const score = new Map();
+	const add = (c, w) => { if (c) score.set(c, (score.get(c) || 0) + w); };
+	for (const m of css.matchAll(/(--[\w-]+|[a-z-]+)\s*:\s*([^;}{]{1,200})/gi)) {
+		const prop = m[1].toLowerCase();
+		if (/preset|wp--|bs-|tw-|swiper|slick|gray-\d|grey-\d|-(red|orange|yellow|green|teal|cyan|blue|indigo|purple|pink)(-\d+)?$/.test(prop)) continue;
+		const w = /^--/.test(prop) ? (/brand|primary|accent|main|secondary|theme|highlight|cta/.test(prop) ? 8 : 2) : /^(color|background(-color)?|border(-color)?|fill|stroke|outline-color|box-shadow|text-decoration-color)$/.test(prop) ? 1 : 0;
+		if (!w) continue;
+		for (const v of m[2].match(/#[0-9a-f]{3,8}\b|rgba?\([^)]+\)/gi) || []) add(parse(v), w);
+	}
+	const theme = parse(((html.match(/<meta[^>]+name=["']theme-color["'][^>]*>/i) || [""])[0].match(/content=["']([^"']+)["']/i) || [])[1] || "");
+	if (theme) add(theme, 20);
+	const chroma = (c) => { const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)); return Math.max(r, g, b) - Math.min(r, g, b); };
+	const near = (a, b) => { const x = [1, 3, 5].map((i) => parseInt(a.slice(i, i + 2), 16) - parseInt(b.slice(i, i + 2), 16)); return Math.hypot(...x) < 28; };
+	const ranked = [...score.entries()].sort((a, b) => b[1] - a[1]);
+	const pick = (list, max) => { const out = []; for (const [c, w] of list) { const same = out.find((o) => near(o.hex, c)); if (same) same.w += w; else if (out.length < max) out.push({ hex: c, w }); } return out; };
+	const colors = pick(ranked.filter(([c]) => chroma(c) >= 24), 6), neutrals = pick(ranked.filter(([c]) => chroma(c) < 24), 4);
+	// (its logo: an image or icon named for it, else the touch icon)
+	const logoTag = (html.match(/<img\b[^>]*(logo|brand)[^>]*>/i) || [""])[0];
+	const logo = safe((logoTag.match(/\bsrc=["']([^"']+)["']/i) || [])[1] || "") || safe(hrefOf(links.find((tag) => /rel=["'][^"']*(apple-touch-icon|icon)[^"']*["']/i.test(tag) && /\.(svg|png)/i.test(hrefOf(tag))) || ""));
+	const type = [...fonts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name]) => ({ name, google: google.has(name.toLowerCase()) }));
+	if (!colors.length && !neutrals.length && !type.length) return null;
+	return { theme: theme || "", colors, neutrals, fonts: type, logo, sheets: sheets.length };
 }
 
 // ------------------------------------------------------------------ shared chats
