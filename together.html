@@ -35,6 +35,8 @@
 <meta name="apple-mobile-web-app-title" content="Celestin">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- (Celestin's server: connected while the page loads, so the first answer starts sooner) -->
+<link rel="preconnect" href="https://andromeda-credits.georgechendra.workers.dev" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
@@ -13263,7 +13265,9 @@ function morph(change) {
 	if (!document.startViewTransition || matchMedia("(prefers-reduced-motion: reduce)").matches) return change();
 	document.documentElement.classList.add("morphing");
 	const vt = document.startViewTransition(change);
-	vt.finished.finally(() => document.documentElement.classList.remove("morphing"));
+	// (a new one starting first skips this one: that's expected, never an error)
+	vt.ready.catch(() => {});
+	vt.finished.finally(() => document.documentElement.classList.remove("morphing")).catch(() => {});
 	return vt.updateCallbackDone;
 }
 // Going somewhere (another chat, a new one, the home page, the panel beside the chat): the view glides out and the new
@@ -13274,7 +13278,8 @@ function navTo(change) {
 	root.classList.add("nav-vt");
 	try {
 		const vt = document.startViewTransition(change);
-		vt.finished.finally(() => root.classList.remove("nav-vt"));
+		vt.ready.catch(() => {});
+		vt.finished.finally(() => root.classList.remove("nav-vt")).catch(() => {});
 		return vt.updateCallbackDone;
 	} catch {
 		root.classList.remove("nav-vt");
