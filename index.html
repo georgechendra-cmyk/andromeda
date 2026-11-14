@@ -574,6 +574,18 @@ textarea.inp { height: auto; min-height: 72px; padding: 10px 12px; line-height: 
 .mm-wrap:fullscreen .mm { flex: 1; min-height: 0; margin: 0; }
 .mm-wrap:fullscreen .mm svg { height: 100%; }
 .mm .mm-node, .mm .mm-tog { cursor: pointer; }
+/* the whiteboard lesson: a real white board in both themes, its marks in hand-drawn ink */
+.bd { margin: 8px 0 0; }
+.bd-board { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fffefa; box-shadow: inset 0 0 0 6px rgba(0, 0, 0, 0.025); }
+.bd-board svg { display: block; width: 100%; height: auto; }
+.bd-txt { font-family: "Patrick Hand", "Comic Neue", "Segoe Print", cursive; }
+.bd-say { min-height: 3em; margin: 10px 2px 8px; font-size: 15.5px; line-height: 1.5; }
+.bd-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.bd-n { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; min-width: 44px; text-align: center; }
+.bd-hint { margin-top: 6px; }
+.bd:fullscreen { background: var(--bg); padding: 16px; display: flex; flex-direction: column; justify-content: center; }
+.bd:fullscreen .bd-board { width: min(100%, calc(76vh * 1.6)); margin: 0 auto; }
+.bd:fullscreen .bd-say { text-align: center; font-size: 19px; }
 .mm-zoom { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 4px; }
 .mm-zoom button { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font-size: 16px; line-height: 1; cursor: pointer; }
 .mm-hint { position: absolute; left: 12px; bottom: 10px; font-size: 11.5px; color: var(--faint); pointer-events: none; }
@@ -2763,6 +2775,8 @@ const FEATURE_W = {
 	quiz: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
 	open: { task: "write", out: 2500, w: { "text:expert": 0.35, "factuality:overall": 0.35, "text:instruction_following": 0.3 } },
 	grade: { task: "reasoning", out: 800, w: { "text:expert": 0.4, "factuality:overall": 0.3, "text:instruction_following": 0.3 } },
+	// a whiteboard lesson: a teacher who knows it cold, explains it simply, and lays a drawing out cleanly (an SVG's craft)
+	board: { task: "write", out: 5000, w: { "text:expert": 0.3, "webdev:webdev-html": 0.25, "text:instruction_following": 0.25, "factuality:overall": 0.2 } },
 	mindmap: { task: "write", out: 2000, w: { "text:expert": 0.3, "text:instruction_following": 0.3, "factuality:overall": 0.2, "text:creative_writing": 0.2 } },
 	podcast: { task: "write", out: 4000, w: { "text:creative_writing": 0.45, "factuality:overall": 0.3, "text:instruction_following": 0.25 } },
 	xlsx: { task: "reasoning", out: 4000, w: { "text:math": 0.3, "text:instruction_following": 0.3, "text:industry_business_and_management_and_financial_operations": 0.2, "text:coding": 0.2 } },
@@ -3248,6 +3262,7 @@ const WAYS = {
 	answer: "a written answer in the chat: explaining, advising, researching with live web search, writing, maths, planning, and code or scripts for any other program (Blender, Excel, Unity, Unreal, Photoshop, Premiere, shell, a game mod...) with exact steps to use them",
 	app: "something built and running right here in the browser with a live preview: a game, app, website, tool, calculator, dashboard, 3D scene or model (three.js), visualisation or animation",
 	sim: "an interactive simulation or visual model of a concept in science, maths or engineering, running right here, with controls to change it; the way whenever someone wants to learn, understand or be taught how something works that moves, changes or can be tweaked (particles, waves, orbits, forces, circuits, populations, markets): a live model they can play with teaches better than any text",
+	board: "a lesson on a whiteboard: a tutor draws it step by step while explaining it in simple words (diagrams, arrows, labels, worked examples, everyday analogies), read aloud if they like, and keeps drawing on the same board to answer their questions; the way whenever someone asks to be taught by drawing, on a whiteboard or board, or to have it drawn or sketched out, and for every follow-up question about a board lesson just given (with edit true)",
 	project: "real software engineering across many files, kept as a project in this browser (or in the folder or repo the user opened): set it up, build features, fix, refactor",
 	image: "pictures: photos, art, illustrations, posters, logos, thumbnails, product shots, or changes to an attached picture",
 	video: "a video: an ad, a short film, a clip, made of shots with voiceover, music and captions",
@@ -3320,7 +3335,7 @@ function makesMedia(text, atts) {
 	return null;
 }
 const DRAWN_VIDEO = "a real video file (MP4), every shot animated in code by the best animator: motion graphics, kinetic typography and titles, animated illustrations and flat or 2D characters, 3D shapes, diagrams, charts, maps, particles, cut together with captions, transitions, an end card, and music and sound effects composed in code to the cut. This server has no filmed footage, photos or AI voice, so the words are on screen. The way for any video, ad, trailer, explainer, intro or animation";
-const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
+const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim", "board"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
 // The tools in the composer's + menu. Picking one says what kind of thing you want; how it's done, with which models, is
 // still Celestin's own decision (and if that way fails, it's free to find another)
 const TOOLS = {
@@ -3329,7 +3344,7 @@ const TOOLS = {
 	video: { label: "Video", ways: ["video"], ph: "Describe the video: an ad, a short film, a clip" },
 	music: { label: "Music or voice", ways: ["music", "voice"], ph: "Describe the song, or paste text to read aloud" },
 	app: { label: "App or game", ways: ["app", "sim"], ph: "What should I build?" },
-	study: { label: "Study", ways: ["flashcards", "quiz", "open", "mindmap", "podcast"], ph: "A topic, or attach your notes" },
+	study: { label: "Study", ways: ["board", "flashcards", "quiz", "open", "mindmap", "podcast"], ph: "A topic, or attach your notes" },
 	doc: { label: "Document", ways: FILE_WAYS, ph: "What should the document, deck or spreadsheet be?" },
 	code: { label: "Code", ways: ["project"], ph: "What should I build or change in the code?" },
 	act: { label: "Tools and computer", ways: ["act"], ph: "What should I do? I can run code, search, and work in your apps" },
@@ -5724,7 +5739,7 @@ const BUILT_IN = [
 		web: { type: "boolean", description: "It needs a live web search" },
 	}, ["task", "kind"]],
 	["make", "Have one of Celestin's makers make something, shown to the user in the chat: each maker picks its own best models (a video's director, animator, picture and video models, voice, music and editor; a document's writer; an app's builder, tested in the page). Write the request as the user would, complete.", {
-		what: { type: "string", enum: ["video", "image", "music", "voice", "docx", "pdf", "pptx", "xlsx", "app", "sim", "flashcards", "quiz", "open", "mindmap", "podcast"] },
+		what: { type: "string", enum: ["video", "image", "music", "voice", "docx", "pdf", "pptx", "xlsx", "app", "sim", "board", "flashcards", "quiz", "open", "mindmap", "podcast"] },
 		request: { type: "string", description: "Exactly what to make, with every detail it needs (content, style, length, audience)" },
 	}, ["what", "request"]],
 	["save_file", "Save a file to hand to the user (a whole project, a mod, a script, data, a config): put each file at its real path, e.g. src/main/java/com/example/ExampleMod.java. Saving the same path again replaces it.", { path: { type: "string" }, content: { type: "string" } }, ["path", "content"]],
@@ -6419,7 +6434,7 @@ async function runAct(text, atts, resume) {
 						msg.data.log[msg.data.log.length - 1].label = "Asked " + who;
 						out = "(" + who + ", measured best at this)\n" + r.text;
 					} else if (fn === "make") {
-						log("Making " + ({ docx: "a Word document", pdf: "a PDF", pptx: "a deck", xlsx: "a spreadsheet", open: "open questions", sim: "a simulation", app: "an app", image: "a picture", voice: "a voiceover", quiz: "a quiz", mindmap: "a mind map", podcast: "a podcast", video: "a video" }[args.what] || args.what), String(args.request || "").slice(0, 120));
+						log("Making " + ({ docx: "a Word document", pdf: "a PDF", pptx: "a deck", xlsx: "a spreadsheet", open: "open questions", sim: "a simulation", app: "an app", image: "a picture", voice: "a voiceover", quiz: "a quiz", mindmap: "a mind map", podcast: "a podcast", video: "a video", board: "a whiteboard lesson" }[args.what] || args.what), String(args.request || "").slice(0, 120));
 						out = await makeWith(args);
 					} else if (fn === "save_file") {
 						const path = normPath(String(args.path || "file.txt"));
@@ -8366,6 +8381,7 @@ const STUDY = {
 	podcast: { label: "Podcast", help: "Two hosts explain it aloud" },
 	mindmap: { label: "Mind map", help: "See how the ideas connect" },
 	sim: { label: "Simulation", help: "An interactive model to play with" },
+	board: { label: "Whiteboard lesson", help: "It draws and explains, step by step" },
 	app: { label: "App", help: "A small project, built and run in the browser" },
 	studio: { label: "Studio", help: "Videos, ads, photos, music and voiceovers" },
 	agent: { label: "Code", help: "Works on your project" },
@@ -8373,12 +8389,31 @@ const STUDY = {
 };
 const PODCAST = { "2 min": 280, "5 min": 700, "10 min": 1400, "20 min": 2800, "30 min": 4200, "45 min": 6300, "1 hour": 8400 };
 const MINDMAP = /\b(mind ?-?maps?|concept maps?|idea maps?|spider (diagram|map)s?|brain ?maps?)\b/i;
+const BOARD_RE = /\b(white ?board|black ?board|chalk ?board|on (a|the) board|draw (it|this|that) (out|for me|step by step)|sketch (it|this|that) out|(teach|explain|show)\b[^.?!]{0,40}\b(by|with|while) (drawing|sketching|diagrams?|pictures)|draw (and|while) (explain|teach)\w*)\b/i;
+// The whiteboard tutor: what it's told. The board is 800 by 500; it draws marks the page animates as if by hand
+const BOARD_W = 800, BOARD_H = 500;
+const BOARD_RULES = "You're the best tutor in the world, teaching at a whiteboard: you draw while you explain, step by step, so anyone gets it. Start from something they already know or an everyday analogy, then the real idea, then a small worked example or picture of it, and end with one quick question they can check themselves on (with its answer after \"Answer:\").\n\n" +
+	"The board is " + BOARD_W + " wide and " + BOARD_H + " tall (x to the right, y down). Each step is what you say (1 to 3 short, simple sentences, read aloud) and what you draw while you say it (1 to 8 marks). The marks:\n" +
+	"- {\"t\":\"text\",\"x\":0,\"y\":0,\"s\":\"words\",\"size\":28,\"c\":\"black\",\"a\":\"start\"}: y is the baseline; size 24 to 56; a is start, middle or end; at size 28 a line holds about 35 characters per 400 wide\n" +
+	"- {\"t\":\"line\",\"x1\":0,\"y1\":0,\"x2\":0,\"y2\":0,\"c\":\"blue\",\"w\":3}\n" +
+	"- {\"t\":\"arrow\",\"x1\":0,\"y1\":0,\"x2\":0,\"y2\":0,\"c\":\"red\",\"bend\":0}: bend from -1 to 1 curves it\n" +
+	"- {\"t\":\"circle\",\"x\":0,\"y\":0,\"r\":0,\"c\":\"green\",\"fill\":false}, {\"t\":\"ellipse\",\"x\":0,\"y\":0,\"rx\":0,\"ry\":0,\"c\":\"..\",\"fill\":false}, {\"t\":\"rect\",\"x\":0,\"y\":0,\"w\":0,\"h\":0,\"c\":\"..\",\"fill\":false}\n" +
+	"- {\"t\":\"path\",\"d\":\"an SVG path in board units (M L Q C A Z)\",\"c\":\"..\",\"w\":3,\"fill\":false}: curves, graphs, shapes and simple pictures\n" +
+	"- {\"t\":\"mark\",\"x\":0,\"y\":0,\"w\":0,\"h\":0}: a yellow highlighter over something already on the board\n" +
+	"Colours: black, blue, red, green, orange, purple; give each one meaning and keep it all lesson. Lay it out like a great teacher's board: a short title at the top, then left to right and top to bottom, with room to breathe; nothing overlapping and nothing off the board; every label right next to what it names; big enough to read on a phone. Draw real diagrams, not walls of writing: about 10 words of writing per step at most. A step may start with \"clear\": true to wipe the board first.\n\n" +
+	"Return ONLY JSON: {\"title\":\"...\",\"steps\":[{\"say\":\"...\",\"clear\":false,\"draw\":[]}]}";
+// what's on a board at its end: its earlier marks, then each step's, from the last wipe on (the latest 160)
+const boardNow = (d) => { let marks = (d.prev || []).slice(); for (const s of d.steps || []) { if (s.clear) marks = []; marks = marks.concat(Array.isArray(s.draw) ? s.draw : []); } return marks.slice(-160); };
 function studyIntent(text, atts) {
 	const t = (text || "").trim();
 	if (!t) return null;
 	const lastA = current ? [...current.msgs].reverse().find((m) => m.role === "assistant" && !m.error) : null;
 	if (lastA && lastA.kind === "mindmap" && lastA.data && !/^(what|why|how|who|when|where|explain|tell me|is|are|does|do)\b/i.test(t) && !/\b(flash ?cards?|quiz|podcast|simulat\w*|video|image|photo|song|music|app|game|website)\b/i.test(t) &&
 		/\b(add|remove|delete|drop|change|rename|expand|more|deeper|detail\w*|split|merge|move|simplify|shorter|fewer|translate|instead|also)\b/i.test(t)) return { kind: "mindmap", edit: true, topic: lastA.data.title || "" };
+	// a lesson on a whiteboard, and every question after one (it carries on drawing on the same board)
+	if (lastA && lastA.kind === "board" && lastA.data && !/\b(flash ?cards?|quiz|podcast|mind ?maps?|simulat\w*|video|image|photo|picture|song|music|app|game|website|pdf|docx?|pptx?|slides?|spreadsheet)\b/i.test(t) &&
+		(/\?\s*$/.test(t) || /^(what|why|how|who|when|where|which|explain|tell me|show me|is|are|does|do|can|could|so|but|and|wait|i don'?t|i do not|again|more|go on|continue|next|example|another)\b/i.test(t))) return { kind: "board", edit: true, topic: lastA.data.title || "" };
+	if (BOARD_RE.test(t)) return { kind: "board", topic: t };
 	if (MINDMAP.test(t) && !/\b(app|tool|website|web ?page|editor|software|maker|generator)\b/i.test(t)) {
 		const topic = t.replace(/^(please\s+)?((can|could) you\s+)?((make|create|generate|give|build|draw|do|write|prepare|show)\s+(me\s+|us\s+)?)?(an?\s+|the\s+)?/i, "").replace(MINDMAP, "").replace(/^\s*(of|about|on|for|covering|explaining|showing)\s+/i, "").replace(/[?.!]+$/, "").trim();
 		return { kind: "mindmap", topic: topic.length > 2 ? topic : t };
@@ -9334,6 +9369,8 @@ async function runStudy(text, atts, pick) {
 	const topic = pick.topic || text || atts[0]?.name || "this material";
 	const cands = bestFor(kind);
 	const prevMap = kind === "mindmap" && pick.edit ? [...current.msgs].reverse().find((x) => x.kind === "mindmap" && x.data) : null;
+	// (a question after a board lesson: answered on that same board)
+	const prevBoard = kind === "board" && pick.edit ? [...current.msgs].reverse().find((x) => x.kind === "board" && x.data && Array.isArray(x.data.steps)) : null;
 	const m = cands[0] || best("write");
 	const msg = { role: "assistant", kind, text: "", streaming: true, status: "Making your " + STUDY[kind].label.toLowerCase(), chips: [routeChip(m, null, STUDY[kind].label)], data: null, used: [{ name: shortName(m), desc: STUDY[kind].label + ": wrote the content" }] };
 	current.msgs.push(msg);
@@ -9347,6 +9384,10 @@ async function runStudy(text, atts, pick) {
 	else if (kind === "mindmap") prompt = prevMap
 		? "Here is a mind map as JSON:\n" + JSON.stringify(prevMap.data) + "\n\nThe user asks: " + text + "\n\nApply it and return the FULL updated map as the same JSON, keeping everything they didn't ask to change. Every new node gets a short label (1-5 words) and a one-sentence note."
 		: 'Make a mind map of "' + topic + '" that someone could learn the whole subject from. The centre is the subject; 4-7 main branches; each branch 2-5 sub-ideas; go a third level where it genuinely helps (parts, causes, examples). Labels are short (1-5 words, never sentences) and specific, never generic like "Overview" or "Other". Every node has a note: one plain sentence that explains it. Order the branches so they read naturally clockwise from the top right. Return ONLY JSON: {"title":"the subject, 1-4 words","note":"one sentence on the whole subject","children":[{"t":"label","n":"note","children":[{"t":"label","n":"note","children":[]}]}]}';
+	else if (kind === "board") prompt = BOARD_RULES + (prevBoard
+		? "\n\nThe board so far, titled \"" + (prevBoard.data.title || topic) + "\" (everything on it now, as JSON):\n" + JSON.stringify(boardNow(prevBoard.data)).slice(0, 14000) + "\n\nWhat you've said so far:\n" + String(prevBoard.data.said || "").slice(-4000) + "\n\nThe student now says: " + text + "\n\nAnswer it by carrying on at the same board, in 2 to 5 new steps: point at what's already drawn (an arrow, a circle, a highlight) when it helps, draw new things in the free space, and if the board is too full start your first step with \"clear\": true. Return the same JSON with only the new steps."
+		: "\n\nTeach this: \"" + topic + "\", in 5 to 9 steps.")
+		+ ((PLAN_NOTE && !prevBoard) ? "\n\nWhat they want, as first read: " + PLAN_NOTE : "");
 	else prompt = "Write a podcast episode of about " + PODCAST[dur] + " words (" + dur + ' read aloud) explaining "' + topic + '" as a conversation between two hosts, Ava and Leo. Natural, curious, no filler. Return ONLY JSON: {"title":"...","lines":[{"who":"Ava","text":"..."},{"who":"Leo","text":"..."}]}';
 	prompt += ctx + lang;
 	let lastErr = null;
@@ -9359,6 +9400,14 @@ async function runStudy(text, atts, pick) {
 			});
 			msg.data = parseJSON(out);
 			if (kind === "mindmap" && !(Array.isArray(msg.data.children) && msg.data.children.length)) throw new Error("The mind map came back empty");
+			if (kind === "board") {
+				if (!(msg.data && Array.isArray(msg.data.steps) && msg.data.steps.some((s) => s && (s.say || (Array.isArray(s.draw) && s.draw.length))))) throw new Error("The lesson came back empty");
+				msg.data.steps = msg.data.steps.filter((s) => s && typeof s === "object").slice(0, 14).map((s) => ({ say: String(s.say || "").slice(0, 600), clear: !!s.clear, draw: (Array.isArray(s.draw) ? s.draw : []).filter((x) => x && typeof x === "object").slice(0, 14) }));
+				msg.data.prev = prevBoard ? boardNow(prevBoard.data) : [];
+				if (prevBoard) msg.data.title = prevBoard.data.title || msg.data.title;
+				msg.data.said = ((prevBoard && prevBoard.data.said ? prevBoard.data.said + "\n" : "") + msg.data.steps.map((s) => s.say).join("\n")).slice(-6000);
+				msg.fresh = true;
+			}
 			lastErr = null;
 			break;
 		} catch (e) {
@@ -9367,13 +9416,121 @@ async function runStudy(text, atts, pick) {
 		}
 	}
 	if (lastErr) throw lastErr;
-	msg.text = "**" + ((kind === "podcast" || kind === "mindmap") && msg.data.title || topic) + "**";
+	msg.text = "**" + ((kind === "podcast" || kind === "mindmap" || kind === "board") && msg.data.title || topic) + "**";
+}
+// ---- the whiteboard: each step's marks drawn as if by hand (writing letter by letter, lines along their length, the
+// highlighter swept across) while its words show, read aloud if they like; a question after it carries on, on the board
+const BOARD_INK = { black: "#1f2328", blue: "#1d4ed8", red: "#dc2626", green: "#15803d", orange: "#ea580c", purple: "#7c3aed" };
+let BOARD_FONT = false;
+const boardNum = (v, lo, hi, d) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+function boardEl(x) {
+	const NS = "http://www.w3.org/2000/svg", c = BOARD_INK[x.c] || BOARD_INK.black;
+	const mk = (tag, a) => { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); return e; };
+	const X = (v) => boardNum(v, -20, BOARD_W + 20, 0), Y = (v) => boardNum(v, -20, BOARD_H + 20, 0);
+	const sw = x.t === "rect" || x.t === "mark" ? boardNum(x.sw, 1, 12, 3) : boardNum(x.w, 1, 12, 3);
+	const ink = { fill: x.fill ? c : "none", "fill-opacity": 0.14, stroke: c, "stroke-width": sw, "stroke-linecap": "round", "stroke-linejoin": "round" };
+	switch (x.t) {
+		case "text": { const e = mk("text", { x: X(x.x), y: Y(x.y), fill: c, "font-size": boardNum(x.size, 14, 72, 28), "text-anchor": { middle: "middle", end: "end" }[x.a] || "start", class: "bd-txt" }); e.textContent = String(x.s || "").slice(0, 120); return e; }
+		case "line": return mk("line", { x1: X(x.x1), y1: Y(x.y1), x2: X(x.x2), y2: Y(x.y2), ...ink, fill: "none" });
+		case "arrow": {
+			const x1 = X(x.x1), y1 = Y(x.y1), x2 = X(x.x2), y2 = Y(x.y2), b = boardNum(x.bend, -1, 1, 0), mx = (x1 + x2) / 2 - (y2 - y1) * b * 0.5, my = (y1 + y2) / 2 + (x2 - x1) * b * 0.5;
+			const ang = Math.atan2(y2 - my, x2 - mx), h = 10 + sw * 2, g = mk("g", {});
+			g.appendChild(mk("path", { d: "M" + x1 + " " + y1 + " Q" + mx + " " + my + " " + x2 + " " + y2, ...ink, fill: "none" }));
+			g.appendChild(mk("path", { d: "M" + (x2 - h * Math.cos(ang - 0.45)) + " " + (y2 - h * Math.sin(ang - 0.45)) + " L" + x2 + " " + y2 + " L" + (x2 - h * Math.cos(ang + 0.45)) + " " + (y2 - h * Math.sin(ang + 0.45)), ...ink, fill: "none" }));
+			return g;
+		}
+		case "circle": return mk("circle", { cx: X(x.x), cy: Y(x.y), r: boardNum(x.r, 1, 400, 20), ...ink });
+		case "ellipse": return mk("ellipse", { cx: X(x.x), cy: Y(x.y), rx: boardNum(x.rx, 1, 500, 30), ry: boardNum(x.ry, 1, 400, 20), ...ink });
+		case "rect": return mk("rect", { x: X(x.x), y: Y(x.y), width: boardNum(x.w, 1, BOARD_W, 40), height: boardNum(x.h, 1, BOARD_H, 30), rx: 6, ...ink });
+		case "path": { const d = String(x.d || "").slice(0, 4000); return /^[\sMmLlHhVvCcSsQqTtAaZz\d.,eE+-]+$/.test(d) ? mk("path", { d, ...ink }) : null; }
+		case "mark": return mk("rect", { x: X(x.x), y: Y(x.y), width: boardNum(x.w, 1, BOARD_W, 60), height: boardNum(x.h, 1, BOARD_H, 30), rx: 4, fill: "#facc15", "fill-opacity": 0.4, class: "bd-mark" });
+	}
+	return null;
+}
+function boardAnimate(e, x, st) {
+	return new Promise((done) => {
+		const later = (fn, ms) => st.timers.push(setTimeout(fn, ms));
+		if (e.tagName === "text") {
+			const full = e.textContent, per = Math.max(14, Math.min(40, 700 / Math.max(1, full.length)));
+			let k = 0;
+			e.textContent = "";
+			const tick = () => { e.textContent = full.slice(0, ++k); if (k < full.length) later(tick, per); else later(done, 120); };
+			tick();
+			return;
+		}
+		if (x.t === "mark") { if (e.animate) e.animate([{ clipPath: "inset(0 100% 0 0)" }, { clipPath: "inset(0 0 0 0)" }], { duration: 450, easing: "ease-out" }); later(done, 470); return; }
+		let total = 0;
+		for (const p of e.tagName === "g" ? [...e.children] : [e]) {
+			let len = 0;
+			try { len = p.getTotalLength(); } catch {}
+			if (!len || !p.animate) continue;
+			const ms = Math.max(220, Math.min(1400, len * 2.2));
+			p.style.strokeDasharray = len;
+			p.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], { duration: ms, delay: total, easing: "ease-in-out", fill: "backwards" });
+			if (p.getAttribute("fill") !== "none") p.animate([{ fillOpacity: 0 }, { fillOpacity: 0.14 }], { duration: 300, delay: total + ms, fill: "backwards" });
+			total += ms;
+		}
+		later(done, total + 80);
+	});
+}
+function renderBoard(m, i, box) {
+	const d = m.data, steps = d.steps || [];
+	if (box._bd === d) return;
+	box._bd = d;
+	if (!BOARD_FONT) { BOARD_FONT = true; const l = document.createElement("link"); l.rel = "stylesheet"; l.href = "https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"; document.head.appendChild(l); }
+	box.innerHTML = '<div class="bd"><div class="bd-board"><svg viewBox="0 0 ' + BOARD_W + " " + BOARD_H + '" role="img" aria-label="' + esc(d.title || "Whiteboard") + '"></svg></div><div class="bd-say" aria-live="polite"></div>' +
+		'<div class="bd-bar"><button class="btn dark" data-bd="play">Play</button><button class="btn" data-bd="back" aria-label="The step before">‹</button><span class="bd-n"></span><button class="btn" data-bd="next" aria-label="The next step">›</button><label class="chk"><input type="checkbox" data-bd="voice"' + (store.get("boardVoice", false) ? " checked" : "") + '> Read it aloud</label><span style="flex:1"></span><button class="btn" data-bd="full" aria-label="Full screen">⤢</button></div>' +
+		'<div class="help bd-hint">Ask anything about it: the lesson carries on, on this board.</div></div>';
+	const q = (s) => box.querySelector(s), svg = q("svg"), say = q(".bd-say"), n = q(".bd-n"), playBtn = q('[data-bd="play"]'), voice = q('[data-bd="voice"]');
+	const st = { at: steps.length - 1, run: 0, playing: false, timers: [] };
+	// (what's on the board after step k, all of it; and just before it)
+	const upTo = (k) => { let marks = (d.prev || []).slice(); for (let j = 0; j <= k; j++) { if (steps[j].clear) marks = []; marks = marks.concat(steps[j].draw); } return marks; };
+	const before = (k) => (steps[k] && steps[k].clear ? [] : k > 0 ? upTo(k - 1) : (d.prev || []).slice());
+	const paint = (marks) => { svg.innerHTML = '<rect width="100%" height="100%" fill="#fffefa"/>'; for (const x of marks) { const e = boardEl(x); if (e) svg.appendChild(e); } };
+	const show = (k) => { n.textContent = Math.max(1, k + 1) + " / " + steps.length; say.textContent = (steps[k] && steps[k].say) || ""; };
+	const halt = () => { st.run++; st.playing = false; st.timers.forEach(clearTimeout); st.timers = []; try { speechSynthesis.cancel(); } catch {} };
+	const still = (k) => { st.at = Math.max(0, Math.min(steps.length - 1, k)); paint(upTo(st.at)); show(st.at); playBtn.textContent = st.at >= steps.length - 1 ? "Replay" : "Play"; };
+	const live = async (k, run) => {
+		st.at = k;
+		show(k);
+		paint(before(k));
+		// (read aloud: the step waits for the voice, but never longer than it could take, should the device's voice fail)
+		const words = String(steps[k].say || "").split(/\s+/).length;
+		const spoken = voice.checked && steps[k].say ? Promise.race([new Promise((r) => { try { speech.say(steps[k].say, r); } catch { r(); } }), new Promise((r) => st.timers.push(setTimeout(r, words * 600 + 4000)))]) : null;
+		for (const x of steps[k].draw) {
+			if (run !== st.run) return;
+			const e = boardEl(x);
+			if (!e) continue;
+			svg.appendChild(e);
+			await boardAnimate(e, x, st);
+		}
+		if (run !== st.run) return;
+		await (spoken || new Promise((r) => st.timers.push(setTimeout(r, Math.max(900, String(steps[k].say || "").split(/\s+/).length * 330)))));
+	};
+	const play = async () => {
+		if (st.playing) { halt(); still(st.at); return; }
+		const run = ++st.run;
+		st.playing = true;
+		playBtn.textContent = "Pause";
+		for (let k = st.at >= steps.length - 1 ? 0 : st.at + 1; k < steps.length; k++) { if (run !== st.run) return; await live(k, run); }
+		if (run === st.run) { st.playing = false; playBtn.textContent = "Replay"; }
+	};
+	playBtn.onclick = play;
+	q('[data-bd="next"]').onclick = () => { halt(); still(st.at + 1); };
+	q('[data-bd="back"]').onclick = () => { halt(); still(st.at - 1); };
+	voice.onchange = () => { store.set("boardVoice", voice.checked); if (!voice.checked) try { speechSynthesis.cancel(); } catch {} };
+	q('[data-bd="full"]').onclick = () => { const b = q(".bd"); if (document.fullscreenElement) document.exitFullscreen(); else if (b.requestFullscreen) b.requestFullscreen().catch(() => {}); };
+	// (just made: it teaches it from the start; opened again later: the finished board, ready to replay)
+	// (the chat draws a new message again right after it lands: only the board still on the page starts teaching)
+	if (m.fresh) { st.at = -1; paint(before(0)); show(0); setTimeout(() => { if (!box.isConnected || box._bd !== d || !m.fresh) return; delete m.fresh; save(); play(); }, 450); }
+	else still(steps.length - 1);
 }
 function renderStudy(m, i) {
 	const box = $('[data-study="' + i + '"]');
 	if (!box || !m.data) return;
 	if (m.kind === "studio") { renderStudio(m, i, box); return; }
 	if (m.kind === "mindmap") { renderMindmap(m, i, box); return; }
+	if (m.kind === "board") { renderBoard(m, i, box); return; }
 	if (m.kind === "agent") { renderAgent(m, i, box); return; }
 	if (m.kind === "file") { renderFile(m, i, box); return; }
 	if (m.kind === "flashcards") {
@@ -14995,7 +15152,10 @@ async function importData(d, from) {
 }
 
 // ---------------------------------------------------------------- what's new: shown once after an update, so nothing new goes unnoticed
-const WHATS_NEW = { v: "2026-11-08d", items: [
+const WHATS_NEW = { v: "2026-11-14", items: [
+	['<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4M7 12l3-3 2 2 4-4"/>', "Whiteboard lessons", "Ask it to teach you on a whiteboard: a tutor draws it step by step while it explains, read aloud if you like. Ask a question and it carries on, on the same board."],
+	['<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', "Put it online", "Press the globe on a site it built: it goes up on GitHub Pages under your own account, free, with a link anyone can open. Press it again after a change and the site updates."],
+	['<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.4A8 8 0 1 1 21 12Z"/>', "Your front desk answers texts", "In Celestin Together: your business number answers texts and WhatsApp too, confirms and reminds by itself, offers cancelled times to whoever's waiting, asks happy customers for a review, and texts website enquiries within a minute."],
 	['<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/>', "Agents that do any job", "In Celestin Together: describe any job and an agent does it in the background, once or day and night, even with Celestin closed. It reads your Gmail and answers or writes emails (you approve each one, or it sends them), researches, watches pages and the news, posts for you, and reports to your phone. A look that finds nothing new costs nothing."],
 	['<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>', "Your accounts, connected", "Connect your Gmail, Telegram, Discord, Bluesky, X and phone calls (Twilio) once: your team emails, posts, messages and calls for you by itself."],
 	['<rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/>', "Pictures, drawn for you", "Ask for a logo, poster, icon or illustration: it's drawn in code by the model best at it, with the SVG to download (sharp at any size). Say what to change and only that changes."],
