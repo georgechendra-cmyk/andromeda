@@ -649,11 +649,9 @@ textarea.inp { height: auto; min-height: 72px; padding: 10px 12px; line-height: 
 @media (max-width: 760px) { .team { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 /* the Together app, by Apple's design rules: SF Pro where there is one, one accent (Apple's blue) for what can be
    pressed, calm surfaces, soft depth only where something sits over something, everything on an 8px rhythm */
-html[data-app="together"] .welcome .greet { font-family: "Bricolage Grotesque", "DM Sans", system-ui, sans-serif; font-weight: 700; letter-spacing: -.03em; }
 html[data-app="together"] .mate { border-radius: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 html[data-app="together"] .mate:hover { box-shadow: 0 4px 16px rgba(0,0,0,.06); }
 html[data-app="together"] .sug { border-radius: 14px; }
-html[data-app="together"] #sendBtn, html[data-app="together"] .send { background: var(--brand); color: #fff; }
 html[data-app="together"] .mtag { font-size: 13px; }
 @media (max-width: 420px) { .team { gap: 6px; } .mate { padding: 10px 12px; } .mate .mr { font-size: 12px; } }
 .sug:hover .v { color: var(--text); }
@@ -1704,7 +1702,6 @@ html { scroll-behavior: smooth; }
 .legal-links { color: var(--faint); font-size: 12.5px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .sb-panel, .chats-scrim, .appsky, .app, .auth, .auth-card { transition: none !important; } }
 /* ==== Celestin Together's own look: Apple's Messages (system colours on grouped greys, SF Pro), never Celestin's sky */
-html[data-app="together"] .sidebar { background: var(--glass); }
 /* a teammate's round icon */
 .tav { --s: 30px; width: var(--s); height: var(--s); border-radius: 50%; background: var(--c); color: #fff; display: inline-grid; place-items: center; flex: none; box-shadow: inset 0 0 0 .5px rgba(255,255,255,.18); }
 .tav svg { width: 52%; height: 52%; color: #fff !important; stroke: #fff; }
@@ -1713,11 +1710,10 @@ html[data-app="together"] .msg.tg { display: grid; grid-template-columns: 30px m
 html[data-app="together"] .msg.tg > .tav { grid-column: 1; grid-row: 1 / span 2; margin-top: 16px; }
 html[data-app="together"] .msg.tg > :not(.tav) { grid-column: 2; min-width: 0; }
 html[data-app="together"] .msg.tg > .tname { font-size: 12px; font-weight: 500; color: var(--muted); margin: 0 0 3px 12px; letter-spacing: 0; }
-html[data-app="together"] .msg.tg > .md { justify-self: start; max-width: 100%; background: var(--tgb); border-radius: 20px 20px 20px 6px; padding: 9px 14px; line-height: 1.5; }
+html[data-app="together"] .msg.tg > .md { justify-self: start; max-width: 100%; }
 html[data-app="together"] .msg.tg > .md > :first-child { margin-top: 0; }
 html[data-app="together"] .msg.tg > .md > :last-child { margin-bottom: 0; }
 html[data-app="together"] .msg.tg > .md:empty { display: none; }
-html[data-app="together"] .msg.user .bubble { background: var(--brand) !important; color: #fff !important; border: 0 !important; border-radius: 20px 20px 6px 20px; padding: 9px 14px; box-shadow: none !important; }
 html[data-app="together"] .msg { margin-bottom: 10px; }
 html[data-app="together"] .msg.tg .actions { margin-top: 2px; }
 html[data-app="together"] .msg.user .uact { margin-top: 4px; }
@@ -1754,8 +1750,6 @@ html[data-app="together"] .welcome.together { padding-top: 6vh; }
 @media (hover: none) { .tw-mate .medit { opacity: .9; } }
 html[data-app="together"] .welcome.together .greet { font-size: clamp(30px, 4vw, 40px); letter-spacing: -.035em; }
 html[data-app="together"] .welcome.together .greet .g2 { font-size: .5em; font-weight: 500; color: var(--muted); letter-spacing: -.01em; }
-html[data-app="together"] .composer { border-radius: 24px; background: var(--bg2); border: 1px solid var(--line); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(0,0,0,.06); }
-html[data-app="together"] .send { border-radius: 50%; background: var(--brand); color: #fff; }
 .desk-it.off { opacity: .6; }
 .tw-needs { display: flex; justify-content: space-between; align-items: center; width: min(720px, 100%); margin: 0 auto 18px; padding: 12px 16px; border: 0; border-radius: 16px; font: inherit; cursor: pointer; color: #fff; background: linear-gradient(135deg, #ff3b30, #ff6b3d); box-shadow: 0 10px 24px -14px #ff3b30; }
 .tw-needs span { opacity: .9; font-size: 14px; }
@@ -1785,7 +1779,6 @@ html[data-app="together"] #codeNav { display: none; }
 @media (max-width: 860px) { .nav-i .nb { position: static !important; margin-left: auto; box-shadow: none !important; } }
 .nav-i .nb { position: absolute; top: 3px; right: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: #ff3b30; color: #fff; font-size: 10.5px; font-weight: 700; line-height: 16px; text-align: center; box-shadow: 0 0 0 2px var(--side, var(--bg)); }
 .nav-i .nb:empty { display: none; }
-html[data-app="together"] .nav-i.tg-only svg { color: var(--c); }
 .welcome.together .tw-jobs { margin-top: 34px; }
 html[data-app="together"] .sug:hover { background: var(--bg3); }
 html[data-app="together"] .sugs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1824,7 +1817,6 @@ html[data-app="together"] .sug .k { font-family: inherit; font-size: 12px; font-
 .tw-job .twj span { font-size: 13px; color: var(--muted); }
 .tw-job .twgo { flex: none; font-size: 14px; font-weight: 600; color: var(--brand); }
 .desk { padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; }
-html[data-app="together"] .btn.dark { background: var(--brand); color: #fff; border-color: transparent; }
 
 /* ==== Celestin Together, its own place (the owner, Nov 14: "the layout and design for both still looks EXACTLY the same"):
    a team's workplace in warm paper and ink with a green accent, its own type (Bricolage Grotesque, DM Sans), a labelled
@@ -1853,6 +1845,20 @@ html[data-app="together"] .btn.dark { background: var(--brand); color: #fff; bor
 .tgw-sug:hover { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); border-color: var(--line2); }
 .tgw-sug b { font-weight: 600; color: var(--brand); }
 .tgw-team { margin-top: 12px; }
+
+/* ==== Together in Celestin AI's own theme, nothing brighter: faces, counts and what needs you in its grays; a status
+   is a small dot in its own quiet greens and ambers */
+html[data-app="together"] .tav { background: var(--bg3); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+html[data-app="together"] .tav svg { color: var(--muted) !important; stroke: var(--muted); }
+html[data-app="together"] .nav-i .nb { background: var(--ink); color: var(--onink); }
+.tgw-av { background: var(--bg3) !important; color: var(--text) !important; box-shadow: inset 0 0 0 1px var(--line); }
+.tgw-m.add .tgw-av { background: var(--bg3) !important; }
+.tgw-m i.on { background: var(--ok); }
+.tgw-m i.need { background: var(--warn); }
+.tgw-need { color: var(--text); background: color-mix(in srgb, var(--text) 5%, transparent); border-color: var(--line); }
+.tgw-need:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
+.tgw-need i { background: var(--warn); box-shadow: none; }
+.tgw-sug b { color: var(--text); }
 html[data-app="together"] .nav-i .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 html[data-app="together"] .nav-i .nb { margin-left: auto; }
 .tgt-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 8px 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
@@ -1955,7 +1961,6 @@ html[data-app="together"][data-theme="light"] .hq-give .composer { border-color:
 /* ==== Together in Celestin AI's colours, HQ laid out the Apple way (the owner, Nov 14): the large title under the date
    with its toolbar, three widgets, the team as one inset grouped list (Settings), the specialists as faces (the share
    sheet), the message bar pinned to the bottom (Messages) */
-html[data-app="together"] .btn.dark, html[data-app="together"] .send, html[data-app="together"] #sendBtn { background: var(--brand-grad); color: #fff; border-color: transparent; }
 .h2 { max-width: 880px; padding: 44px 28px 0; }
 .h2-date { font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .h2-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-top: 4px; }
