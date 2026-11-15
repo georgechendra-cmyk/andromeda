@@ -9534,6 +9534,78 @@ function auditScript(id) {
 		"setTimeout(function(){count(mo.takeRecords());watch=false;if(window.scrollY!==y||window.scrollX!==x)hit++;if(!hit&&!mut)dead.push(k);next()},200)},200)}" +
 		"next()},700)})})()<\/script>";
 }
+// Runs inside the sealed page, as its own text: what a person would see is wrong at this size. Each finding names the
+// element and says how to fix it
+function layoutProbe(id, phone) {
+	function send(d) { try { parent.postMessage({ andromedaLayout: id, data: d }, "*"); } catch (e) {} }
+	function named(el) { const img = el.querySelector && el.querySelector("img[alt]"); return ((el.innerText || el.value || el.getAttribute("aria-label") || el.getAttribute("alt") || el.title || (img && img.alt) || "") + "").trim().replace(/\s+/g, " "); }
+	function label(el) { const t = named(el).slice(0, 40); if (t) return t; const c = typeof el.className === "string" ? el.className.trim().split(/\s+/)[0] : ""; return el.tagName.toLowerCase() + (el.id ? "#" + el.id : c ? "." + c : ""); }
+	function vis(el) { const r = el.getBoundingClientRect(), st = getComputedStyle(el); return r.width > 0 && r.height > 0 && st.visibility !== "hidden" && st.display !== "none" && +st.opacity !== 0; }
+	addEventListener("load", function () { setTimeout(function () {
+		const out = [], W = innerWidth, H = innerHeight, where = phone ? "On a phone (" + W + "px wide)" : "On a laptop (" + W + "px wide)";
+		try {
+			// sideways scrolling, and the outermost things that cause it
+			const sw = document.documentElement.scrollWidth;
+			if (sw > W + 2) {
+				const wide = [].slice.call(document.body.querySelectorAll("*")).filter(function (el) { const r = el.getBoundingClientRect(); if (r.right <= W + 2 || r.width < 16) return false; for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) if (getComputedStyle(p).overflowX !== "visible") return false; return true; });
+				const top = wide.filter(function (el) { return !wide.some(function (o) { return o !== el && o.contains(el); }); }).slice(0, 3);
+				out.push(where + " the page scrolls sideways (" + sw + "px of content): " + top.map(function (el) { return "<" + el.tagName.toLowerCase() + "> \"" + label(el) + "\" reaches " + Math.round(el.getBoundingClientRect().right) + "px"; }).join("; ") + ". Make it fit (max-width:100%, wrapping, a grid that stacks) instead of hiding the overflow.");
+			}
+			const ctrls = [].slice.call(document.querySelectorAll("button,a[href],input:not([type=hidden]),select,textarea,[role=button],summary")).filter(vis).slice(0, 80);
+			const covered = [], clipped = [], tiny = [], unnamed = [];
+			ctrls.forEach(function (el) {
+				const r = el.getBoundingClientRect();
+				// (covered: what's on top at its middle isn't it; a big open dialog or start screen over it is meant to be)
+				if (r.top >= 0 && r.bottom <= H && r.left >= 0 && r.right <= W) {
+					const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+					if (at && at !== el && !el.contains(at) && !at.contains(el) && !(el.labels && [].some.call(el.labels, function (l) { return l.contains(at); }))) {
+						let big = at;
+						for (let p = at; p && p !== document.body; p = p.parentElement) { const pr = p.getBoundingClientRect(); if (pr.width * pr.height > W * H * 0.5) { big = null; break; } }
+						if (big) covered.push("\"" + label(el) + "\" under <" + at.tagName.toLowerCase() + "> \"" + label(at) + "\"");
+					}
+				}
+				const st = getComputedStyle(el);
+				if ((el.tagName === "BUTTON" || el.getAttribute("role") === "button") && st.overflow !== "visible" && (el.scrollWidth > el.clientWidth + 2 || el.scrollHeight > el.clientHeight + 4)) clipped.push("\"" + label(el) + "\"");
+				const inText = el.tagName === "A" && el.parentElement && /^(P|LI|SPAN|TD|SMALL|LABEL)$/.test(el.parentElement.tagName) && (el.parentElement.innerText || "").length > (el.innerText || "").length + 15;
+				if (phone && !inText && el.tagName !== "INPUT" && (r.width < 30 || r.height < 30)) tiny.push("\"" + label(el) + "\" (" + Math.round(r.width) + "×" + Math.round(r.height) + ")");
+				if (/^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName)) { if (!/^(submit|button|reset|image)$/.test(el.type || "") && !((el.labels && el.labels.length) || el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || el.placeholder || el.title)) unnamed.push("a " + (el.type || el.tagName.toLowerCase()) + " field"); }
+				else if (!named(el) && !el.getAttribute("aria-labelledby")) unnamed.push(label(el));
+			});
+			const uniq = function (a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }); };
+			if (covered.length) out.push(where + " these can't be pressed because something sits on top of them: " + uniq(covered).slice(0, 4).join("; ") + ".");
+			if (clipped.length) out.push(where + " these buttons' labels are cut off: " + uniq(clipped).slice(0, 4).join(", ") + ". Let them wrap or grow.");
+			if (tiny.length >= 2) out.push(where + " these are too small to tap (under 30px; make them at least 44px): " + uniq(tiny).slice(0, 5).join(", ") + ".");
+			if (unnamed.length) out.push("These have no name a screen reader could say (add visible text, an aria-label or a <label>): " + uniq(unnamed).slice(0, 5).join(", ") + ".");
+			const broken = [].slice.call(document.images).filter(function (i) { return vis(i) && i.complete && i.naturalWidth === 0; });
+			if (broken.length) out.push(broken.length + (broken.length === 1 ? " picture doesn't load" : " pictures don't load") + " (" + broken.slice(0, 3).map(function (i) { return "\"" + (i.alt || (i.getAttribute("src") || "").slice(0, 40)) + "\""; }).join(", ") + "): draw it (SVG, CSS, canvas) or use one that's part of the project.");
+			if (phone) { const small = [].slice.call(document.querySelectorAll("p,li,td,label,span,a,small,figcaption")).filter(function (el) { return vis(el) && (el.innerText || "").trim().length > 15 && parseFloat(getComputedStyle(el).fontSize) < 12 && el.children.length < 2; }); if (small.length >= 3) out.push(where + " " + small.length + " bits of text are under 12px and hard to read (\"" + label(small[0]) + "\"…): 14px or more for reading text."); }
+		} catch (e) { out.push("(the size check stopped: " + e.message + ")"); }
+		send(out.slice(0, 7));
+	}, 900); });
+}
+// what's wrong at a phone's size and a laptop's ([] when it couldn't look)
+function layoutAudit(files) {
+	const one = (phone) => new Promise((res) => {
+		const page = appDoc(testable(files));
+		if (!page) { res([]); return; }
+		const id = Math.random().toString(36).slice(2), f = document.createElement("iframe");
+		f.setAttribute("sandbox", "allow-scripts");
+		f.setAttribute("aria-hidden", "true");
+		const [w, h] = phone ? [390, 844] : [1280, 800];
+		f.style.cssText = "position:fixed;left:0;top:0;width:" + w + "px;height:" + h + "px;border:0;opacity:0;pointer-events:none;z-index:-1";
+		let out = [];
+		const done = () => { removeEventListener("message", on); clearTimeout(timer); f.remove(); res(out); };
+		const on = (e) => { const d = e.data; if (!d || d.andromedaLayout !== id) return; out = (d.data || []).filter((x) => !/^\(the size check stopped/.test(x)); done(); };
+		addEventListener("message", on);
+		const timer = setTimeout(done, 9000);
+		const head = SANDBOX_CSP + "<script>(" + layoutProbe.toString() + ")(" + JSON.stringify(id) + "," + phone + ")<\/script>";
+		f.srcdoc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html>" + head + page;
+		document.body.appendChild(f);
+	});
+	// (a phone first: most people will open it there; a finding the laptop shares too is said once)
+	const same = (x) => x.replace(/^On a (phone|laptop) \(\d+px wide\) /, "");
+	return Promise.all([one(true), one(false)]).then(([p, d]) => [...p, ...d.filter((x) => !/no name a screen reader|pictures? do/.test(x) && !p.some((y) => same(y) === same(x)))]).catch(() => []);
+}
 // (the labels of the controls that do nothing, or [] when it couldn't look)
 function deadControls(files, ms = 16000) {
 	return new Promise((res) => {
@@ -9944,11 +10016,13 @@ async function reviewBoth(files, request, msg, rules, by, look) {
 		msg.status = look ? "A second AI is playing it through while a designer looks at it" : "A second AI is playing it through, looking for bugs";
 		updateLast();
 		const soft = (p) => p.catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; });
-		const [bugs0, problems0] = await Promise.all([soft(findBugs(files, request, msg, by)), look ? soft(lookAtApp(files, request, msg)) : null]);
+		// (measured too, at a phone's size and a laptop's, while they look)
+		const [bugs0, problems0, sized] = await Promise.all([soft(findBugs(files, request, msg, by)), look ? soft(lookAtApp(files, request, msg)) : null, look ? layoutAudit(files) : []]);
+		if ((sized || []).length && !msg.used.some((u) => /^Size check/.test(u.desc))) msg.used.push({ name: "Celestin", desc: "Size check: measured it on a phone and a laptop; " + sized.length + (sized.length === 1 ? " thing" : " things") + " to fix" });
 		const tells = look ? aiTells(files, request) : [];
 		if (tells.length && !msg.used.some((u) => /^AI-look check/.test(u.desc))) msg.used.push({ name: "Celestin", desc: "AI-look check: found " + tells.length + " generic AI " + (tells.length === 1 ? "tell" : "tells") + " in the code, fixed with the rest" });
-		const bugs = bugs0 || [], problems = [...(problems0 || []), ...tells.map((t) => "In the code: " + t)].slice(0, 20);
-		if (look && (bugs0 || problems0 || tells.length)) learnFrom(by, !bugs.length && !problems.length);
+		const bugs = bugs0 || [], problems = [...(sized || []).map((t) => "Measured in a real browser: " + t), ...(problems0 || []), ...tells.map((t) => "In the code: " + t)].slice(0, 20);
+		if (look && (bugs0 || problems0 || tells.length || (sized || []).length)) learnFrom(by, !bugs.length && !problems.length);
 		if (!bugs.length && !problems.length) return { changed: false, files, logic: 0, polished: 0 };
 		const fixers = bestFor("app"), fixer = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
 		const room = await roundCap(fixer, files, "high");
