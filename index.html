@@ -4770,7 +4770,8 @@ function renderWelcome() {
 	if (TOGETHER) { renderTogetherWelcome(); return; }
 	// (what this app is for, and where the other one is: chatting, writing, learning and making here; a business's work done
 	// by itself in the background, in Celestin Together. The owner, Nov 14: "make it very clear")
-	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="g1">' + esc(first) + '</span><span class="g2">' + esc(second) + '</span></h1><div class="slot" id="slot"></div><p class="w-other">Chat, write, learn and make anything here. Want work done for your business while you\'re away? <a href="together.html#app">Celestin Together →</a></p></section>';
+	$("#view").innerHTML = '<section class="welcome"><h1 class="greet"><span class="g1">' + esc(first) + '</span><span class="g2">' + esc(second) + '</span></h1><div class="slot" id="slot"></div><p class="w-other">Chat, write, learn and make anything here. Want work done for your business while you\'re away? <a href="together.html#app">Celestin Together →</a>' + (convos.some((c) => c.msgs && c.msgs.length) ? "" : '<br>Coming from ChatGPT, Claude or Grok? <a href="#" id="wMoveIn">Bring your chats and projects</a>: Celestin learns what it should know about you from them.') + '</p></section>';
+	if ($("#wMoveIn")) $("#wMoveIn").onclick = (e) => { e.preventDefault(); const f = document.createElement("input"); f.type = "file"; f.accept = ".json,.zip,application/json,application/zip"; f.onchange = () => { if (f.files[0]) importAll(f.files[0]); }; f.click(); };
 	$("#slot").appendChild($("#composer"));
 	$("#dock").classList.add("hide");
 	// the galaxy, quietly behind it, thinning out round the words and the box
@@ -16723,7 +16724,7 @@ async function importAll(f) {
 			if (proj) try { projects = JSON.parse(await zip.file(proj).async("string")); } catch {}
 		} else d = JSON.parse(await f.text());
 	} catch { toast("That file couldn't be read: pick your export's .zip, or the conversations.json inside it"); return; }
-	const other = fromOtherApps(d, projects);
+	const other = fromOtherApps(d, projects) || fromAnyExport(d);
 	if (other) { await importData(other.data, other.from); return; }
 	await importData(d);
 }
@@ -16778,6 +16779,59 @@ function fromOtherApps(d, projects) {
 	}
 	return null;
 }
+// Any other AI's export, whatever its shape: a list of conversations (at the top, or under a key), each with its messages
+// under any of the usual names, each message's who and what under any of the usual names (Grok nests each in "response",
+// its dates as {"$date": {"$numberLong": ...}}). null when there are none
+function fromAnyExport(d) {
+	const isList = (x) => Array.isArray(x) && x.length > 0;
+	const lists = [d, d && d.conversations, d && d.chats, d && d.data, d && d.items, d && d.threads].filter(isList);
+	const MSGS = ["messages", "chat_messages", "responses", "turns", "conversation", "history", "items"];
+	const when = (v) => { if (!v) return 0; if (typeof v === "number") return v < 1e12 ? v * 1000 : v; if (typeof v === "string") return /^\d+$/.test(v) ? when(Number(v)) : Date.parse(v) || 0; if (v.$date) return when(v.$date.$numberLong || v.$date); if (v.$numberLong) return when(Number(v.$numberLong)); return 0; };
+	const textOf = (m) => typeof m.content === "string" ? m.content : typeof m.text === "string" ? m.text : typeof m.message === "string" ? m.message : typeof m.body === "string" ? m.body : Array.isArray(m.content) ? m.content.map((p) => (typeof p === "string" ? p : p && typeof p.text === "string" ? p.text : "")).filter(Boolean).join("\n") : m.content && Array.isArray(m.content.parts) ? m.content.parts.filter((p) => typeof p === "string").join("\n") : "";
+	for (const list of lists) {
+		const convos = [];
+		let grok = false;
+		for (const c0 of list.slice(0, 20000)) {
+			if (!c0 || typeof c0 !== "object") continue;
+			const meta = c0.conversation && typeof c0.conversation === "object" && !Array.isArray(c0.conversation) ? c0.conversation : c0;
+			const key = MSGS.find((k) => Array.isArray(c0[k]) && c0[k].length);
+			if (!key) continue;
+			const msgs = [];
+			for (let m of c0[key]) {
+				if (m && m.response && typeof m.response === "object") { m = m.response; grok = true; }
+				if (!m || typeof m !== "object") continue;
+				const who = String(m.role || m.sender || (m.author && (m.author.role || m.author)) || m.from || m.speaker || "").toLowerCase();
+				const role = /^(user|human|me|you|customer)$/.test(who) ? "user" : /^(assistant|ai|model|bot|grok|gemini|chatgpt|claude|copilot|perplexity)$/.test(who) ? "assistant" : null;
+				const text = role ? String(textOf(m) || "").trim() : "";
+				if (!text) continue;
+				const last = msgs[msgs.length - 1];
+				if (last && last.role === role) last.text += "\n\n" + text; else msgs.push({ role, text });
+			}
+			if (!msgs.length) continue;
+			const ref = String(meta.id || meta.conversation_id || meta.uuid || meta._id || (msgs[0].text.slice(0, 40) + when(meta.create_time || meta.created_at))).replace(/[^\w-]/g, "").slice(0, 60);
+			convos.push({ id: "import-" + ref, title: String(meta.title || meta.name || msgs[0].text.replace(/\s+/g, " ").slice(0, 60)).slice(0, 120), at: when(meta.update_time || meta.updated_at || meta.modify_time || meta.create_time || meta.created_at) || Date.now(), msgs });
+		}
+		if (convos.length) return { from: grok ? "Grok" : "your other AI", data: { convos } };
+	}
+	return null;
+}
+// What it can learn about them from the chats they brought: once, on a quick model, from the newest of their own words,
+// kept as memories by the same rules as always (lasting facts about them, never secrets or health or other people), so
+// Celestin knows them from the first day instead of starting from nothing
+async function learnFromHistory(chats, from) {
+	try {
+		if (!creditsMode() || !account || settings.memory === false || !chats.length) return;
+		const said = chats.flatMap((c) => c.msgs.filter((m) => m.role === "user").map((m) => ({ at: c.at || 0, t: String(m.text).replace(/\s+/g, " ").slice(0, 400) }))).sort((a, b) => b.at - a.at).slice(0, 80).map((x) => "- " + x.t).join("\n").slice(0, 14000);
+		if (said.length < 80) return;
+		const m = bestFor("reader")[0];
+		if (!m) return;
+		const out = await once(m.id, [{ role: "user", content: "These are things one person wrote to " + from + ", newest first. Write down what's worth knowing about them in every future chat: who they are, what they do and are working on, their goals, their preferences and rules for how things should be done, decisions they've made. Only lasting facts about them, each short and written about the user (\"The user runs a coffee shop in Bandung\"); never secrets, passwords, health details or anything about other people; nothing from a one-off question. At most 12.\n\n" + said + "\n\nReply with ONLY a JSON list of strings." }]);
+		const list = (parseJSON(out) || []).filter((x) => typeof x === "string" && x.trim().length > 8).slice(0, 12);
+		let k = 0;
+		for (const t of list) if (remember(t)) k++;
+		if (k) toast("Celestin learned " + k + " things about you from your " + from + " chats (Settings → Memory shows them)");
+	} catch {}
+}
 // (an export file's contents, or the chats brought from the copy on this computer)
 async function importData(d, from) {
 	// an older export is just the list of chats
@@ -16798,6 +16852,8 @@ async function importData(d, from) {
 	for (const m of d.memories || []) if (m && m.text && remember(m.text)) mem++;
 	save();
 	render();
+	// (from another AI: what it can learn about them, in the background)
+	if (from && chats.length) learnFromHistory(chats, from);
 	closeModal();
 	toast((from ? "Brought over from " + from + ": " : "Imported ") + chats.length + " chat" + (chats.length === 1 ? "" : "s") + (sps.length ? ", " + sps.length + " project" + (sps.length === 1 ? "" : "s") : "") + (mem ? ", " + mem + " memor" + (mem === 1 ? "y" : "ies") : "") + (from ? ". Pick up any of them where you left off." : ""));
 }
