@@ -3510,6 +3510,7 @@ const officeFont = (f, d) => Object.keys(OFFICE_FONTS).find((x) => x.toLowerCase
 const SKILLBOOK = {
 	design: ["building anything visual people use: sites, apps, games, dashboards, slides", "Design like a top product designer: a clear visual hierarchy, generous spacing on a consistent scale, one typeface family with two or three weights, a restrained palette with one accent, real content (never lorem ipsum), smooth 150-300ms transitions, hover, focus, empty and loading states, responsive down to 360px, accessible contrast and labels. It must look finished and premium, never like a template."],
 	color: ["choosing or using colour anywhere: palettes, themes, brands and logos, sites and apps, slides, posters, pictures and films", "Use colour like a senior designer and colourist. (1) Start from meaning and audience, not a favourite hue: what it should feel like, for whom, in which culture and industry. Colour feelings are broadly shared across cultures (a 30-nation study found strong agreement) but local meanings shift them: red is luck and celebration in China and Indonesia but urgency or danger in the West; white is purity in the West and mourning across much of East Asia; green is Islam, wealth and fertility in the Middle East but can hint at infidelity in China; yellow is sunny in Latin America and Africa, envy in Germany. (2) What colours commonly say: blue calm, trust and competence (finance, tech, health) but the most used brand colour, so it stands out least; green growth, health, nature, money; red energy, appetite, urgency, love or danger (food, sales, alerts); orange warm, friendly, playful; yellow optimism and attention (small doses: poor contrast on white); purple luxury, creativity, spirituality; pink tender or bold-playful; browns and earth tones warmth, craft, honesty; black authority, luxury, edge; white clean and spacious; gold or brass premium heritage; muted, greyed tones calm and grown-up; neon and high chroma youth, nightlife, energy. (3) Harmony picks the hues: monochromatic (one hue, many lightnesses: calm, elegant), analogous (neighbours: cohesive, natural), complementary (opposites: vivid, one must dominate), split-complementary (a hue and the two beside its opposite: contrast with less tension), triadic (three evenly spaced: playful, one dominant). Proportion makes it work: about 60% dominant (usually a neutral tinted toward the main hue), 30% secondary, 10% accent, and the accent only on what matters (the main action, the key word). (4) Lightness before hue: readability comes from lightness contrast (squint to check); text at least 4.5:1 against its background, 3:1 for large text and controls; never colour alone to carry meaning (about 1 in 12 men has a red-green deficiency): add a label, icon or shape. (5) Build palettes perceptually (OKLCH): a neutral scale that is the main hue at very low chroma (never dead grey), one accent scale with even lightness steps and steady chroma, and success, warning and error pulled slightly toward the palette; derive hover states and tints by mixing, not new hues. (6) Dark themes: near-black, not pure black; off-white text, not pure white; higher surfaces lighter, not shadowed; accents a little desaturated and lighter so they don't vibrate. (7) Mood lives in saturation and temperature: warm colours advance and energise, cool ones recede and calm; high chroma shouts (use little), muted reads expensive; a warm and cool contrast gives depth, but everywhere it becomes a cliché. (8) Films and pictures: plan colour per scene like a colour script, shifting with the story (cool and desaturated for loss or tension, warm and saturated for joy, one saturated colour to point the eye); light has a colour (golden hour, overcast, neon, tungsten) and everything in the scene takes it on. (9) Never the generic AI look: purple or violet-to-blue gradients, neon on black, rainbow gradients, everything saturated. Fewer colours, each chosen for a reason, always win."],
+	marketing: ["ads, landing pages, posts, emails, pitches, trailers, product copy: anything meant to make people want something", "Sell like the best brands: sell who the customer becomes and how it feels (an identity, a feeling, a belief they share, the problem finally gone), never a list of features. Lead with them and their moment, make the product the turn in their story, and use features only as proof. One clear promise, said in their own words; specific, true details over adjectives; a single next step. Never invent claims, numbers, testimonials or scarcity."],
 	data: ["analysing data, files, spreadsheets or statistics, and making charts", "Work like a data scientist: load the data with pandas and look at it first (shape, columns, types, missing values) before concluding anything; compute with code, never by eye; check results a second way; make clear charts (labelled axes with units, a title, readable fonts); state assumptions, caveats and the exact numbers."],
 	research: ["questions needing current, sourced or thorough answers, and research reports", "Research like an analyst: break the question into sub-questions; search several times with different phrasings; read the actual sources, not just snippets; prefer primary and recent sources; cross-check facts across sources; note disagreements and dates; cite every claim inline as [n](url). End with a clear answer and what's still uncertain."],
 	code: ["writing, fixing, reviewing or explaining code", "Engineer like a senior developer: read the existing code and follow its style; make the smallest correct change; handle errors and edge cases; never leave placeholders or TODOs; when code can be run, run it and test it; say briefly what changed and why."],
@@ -11410,6 +11411,7 @@ Choose the medium that serves the film: a live-action look mixes stills with rea
 
 Write the plan so the result looks expensive and real:
 - It must not look AI-made: ${AI_TELLS.picture} ${AI_TELLS.film}
+- An ad, a trailer or a promo sells who the viewer becomes and how it feels (an identity, a feeling, a belief they share), not a list of features: open on a person and their moment (the frustration, the idea at 2 a.m., the shop that's finally calm), let the product be the turn in their story, and show features only as proof of that change. One idea, felt, beats five explained.
 - One consistent LOOK for every shot: the medium (photoreal live action unless they ask for animation, 3D, anime, claymation...), lens and camera language, lighting, colour grade. Describe every recurring person and product IDENTICALLY each time (age, face, hair, clothes, colours, logo text), because each shot is generated separately.
 - Video shots are 4 to 8 seconds, stills 4 to 10, drawn shots 3 to 15. Each "shot" is a prompt of 50-110 words: subject, action, setting, camera move (slow dolly in, orbit, handheld follow, crane up...), framing, lighting, mood. One clear action per shot; no on-screen text in the shot itself (the editor adds captions). Never ask for a split screen or a collage.
 - "frame" is the shot as a still photograph (composition, pose, light): the first frame of a video shot, or the whole of a still, so it must be a beautiful picture on its own.
@@ -11421,6 +11423,7 @@ Write the plan so the result looks expensive and real:
 - The end card: when the last shot already ends on the film's title (a title card drawn in it), leave "end" title and sub empty: a second card would only repeat it.
 - Typography and palette: when the request gives the look decided for it, use exactly its two typefaces and its colours. Otherwise choose the film's two Google Fonts the way a title designer would, for this world: a pixel font ("Press Start 2P", "Silkscreen", "VT323") for pixel art and games, a warm serif ("Young Serif", "Gloock", "Cormorant Garamond") for a tender or literary story, a hand-drawn one ("Caveat", "Patrick Hand") for a sketchbook look, a heavy condensed grotesk ("Anton", "Bebas Neue", "Archivo Black") for an ad or trailer, a geometric display ("Unbounded", "Syne", "Familjen Grotesk") for tech: anything on Google Fonts that fits. Never Inter, Roboto, Arial, Helvetica, Open Sans, Lato, Montserrat, Poppins, Space Grotesk, Instrument Sans or Serif, DM Sans, Manrope, Outfit, Sora, Playfair Display or a system font: they look like every other AI video.
 - The look comes from the subject's own world (its materials, its light, its era) or the brand's own, never the AI default (purple or blue-to-cyan gradients, neon glow on black, glassy blobs, sparkles): a viewer should wonder whether a person made it. In "look", give the palette and why, the texture (grain, paper, film), the light, and how the camera moves (push-ins, pans, tracking, whip pans, depth of field); every drawn shot has a camera move of its own.
+- An ad, a trailer or a promo sells who the viewer becomes and how it feels (an identity, a feeling, a belief they share), not a list of features: open on a person and their moment (the frustration, the idea at 2 a.m., the shop that's finally calm), let the product be the turn in their story, and show features only as proof of that change. One idea, felt, beats five explained.
 - A video for YouTube, a channel, Shorts or TikTok is made the way the best animation channels make theirs: a hook that grabs in the first 5 seconds, a clear arc (setup, rising stakes, a reveal or punchline, a payoff), recurring characters with names, roles and an identical look in every shot, and a reason to subscribe at the end. For one, also return "youtube": {"titles": ["3 title options, under 60 characters, curious and true"], "hook": "what the first 5 seconds show and say", "characters": [{"name": "...", "role": "...", "look": "described identically to the shots"}], "description": "2 to 4 sentences, then its chapters as 0:00 lines", "tags": ["8 to 15 search tags"], "thumbnail": {"text": "2 to 4 words, huge", "shot": the number of the shot whose picture it uses (1 is the first), "color": "#hex for the words"}}. Leave "youtube" out for anything else.
 
 Return ONLY JSON:
@@ -12010,7 +12013,7 @@ async function cut(d, onProgress) {
 			const sh = { i, drawn: true, clipDur: plan.scenes[i].seconds, vo: s.vo, caption: plan.scenes[i].caption, scene: null, bmp: null };
 			sh.prepare = async (local) => {
 				try {
-					if (!sh.scene) sh.scene = openScene(html, cw, ch);
+					if (!sh.scene) sh.scene = openScene(html, Math.round(cw * CAM_ROOM / 2) * 2, Math.round(ch * CAM_ROOM / 2) * 2);
 					const b = await sh.scene.frame(Math.min(local, sh.clipDur - 1 / 120));
 					if (sh.bmp && sh.bmp.close) sh.bmp.close();
 					sh.bmp = b;
@@ -12038,6 +12041,8 @@ async function cut(d, onProgress) {
 		await new Promise((res) => { v.onloadeddata = res; v.onerror = res; setTimeout(res, 15000); });
 		shots.push({ i, v, clipDur: v.duration && isFinite(v.duration) ? v.duration : plan.scenes[i].seconds, vo: s.vo, caption: plan.scenes[i].caption });
 	}
+	// (each drawn shot's sound moments, as its film declared them: a click where it clicks, a whoosh where it moves)
+	for (const s of shots) if (s.drawn) { await s.prepare(0); s.cues = s.scene ? s.scene.cues().filter((c) => c.t >= 0 && SFX_KINDS.includes(c.sfx)).slice(0, 200) : []; }
 	const ac = STUDIO_AUDIO.ctx || (STUDIO_AUDIO.ctx = new AudioContext());
 	const decode = async (blob) => { try { return await ac.decodeAudioData(await blob.arrayBuffer()); } catch { return null; } };
 	for (const s of shots) {
@@ -12057,6 +12062,8 @@ async function cut(d, onProgress) {
 	const anyVoice = shots.some((s) => s.voBuf);
 	for (const s of shots) lay(s.sfx, s.start, anyVoice || d.music.key ? 0.35 : 0.9, Math.min(s.clipDur, s.dur));
 	for (const s of shots) lay(s.voBuf, s.start + 0.3, 1);
+	// (the sound effects, made here, each exactly on its moment, a little under the voice and over the music)
+	for (const s of shots) for (const c of s.cues || []) if (c.t < s.dur) lay(sfxBuffer(oc, c.sfx, Math.round(c.t * 1000) + s.i * 7919), s.start + c.t, anyVoice ? 0.45 : 0.6);
 	const music = d.music.key ? await decode(await vault.get(d.music.key)) : null;
 	if (music) {
 		const src = oc.createBufferSource(), g = oc.createGain();
@@ -12102,6 +12109,19 @@ async function cut(d, onProgress) {
 		const p0 = Math.max(0, Math.min(1, local / s.dur)), p = p0 * p0 * (3 - 2 * p0);
 		const m = { "push in": [1 + 0.12 * p, 0, 0], "pull out": [1.12 - 0.12 * p, 0, 0], "pan left": [1.12, 0.9 - 1.8 * p, 0], "pan right": [1.12, -0.9 + 1.8 * p, 0], "tilt up": [1.12, 0, 0.9 - 1.8 * p], "tilt down": [1.12, 0, -0.9 + 1.8 * p], drift: [1.06 + 0.05 * p, -0.4 + 0.8 * p, 0.25 - 0.5 * p] }[s.move] || [1 + 0.12 * p, 0, 0];
 		cover(s.img, alpha, m[0], m[1], m[2]);
+	};
+	// the camera over a drawn shot: the move the director gave it (or the next one in turn), and for a film made in one take
+	// a move for each of its parts; a drawn shot is rendered CAM_ROOM larger, so even the closest moment is at full sharpness
+	const DRAWN_MOVES = ["push in", "pan right", "pull out", "pan left", "tilt up", "drift"];
+	const drawnCam = (s, local, alpha) => {
+		const parts = plan.parts && plan.parts.length > 1 ? plan.parts : null;
+		let p0, move;
+		if (parts) { let t0 = 0, k = 0; while (k < parts.length - 1 && local >= t0 + parts[k].seconds) t0 += parts[k++].seconds; p0 = (local - t0) / Math.max(0.5, parts[k].seconds); move = parts[k].move && k ? parts[k].move : DRAWN_MOVES[k % DRAWN_MOVES.length]; }
+		else { p0 = local / Math.max(0.5, s.dur); move = (plan.scenes[s.i] && plan.scenes[s.i].move) || DRAWN_MOVES[s.i % DRAWN_MOVES.length]; }
+		p0 = Math.max(0, Math.min(1, p0));
+		const p = p0 * p0 * (3 - 2 * p0), a = CAM_ROOM - 1;
+		const m = { "push in": [1 + a * p, 0, 0], "pull out": [1 + a - a * p, 0, 0], "pan left": [1 + a, 0.9 - 1.8 * p, 0], "pan right": [1 + a, -0.9 + 1.8 * p, 0], "tilt up": [1 + a, 0, 0.9 - 1.8 * p], "tilt down": [1 + a, 0, -0.9 + 1.8 * p], drift: [1 + a * 0.5 + a * 0.4 * p, -0.4 + 0.8 * p, 0.25 - 0.5 * p] }[move] || [1 + a * p, 0, 0];
+		cover(s.bmp, alpha, m[0], m[1], m[2]);
 	};
 	const wrap = (text, maxW) => {
 		const words = text.split(/\s+/), lines = [];
@@ -12167,7 +12187,7 @@ async function cut(d, onProgress) {
 			if (local < 0 || local >= s.dur) continue;
 			const fadeIn = s === shots[0] ? Math.min(1, local / 0.4) : Math.min(1, local / XF);
 			if (s.still) camera(s, local, fadeIn);
-			else if (s.drawn) { if (s.bmp) { g.globalAlpha = fadeIn; g.drawImage(s.bmp, 0, 0, cw, ch); g.globalAlpha = 1; } }
+			else if (s.drawn) { if (s.bmp) drawnCam(s, local, fadeIn); }
 			else cover(s.v, fadeIn, 1 + Math.max(0, local - s.clipDur) * 0.02);
 			caption(s.caption, local - 0.15);
 		}
@@ -12303,7 +12323,7 @@ function sceneDoc(html, W, H) {
 		"addEventListener('error',function(e){send({sceneError:(e.message||'Error')+(e.lineno?' (line '+e.lineno+')':'')})});" +
 		"addEventListener('unhandledrejection',function(e){var r=e.reason;send({sceneError:'Unhandled rejection: '+(r&&r.message||r)})});" +
 		"addEventListener('message',async function(e){var m=e.data||{};try{" +
-		"if(m.type==='ready'){if(document.fonts)await document.fonts.ready;var until=Date.now()+4000;while(typeof window.seek!=='function'&&Date.now()<until)await new Promise(function(r){setTimeout(r,50)});send({id:m.id,ok:typeof window.seek==='function'});return}" +
+		"if(m.type==='ready'){if(document.fonts)await document.fonts.ready;var until=Date.now()+4000;while(typeof window.seek!=='function'&&Date.now()<until)await new Promise(function(r){setTimeout(r,50)});send({id:m.id,ok:typeof window.seek==='function',cues:Array.isArray(window.CUES)?window.CUES.slice(0,300).map(function(c){return{t:+(c&&c.t)||0,sfx:String(c&&c.sfx||'')}}):[]});return}" +
 		"if(m.type==='seek'){await window.seek(m.t);var c=document.getElementById('c')||document.querySelector('canvas');if(!c)throw new Error('There is no canvas to draw on');var b=await createImageBitmap(c);send({id:m.id,bmp:b},[b])}" +
 		"}catch(err){send({id:m.id,error:String(err&&err.message||err).slice(0,500)})}})})()<\/script>";
 	return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html><head>" + head + "</head>" + html;
@@ -12314,7 +12334,7 @@ function openScene(html, W, H) {
 	f.setAttribute("aria-hidden", "true");
 	f.style.cssText = "position:fixed;left:-20000px;top:0;width:" + W + "px;height:" + H + "px;border:0;pointer-events:none";
 	const wait = new Map();
-	let n = 0, crash = "", up = null;
+	let n = 0, crash = "", up = null, cues = [];
 	const on = (e) => {
 		if (e.source !== f.contentWindow) return;
 		const m = e.data || {};
@@ -12335,7 +12355,8 @@ function openScene(html, W, H) {
 	f.srcdoc = sceneDoc(html, W, H);
 	document.body.appendChild(f);
 	const api = {
-		ready: () => (up ||= loaded.then(() => ask({ type: "ready" }, 20000)).then((r) => { if (!r.ok) throw new Error(crash || "It has no window.seek(t) to draw a moment with"); })),
+		ready: () => (up ||= loaded.then(() => ask({ type: "ready" }, 20000)).then((r) => { if (!r.ok) throw new Error(crash || "It has no window.seek(t) to draw a moment with"); cues = Array.isArray(r.cues) ? r.cues : []; })),
+		cues: () => cues,
 		frame: async (t) => { await api.ready(); return (await ask({ type: "seek", t }, 10000)).bmp; },
 		close: () => { removeEventListener("message", on); f.remove(); },
 		crash: () => crash,
@@ -12391,7 +12412,9 @@ const FILM_CRAFT = `Taste, camera and realism (what separates a film people shar
 - Real things at their real proportions, measured, never guessed: a phone is 9 wide by 19.5 tall (71.5 by 147.5 mm), its corners rounded by about 18% of its width, a thin even bezel (about 3% of its width), a pill-shaped camera cut-out at the top, a status bar (time, signal, battery) and a home bar at the bottom; a tablet is 3:4; a laptop screen 16:10 on a thin base; a watch face a rounded square. Never a chunky tablet for a phone.
 - A phone in the world, never floating on a plain background: held in a hand or lying on a table, lit like the rest of the scene (a highlight along its edge, a shadow under it, its screen's glow on what's near), its screen in the platform's own manner (message bubbles with tails, names and timestamps, a typing indicator, the keyboard rising as someone types, a notification sliding down from the top), and the camera with it: push in to read a message, follow the thumb, tilt as it's picked up.
 - Colour like a colourist: about 60% a dominant (a neutral tinted toward the main hue), 30% a secondary, 10% an accent kept for what matters; lightness contrast before hue; the palette shifts with the story (cool and desaturated for tension or loss, warm and saturated for joy, one saturated colour to point the eye); light has a colour and everything in the scene takes it on; meanings checked for the audience (white is mourning across much of East Asia, red is luck in China and Indonesia).
-- When a brand's real logo is given, use exactly that shape; never draw a logo of your own for a real brand.`;
+- When a brand's real logo is given, use exactly that shape; never draw a logo of your own for a real brand.
+- Sound moments, declared so the editor lays a real sound exactly there: window.CUES = [{t: seconds from the start of this program, sfx: "click" | "type" | "whoosh" | "swipe" | "pop" | "notify" | "impact" | "rise"}]: a click for every tap or cursor click, type for every burst of typing, whoosh for a fast camera move or a cut, swipe for anything sliding, pop when something appears, notify for a message or notification arriving, impact when a big title lands, rise into the big moment.
+- Never invent facts: no prices, plans, numbers, statistics, results, names, reviews or testimonials that weren't given. A product's screen shows only real things from the brief, or neutral content with no numbers at all (never a made-up price such as "$2,400/mo" or a made-up "42 leads").`;
 const ANIMATOR = `You animate one shot of a film in code: a motion designer and animator at the best studio in the world, writing the shot as a program that draws every frame.
 
 Write ONE complete HTML document, exactly to this contract:
@@ -12546,7 +12569,7 @@ function segmentOf(html, at, secs) {
 // what the editor cuts: a film made in one take is one shot, its own titles and ending in it
 function takeView(d) {
 	const p = d.plan, secs = p.scenes.reduce((n, x) => n + x.seconds, 0);
-	return { ...d, plan: { ...p, end: { ...p.end, title: "", sub: "" }, scenes: [{ ...p.scenes[0], motion: "drawn", seconds: secs, caption: "", vo: "" }] }, scenes: [{ drawn: true, code: d.take }] };
+	return { ...d, plan: { ...p, parts: p.scenes.map((x) => ({ seconds: x.seconds, move: x.move })), end: { ...p.end, title: "", sub: "" }, scenes: [{ ...p.scenes[0], motion: "drawn", seconds: secs, caption: "", vo: "" }] }, scenes: [{ drawn: true, code: d.take }] };
 }
 // twelve frames evenly through the film, each with its time under it, as one picture
 async function filmSheet(html, total, W, H) {
@@ -12573,6 +12596,21 @@ async function filmSheet(html, total, W, H) {
 	}
 	return sheet.toDataURL("image/jpeg", 0.8);
 }
+// The AI look and invented facts, found in a film's own code (free): purple, violet and indigo; neon glows; the typefaces
+// every AI uses; prices, plans and statistics nobody gave. Each goes to its fixer, every round, with the critic's notes
+function filmTells(html, brief) {
+	const out = [], asked = String(brief || "").toLowerCase();
+	const ours = LOOK ? [LOOK.bg, LOOK.surface, LOOK.text, LOOK.accent, LOOK.second, LOOK.accentInk].filter(Boolean) : [];
+	const cols = [...new Set((String(html).match(COLOUR_IN) || []).map((c) => c.toLowerCase()))].filter((c) => { const h = hslOf(c); const x = hexOf(c.replace(/^#?([0-9a-f]{6})[0-9a-f]{2}$/i, "#$1")); return h && h.s > 0.35 && h.l > 0.12 && h.l < 0.9 && h.h >= 245 && h.h <= 300 && !(x && ours.some((o) => rgbDist(o, x) < 24)); });
+	if (cols.length >= 2 && !/purple|violet|indigo|lavender|lilac|ungu/.test(asked)) out.push("It uses purple, violet or indigo (" + cols.slice(0, 4).join(", ") + "), the most recognisable AI look: change every one to the film's own palette.");
+	const glows = (String(html).match(/shadowBlur\s*=\s*(?:[1-9]\d+|\d+\s*\*)/g) || []).length;
+	if (glows >= 3 && !/glow|neon/.test(asked)) out.push("Neon glows (shadowBlur in " + glows + " places): use soft, dark, directional shadows for depth instead, or none.");
+	const fams = [...new Set((String(html).match(/\b\d+(?:\.\d+)?px\s+["']?([A-Z][\w ]{1,30}?)["']?(?=[,;"'`)]|$)/g) || []).map((f) => f.replace(/^\S+px\s+["']?/, "").replace(/["']$/, "").trim()))].filter((f) => TELL_FONTS.test(f) && !asked.includes(f.toLowerCase()) && !(LOOK && [LOOK.display, LOOK.body].includes(f)));
+	if (fams.length) out.push("The typeface " + fams.slice(0, 2).join(", ") + " is the one every AI video uses: use " + (LOOK ? "the decided typefaces (" + LOOK.display + ", " + LOOK.body + ")" : "the film's own typefaces") + ".");
+	const nums = [...new Set((String(html).match(/(?:\$|US\$|€|£|Rp\.?\s?)\d[\d.,]*(?:\s?(?:k|jt|rb|m))?(?:\s?\/\s?(?:mo|month|bln|bulan|yr|year))?|\b\d[\d.,]*\+?\s*(?:leads|users|customers|clients|bookings|sales|downloads|reviews)\b|\b\d{1,3}(?:\.\d)?%/gi) || []).map((x) => x.trim()))].filter((x) => !asked.includes(x.toLowerCase().replace(/\s+/g, "")) && !asked.includes(x.toLowerCase()));
+	if (nums.length) out.push("Numbers nobody gave (" + nums.slice(0, 4).join(", ") + "): never invent prices, plans, statistics or results. Remove them, or show only real ones from the brief.");
+	return out;
+}
 async function critiqueFilm(html, brief, total, by, W, H, msg) {
 	const critics = checkersFor("code", provider(by.id)).filter((m) => (m.input || []).includes("image"));
 	if (!critics.length) return null;
@@ -12581,7 +12619,9 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (" + tellOf("film") + " " + tellOf("picture") + " " + tellOf("colour") + " " + tellOf("type") + "); a real object at the wrong proportions (a phone drawn like a chunky tablet); a camera that never moves (no push-ins, pans or depth)). Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
 	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: [{ type: "text", text }, { type: "image_url", image_url: { url: sheet } }] }], msg, undefined, "high");
 	const j = parseJSON(r.out) || {};
-	return { by: r.model, ship: !!j.ship, fixes: (Array.isArray(j.fixes) ? j.fixes : []).map((x) => String(x).slice(0, 500)).filter((x) => x.trim()).slice(0, 4) };
+	// (what the film's own code shows, first: the AI look and invented numbers are fixed whatever the critic thought)
+	const coded = filmTells(html, brief);
+	return { by: r.model, ship: !!j.ship && !coded.length, fixes: [...coded, ...(Array.isArray(j.fixes) ? j.fixes : []).map((x) => String(x).slice(0, 500)).filter((x) => x.trim()).slice(0, 4)] };
 }
 // The film (or, with prev, the change to it), checked to run, then the critic's rounds. { html, by, critic, rounds }
 async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, onStatus) {
@@ -12717,6 +12757,38 @@ function renderSound(html, secs) {
 		document.body.appendChild(f);
 	});
 }
+// a drawn shot is rendered this much larger than the frame, so the camera can move over it at full sharpness
+const CAM_ROOM = 1.1;
+const SFX_KINDS = ["click", "type", "whoosh", "swipe", "pop", "notify", "impact", "rise"];
+// One sound effect, synthesized (the same every time for the same seed): what the film declared at that moment
+function sfxBuffer(ctx, kind, seed) {
+	const sr = ctx.sampleRate, len = Math.round(sr * ({ click: 0.05, type: 0.55, whoosh: 0.5, swipe: 0.26, pop: 0.12, notify: 0.5, impact: 0.9, rise: 1.3 }[kind] || 0.1));
+	const buf = ctx.createBuffer(2, len, sr), L = buf.getChannelData(0), R = buf.getChannelData(1);
+	let x = (seed >>> 0) || 1;
+	const rnd = () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+	const put = (i, v, pan = 0) => { if (i < 0 || i >= len) return; L[i] += v * (1 - Math.max(0, pan)); R[i] += v * (1 + Math.min(0, pan)); };
+	const tick = (at, gain, tone) => { for (let i = 0; i < sr * 0.03; i++) { const e = Math.exp(-i / (sr * 0.0035)); put(Math.round(at * sr) + i, (rnd() * 0.6 + Math.sin(2 * Math.PI * tone * i / sr) * 0.5) * e * gain); } };
+	if (kind === "click") tick(0, 0.9, 2400);
+	else if (kind === "type") { let at = 0; for (let k = 0; k < 5; k++) { tick(at, 0.55 + 0.2 * Math.abs(rnd()), 1800 + 600 * Math.abs(rnd())); at += 0.07 + 0.05 * Math.abs(rnd()); } }
+	else if (kind === "pop") { let ph = 0; for (let i = 0; i < len; i++) { const f = 900 * Math.exp(-i / (sr * 0.03)) + 260; ph += 2 * Math.PI * f / sr; put(i, Math.sin(ph) * Math.exp(-i / (sr * 0.025)) * 0.8); } }
+	else if (kind === "notify") { for (const [f, at] of [[880, 0], [1320, 0.12]]) for (let i = 0; i < sr * 0.35; i++) { const e = Math.exp(-i / (sr * 0.09)); put(Math.round(at * sr) + i, (Math.sin(2 * Math.PI * f * i / sr) + 0.3 * Math.sin(4 * Math.PI * f * i / sr)) * e * 0.45); } }
+	else if (kind === "impact") { let ph = 0; for (let i = 0; i < len; i++) { const f = 55 + 70 * Math.exp(-i / (sr * 0.05)); ph += 2 * Math.PI * f / sr; const e = Math.exp(-i / (sr * 0.22)); put(i, (Math.sin(ph) * 0.9 + rnd() * 0.35 * Math.exp(-i / (sr * 0.015))) * e); } }
+	else {
+		// air moving: noise through a low-pass that opens and closes, swept across from one side to the other (a riser builds
+		// to its end instead)
+		let lp = 0;
+		for (let i = 0; i < len; i++) {
+			const p = i / len, env = kind === "rise" ? p * p : Math.sin(Math.PI * p) ** 2, cut = kind === "rise" ? 0.02 + 0.3 * p : 0.03 + 0.22 * Math.sin(Math.PI * p);
+			lp += cut * (rnd() - lp);
+			put(i, lp * env * (kind === "swipe" ? 1.4 : 1.8), kind === "rise" ? 0 : -0.7 + 1.4 * p);
+		}
+	}
+	// (each one peaks at the same safe level, so none can clip the mix)
+	let pk = 0;
+	for (const ch of [L, R]) for (let i = 0; i < len; i++) pk = Math.max(pk, Math.abs(ch[i]));
+	if (pk > 0.85) for (const ch of [L, R]) for (let i = 0; i < len; i++) ch[i] *= 0.85 / pk;
+	return buf;
+}
 // a soundtrack that rendered: not broken, not silent, not mostly empty; then levelled to peak at -1 dBFS
 function soundCheck(L, R) {
 	let peak = 0;
@@ -12731,6 +12803,17 @@ function soundCheck(L, R) {
 		if (Math.sqrt(sum / (win / 4)) * k < 0.004) quiet++;
 	}
 	if (wins >= 4 && quiet / wins > 0.5) throw new Error("The soundtrack is silent for " + quiet + " of its " + wins + " seconds: sounds must play through the whole film");
+	// (and it never drops out partway: a silence of over half a second before its last second and a half is sent back)
+	{
+		const step = 4800;
+		let run = 0;
+		for (let s0 = 0; s0 + step <= L.length - 72000; s0 += step) {
+			let sum = 0;
+			for (let i = s0; i < s0 + step; i += 4) sum += L[i] * L[i] + R[i] * R[i];
+			if (Math.sqrt(sum / (step / 2)) * k < 0.003) { if (++run >= 6) throw new Error("The sound drops out from about " + ((s0 - (run - 1) * step) / 48000).toFixed(1) + " s: keep the music and sound going through every cut, right to the end"); }
+			else run = 0;
+		}
+	}
 	for (const ch of [L, R]) for (let i = 0; i < ch.length; i++) ch[i] *= k;
 }
 function wavOf(L, R, sr) {
