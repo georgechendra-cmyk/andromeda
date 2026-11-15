@@ -49,5 +49,8 @@ for (const f of meta) {
 }
 out.sort((a, b) => a[4] - b[4]);
 const dest = fileURLToPath(new URL("../fonts.json", import.meta.url));
+// (nothing new from Google: left as it is, so the daily run only commits a real change)
+if (out.length < 500) { console.log("only " + out.length + " typefaces came back: left as it was"); process.exit(0); }
+try { if (JSON.stringify(JSON.parse(readFileSync(dest, "utf8")).fonts) === JSON.stringify(out)) { console.log("no change: " + out.length + " typefaces"); process.exit(0); } } catch {}
 writeFileSync(dest, JSON.stringify({ made: new Date().toISOString().slice(0, 10), from: "Google Fonts: github.com/google/fonts tags/all/families.csv and fonts.google.com/metadata/fonts", cols: ["name", "category", "use", "quality", "popularity", "latin", "scripts", "feel", "primary"], fonts: out }));
 console.log(out.length + " typefaces, " + out.filter((x) => x[7]).length + " with Google's feel tags -> " + dest);

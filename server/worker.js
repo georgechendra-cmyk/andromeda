@@ -182,6 +182,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/jobs" && m === "POST") return jobSave(req, env, user);
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})$/)) && m === "DELETE") return jobDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/run$/)) && m === "POST") return jobRunNow(env, ctx, user, fd[1]);
+	if ((fd = p.match(/^\/api\/jobs\/([a-f0-9]{24})\/paid$/)) && m === "POST") return jobPaid(req, env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/jobs\/items\/([a-f0-9]{24})$/)) && m === "POST") return jobItem(req, env, user, fd[1]);
 	if (p === "/api/needs" && m === "GET") return json(await needsOf(env, user.id));
 	if ((cl = p.match(/^\/api\/craft\/([^/]{3,200})$/)) && m === "GET") return craftGet(env, decodeURIComponent(cl[1]));
@@ -189,6 +190,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/craft/lesson" && m === "POST") return craftSet(req, env, user, true);
 	if (p === "/api/craft/research" && m === "POST") return craftResearch(req, env, ctx, user);
 	if (p === "/api/craft/recheck" && m === "POST") return craftRecheck(req, env, ctx, user);
+	if (p === "/api/craft/tell" && m === "POST") return craftTell(req, env, ctx, user);
 	if (p === "/api/prefs" && m === "GET") return prefsGet(env, user);
 	if (p === "/api/prefs" && m === "POST") return prefsSet(req, env, user);
 	if (p === "/api/conns" && m === "GET") return connsOf(env, user);
@@ -3848,6 +3850,35 @@ async function craftRecheck(req, env, ctx, user) {
 	}
 	return json({ right: got.out ? right : null, why: String(j.why || "").slice(0, 300), brief, lessons, broke: !!got.broke });
 }
+// "This looks AI-made": a model judges whether a real, general mark of AI-made work is behind it that the list every maker
+// avoids doesn't have yet; if so it joins the list, for everyone (one person's taste doesn't). Paid for by whoever said it;
+// a few a day for each person and for everyone, so the list can't be flooded
+const TELLS_K = craftK("ai tells"), TELL_KINDS = ["type", "colour", "layout", "parts", "motion", "copy", "writing", "picture", "film", "slides"], TELL_EACH = 3, TELL_DAY = 40;
+async function craftTell(req, env, ctx, user) {
+	const b = await body(req);
+	const complaint = String(b.complaint || "").replace(/\s+/g, " ").trim().slice(0, 300), made = String(b.made || "").replace(/\s+/g, " ").trim().slice(0, 600), known = String(b.known || "").slice(0, 5000);
+	const kinds = (Array.isArray(b.kinds) ? b.kinds : []).map(String).filter((k) => TELL_KINDS.includes(k)).slice(0, 6);
+	if (complaint.length < 2 || !kinds.length) throw fail(400, "What looks AI-made?");
+	const models = modelsIn(b);
+	if (!models.length) throw fail(400, "Which model?");
+	const day = researchDay(), mine = day + ":tell:" + user.id, everyone = day + ":tell";
+	if ((await counter(env, mine)) >= TELL_EACH || (await counter(env, everyone)) >= TELL_DAY) return json({ new: null, later: true });
+	await bump(env, mine, 1);
+	await bump(env, everyone, 1);
+	const have = await env.DB.prepare("SELECT lessons FROM craft WHERE k = ?").bind(TELLS_K).first().catch(() => null);
+	let lessons = lessonsOf(have);
+	const got = await researchAsk(env, ctx, researchPayer(user), models, "You keep Celestin's list of the marks that give work away as AI-made, so every maker avoids them. Someone said what Celestin made looks AI-made: \"" + complaint + "\"" + (made ? "\nWhat was made: " + made : "") +
+		"\n\nThe list already has (for " + kinds.join(", ") + "):\n" + known + (lessons.length ? "\nLearned since:\n- " + lessons.join("\n- ") : "") +
+		"\n\nIs a real, general mark of AI-made work behind this that the list doesn't have yet? Only one that's true of most work of its kind and that people recognise as AI-made: not one person's taste, and not something the list already has in other words. Reply with ONLY this JSON: {\"new\": true or false, \"kind\": \"one of: " + TELL_KINDS.join(", ") + "\", \"tell\": \"only when new: the mark, and what to do instead, in one line\", \"why\": \"one sentence\"}", 700);
+	const j = jsonIn(got.out) || {};
+	const kind = TELL_KINDS.includes(j.kind) ? j.kind : kinds[0], tell = String(j.tell || "").replace(/\s+/g, " ").trim().slice(0, 240);
+	const isNew = (j.new === true || j.new === "true") && tell.length >= 12 && !lessons.some((l) => l.toLowerCase().includes(tell.toLowerCase().slice(0, 40)));
+	if (isNew) {
+		lessons = [...lessons, kind + ": " + tell].slice(-80);
+		await env.DB.prepare("INSERT INTO craft (k, brief, lessons, updated_at) VALUES (?, NULL, ?, ?) ON CONFLICT(k) DO UPDATE SET lessons = excluded.lessons, updated_at = excluded.updated_at").bind(TELLS_K, JSON.stringify(lessons), now()).run();
+	}
+	return json({ new: got.out ? isNew : null, kind, tell: isNew ? tell : "", why: String(j.why || "").slice(0, 300), lessons, broke: !!got.broke });
+}
 // ------------------------------------------------------------------ a person's settings, and their Google Calendar
 // a booking in their Google Calendar (the Gmail script, version 2; an older one: nothing happens)
 async function calendarAdd(env, userId, e) { const { c } = await gmailOf(env, userId); await gmailCall(c, { action: "event", title: e.title, start: new Date(e.start).toISOString(), minutes: e.minutes || 30, details: e.details || "" }); }
@@ -4278,8 +4309,8 @@ async function runAgent(env, ctx, a, manual) {
 }
 
 // ------------------------------------------------------------------ Celestin Together's jobs
-const JOB_KINDS = ["winback", "marketing"], JOB_MAX = 10, JOB_RUN_TICK = 5;
-const jobOut = (j) => { let config = {}; try { config = JSON.parse(j.config || "{}"); } catch {} let state = {}; try { state = JSON.parse(j.state || "{}"); } catch {} return { id: j.id, kind: j.kind, name: j.name, config, next_at: j.next_at, last_at: j.last_at, active: !!j.active, created_at: j.created_at, posted: state.posted || 0, sent: Object.keys(state.sent || {}).length }; };
+const JOB_KINDS = ["winback", "marketing", "collect"], JOB_MAX = 10, JOB_RUN_TICK = 5;
+const jobOut = (j) => { let config = {}; try { config = JSON.parse(j.config || "{}"); } catch {} let state = {}; try { state = JSON.parse(j.state || "{}"); } catch {} return { id: j.id, kind: j.kind, name: j.name, config, next_at: j.next_at, last_at: j.last_at, active: !!j.active, created_at: j.created_at, posted: state.posted || 0, sent: Object.keys(state.sent || {}).length, ...(j.kind === "collect" ? { debts: state.debts || {} } : {}) }; };
 async function jobsOf(env, user) {
 	const jobs = (await env.DB.prepare("SELECT * FROM team_jobs WHERE user_id = ? ORDER BY created_at").bind(user.id).all()).results || [];
 	const items = (await env.DB.prepare("SELECT i.*, j.name AS job_name, j.kind AS job_kind FROM team_job_items i JOIN team_jobs j ON j.id = i.job_id WHERE i.user_id = ? ORDER BY (i.status = 'ready') DESC, i.created_at DESC LIMIT 120").bind(user.id).all()).results || [];
@@ -4298,11 +4329,55 @@ function parseCustomers(list) {
 	}
 	return out.filter((c) => c.name || c.phone || c.email);
 }
+// Who owes what, as the owner pasted it: one per line, "name, amount, due date, phone or email, what it's for", in any
+// order. The amount is kept exactly as they wrote it (what every reminder says), and read as a number only to add up; a
+// date it can't read means it's due already
+const MONTHS = { jan: 0, january: 0, januari: 0, feb: 1, february: 1, februari: 1, mar: 2, march: 2, maret: 2, apr: 3, april: 3, may: 4, mei: 4, jun: 5, june: 5, juni: 5, jul: 6, july: 6, juli: 6, aug: 7, august: 7, agu: 7, agt: 7, agustus: 7, sep: 8, sept: 8, september: 8, oct: 9, october: 9, okt: 9, oktober: 9, nov: 10, november: 10, nop: 10, dec: 11, december: 11, des: 11, desember: 11 };
+function dueOf(x, tzMin) {
+	const s = String(x || "").trim().toLowerCase().replace(/^(due|jatuh tempo|tempo|by|before|sebelum)\s+/, "");
+	let y = 0, mo = -1, d = 0, m;
+	if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) { y = +m[1]; mo = +m[2] - 1; d = +m[3]; }
+	else if ((m = s.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/))) { d = +m[1]; mo = +m[2] - 1; y = m[3] ? +(m[3].length === 2 ? "20" + m[3] : m[3]) : 0; if (mo > 11 && d <= 12) [d, mo] = [mo + 1, d - 1]; }
+	else if ((m = s.match(/^(\d{1,2})\s+([a-z]+)\.?,?(?:\s+(\d{4}))?$/)) && MONTHS[m[2]] != null) { d = +m[1]; mo = MONTHS[m[2]]; y = m[3] ? +m[3] : 0; }
+	else if ((m = s.match(/^([a-z]+)\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?(?:\s+(\d{4}))?$/)) && MONTHS[m[1]] != null) { mo = MONTHS[m[1]]; d = +m[2]; y = m[3] ? +m[3] : 0; }
+	else return 0;
+	if (!(mo >= 0 && mo <= 11 && d >= 1 && d <= 31)) return 0;
+	const here = new Date(now() + tzMin * 60e3);
+	if (!y) { y = here.getUTCFullYear(); if (Date.UTC(y, mo, d) < here.getTime() - 300 * 864e5) y++; }
+	// (9:00 on that day where the business is)
+	return Date.UTC(y, mo, d, 9, 0) - tzMin * 60e3;
+}
+const AMOUNT_RE = /^(?:(?:rp\.?|idr|usd|us\$|\$|€|eur|£|gbp|sgd|s\$|rm|myr|₱|php|฿|thb|aud|a\$)\s*\d[\d.,]*\s*(?:jt|juta|rb|ribu|k|m)?|\d[\d.,]*\s*(?:jt|juta|rb|ribu|k|m)|\d{1,3}(?:[.,]\d{3})+(?:[.,]\d{1,2})?\s*(?:rp|idr|usd|eur|sgd)?)$/i;
+function amountOf(x) {
+	const s = String(x || "").toLowerCase().replace(/\s+/g, ""), m = s.match(/(\d[\d.,]*)(jt|juta|rb|ribu|k|m)?/);
+	if (!m) return 0;
+	const mult = { jt: 1e6, juta: 1e6, rb: 1e3, ribu: 1e3, k: 1e3, m: 1e6 }[m[2]] || 1;
+	const num = mult > 1 ? m[1].replace(",", ".") : /[.,]\d{3}$/.test(m[1]) ? m[1].replace(/[.,]/g, "") : m[1].replace(",", ".");
+	return Math.round((parseFloat(num) || 0) * mult * 100) / 100;
+}
+function parseDebts(list, tzMin) {
+	const out = [];
+	for (const line of String(list || "").split(/\r?\n/)) {
+		const parts = line.split(/[;\t|]|,(?!\d{3}\b)(?!\d{1,2}\s*(?:jt|juta|rb|ribu|k|m)\b)/i).map((x) => x.trim()).filter(Boolean);
+		if (!parts.length) continue;
+		const amount = parts.find((x) => AMOUNT_RE.test(x)) || "";
+		const email = parts.find((x) => EMAIL_RE.test(x)) || "";
+		const phone = parts.find((x) => x !== amount && /^\+?[\d\s().-]{9,}$/.test(x) && x.replace(/\D/g, "").length >= 9) || "";
+		const dueRaw = parts.find((x) => x !== amount && x !== phone && dueOf(x, tzMin)) || "";
+		const rest = parts.filter((x) => x !== amount && x !== email && x !== phone && x !== dueRaw);
+		if (!amount || !(rest[0] || phone || email)) continue;
+		const d = { name: (rest[0] || "").slice(0, 60), amount: amount.slice(0, 40), value: amountOf(amount), due: dueRaw ? dueOf(dueRaw, tzMin) : 0, phone: phone.replace(/[^\d+]/g, "").slice(0, 20), email: email.toLowerCase().slice(0, 120), what: rest.slice(1).join(", ").slice(0, 200) };
+		d.key = (d.name + "|" + d.amount + "|" + d.due + "|" + (d.phone || d.email)).toLowerCase().slice(0, 200);
+		out.push(d);
+		if (out.length >= 300) break;
+	}
+	return out;
+}
 async function jobSave(req, env, user) {
 	const b = await body(req);
 	const kind = JOB_KINDS.includes(b.kind) ? b.kind : "";
 	if (!kind) throw fail(400, "Pick a job.");
-	const name = String(b.name || "").trim().slice(0, 60) || (kind === "winback" ? "Bring customers back" : "Marketing");
+	const name = String(b.name || "").trim().slice(0, 60) || (kind === "winback" ? "Bring customers back" : kind === "collect" ? "Collect what you're owed" : "Marketing");
 	const c = b.config || {};
 	const config = {
 		brief: String(c.brief || "").trim().slice(0, 6000), goal: String(c.goal || "").trim().slice(0, 1000), lang: String(c.lang || "").slice(0, 30), link: String(c.link || "").slice(0, 300),
@@ -4322,6 +4397,12 @@ async function jobSave(req, env, user) {
 		if (!config.customers.length && !config.fromDesk) throw fail(400, "Paste your customers, one per line: name, phone or email, and anything worth remembering (their usual, their last visit).");
 		config.every = Math.max(7, Math.min(180, Math.round(Number(c.every) || 30)));
 		config.via = ["call", "email", "whatsapp", "auto"].includes(c.via) ? c.via : "whatsapp";
+	} else if (kind === "collect") {
+		config.debts = parseDebts(c.debts, cfgTz(config));
+		if (!config.debts.length) throw fail(400, "Paste who owes you, one per line: their name, how much (as you'd write it: Rp1.500.000, 1,5jt, $120), when it's due, a phone or email, and what it's for.");
+		config.via = ["email", "whatsapp", "auto"].includes(c.via) ? c.via : "auto";
+		// (how to pay them: the owner's own bank account, e-wallet or payment link, said in every reminder)
+		config.pay = String(c.pay || "").trim().slice(0, 400);
 	} else {
 		config.platforms = (Array.isArray(c.platforms) ? c.platforms : ["x"]).filter((p) => ["x", "instagram", "tiktok", "linkedin", "facebook", "threads", "bluesky", "telegram", "discord"].includes(p)).slice(0, 6);
 		config.auto = !!c.auto;
@@ -4353,6 +4434,19 @@ async function jobItem(req, env, user, iid) {
 	const r = await env.DB.prepare("UPDATE team_job_items SET status = ?, text = COALESCE(?, text), why = CASE WHEN ? IS NULL THEN why ELSE COALESCE(why, '') || ' (edited by you)' END WHERE id = ? AND user_id = ?").bind(["done", "skipped", "ready"].includes(b.status) ? b.status : "done", text, text, iid, user.id).run();
 	if (!(r.meta && r.meta.changes)) throw fail(404, "That isn't in your inbox.");
 	return json({ ok: true });
+}
+// one of a collector's debts paid (or not after all): its reminders stop (or carry on from where they were)
+async function jobPaid(req, env, user, jid) {
+	const b = await body(req), key = String(b.key || "").slice(0, 200);
+	const j = await env.DB.prepare("SELECT * FROM team_jobs WHERE id = ? AND user_id = ? AND kind = 'collect'").bind(jid, user.id).first();
+	if (!j) throw fail(404, "That isn't one of your collectors.");
+	let state = {};
+	try { state = JSON.parse(j.state || "{}") || {}; } catch {}
+	const st = state.debts || {};
+	st[key] = { ...(st[key] || { step: -1 }), paid: b.paid !== false ? now() : 0 };
+	state.debts = st;
+	await env.DB.prepare("UPDATE team_jobs SET state = ? WHERE id = ?").bind(JSON.stringify(state), jid).run();
+	return json({ ok: true, debts: st });
 }
 async function jobRunNow(env, ctx, user, jid) {
 	const j = await env.DB.prepare("SELECT * FROM team_jobs WHERE id = ? AND user_id = ?").bind(jid, user.id).first();
@@ -4597,6 +4691,54 @@ async function runJob(env, ctx, j, manual) {
 		state.sent = sent;
 		// (looked at again soon while anyone is waiting for a good moment to be called, or more are due; else tomorrow)
 		next = t + (waiting ? 30 * 60e3 : due.length > writes.length + calls.length || writes.length >= 12 ? 3600e3 : 24 * 3600e3);
+	} else if (j.kind === "collect") {
+		// each reminder at its moment: two days before it's due, on the day, then 3, 7 and 14 days late; each one once
+		const STEPS = [-2, 0, 3, 7, 14], TONE = ["a friendly heads-up that it's due in two days", "a polite note that it's due today", "a gentle nudge: it's a few days late", "firmer: it's a week late; ask when they'll pay", "the last reminder, firm but respectful: two weeks late; ask them to pay or get in touch today"];
+		const st = state.debts || {}, cc = String(cfg.country || ""), via = cfg.via || "auto";
+		const gmail = ((await env.DB.prepare("SELECT kind FROM conns WHERE user_id = ? AND kind = 'gmail'").bind(j.user_id).first()) || null) !== null;
+		const due = [];
+		for (const d of cfg.debts || []) {
+			const s = st[d.key] || { step: -1 };
+			if (s.paid || s.stopped) continue;
+			const at = d.due || j.created_at;
+			let step = -1;
+			STEPS.forEach((days, i) => { if (t >= at + days * 864e5) step = i; });
+			// (all five sent, a week after the last, still not paid: the owner decides what's next, once)
+			if (s.step === STEPS.length - 1 && !s.asked && t >= at + 21 * 864e5) { await put("note", d.name || d.phone || d.email, (d.name || "They") + " still hasn't paid " + d.amount + (d.what ? " for " + d.what : "") + " after five reminders. Call them, agree a plan with them, or tell me to stop.", null, "").run(); st[d.key] = { ...s, asked: t }; continue; }
+			if (step <= s.step) continue;
+			const how = (via === "email" || via === "auto") && d.email && gmail ? "email" : (via === "whatsapp" || via === "auto") && d.phone ? "whatsapp" : d.email && !gmail ? "nogmail" : "";
+			if (!how) continue;
+			due.push({ ...d, step, how });
+		}
+		if (due.some((d) => d.how === "nogmail") && !state.noGmail) { state.noGmail = t; await put("note", "Email", "Connect Gmail in Accounts so it can email the people who owe you.", null, "").run(); }
+		const writes = due.filter((d) => d.how !== "nogmail").slice(0, 12);
+		if (writes.length) {
+			const ask = "You write payment reminders for " + j.name + (cfg.assistant ? " (sign as " + cfg.assistant + " from " + j.name + ")" : "") + ". About the business, from its owner:\n" + cfg.brief + (cfg.goal ? "\n\nWhat the owner wants from them: " + cfg.goal : "") +
+				"\n\nHow to pay: " + (cfg.pay || "(not given: ask them to reply and you'll send the details)") +
+				"\n\nWrite one message for each of these, in " + (cfg.lang || "the language they'd expect") + ": short and human, never threatening, rude or shaming, never adding fees, interest or anything the owner didn't give, and always saying the amount exactly as it's written here. " + AI_WRITING + "\n\n" +
+				writes.map((d, i) => (i + 1) + ". " + (d.name || "(no name)") + ": " + d.amount + (d.what ? ", for " + d.what : "") + (d.due ? ", due " + new Date(d.due + cfgTz(cfg) * 60e3).toISOString().slice(0, 10) : ", due now") + ". This message: " + TONE[d.step] + "." + (d.how === "email" ? " (an email)" : " (a WhatsApp message)")).join("\n") +
+				"\n\nReply with ONLY a JSON list: [{\"n\": 1, \"subject\": \"for an email\", \"message\": \"...\"}]";
+			const out = await jobAsk(env, ctx, j, [{ role: "user", content: ask }], 3000);
+			let list = [];
+			try { list = JSON.parse(out.replace(/^[\s\S]*?(\[[\s\S]*\])[\s\S]*$/, "$1")); } catch {}
+			for (const x of Array.isArray(list) ? list : []) {
+				const d = writes[(Number(x && x.n) || 0) - 1];
+				let msg = String((x && x.message) || "").trim();
+				if (!d || !msg) continue;
+				// (the amount exactly as the owner wrote it, always: added when the writer left it out)
+				if (!msg.includes(d.amount)) msg += "\n\n" + d.amount + (d.what ? " · " + d.what : "");
+				const why = "Reminder " + (d.step + 1) + " of 5 · " + d.amount + (d.due ? " · due " + new Date(d.due + cfgTz(cfg) * 60e3).toISOString().slice(0, 10) : "");
+				if (d.how === "email") {
+					try { await emailSend(env, j.user_id, { to: d.email, subject: String(x.subject || "A reminder from " + j.name).slice(0, 200), body: msg }); await env.DB.prepare("INSERT INTO team_job_items (id, job_id, user_id, kind, title, text, link, why, status, created_at) VALUES (?, ?, ?, 'email', ?, ?, NULL, ?, 'done', ?)").bind(id(), j.id, j.user_id, d.name || d.email, msg, why, t).run(); }
+					catch (e) { await put("note", d.name || d.email, "Couldn't email " + d.email + ": " + (e.message || e), null, "").run(); continue; }
+				} else await put("message", d.name || d.phone, msg, waLink(d.phone, msg, cc), why).run();
+				st[d.key] = { ...(st[d.key] || {}), step: d.step, last: t };
+				made++;
+			}
+		}
+		state.debts = st;
+		// (looked at again every few hours: a reminder goes out on its day, near the start of it)
+		next = t + 4 * 3600e3;
 	} else if (j.kind === "marketing") {
 		const heatV = await topicHeat(env, cfg.topic), heat = heatV.heat || 1, last = state.lastPost || 0;
 		const plat = (cfg.platforms || ["x"])[0];

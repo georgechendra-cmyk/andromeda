@@ -1,6 +1,8 @@
-name: Refresh model leaderboards
-# Once a day: read LMArena's latest leaderboards and Epoch AI's benchmarks and commit arena.json, which Andromeda uses
-# to pick the best model for each request. Nothing to set up: GitHub runs it on its own.
+name: Refresh model leaderboards and typefaces
+# Once a day: read LMArena's latest leaderboards and Epoch AI's benchmarks and commit arena.json, which Celestin uses
+# to pick the best model for each request; and read Google Fonts' own list and tags and commit fonts.json, which Celestin
+# chooses typefaces from (only when something changed). Nothing to set up: GitHub runs it on its own, and the sites read
+# the newest copy straight from here, so neither waits for anyone to publish.
 on:
   schedule:
     - cron: "17 3 * * *"
@@ -17,9 +19,15 @@ jobs:
           node-version: 22
       - run: npm install --no-save hyparquet@1 fflate@0.8
       - run: node tools/arena.mjs arena.json
+      - name: Refresh the typefaces (Google Fonts, with Google's own tags for how each one feels)
+        continue-on-error: true
+        run: |
+          curl -sfL -o "$RUNNER_TEMP/families.csv" https://raw.githubusercontent.com/google/fonts/main/tags/all/families.csv
+          curl -sfL -o "$RUNNER_TEMP/metadata.json" https://fonts.google.com/metadata/fonts
+          node tools/fonts.mjs "$RUNNER_TEMP/families.csv" "$RUNNER_TEMP/metadata.json"
       - name: Commit if it changed
         run: |
           git config user.name "andromeda-bot"
           git config user.email "andromeda-bot@users.noreply.github.com"
-          git add arena.json
-          git diff --cached --quiet || (git commit -m "Refresh model leaderboards" && git push)
+          git add arena.json fonts.json
+          git diff --cached --quiet || (git commit -m "Refresh model leaderboards and typefaces" && git push)
