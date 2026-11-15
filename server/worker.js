@@ -4234,7 +4234,9 @@ async function runAgent(env, ctx, a, manual) {
 	const quick = (models.quick || []).length ? models.quick : ["deepseek/deepseek-v4.1-flash"], work = (models.work || []).length ? models.work : quick;
 	const once = Number(a.every_min) === 0;
 	// moved on first, so a slow look never runs twice (a one-off: done after this)
-	if (!manual) await env.DB.prepare("UPDATE agents SET next_at = ?, last_at = ?" + (once ? ", active = 0" : "") + " WHERE id = ?").bind(t + Math.max(10, a.every_min) * 60e3, t, a.id).run();
+	// (watching something in their apps: looked at every 10 minutes, which costs nothing until it changes)
+	const watches = Array.isArray(st.watch) ? st.watch.slice(0, 3) : [];
+	if (!manual) await env.DB.prepare("UPDATE agents SET next_at = ?, last_at = ?" + (once ? ", active = 0" : "") + " WHERE id = ?").bind(t + (watches.length ? 10 : Math.max(10, a.every_min)) * 60e3, t, a.id).run();
 	const row = await env.DB.prepare("SELECT * FROM users WHERE id = ?").bind(a.user_id).first();
 	if (!row) return null;
 	const owner = await readyUser(env, row, await config(env));
@@ -4243,6 +4245,24 @@ async function runAgent(env, ctx, a, manual) {
 	const hhA = (x) => new Date(x + tzLive(a.tzname, a.tz) * 60e3).toISOString().slice(11, 16);
 	const outNote = (g, what2) => logs.push({ kind: "note", text: g.status === "wait" ? "Going out by itself at " + hhA(g.at) + " (you can stop it in Needs you): " + what2 : "Held for you in Needs you (" + g.why + "): " + what2 });
 	const looks = await Promise.all(sources.map((x) => agentLook(x, st, env, a.user_id)));
+	// (what it watches in their apps, read with no model: what changed since the last look is news)
+	const watchNew = [];
+	if (watches.length) {
+		const appRows = (await env.DB.prepare("SELECT * FROM mcps WHERE user_id = ?").bind(a.user_id).all().catch(() => ({ results: [] }))).results || [];
+		st.watchSeen = st.watchSeen || {};
+		for (const wch of watches) {
+			const row = appRows.find((r) => r.name.toLowerCase() === String(wch.app || "").toLowerCase());
+			if (!row) continue;
+			try {
+				const res = await mcpCallRow(env, row, wch.tool, wch.args || {});
+				const text = (((res && res.content) || []).filter((c) => c.type === "text").map((c) => c.text).join("\n") || JSON.stringify((res && res.structuredContent) || {})).slice(0, 8000);
+				const key = wch.app + ":" + wch.tool + ":" + JSON.stringify(wch.args || {});
+				const h = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+				if (st.watchSeen[key] && st.watchSeen[key] !== h) watchNew.push({ label: wch.app + " (" + String(wch.tool).replace(/_/g, " ") + ")", text });
+				st.watchSeen[key] = h;
+			} catch {}
+		}
+	}
 	st.seen = Object.fromEntries(looks.map((l) => [l.key, l.keep]));
 	// (an inbox's first look: what's there is new for a one-off; for a standing agent, only what comes after)
 	const fresh = looks.filter((l) => l.fresh.length && (!l.mail || !l.first || once)), errors = looks.filter((l) => l.error).map((l) => l.error);
@@ -4250,10 +4270,11 @@ async function runAgent(env, ctx, a, manual) {
 	const local = new Date(t + tzLive(a.tzname, a.tz) * 60e3).toISOString().slice(0, 16).replace("T", " ");
 	const what = "Your job, as " + a.name + ", working for its owner by yourself: " + a.goal + (a.notify ? "\n\nTell the owner when: " + a.notify : "") + "\n\nWhat you know so far (your memory): " + (st.memory || "(nothing yet: this is your first look)");
 	const newText = fresh.map((l) => "From " + l.label + ":\n" + l.fresh.map((x) => "- " + [x.title, x.text, x.url].filter(Boolean).join(" · ")).join("\n")).join("\n\n").slice(0, 14000) +
-		(firstPages.length ? "\n\n" + firstPages.map((l) => "The page " + l.label + " as it is now (your first look at it):\n" + l.all).join("\n\n").slice(0, 9000) : "");
+		(firstPages.length ? "\n\n" + firstPages.map((l) => "The page " + l.label + " as it is now (your first look at it):\n" + l.all).join("\n\n").slice(0, 9000) : "") +
+		(watchNew.length ? "\n\n" + watchNew.map((x) => "Changed in " + x.label + ", now:\n" + x.text).join("\n\n").slice(0, 10000) : "");
 	let look = "";
 	// nothing to watch: it works every time; something to watch: only when there's something new (or on its first look)
-	const due = !sources.length || fresh.length || firstPages.length || manual || once;
+	const due = (!sources.length && !watches.length) || fresh.length || watchNew.length || firstPages.length || manual || once;
 	if (!due) look = errors.length ? "Couldn't look: " + errors[0] : "Looked: nothing new";
 	else {
 		let go = !sources.length || manual || once || firstPages.length, read = [];
@@ -4273,7 +4294,7 @@ async function runAgent(env, ctx, a, manual) {
 			const appList = apps.map((p) => p.name + ": " + p.tools.slice(0, 40).map((q) => q.name + (q.annotations && q.annotations.readOnlyHint ? " (reads)" : "") + (q.description ? " - " + q.description.slice(0, 90) : "")).join("; ")).join("\n").slice(0, 9000);
 			const can = [
 				posts.length ? "post for the owner, as them, to: " + posts.join(", ") + " (x and bluesky: under 280 characters; telegram: their channel or chat; discord: their server). Only when posting is part of your job, in their voice, never anything made up" : "",
-				apps.length ? "use the owner's connected apps. Read with \"more\": {\"apps\": [{\"app\": \"its name\", \"tool\": \"a tool marked (reads)\", \"args\": {...}}]}; change something with \"actions\": [the same shape] in your final reply: each one is checked first and may wait for the owner's OK, and nothing ever moves money between accounts, pays out or withdraws. The apps and what each can do:\n" + appList : "",
+				apps.length ? "use the owner's connected apps. Read with \"more\": {\"apps\": [{\"app\": \"its name\", \"tool\": \"a tool marked (reads)\", \"args\": {...}}]}; change something with \"actions\": [the same shape] in your final reply: each one is checked first and may wait for the owner's OK, and nothing ever moves money between accounts, pays out or withdraws. To be woken the moment something changes there (a new order, message, booking or row), put \"watch\": [up to 3 of the same shape, tools marked (reads)] in your final reply: they're looked at every 10 minutes for free, and you only work when they change. The apps and what each can do:\n" + appList : "",
 				gw ? "keep a Google Sheet for the owner (\"sheet\": rows added to a sheet you name, made the first time with your header; a log of leads, orders, prices, stock, anything worth keeping in rows), write a Google Doc (\"doc\": a quote, a report, a letter, a plan), and read their sheet or calendar first when you need to (in \"more\")" : "",
 				mail ? "write and send email from the owner's Gmail (" + (mail === "ask" ? "each one waits for the owner to approve it before it goes" : "it goes out by itself only when a second check is sure of it, so stick to what you know") + "): new emails to real addresses you know, or replies in a thread from their inbox (use its thread id). Sign as the owner's business, in the reader's language, and never promise what the owner didn't say" : "",
 			].filter(Boolean);
@@ -4283,7 +4304,7 @@ async function runAgent(env, ctx, a, manual) {
 					(can.length ? "\n\nWhat you can do besides reporting:\n- " + can.join("\n- ") : "") +
 					"\n\nIt's " + local + " where your owner is. " + (extra ? "Research is done: finish the job now." : "If you need to read pages or look things up first to do this well, reply with ONLY {\"more\": {\"read\": [up to 4 links], \"news\": [up to 2 news searches], \"wiki\": [up to 2 encyclopedia searches]" + (gw ? ", \"sheet\": \"the name of your sheet, to read it\", \"calendar\": days ahead to read their calendar" : "") + (apps.length ? ", \"apps\": [up to 4 reads in their apps]" : "") + (env.BROWSER ? ", \"browse\": [steps in your own web browser, for a site that needs one: {\"go\": \"https://...\"}, {\"click\": \"the words on a button or link\"}, {\"type\": [\"a CSS selector\", \"text\"]}, {\"press\": \"Enter\"}, {\"scroll\": true}; public pages only, never logging in or paying]" : "") + "}}. Otherwise do the job now.") +
 					" Reply with ONLY JSON: {\"report\": \"what you found or did, for the owner, in Markdown (empty if there's truly nothing worth their time)\", \"memory\": \"your updated memory: what you know and have already done, so you never repeat yourself (under 1500 characters)\", \"look\": \"a few words on this look\"" +
-					(posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}]" : "") + (mail ? ", \"emails\": [{\"to\": \"an address, or empty for a reply\", \"thread\": \"the thread id when it's a reply\", \"subject\": \"...\", \"body\": \"the whole email\"}]" : "") + (gw ? ", \"sheet\": null or {\"name\": \"its name\", \"header\": [\"column\"], \"rows\": [[\"a row\"]]}, \"doc\": null or {\"title\": \"...\", \"text\": \"the whole document\"}" : "") + (apps.length ? ", \"actions\": [changes in their apps: {\"app\": \"...\", \"tool\": \"...\", \"args\": {...}}]" : "") + "}" },
+					(posts.length ? ", \"posts\": [{\"to\": \"one of: " + posts.join(", ") + "\", \"text\": \"the post\"}]" : "") + (mail ? ", \"emails\": [{\"to\": \"an address, or empty for a reply\", \"thread\": \"the thread id when it's a reply\", \"subject\": \"...\", \"body\": \"the whole email\"}]" : "") + (gw ? ", \"sheet\": null or {\"name\": \"its name\", \"header\": [\"column\"], \"rows\": [[\"a row\"]]}, \"doc\": null or {\"title\": \"...\", \"text\": \"the whole document\"}" : "") + (apps.length ? ", \"actions\": [changes in their apps: {\"app\": \"...\", \"tool\": \"...\", \"args\": {...}}], \"watch\": [what to watch in their apps, or leave it out to keep what you watch now]" : "") + "}" },
 			], 3000, spent);
 			// (research rounds for one-offs and looks asked for; a standing agent works from what it was given)
 			let j = jsonIn(await ask(!(once || manual)));
@@ -4313,6 +4334,14 @@ async function runAgent(env, ctx, a, manual) {
 				if (j.report && String(j.report).trim()) logs.push({ kind: "report", text: String(j.report).trim().slice(0, 12000) });
 				// (its posts, to the accounts its owner let it post to: each one's link in its log)
 				const factsA = what + (newText ? "\n\n" + newText : "") + (found ? "\n\n" + found : "");
+				// (what it watches in their apps from now on: read-only tools only)
+				if (Array.isArray(j.watch)) {
+					const ws = j.watch.map((x) => { const h = appTool(x); return h && h.tl.annotations && h.tl.annotations.readOnlyHint === true ? { app: h.app.name, tool: h.tl.name, args: h.args } : null; }).filter(Boolean).slice(0, 3);
+					if (JSON.stringify(ws) !== JSON.stringify(st.watch || [])) {
+						st.watch = ws; st.watchSeen = {};
+						logs.push({ kind: "note", text: ws.length ? "Now watching " + ws.map((x) => x.app + " (" + x.tool.replace(/_/g, " ") + ")").join(", ") + " every 10 minutes: it only works when something there changes." : "Stopped watching your apps." });
+					}
+				}
 				// (changes in their apps: never moving money; the rest through the send guard)
 				for (const x of (Array.isArray(j.actions) ? j.actions : []).slice(0, 6)) {
 					const h = appTool(x);
@@ -4353,6 +4382,8 @@ async function runAgent(env, ctx, a, manual) {
 	st.look = look + " · " + new Date(t).toISOString();
 	const qs = [env.DB.prepare("UPDATE agents SET state = ?, spent_mc = spent_mc + ?, runs = runs + 1, last_at = ? WHERE id = ?").bind(JSON.stringify(st), spent.mc, t, a.id)];
 	for (const l of logs) qs.push(env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at, seen) VALUES (?, ?, ?, ?, ?, ?, 0)").bind(id(), a.id, a.user_id, l.kind, l.text, now()));
+	// (it began watching something this time: its next look comes in ten minutes, not at its old pace)
+	if (!once && !watches.length && Array.isArray(st.watch) && st.watch.length) qs.push(env.DB.prepare("UPDATE agents SET next_at = MIN(next_at, ?) WHERE id = ?").bind(t + 10 * 60e3, a.id));
 	await env.DB.batch(qs);
 	const report = logs.find((l) => l.kind === "report"), waiting = logs.filter((l) => l.kind === "approve").length;
 	const tell = report ? report.text : waiting ? waiting + " email" + (waiting > 1 ? "s are" : " is") + " waiting for your OK in Celestin Together." : "";
