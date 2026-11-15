@@ -3005,6 +3005,8 @@ function bestFor(feature, cap) {
 	// (in Auto nothing thinks at max: at most xhigh, judged on what it scores at xhigh; only Max goes higher)
 	if (!cap && speed() === "auto") cap = "xhigh";
 	let data = arenaRank(f.task, f.own ? f.w : blendW(f.w, PROFILE && PROFILE.weights, 0.6), f.bench);
+	// (a maker: Celestin's own record on exactly this kind of work counts too, as much as its evidence earns)
+	if (MAKERS.has(feature) && PROFILE && PROFILE.recordMap && (PROFILE.tags || []).length) data = learned(data, PROFILE.tags, PROFILE.recordMap, data);
 	if (f.fast) data = data.filter((x) => FAST.test(x.m.id) && fastEnough(x.m.id));
 	// (a cap on how hard it may think: it's judged by what it scored at that much thought or less, which is what will run)
 	if (cap) { const under = data.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) data = under; }
@@ -4517,7 +4519,7 @@ function md(text, live) {
 // Babel and Tailwind loaded in for it) runs in a sandboxed frame under its code: it can't see this page, the account or
 // anything stored here. The newest answer opens its page by itself; any other has a Preview button. "Open" puts it in a
 // tab of its own (still sandboxed), Full screen fills the screen.
-const PV_SANDBOX = "allow-scripts allow-forms allow-modals allow-popups allow-downloads allow-pointer-lock";
+const PV_SANDBOX = "allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads allow-pointer-lock";
 // what goes wrong in a preview is shown in it, not lost in a console nobody opens
 const PV_ERR = "<script>(function(){function show(m){var d=document.getElementById('__err');if(!d){d=document.createElement('pre');d.id='__err';d.style.cssText='position:fixed;left:8px;right:8px;bottom:8px;margin:0;padding:10px 12px;background:#fef2f2;color:#991b1b;border:1px solid #fecaca;font:12px/1.45 ui-monospace,Menlo,monospace;border-radius:10px;white-space:pre-wrap;z-index:2147483647;max-height:40%;overflow:auto';(document.body||document.documentElement).appendChild(d);}d.textContent=(d.textContent?d.textContent+'\\n':'')+String(m);}window.__show=show;addEventListener('error',function(e){show(e.message+(e.lineno?' (line '+e.lineno+')':''))});addEventListener('unhandledrejection',function(e){show('Unhandled: '+(e.reason&&e.reason.message||e.reason))});})();<\/script>";
 function pvKind(lang, src) {
@@ -6783,7 +6785,7 @@ async function projectPreview() {
 	}
 	return doc;
 }
-const withCsp = (doc) => /<head[^>]*>/i.test(doc) ? doc.replace(/<head[^>]*>/i, (x) => x + SANDBOX_CSP) : "<!doctype html>" + SANDBOX_CSP + doc;
+const withCsp = (doc) => /<head[^>]*>/i.test(doc) ? doc.replace(/<head[^>]*>/i, (x) => x + SANDBOX_CSP + LINK_OUT) : "<!doctype html>" + SANDBOX_CSP + LINK_OUT + doc;
 // ---- the message: what it did, what changed, and the next step
 function renderAgent(m, i, box) {
 	const d = m.data, P = PROJECT && PROJECT.name === d.project ? PROJECT : null;
@@ -6848,7 +6850,7 @@ function renderAgent(m, i, box) {
 		q("[data-agside]").onclick = async () => {
 			const doc = await projectPreview().catch(() => null);
 			if (!doc) { toast("Nothing to preview in this project yet"); return; }
-			openArt({ kind: "project", title: d.project, sub: "Your project, running", sandbox: "allow-scripts allow-forms allow-modals", doc: withCsp(doc), page: doc, files: null, i });
+			openArt({ kind: "project", title: d.project, sub: "Your project, running", sandbox: "allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox", doc: withCsp(doc), page: doc, files: null, i });
 		};
 		const f = q(".ag-prev iframe");
 		if (f) {
@@ -8183,13 +8185,14 @@ async function lookFor(plan, text, atts) {
 	const key = String(plan.brand || plan.craft || plan.name || plan.way).toLowerCase().slice(0, 60);
 	// (what this occasion's look is: researched once, for everyone, with what real feedback taught about it)
 	const moodK = craftKey(plan.mood || (plan.edit && current && current.mood) || "");
-	const moodC = moodK.length >= 3 ? await craftBrief(moodK, true) : null;
-	const moodNote = moodC ? ((moodC.brief || "") + ((moodC.lessons || []).length ? "\nLessons from real feedback on it (always follow them):\n- " + moodC.lessons.join("\n- ") : "")).trim() : "";
+	// (the occasion's look researched while the brand's own is measured)
+	const moodP = moodK.length >= 3 ? craftBrief(moodK, true) : null;
 	const hold = { role: "assistant", text: "", streaming: true, status: "Choosing the look from what's real about it" };
 	current.msgs.push(hold);
 	updateLast();
 	try {
-		const ev = await lookEvidence(plan, text, atts, hold);
+		const [ev, moodC] = await Promise.all([lookEvidence(plan, text, atts, hold), moodP]);
+		const moodNote = moodC ? ((moodC.brief || "") + ((moodC.lessons || []).length ? "\nLessons from real feedback on it (always follow them):\n- " + moodC.lessons.join("\n- ") : "")).trim() : "";
 		hold.status = "Choosing the look from what's real about it";
 		updateLast();
 		const past = (store.get("looks", null) || []).filter((l) => l && l.k !== key).slice(-8);
@@ -8352,7 +8355,12 @@ async function serve(text, atts, tool, o = {}) {
 	}
 	// Celestin's own record on exactly this kind of work, fetched while the work starts (it only moves a model where
 	// there's real evidence)
-	if (PROFILE && PROFILE.tags && PROFILE.tags.length) PROFILE.record = skillRecord(PROFILE.tags).catch(() => null);
+	// (the kind of thing being made is a tag of its own, so what's learned about making it reaches the next one like it)
+	CRAFT_TAG = plan && plan.craft ? craftKey(plan.craft).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) : "";
+	if (PROFILE && CRAFT_TAG && /^[a-z0-9][a-z0-9+#.\-]{0,39}$/.test(CRAFT_TAG)) PROFILE.tags = [...new Set([...(PROFILE.tags || []), CRAFT_TAG])].slice(0, 6);
+	if (PROFILE && PROFILE.tags && PROFILE.tags.length) { const P = PROFILE; P.record = skillRecord(P.tags).then((r) => { P.recordMap = r; return r; }).catch(() => null); }
+	// (they're saying the last thing made was wrong: the model that made it didn't hold up on that kind of work)
+	if (plan && (plan.lesson || plan.recheck || plan.relook) && current && current.lastMaker) { learnSend([{ ...current.lastMaker, ok: false }]); current.lastMaker = null; }
 	// Max: a second expert checks the work; Fast: straight to the answer
 	if (PROFILE && speed() === "max") PROFILE.check = true;
 	if (PROFILE && speed() === "fast") PROFILE.check = false;
@@ -8374,17 +8382,15 @@ async function serve(text, atts, tool, o = {}) {
 		if (plan && plan.recheck === "ai" && !LANE) await learnTell(plan, text);
 		if (plan && (plan.recheck === "craft" || plan.recheck === "mood") && !LANE && raw) await craftRecheck(raw, text + (plan.lesson ? " (" + plan.lesson + ")" : ""), onMood, onMood && L0 ? "colours: background " + L0.bg + ", text " + L0.text + ", accent " + L0.accent + (L0.second ? ", second " + L0.second : "") + "; typefaces: " + L0.display + (L0.body !== L0.display ? " and " + L0.body : "") : "");
 	}
-	if (plan && plan.craft && !LANE && CRAFT_WAYS.includes(plan.way)) {
-		if (current) current.craft = plan.craft;
-		const c = await craftBrief(plan.craft);
-		if (c) useCraft(plan, text, plan.craft, c);
-	}
+	// (how the best make it, and its look, worked out at the same time: neither waits for the other)
+	const crafting = plan && plan.craft && !LANE && CRAFT_WAYS.includes(plan.way);
+	if (crafting && current) current.craft = plan.craft;
 	// the look: decided from evidence (theirs, measured; what they said; the subject), never guessed or the usual
 	LOOK = null;
-	if (plan && !LANE && (!plan.edit || plan.relook || plan.recheck === "mood" || plan.recheck === "ai") && LOOK_WAYS.includes(plan.way) && (plan.way !== "project" || /\b(site|website|web ?app|landing|page|app|ui|dashboard|game|store|shop|portfolio|blog|design)\b/i.test(String(plan.request || text)))) {
-		const l = await lookFor(plan, text, atts);
-		if (l) useLook(plan, text, l);
-	}
+	const looking = plan && !LANE && (!plan.edit || plan.relook || plan.recheck === "mood" || plan.recheck === "ai") && LOOK_WAYS.includes(plan.way) && (plan.way !== "project" || /\b(site|website|web ?app|landing|page|app|ui|dashboard|game|store|shop|portfolio|blog|design)\b/i.test(String(plan.request || text)));
+	const [c, l] = await Promise.all([crafting ? craftBrief(plan.craft) : null, looking ? lookFor(plan, text, atts) : null]);
+	if (c) useCraft(plan, text, plan.craft, c);
+	if (l) useLook(plan, text, l);
 	// a long run: what it'll likely cost, and a go-ahead, before anything is spent (not for Max's own extra rounds: only
 	// when they gave it time, or all the time it needs)
 	if (plan && !LANE && LONG_WAYS.includes(plan.way)) {
@@ -8783,6 +8789,20 @@ async function skillRecord(tags) {
 		return map;
 	} catch { return null; }
 }
+// What Celestin's own checks find (a tester's bugs, a designer's problems, the AI look, a critic's notes, a deck's or a
+// picture's marks) and what people say afterwards ("that's wrong", "it looks AI-made") teach its routing too: the model that
+// made it held up, or didn't, on exactly this kind of work. Every task's routing gets better from every task, by itself
+var CRAFT_TAG = "";
+function learnFrom(model, ok) {
+	const id = model && (model.id || model);
+	if (!id || typeof id !== "string") return;
+	const tags = [...new Set([...((PROFILE && PROFILE.tags) || []), ...(CRAFT_TAG ? [CRAFT_TAG] : [])])].slice(0, 6);
+	if (!tags.length) return;
+	learnSend([{ model: id, ok: !!ok, tags }]);
+	if (current) current.lastMaker = { model: id, tags };
+}
+// (the makers whose routing weighs that record: what a check or a complaint judges is what they made)
+const MAKERS = new Set(["app", "appFromImage", "sim", "animation", "drawn", "docx", "pptx", "xlsx", "board", "director", "directorFromImage", "podcast", "flashcards", "quiz", "open", "mindmap"]);
 function learned(cands, tags, record, pool) {
 	if (!record || !record.size || !tags || !tags.length) return cands;
 	const rows = tags.map((t) => record.get(t)).filter((r) => r && r.size >= 2);
@@ -9512,7 +9532,7 @@ async function lookAtApp(files, request, msg) {
 	for (const e of eyes) {
 		eye = e;
 		try { out = await stream(eye.m.id, [{ role: "user", content: [{ type: "text", text: "Pictures of an app or game that was just built, running in a browser: " + (shots.length > 1 ? "at the start, and after its main button and some keys were pressed automatically" : "as it opens") + ".\nWhat was asked for: " + String(request).slice(0, 1500) +
-		"\n\nWould a top product designer or game studio ship it as it looks? Name only real problems a person would notice: text cut off, overlapping or hard to read; low contrast; a broken, cramped or unbalanced layout; things off the screen; a game or scene that isn't visible or doesn't react; something asked for that's missing; looking generic or amateur, or like typical AI-made design (any of the tells below). (The pictures are renderings of the page, so small differences in blur or shadow don't count.)\n\n" + tellsFor("type", "colour", "layout", "parts", "copy") + "\n\nReply with ONLY JSON: {\"ship\": true or false, \"problems\": [\"what's wrong, and how to fix it\"]}" },
+		"\n\nWould a top product designer or game studio ship it as it looks? Name only real problems a person would notice: text cut off, overlapping or hard to read; low contrast; a broken, cramped or unbalanced layout; things off the screen; a game or scene that isn't visible or doesn't react; something asked for that's missing; looking generic or amateur, or like typical AI-made design (any of the tells below); anything that falls short of what the best in the world make of this kind of thing (the bar below, when there is one): feeling empty, sparse or unfinished, an art direction only half carried through (one part styled, the rest plain), missing what the best ones always have. (The pictures are renderings of the page, so small differences in blur or shadow don't count.)" + (CRAFT_NOTE ? "\n\nThe bar, researched for this kind of work (judge it against this, its checklist especially):\n" + CRAFT_NOTE.slice(0, 3500) : "") + "\n\n" + tellsFor("type", "colour", "layout", "parts", "copy") + "\n\nReply with ONLY JSON: {\"ship\": true or false, \"problems\": [\"what's wrong, and how to fix it\"]}" },
 		...shots.map((url) => ({ type: "image_url", image_url: { url } }))] }], () => {}, busy.signal, { max_tokens: 1500, ...effortFor(eye.m.id, capEffort(eye.effort || "", "low", eye.m.id)) }, msg); break; }
 		catch (err) {
 			if (err.name === "AbortError" || err.status === 401 || err.status === 402) throw err;
@@ -9679,6 +9699,7 @@ async function reviewBoth(files, request, msg, rules, by, look) {
 		const tells = look ? aiTells(files, request) : [];
 		if (tells.length && !msg.used.some((u) => /^AI-look check/.test(u.desc))) msg.used.push({ name: "Celestin", desc: "AI-look check: found " + tells.length + " generic AI " + (tells.length === 1 ? "tell" : "tells") + " in the code, fixed with the rest" });
 		const bugs = bugs0 || [], problems = [...(problems0 || []), ...tells.map((t) => "In the code: " + t)].slice(0, 20);
+		if (look && (bugs0 || problems0 || tells.length)) learnFrom(by, !bugs.length && !problems.length);
 		if (!bugs.length && !problems.length) return { changed: false, files, logic: 0, polished: 0 };
 		const fixers = bestFor("app"), fixer = (by && fixers.find((m) => m.id === by.id)) || fixers[0];
 		const room = await roundCap(fixer, files, "high");
@@ -10187,7 +10208,7 @@ async function buildApp(text, atts, pick) {
 		const now = applyEdits(files, p.edits).files, page = now["index.html"];
 		const missing = page ? pageNeeds(page).filter((f) => now[f] == null) : ["index.html"];
 		if (missing.length) {
-			if (!prev) show({ kind: "app", title, sub: "Building…", sandbox: "allow-scripts", doc: sealed(buildingDoc(Object.keys(now), missing)), page: "", files: [] });
+			if (!prev) show({ kind: "app", title, sub: "Building…", sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox", doc: sealed(buildingDoc(Object.keys(now), missing)), page: "", files: [] });
 			return;
 		}
 		msg.data = { files: now, title, live: true };
@@ -10836,6 +10857,7 @@ async function runFile(text, atts, pick) {
 	if (!spec) throw lastErr || new Error("No model could write that file.");
 	// the marks of AI-made slides and writing: found in what was written, and written once more without them
 	const tells = writer && !prev ? fileTells(fmt, spec) : [];
+	if (writer && !prev) learnFrom(writer, !tells.length);
 	if (tells.length) {
 		msg.status = "Taking out what makes it look AI-made";
 		updateLast();
@@ -12621,6 +12643,7 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 	const j = parseJSON(r.out) || {};
 	// (what the film's own code shows, first: the AI look and invented numbers are fixed whatever the critic thought)
 	const coded = filmTells(html, brief);
+	learnFrom(by, !!j.ship && !coded.length);
 	return { by: r.model, ship: !!j.ship && !coded.length, fixes: [...coded, ...(Array.isArray(j.fixes) ? j.fixes : []).map((x) => String(x).slice(0, 500)).filter((x) => x.trim()).slice(0, 4)] };
 }
 // The film (or, with prev, the change to it), checked to run, then the critic's rounds. { html, by, critic, rounds }
@@ -12917,6 +12940,7 @@ async function runDrawnImage(text, atts) {
 		updateLast();
 		const seen = await pictureTells([await shrinkPic(made.png)], text, msg);
 		if (seen) msg.used.push({ name: shortName(seen.by), desc: "AI-look check: looked at it for the marks of AI" });
+		if (seen && drawer) learnFrom(drawer.id, seen.tells[0].length < 2);
 		if (seen && seen.tells[0].length >= 2 && drawer) {
 			msg.status = "Drawing it again without the AI look";
 			updateLast();
@@ -13001,6 +13025,7 @@ async function runImage(text, atts) {
 		const seen = await pictureTells(await Promise.all(blobs.map((b) => shrinkPic(b))), spec.prompt, msg);
 		if (seen) {
 			msg.used.push({ name: shortName(seen.by), desc: "AI-look check: looked at every picture for the marks of AI" });
+			learnFrom(im.id, seen.tells.some((t) => t.length < 2));
 			blobs = blobs.map((b, k) => [seen.tells[k].length, k, b]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(([, , b]) => b);
 			if (seen.tells.every((t) => t.length >= 2)) {
 				const avoid = [...new Set(seen.tells.flat())].slice(0, 6);
@@ -14788,17 +14813,20 @@ const ART_ICONS = {
 	sim: '<circle cx="12" cy="12" r="1.6"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/>',
 };
 const SANDBOX_META = SANDBOX_CSP;
-const sealed = (h) => (/<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + SANDBOX_META) : "<!doctype html>" + SANDBOX_META + h);
+// (a link to another site in anything built opens in a new tab, as it would on the real site: inside a preview a page
+// that won't be framed, like a map, would otherwise show nothing)
+const LINK_OUT = "<script>document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(!a)return;var h=a.getAttribute('href')||'';if(/^(https?:)?\\/\\//i.test(h)){a.target='_blank';a.rel='noopener'}},true)<\/script>";
+const sealed = (h) => (/<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + SANDBOX_META + LINK_OUT) : "<!doctype html>" + SANDBOX_META + LINK_OUT + h);
 function artFor(i) {
 	const m = current && current.msgs[i];
 	if (!m || !m.data) return null;
 	if (m.kind === "app") {
 		const files = m.data.files || {}, page = appDoc(files);
-		return { kind: "app", i, title: m.data.title || "App", sub: "App · " + Object.keys(files).length + " file" + (Object.keys(files).length === 1 ? "" : "s"), sandbox: "allow-scripts", doc: sealed(page), page, files: Object.entries(files).map(([name, text]) => ({ name, text })) };
+		return { kind: "app", i, title: m.data.title || "App", sub: "App · " + Object.keys(files).length + " file" + (Object.keys(files).length === 1 ? "" : "s"), sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox", doc: sealed(page), page, files: Object.entries(files).map(([name, text]) => ({ name, text })) };
 	}
 	if (m.kind === "sim") {
 		const h = m.data.html || "";
-		return { kind: "sim", i, title: m.data.title || "Simulation", sub: "Simulation · interactive", sandbox: "allow-scripts", doc: sealed(h), page: h, files: [{ name: "index.html", text: h }] };
+		return { kind: "sim", i, title: m.data.title || "Simulation", sub: "Simulation · interactive", sandbox: "allow-scripts allow-popups allow-popups-to-escape-sandbox", doc: sealed(h), page: h, files: [{ name: "index.html", text: h }] };
 	}
 	return null;
 }
