@@ -209,3 +209,6 @@ CREATE TABLE IF NOT EXISTS prefs (user_id TEXT PRIMARY KEY, state TEXT, updated_
 CREATE TABLE IF NOT EXISTS outbox (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, to_key TEXT, payload TEXT NOT NULL, src TEXT, why TEXT, send_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'wait', created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS outbox_due ON outbox(status, send_at);
 CREATE INDEX IF NOT EXISTS outbox_user ON outbox(user_id, created_at);
+-- apps connected through MCP: each one's own sign-in, the tokens sealed
+CREATE TABLE IF NOT EXISTS mcps (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, url TEXT NOT NULL, secret TEXT NOT NULL, tools TEXT, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS mcps_user ON mcps(user_id);

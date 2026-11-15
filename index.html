@@ -2051,6 +2051,29 @@ html[data-app="together"] .auth-main { align-self: center; }
 .twj-h { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 4px 2px; }
 
 </style>
+<style>
+/* Plugins: tabs, a search, then sections of apps in two columns, each with a + */
+.plg-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 14px}
+.plg-tabs{display:inline-flex;gap:4px}
+.plg-tabs button{border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;padding:8px 16px;border-radius:999px;cursor:pointer}
+.plg-tabs button.on{background:var(--bg3);color:var(--text)}
+.plg-search{display:flex;align-items:center;gap:10px;border:1px solid var(--line2);border-radius:999px;padding:10px 16px;margin:0 0 6px;color:var(--muted)}
+.plg-search input{border:0;outline:0;background:transparent;color:var(--text);font:inherit;flex:1;min-width:0}
+.plg-sec{margin:22px 0 4px;font-size:17px;font-weight:600}
+.plg-sec .help{font-weight:400;font-size:13px;margin-left:6px}
+.plg-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:28px}
+.plg-row{display:flex;align-items:center;gap:14px;padding:12px 0;min-width:0}
+.plg-ic{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);display:grid;place-items:center;font-weight:700;font-size:17px;color:var(--c);background:var(--bg2);flex:none}
+.plg-tx{flex:1;min-width:0;display:grid}
+.plg-tx b{font-weight:600}
+.plg-tx span{color:var(--muted);font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.plg-plus{width:36px;height:36px;border-radius:999px;border:0;background:transparent;color:var(--text);font-size:24px;font-weight:300;line-height:1;cursor:pointer;flex:none;display:grid;place-items:center}
+.plg-plus:hover{background:var(--bg3)}
+.plg-plus.on{color:var(--ok);font-size:18px;font-weight:600}
+.plg-plus:disabled{opacity:.5;cursor:default}
+.plg-none{color:var(--muted);padding:24px 0}
+@media (max-width:640px){.plg-grid{grid-template-columns:minmax(0,1fr)}}
+</style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute"><defs><symbol id="logo" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/></symbol><symbol id="logoT" viewBox="0 0 32 32"><path d="M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/><circle cx="26.5" cy="5.3" r="2.5" fill="currentColor"/><circle cx="26.5" cy="26.7" r="2.5" fill="currentColor"/></symbol></defs></svg>
@@ -2207,14 +2230,14 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<button class="nav-i tg-only" id="tgDeskNav" style="--c:#30b0c7" data-tip="Front desk: your receptionist on a link" aria-label="Front desk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg><span class="lbl">Front desk</span><span class="nb" id="tgDeskNb"></span></button>
 			<button class="nav-i tg-only" id="tgMarketNav" style="--c:#ff9500" data-tip="Marketing: posts at the right moment" aria-label="Marketing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="lbl">Marketing</span><span class="nb" id="tgMarketNb"></span></button>
 			<button class="nav-i tg-only" id="tgBackNav" style="--c:#34c759" data-tip="Bring customers back: messages ready to send" aria-label="Bring customers back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg><span class="lbl">Customers</span><span class="nb" id="tgBackNb"></span></button>
-			<button class="nav-i tg-only" id="tgConnNav" style="--c:#0a84ff" data-tip="Accounts: Telegram, Discord, Bluesky, X: post and message by itself" aria-label="Accounts"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span class="lbl">Accounts</span></button>
+			<button class="nav-i tg-only" id="tgConnNav" style="--c:#0a84ff" data-tip="Plugins: your accounts and thousands of apps" aria-label="Plugins"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span class="lbl">Accounts</span></button>
 			<button class="nav-i" id="togetherNav" data-tip="Celestin Together: a team in your chat" aria-label="Celestin Together"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20a6 6 0 0 1 12 0"/><circle cx="17" cy="9" r="2.6"/><path d="M15.5 14.2A5 5 0 0 1 21 19"/></svg><span class="lbl">Together</span></button>
 			<button class="nav-i nav-search" id="searchNav" data-tip="Search chats" aria-label="Search chats"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="lbl">Search chats</span></button>
 			<button class="nav-i" id="chatsNav" data-tip="Your chats" aria-label="Your chats" aria-expanded="false" aria-controls="sbPanel"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.4 7.6L3.5 21l1.4-4.6A8.5 8.5 0 1 1 21 12z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span class="lbl">Chats</span></button>
 			<button class="nav-i" id="libNav" data-tip="Library: everything made for you" aria-label="Library"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L5 21"/></svg><span class="lbl">Library</span></button>
 			<button class="nav-i" id="tasksNav" data-tip="Tasks it does on a schedule" aria-label="Tasks"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Tasks</span></button>
 			<button class="nav-i" id="codeNav" data-tip="Code: build or change a project" aria-label="Celestin Code"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14"/></svg><span class="lbl">Code</span></button>
-			<button class="nav-i" id="appsNav" data-tip="Connect apps: your computer, Blender, Figma…" aria-label="Connect apps"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
+			<button class="nav-i" id="appsNav" data-tip="Plugins: thousands of apps, your computer, Blender…" aria-label="Plugins"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0z"/><path d="M12 16v5"/></svg><span class="lbl">Apps</span></button>
 		</nav>
 		<!-- your chats and projects: a panel that slides out beside the rail (inline in the drawer on a phone) -->
 		<div class="sb-panel" id="sbPanel">
@@ -3528,7 +3551,7 @@ const SKILLBOOK = {
 	games: ["games, mods, Minecraft, game design or game servers", "Build games like a seasoned game developer: tight core loop and controls first, only the controls and systems the game needs (each one felt when it's used), clear feedback on every action (sound, motion), a camera that always shows the ball, target or player, difficulty that ramps, and for mods and plugins the exact loader/version APIs (look up current docs)."],
 };
 let SKILLS_ON = [];
-const skillLine = () => (SKILLS_ON.length ? "Expert playbooks for this request (follow them):\n" + SKILLS_ON.filter((k) => SKILLBOOK[k]).map((k) => "- " + SKILLBOOK[k][1]).join("\n") : "");
+const skillLine = () => { const own = typeof mySkills === "function" ? mySkills() : []; return (SKILLS_ON.length ? "Expert playbooks for this request (follow them):\n" + SKILLS_ON.filter((k) => SKILLBOOK[k]).map((k) => "- " + SKILLBOOK[k][1]).join("\n") : "") + (own.length ? (SKILLS_ON.length ? "\n" : "") + "The user's own skills for this (follow them closely):\n" + own.map((x) => "- " + x.name + ": " + x.text).join("\n") : ""); };
 // a server with no picture, video, voice or music models (a chat-only gateway): videos are still made, every shot drawn
 // in code by the best animator and cut into a real file here
 // (only when the server offers it: the owner's rule is pictures and films by the models best at them, and until those are
@@ -5471,7 +5494,7 @@ async function readFirst(names) {
 	return null;
 }
 document.addEventListener("click", (e) => { if (e.target.closest("[data-open-memory]")) openMemory(); });
-document.addEventListener("click", (e) => { if (e.target.closest("#appsBtn, #appsNav")) { openAppsModal(); loadApps(true).then(() => { if ($("#apCheck")) openAppsModal(); }); } });
+document.addEventListener("click", (e) => { if (e.target.closest("#appsBtn, #appsNav")) openPlugins(); });
 async function runAgent(text, atts) {
 	const P = PROJECT;
 	const run = { before: new Map() };
@@ -5626,6 +5649,8 @@ let APPS = { at: 0, servers: [], note: "" };
 const appsConf = () => store.get("apps", null) || { code: "", online: [] };
 let mcpId = 0;
 async function mcpPost(s, msg, signal) {
+	// (an app connected on the server: its tools are called there, with its own sign-in)
+	if (s.remote) { if (msg.method !== "tools/call") return null; return (await api("/api/mcp/" + s.remote + "/call", { method: "POST", body: JSON.stringify({ name: msg.params.name, args: msg.params.arguments || {} }), signal })).result; }
 	const h = { "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": MCP_V };
 	if (s.session) h["Mcp-Session-Id"] = s.session;
 	if (s.token) h.Authorization = "Bearer " + s.token;
@@ -5675,7 +5700,8 @@ async function loadApps(force) {
 		} catch { note = "The connector isn't running. Double-click CONNECT APPS.bat and leave its window open."; }
 	}
 	for (const o of conf.online || []) list.push({ name: o.name, url: o.url, token: o.token || "" });
-	await Promise.all(list.map(async (s) => { try { await mcpOpen(s); } catch (e) { s.error = String(e.message || e); s.tools = []; } }));
+	if (creditsMode() && account) { await syncPlugins(); for (const a of PLG.apps) list.push({ name: a.name.replace(/[^\w-]+/g, "-"), url: a.url, remote: a.id, tools: a.tools || [] }); }
+	await Promise.all(list.map(async (s) => { if (s.remote) return; try { await mcpOpen(s); } catch (e) { s.error = String(e.message || e); s.tools = []; } }));
 	APPS = { at: Date.now(), servers: list, note };
 	return list;
 }
@@ -5818,6 +5844,132 @@ async function waitForJob(hit, args, out, msg, before) {
 	return text + "\n\n(Celestin waited for this job, checking " + n + " time" + (n === 1 ? "" : "s") + " with " + st.name + ". The latest:)\n" + last;
 }
 
+// ---------------------------------------------------------------- Plugins: the apps Celestin can work in
+// Each is the app's own MCP server, checked Nov 15 to answer as one and to let a new app register itself, so connecting is
+// one click: the person signs in on the app's own page, and Celestin's server keeps the tokens sealed. Zapier reaches
+// 8,000+ more. [id, name, what it does for them, its MCP address, section]
+const PLUGINS = [
+	["zapier", "Zapier", "8,000+ more apps through your Zapier account", "https://mcp.zapier.com/api/mcp/mcp", "popular"],
+	["notion", "Notion", "Read and write your pages and databases", "https://mcp.notion.com/mcp", "popular"],
+	["stripe", "Stripe", "Customers, invoices, payments and subscriptions", "https://mcp.stripe.com", "popular"],
+	["square", "Square", "Your shop's orders, items, customers and payments", "https://mcp.squareup.com/mcp", "popular"],
+	["paypal", "PayPal", "Invoices, orders and payments", "https://mcp.paypal.com/mcp", "popular"],
+	["airtable", "Airtable", "Your bases, tables and records", "https://mcp.airtable.com/mcp", "popular"],
+	["canva", "Canva", "Find, make and edit designs", "https://mcp.canva.com/mcp", "new"],
+	["figma", "Figma", "Read your designs and turn them into code", "https://mcp.figma.com/mcp", "new"],
+	["wix", "Wix", "Your Wix sites, store and bookings", "https://mcp.wix.com/mcp", "new"],
+	["webflow", "Webflow", "Your sites, pages and CMS", "https://mcp.webflow.com/mcp", "new"],
+	["intercom", "Intercom", "Customer conversations and contacts", "https://mcp.intercom.com/mcp", "new"],
+	["close", "Close", "Leads, deals and calls in your CRM", "https://mcp.close.com/mcp", "new"],
+	["linear", "Linear", "Issues, projects and cycles", "https://mcp.linear.app/mcp", "more"],
+	["atlassian", "Jira & Confluence", "Issues, pages and spaces", "https://mcp.atlassian.com/v1/mcp", "more"],
+	["monday", "monday.com", "Boards, items and updates", "https://mcp.monday.com/mcp", "more"],
+	["clickup", "ClickUp", "Tasks, docs and spaces", "https://mcp.clickup.com/mcp", "more"],
+	["supabase", "Supabase", "Manage and query your databases", "https://mcp.supabase.com/mcp", "more"],
+	["vercel", "Vercel", "Deployments, projects and logs", "https://mcp.vercel.com", "more"],
+	["cloudflare", "Cloudflare", "Workers, DNS and your Cloudflare account", "https://mcp.cloudflare.com/mcp", "more"],
+	["sentry", "Sentry", "Errors and issues in your apps", "https://mcp.sentry.dev/mcp", "more"],
+	["huggingface", "Hugging Face", "Models, datasets and Spaces", "https://huggingface.co/mcp", "more"],
+];
+var PLG = { tab: "plugins", q: "", apps: [], busy: "" };
+const plgColor = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360; return "hsl(" + h + " 45% 45%)"; };
+const plgRow = (key, name, what, on, c) => '<div class="plg-row"><span class="plg-ic" style="--c:' + (c || plgColor(name)) + '">' + esc(String(name).replace(/[^A-Za-z0-9]/g, "").charAt(0).toUpperCase() || "•") + '</span><div class="plg-tx"><b>' + esc(name) + "</b><span>" + esc(what) + '</span></div><button class="plg-plus' + (on ? " on" : "") + '" data-plg="' + esc(key) + '" aria-label="' + esc((on ? "Manage " : "Connect ") + name) + '"' + (PLG.busy === key ? " disabled" : "") + ">" + (on ? "✓" : "+") + "</button></div>";
+async function syncPlugins() { if (!creditsMode() || !account) { PLG.apps = []; return; } try { PLG.apps = (await api("/api/mcp")).apps || []; } catch { PLG.apps = []; } }
+function openPlugins(tab) {
+	if (tab) PLG.tab = tab;
+	openModal('<div class="plg-top"><div class="plg-tabs" role="tablist"><button data-plgtab="plugins" role="tab">Plugins</button><button data-plgtab="skills" role="tab">Skills</button></div><button class="btn dark" id="plgAdd">Add</button></div><label class="plg-search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="plgQ" placeholder="Search" autocomplete="off"></label><div id="plgBody"></div>', "wide");
+	$("#plgQ").value = PLG.q;
+	$("#plgQ").oninput = () => { PLG.q = $("#plgQ").value; drawPlugins(); };
+	$$("[data-plgtab]").forEach((b) => (b.onclick = () => { PLG.tab = b.dataset.plgtab; drawPlugins(); }));
+	$("#plgAdd").onclick = () => (PLG.tab === "skills" ? editSkill() : addPlugin());
+	drawPlugins();
+	Promise.all([syncPlugins(), TOGETHER_APP ? syncConns() : null, loadApps(false).catch(() => {})]).then(() => { if ($("#plgBody")) drawPlugins(); });
+}
+function drawPlugins() {
+	const box = $("#plgBody");
+	if (!box) return;
+	$$("[data-plgtab]").forEach((b) => b.classList.toggle("on", b.dataset.plgtab === PLG.tab));
+	$("#plgQ").placeholder = PLG.tab === "skills" ? "Search skills" : "Search plugins";
+	const q = PLG.q.trim().toLowerCase(), hit = (...t) => !q || t.join(" ").toLowerCase().includes(q);
+	if (PLG.tab === "skills") { drawSkills(box, hit); return; }
+	const mine = (url) => PLG.apps.find((a) => a.url === url);
+	const sec = (title, rows, note) => (rows.length ? '<div class="plg-sec">' + esc(title) + (note ? '<span class="help">' + esc(note) + "</span>" : "") + '</div><div class="plg-grid">' + rows.join("") + "</div>" : "");
+	const listed = new Set(PLUGINS.map((p) => p[3]));
+	const conn = [...PLG.apps.filter((a) => hit(a.name, a.url)).map((a) => plgRow("app:" + a.id, a.name, (listed.has(a.url) ? (PLUGINS.find((p) => p[3] === a.url) || [])[2] : a.url.replace(/^https:\/\//, "")) + (a.tools.length ? " · " + a.tools.length + " things it can do" : ""), true)),
+		...(TOGETHER_APP ? Object.entries(CONN_INFO).filter(([k, x]) => connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, connOf(k).name || x.what, true, x.c)) : []),
+		...APPS.servers.filter((x) => x.local && hit(x.name)).map((x) => plgRow("local", x.name, "On this computer" + (x.tools ? " · " + x.tools.length + " things it can do" : ""), true))];
+	const row = (p) => plgRow("mcp:" + p[0], p[1], p[2], !!mine(p[3]));
+	const pick = (k) => PLUGINS.filter((p) => p[4] === k && !mine(p[3]) && hit(p[1], p[2])).map(row);
+	const accts = TOGETHER_APP ? Object.entries(CONN_INFO).filter(([k, x]) => !connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, x.what, false, x.c)) : [];
+	const local = hit("On this computer Blender Figma Unity files Claude Desktop") ? [plgRow("local", "On this computer", "Blender, Unity, your files and the apps Claude Desktop has", APPS.servers.some((x) => x.local))] : [];
+	const html = sec("Connected", conn) + sec("For your business", accts, "your team posts and messages through these by itself") + sec("Popular", pick("popular")) + sec("New & noteworthy", pick("new")) + sec("More apps", pick("more")) + sec("Your computer", local);
+	box.innerHTML = html || '<div class="plg-none">Nothing called that yet. Press Add to connect any app by its MCP address, or connect Zapier: it reaches 8,000+ more.</div>';
+	$$("[data-plg]").forEach((b) => (b.onclick = () => plgTap(b.dataset.plg)));
+}
+// + on a row: connect it (its own sign-in page opens); ✓: manage it
+async function plgTap(key) {
+	const [kind, k] = [key.split(":")[0], key.slice(key.indexOf(":") + 1)];
+	if (kind === "acct") return openConns(k);
+	if (kind === "local") { openAppsModal(); return; }
+	if (!creditsMode() || !account) { openAccount(); return; }
+	if (kind === "app") {
+		const a = PLG.apps.find((x) => x.id === k);
+		if (!a || !confirm("Disconnect " + a.name + "? Celestin stops using it at once.")) return;
+		await api("/api/mcp/" + a.id, { method: "DELETE" }).catch(() => {});
+		await syncPlugins(); loadApps(true).catch(() => {}); drawPlugins(); return;
+	}
+	const p = PLUGINS.find((x) => x[0] === k);
+	if (p) await plgConnect(p[1], p[3], key);
+}
+// (the sign-in tab is opened at the tap, so no browser blocks it, then sent to the app's own page)
+async function plgConnect(name, url, key) {
+	const w = window.open("about:blank", "celestin-plugin", "width=520,height=720");
+	PLG.busy = key || ""; drawPlugins();
+	try {
+		const j = await api("/api/mcp/connect", { method: "POST", body: JSON.stringify({ name, url }) });
+		if (j.connected) { if (w) w.close(); toast(name + " connected"); }
+		else if (j.go) {
+			if (w) w.location = j.go; else location.href = j.go;
+			toast("Sign in to " + name + " in the window that opened");
+			// (connected when the sign-in finishes: the tab says so, or it's seen here within three minutes)
+			for (let i = 0; i < 60; i++) { await sleep(3000); await syncPlugins(); if (PLG.apps.some((a) => a.url === url)) { toast(name + " connected"); break; } if (w && w.closed && i > 3) break; }
+		}
+	} catch (e) { if (w) w.close(); toast(e.message || String(e)); }
+	PLG.busy = ""; loadApps(true).catch(() => {}); if ($("#plgBody")) drawPlugins();
+}
+window.addEventListener("message", (e) => { if (e.data && e.data.celestinMcp === 1) { syncPlugins().then(() => { loadApps(true).catch(() => {}); if ($("#plgBody")) drawPlugins(); }); } });
+function addPlugin() {
+	const box = $("#plgBody");
+	box.innerHTML = '<div class="plg-sec">Add any app</div><p class="help" style="margin:0 0 12px">Any app with an MCP server: its address is in its help pages (it often ends in /mcp). You sign in on its own page; Celestin never sees your password.</p><div class="field"><label for="plgName">Name</label><input class="inp" id="plgName" placeholder="Its name"></div><div class="field"><label for="plgUrl">Its MCP address</label><input class="inp" id="plgUrl" placeholder="https://…/mcp" spellcheck="false"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="plgBack">Back</button><button class="btn dark" id="plgGo">Connect</button></div>';
+	$("#plgBack").onclick = () => drawPlugins();
+	$("#plgGo").onclick = () => { const url = $("#plgUrl").value.trim(), name = $("#plgName").value.trim() || url.replace(/^https?:\/\/(www\.)?/, "").split(/[./]/)[0]; if (!/^https:\/\//.test(url)) { toast("Its address starts with https://"); return; } plgConnect(name, url, "custom"); };
+}
+// Skills: the expert playbooks Celestin uses by itself, and their own (used when a request is about what it's for)
+function drawSkills(box, hit) {
+	const mine = (settings.skills || []).filter((x) => hit(x.name, x.when, x.text));
+	const built = Object.entries(SKILLBOOK).filter(([k, v]) => hit(k, v[0], v[1]));
+	const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+	box.innerHTML = '<div class="plg-sec">Your skills<span class="help">your own know-how, used whenever a request is about it</span></div><div class="plg-grid">' + (mine.length ? mine.map((x) => plgRow("skill:" + x.id, x.name, x.when ? "When " + x.when : x.text, true)).join("") : '<div class="plg-none">None yet. Press Add to teach Celestin how you like something done.</div>') + "</div>" +
+		'<div class="plg-sec">Built in<span class="help">always on: Celestin uses each one by itself when a request needs it</span></div><div class="plg-grid">' + built.map(([k, v]) => '<div class="plg-row"><span class="plg-ic" style="--c:' + plgColor(k) + '">' + esc(k.charAt(0).toUpperCase()) + '</span><div class="plg-tx"><b>' + esc(cap(k)) + "</b><span>" + esc(cap(v[0])) + "</span></div></div>").join("") + "</div>";
+	$$("[data-plg]").forEach((b) => (b.onclick = () => editSkill((settings.skills || []).find((x) => "skill:" + x.id === b.dataset.plg))));
+}
+function editSkill(sk) {
+	const box = $("#plgBody");
+	box.innerHTML = '<div class="plg-sec">' + (sk ? "Your skill" : "A new skill") + '</div><div class="field"><label for="skName">Name</label><input class="inp" id="skName" placeholder="Our brand voice" value="' + esc((sk && sk.name) || "") + '"></div><div class="field"><label for="skWhen">When to use it</label><input class="inp" id="skWhen" placeholder="writing posts, emails or anything customers read" value="' + esc((sk && sk.when) || "") + '"></div><div class="field"><label for="skText">How to do it</label><textarea class="inp" id="skText" rows="6" placeholder="Short sentences, warm, never pushy. We say &quot;kak&quot; to customers…">' + esc((sk && sk.text) || "") + '</textarea></div><div class="row" style="justify-content:flex-end;gap:8px">' + (sk ? '<button class="btn" id="skDel">Delete</button>' : "") + '<button class="btn" id="skBack">Back</button><button class="btn dark" id="skSave">Save</button></div>';
+	$("#skBack").onclick = () => drawPlugins();
+	if ($("#skDel")) $("#skDel").onclick = () => { settings.skills = (settings.skills || []).filter((x) => x.id !== sk.id); saveSettings(); drawPlugins(); };
+	$("#skSave").onclick = () => {
+		const x = { id: (sk && sk.id) || uid(), name: $("#skName").value.trim().slice(0, 60), when: $("#skWhen").value.trim().slice(0, 200), text: $("#skText").value.trim().slice(0, 4000) };
+		if (!x.name || x.text.length < 10) { toast("Give it a name and say how to do it"); return; }
+		settings.skills = [...(settings.skills || []).filter((y) => y.id !== x.id), x].slice(-40); saveSettings(); drawPlugins();
+	};
+}
+// (their own skills that this request is about: by the words of its name and when to use it)
+function mySkills() {
+	const last = current && [...current.msgs].reverse().find((m) => m.role === "user" && !m.brief);
+	const t = " " + String((last && last.text) || "").toLowerCase() + " ";
+	return (settings.skills || []).filter((x) => (String(x.name) + " " + String(x.when || "")).toLowerCase().match(/[\p{L}\p{N}]{4,}/gu)?.some((w) => t.includes(w)));
+}
 function openAppsModal() {
 	const conf = appsConf();
 	const live = APPS.servers.map((s) => '<div class="ag-cur"><b>' + esc(s.name) + "</b><span>" + (s.error ? '<span style="color:var(--err)">' + esc(s.error) + "</span>" : s.tools.length + " tools · " + esc(s.tools.slice(0, 5).map((t) => t.name).join(", ")) + (s.tools.length > 5 ? "…" : "")) + "</span>" + (s.local ? "" : '<button class="btn" data-apdel="' + esc(s.name) + '">Remove</button>') + "</div>").join("");
@@ -6396,6 +6548,12 @@ async function appTool(hit, args, msg, log, pics) {
 		const what = { run_command: "run a command", start_command: "start a command", stop_job: "stop a job", write_file: "write " + args.path, edit_file: "change " + args.path, open: "open " + args.target }[hit.t.name];
 		const detail = args.command ? (args.cwd ? "in " + args.cwd + "\n" : "") + args.command : hit.t.name === "edit_file" ? "- " + args.old_text + "\n+ " + args.new_text : hit.t.name === "write_file" ? String(args.content || "").slice(0, 3000) : args.target || args.id || "";
 		if (!(await approve(msg, what, detail))) { log("Not allowed: " + what, "", true); return "The user said no to this. Ask them what they want, or do it another way."; }
+	}
+	if (hit.s.remote && !(hit.t.annotations && hit.t.annotations.readOnlyHint === true)) {
+		// (moving money between accounts, paying out or withdrawing: never, even when asked, like Claude Duet)
+		if (/transfer|payout|withdraw|send_?money|disburse|move_?funds/i.test(hit.t.name)) { log("Not done: " + hit.s.name + " · " + hit.t.name.replace(/_/g, " "), "", true); return "Celestin never moves money between accounts, pays out or withdraws, even when asked. Tell the user to do this one themselves in " + hit.s.name + "."; }
+		const what = hit.s.name + ": " + hit.t.name.replace(/_/g, " ");
+		if (!(await approve(msg, what, JSON.stringify(args, null, 1).slice(0, 3000)))) { log("Not allowed: " + what, "", true); return "The user said no to this. Ask them what they want, or do it another way."; }
 	}
 	const r = await mcpPost(hit.s, { jsonrpc: "2.0", id: ++mcpId, method: "tools/call", params: { name: hit.t.name, arguments: args } }, busy.signal);
 	if (hit.s.name !== "computer") madeFrom(r, hit.t.name, msg);
@@ -14539,7 +14697,7 @@ if (TOGETHER_APP) {
 	$("#tgDeskNav").onclick = () => { openSidebar(false); openDesks(); };
 	$("#tgAgentNav").onclick = () => { openSidebar(false); openAgents(); };
 	$("#tgNeedsNav").onclick = () => { openSidebar(false); openNeeds(); };
-	$("#tgConnNav").onclick = () => { openSidebar(false); openConns(); };
+	$("#tgConnNav").onclick = () => { openSidebar(false); openPlugins(); };
 	$("#tgMarketNav").onclick = () => { openSidebar(false); openJob("marketing"); };
 	$("#tgBackNav").onclick = () => { openSidebar(false); openJob("winback"); };
 }

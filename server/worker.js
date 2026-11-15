@@ -167,6 +167,7 @@ async function route(req, env, ctx, url) {
 	if ((cl = p.match(/^\/api\/voice\/([a-f0-9]{24})\/(in|turn)(?:\/([a-f0-9]{24}))?$/)) && m === "POST") return voiceHook(req, env, ctx, cl[1], cl[2], cl[3]);
 	if ((cl = p.match(/^\/api\/text\/([a-f0-9]{24})$/)) && m === "POST") return textHook(req, env, ctx, cl[1]);
 	if ((cl = p.match(/^\/api\/lead\/([a-f0-9]{24})$/)) && m === "POST") return leadIn(req, env, ctx, cl[1]);
+	if (p === "/api/mcp/callback" && m === "GET") return mcpCallback(req, env);
 	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env, ownerKeyOk(req, env) ? undefined : (await config(env)).publicGateways)));
 	// a shared chat: anyone with its link can read it; a picture shared with an app, anyone with its link can fetch
 	let sh, up;
@@ -202,6 +203,10 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/agents\/log\/([a-f0-9]{24})\/(send|discard)$/)) && m === "POST") return agentApprove(req, env, user, fd[1], fd[2]);
 	if ((fd = p.match(/^\/api\/outbox\/([a-f0-9]{24})\/(send|stop|discard)$/)) && m === "POST") return outboxAct(req, env, user, fd[1], fd[2]);
 	if (p === "/api/outbox/stop" && m === "POST") return outboxStopAll(env, user);
+	if (p === "/api/mcp" && m === "GET") return mcpList(env, user);
+	if (p === "/api/mcp/connect" && m === "POST") return mcpConnect(req, env, user);
+	if ((fd = p.match(/^\/api\/mcp\/([a-f0-9]{24})$/)) && m === "DELETE") return mcpDelete(env, user, fd[1]);
+	if ((fd = p.match(/^\/api\/mcp\/([a-f0-9]{24})\/call$/)) && m === "POST") return mcpCall(req, env, user, fd[1]);
 	if (p === "/api/agents" && m === "GET") return agentsOf(env, user, url);
 	if (p === "/api/agents" && m === "POST") return agentSave(req, env, user, ctx);
 	if (p === "/api/agents/seen" && m === "POST") return agentSeen(req, env, user);
@@ -4583,6 +4588,150 @@ async function payCheck(env, ctx, uid, jobs, orders) {
 			else await env.DB.prepare("INSERT INTO bot_items (id, bot_id, user_id, visitor, kind, summary, details, status, created_at) VALUES (?, ?, ?, ?, 'message', ?, '{}', 'new', ?)").bind(id(), same[0].item.bot_id, uid, same[0].item.visitor, text.slice(0, 200), t).run();
 		}
 	}
+}
+// ------------------------------------------------------------------ connected apps (MCP), on the server
+// The owner, Nov 15: Together connected to "THOUSANDS of apps ... just like duet or grokbot". Claude Duet reaches 6,000+
+// connectors through MCP, the open standard; Grok Bot signs into apps with your password on a cloud computer every one of
+// your bots shares. Here: the app's own MCP server, signed into with its own OAuth (the person allows it on the app's
+// site; Celestin never sees a password), the tokens sealed on the server and used only for this person's requests and
+// agents. Most of them let a new app register itself (dynamic client registration), so connecting is one click; Zapier's
+// alone reaches 8,000+ apps
+const MCP_V2 = "2025-06-18";
+const b64u = (u8) => b64e(u8).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const rnd = (k) => b64u(crypto.getRandomValues(new Uint8Array(k)));
+async function jget(u) { try { const r = await fetch(u, { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12000) }); return r.ok ? await r.json() : null; } catch { return null; } }
+// (only public https addresses: never this server's neighbours)
+const mcpUrlOk = (u) => { try { const x = new URL(u); return x.protocol === "https:" && !/^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.|\[)/i.test(x.hostname) && x.hostname.includes("."); } catch { return false; } };
+// where to sign in for an MCP server: its protected-resource metadata, then its authorization server's
+async function mcpAuthMeta(url) {
+	const u = new URL(url), path = u.pathname.replace(/\/$/, "");
+	const pr = (await jget(u.origin + "/.well-known/oauth-protected-resource" + path)) || (await jget(u.origin + "/.well-known/oauth-protected-resource"));
+	const as = (pr && Array.isArray(pr.authorization_servers) && pr.authorization_servers[0]) || u.origin;
+	const a = new URL(as), ap = a.pathname.replace(/\/$/, "");
+	const md = (await jget(a.origin + "/.well-known/oauth-authorization-server" + ap)) || (await jget(a.origin + "/.well-known/oauth-authorization-server")) || (await jget(a.origin + "/.well-known/openid-configuration" + ap)) || (await jget(a.origin + "/.well-known/openid-configuration"));
+	if (!md || !md.authorization_endpoint || !md.token_endpoint) return null;
+	return { as, md, scopes: (pr && Array.isArray(pr.scopes_supported) && pr.scopes_supported) || [], resource: (pr && pr.resource) || url };
+}
+// one message to an MCP server (streamable HTTP): JSON or an event stream back
+async function mcpRpc(url, token, msg, sid) {
+	const h = { "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": MCP_V2 };
+	if (token) h.Authorization = "Bearer " + token;
+	if (sid) h["Mcp-Session-Id"] = sid;
+	const r = await fetch(url, { method: "POST", headers: h, body: JSON.stringify(msg), signal: AbortSignal.timeout(60000) });
+	const session = r.headers.get("mcp-session-id") || sid || "";
+	if (msg.id == null) return { session };
+	const type = r.headers.get("content-type") || "", text = await r.text();
+	if (r.status === 401) throw Object.assign(new Error("signed out"), { status: 401, signedOut: true });
+	if (!r.ok) throw fail(502, "The app said: " + (text.replace(/<[^>]+>/g, " ").trim().slice(0, 200) || "HTTP " + r.status));
+	let reply = null;
+	if (/event-stream/.test(type)) { for (const line of text.split(/\r?\n/)) if (line.startsWith("data:")) { try { const m = JSON.parse(line.slice(5)); if (m.id === msg.id) reply = m; } catch {} } }
+	else { try { reply = JSON.parse(text); } catch {} }
+	if (Array.isArray(reply)) reply = reply.find((m) => m.id === msg.id);
+	if (!reply) throw fail(502, "The app didn't answer.");
+	if (reply.error) throw fail(502, "The app said: " + String(reply.error.message || "no").slice(0, 300));
+	return { result: reply.result, session };
+}
+// a fresh session, then one method (nothing is kept between calls)
+async function mcpDo(url, token, method, params) {
+	const init = await mcpRpc(url, token, { jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: MCP_V2, capabilities: {}, clientInfo: { name: "Celestin", version: "1.0" } } });
+	await mcpRpc(url, token, { jsonrpc: "2.0", method: "notifications/initialized" }, init.session).catch(() => {});
+	return (await mcpRpc(url, token, { jsonrpc: "2.0", id: 2, method, params: params || {} }, init.session)).result;
+}
+async function mcpTools(url, token) {
+	const out = [];
+	let cursor;
+	do { const r = await mcpDo(url, token, "tools/list", cursor ? { cursor } : {}); out.push(...((r && r.tools) || [])); cursor = r && r.nextCursor; } while (cursor && out.length < 300);
+	return out.slice(0, 300).map((t) => ({ name: String(t.name), description: String(t.description || "").slice(0, 600), annotations: t.annotations || {}, inputSchema: t.inputSchema || {} }));
+}
+// its token, refreshed when it's about to run out (or when the app said it had)
+async function mcpToken(env, row, force) {
+	const sec = await unseal(env, row.secret);
+	if (!sec.access) return { token: "" };
+	if (!force && (!sec.exp || sec.exp > now() + 60e3)) return { token: sec.access };
+	if (!sec.refresh) throw fail(401, row.name + " signed you out: connect it again in Plugins.");
+	const f = new URLSearchParams({ grant_type: "refresh_token", refresh_token: sec.refresh, client_id: sec.client.client_id, resource: sec.resource });
+	if (sec.client.client_secret) f.set("client_secret", sec.client.client_secret);
+	const r = await fetch(sec.token_endpoint, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: f, signal: AbortSignal.timeout(15000) }).catch(() => null);
+	const j = r ? await r.json().catch(() => null) : null;
+	if (!r || !r.ok || !j || !j.access_token) throw fail(401, row.name + " signed you out: connect it again in Plugins.");
+	const next = { ...sec, access: j.access_token, refresh: j.refresh_token || sec.refresh, exp: j.expires_in ? now() + j.expires_in * 1000 : 0 };
+	await env.DB.prepare("UPDATE mcps SET secret = ? WHERE id = ?").bind(await seal(env, next), row.id).run();
+	return { token: next.access };
+}
+async function mcpCallRow(env, row, name, args) {
+	try { return await mcpDo(row.url, (await mcpToken(env, row)).token, "tools/call", { name, arguments: args || {} }); }
+	catch (e) { if (!e.signedOut) throw e; return await mcpDo(row.url, (await mcpToken(env, row, true)).token, "tools/call", { name, arguments: args || {} }); }
+}
+const mcpOut = (r) => { let t = []; try { t = JSON.parse(r.tools || "[]"); } catch {} return { id: r.id, name: r.name, url: r.url, tools: t, at: r.created_at }; };
+async function mcpList(env, user) { return json({ apps: (((await env.DB.prepare("SELECT * FROM mcps WHERE user_id = ? ORDER BY created_at").bind(user.id).all()).results) || []).map(mcpOut) }); }
+async function mcpDelete(env, user, mid) { await env.DB.prepare("DELETE FROM mcps WHERE id = ? AND user_id = ?").bind(mid, user.id).run(); return json({ ok: true }); }
+async function mcpCall(req, env, user, mid) {
+	const b = await body(req), row = await env.DB.prepare("SELECT * FROM mcps WHERE id = ? AND user_id = ?").bind(mid, user.id).first();
+	if (!row) throw fail(404, "That app isn't connected.");
+	return json({ result: await mcpCallRow(env, row, String(b.name || ""), b.args && typeof b.args === "object" ? b.args : {}) });
+}
+// connecting: an app with no sign-in is connected at once; one with OAuth sends them to its own sign-in page
+async function mcpConnect(req, env, user) {
+	const b = await body(req), url = String(b.url || "").trim();
+	if (!mcpUrlOk(url)) throw fail(400, "Its MCP address starts with https:// (a public one).");
+	const name = String(b.name || "").replace(/\s+/g, " ").trim().slice(0, 40) || new URL(url).hostname;
+	const k = await env.DB.prepare("SELECT COUNT(*) AS n FROM mcps WHERE user_id = ?").bind(user.id).first();
+	if (k && k.n >= 60) throw fail(429, "60 apps are connected already: remove one first.");
+	const probe = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", "MCP-Protocol-Version": MCP_V2 }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: MCP_V2, capabilities: {}, clientInfo: { name: "Celestin", version: "1.0" } } }), signal: AbortSignal.timeout(15000) }).catch(() => null);
+	if (!probe) throw fail(502, "Couldn't reach " + name + ".");
+	if (probe.ok) {
+		const tools = await mcpTools(url, "");
+		await env.DB.prepare("DELETE FROM mcps WHERE user_id = ? AND url = ?").bind(user.id, url).run();
+		const mid = id();
+		await env.DB.prepare("INSERT INTO mcps (id, user_id, name, url, secret, tools, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(mid, user.id, name, url, await seal(env, { access: "" }), JSON.stringify(tools), now()).run();
+		return json({ connected: true, app: mcpOut(await env.DB.prepare("SELECT * FROM mcps WHERE id = ?").bind(mid).first()) });
+	}
+	if (probe.status !== 401) throw fail(502, name + " didn't answer like an MCP server (" + probe.status + ").");
+	const meta = await mcpAuthMeta(url);
+	if (!meta) throw fail(502, name + " didn't say how to sign in.");
+	const redirect = new URL(req.url).origin + "/api/mcp/callback";
+	// (Celestin's registration with this sign-in server: made once, kept)
+	const ck = "mcpclient:" + meta.as + "|" + redirect;
+	let client = null;
+	try { client = JSON.parse(((await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind(ck).first()) || {}).v || "null"); } catch {}
+	if (!client) {
+		if (!meta.md.registration_endpoint) throw fail(400, name + " only lets apps it has approved sign in, so it can't be connected with one click yet. Through Zapier it can: connect Zapier, then pick " + name + " there.");
+		const r = await fetch(meta.md.registration_endpoint, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ client_name: "Celestin", client_uri: "https://celestin.pages.dev", redirect_uris: [redirect], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: "none" }), signal: AbortSignal.timeout(15000) }).catch(() => null);
+		const j = r ? await r.json().catch(() => null) : null;
+		if (!r || !r.ok || !j || !j.client_id) throw fail(502, name + " wouldn't register Celestin" + (j && (j.error_description || j.error) ? ": " + String(j.error_description || j.error).slice(0, 200) : "."));
+		client = { client_id: j.client_id, client_secret: j.client_secret || "" };
+		await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(ck, JSON.stringify(client)).run();
+	}
+	const verifier = rnd(48), challenge = b64u(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier)))), state = rnd(24);
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?)").bind("mcpwip:" + state, JSON.stringify({ uid: user.id, url, name, client, verifier, redirect, token_endpoint: meta.md.token_endpoint, resource: meta.resource, at: now() })).run();
+	const au = new URL(meta.md.authorization_endpoint);
+	const q = { response_type: "code", client_id: client.client_id, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: "S256", state, resource: meta.resource };
+	if (meta.scopes.length) q.scope = meta.scopes.join(" ");
+	for (const [kk, v] of Object.entries(q)) au.searchParams.set(kk, v);
+	return json({ go: au.toString() });
+}
+// back from the app's sign-in page: the code turned into tokens (sealed), its tools listed; a page that closes itself
+async function mcpCallback(req, env) {
+	const u = new URL(req.url), state = u.searchParams.get("state") || "", code = u.searchParams.get("code") || "";
+	const page = (msg, ok) => new Response("<!doctype html><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Celestin</title><body style='font:16px/1.5 system-ui,sans-serif;padding:32px;max-width:520px;margin:auto'><p>" + xmlEsc(msg) + "</p><script>try{window.opener&&window.opener.postMessage({celestinMcp:" + (ok ? 1 : 0) + "},'*')}catch(e){}" + (ok ? "setTimeout(function(){window.close()},900)" : "") + "</script>", { headers: { "Content-Type": "text/html; charset=utf-8" } });
+	const row = /^[\w-]{20,64}$/.test(state) ? await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind("mcpwip:" + state).first() : null;
+	if (!row) return page("That sign-in has expired. Go back to Celestin and press + again.");
+	await env.DB.prepare("DELETE FROM config WHERE k = ?").bind("mcpwip:" + state).run();
+	let w = {};
+	try { w = JSON.parse(row.v); } catch {}
+	if (!w.uid || now() - w.at > 15 * 60e3) return page("That sign-in has expired. Go back to Celestin and press + again.");
+	if (!code) return page("Nothing was connected" + (u.searchParams.get("error") ? " (" + String(u.searchParams.get("error_description") || u.searchParams.get("error")).slice(0, 160) + ")" : "") + ". You can close this tab.");
+	const f = new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: w.redirect, client_id: w.client.client_id, code_verifier: w.verifier, resource: w.resource });
+	if (w.client.client_secret) f.set("client_secret", w.client.client_secret);
+	const r = await fetch(w.token_endpoint, { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: f, signal: AbortSignal.timeout(15000) }).catch(() => null);
+	const j = r ? await r.json().catch(() => null) : null;
+	if (!r || !r.ok || !j || !j.access_token) return page(w.name + " didn't finish signing in. Try again from Celestin.");
+	const sec = { access: j.access_token, refresh: j.refresh_token || "", exp: j.expires_in ? now() + j.expires_in * 1000 : 0, client: w.client, token_endpoint: w.token_endpoint, resource: w.resource };
+	let tools = [];
+	try { tools = await mcpTools(w.url, sec.access); } catch {}
+	await env.DB.prepare("DELETE FROM mcps WHERE user_id = ? AND url = ?").bind(w.uid, w.url).run();
+	await env.DB.prepare("INSERT INTO mcps (id, user_id, name, url, secret, tools, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id(), w.uid, w.name, w.url, await seal(env, sec), JSON.stringify(tools), now()).run();
+	return page(w.name + " is connected to Celestin" + (tools.length ? " (" + tools.length + " things it can do)" : "") + ". You can close this tab.", true);
 }
 // ------------------------------------------------------------------ the send guard
 // The owner, Nov 15, on letting Together send by itself: "make sure it NEVER slips up ... their whole business could
