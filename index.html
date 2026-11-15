@@ -3606,7 +3606,6 @@ const CAPS = {
 	study: ["Study sets", "Flashcards, quizzes, mind maps, podcasts and simulations"],
 	panel: ["Open what's made beside the chat", "Apps, games and pages open in a panel next to the conversation"],
 	computer: ["Your computer and connected apps", "Through the connector, asking you before anything changes"],
-	learn: ["Help improve Celestin", "On by default. Celestin learns which AI models give the best answers from your 👍 and 👎, when you ask for another answer, and whether code runs: only which model answered, a few topic words and the outcome, never what you wrote"],
 };
 const capOn = (k) => !(settings.off || {})[k];
 const skillOn = (k) => !(settings.offSkills || {})[k];
@@ -3753,10 +3752,10 @@ async function conduct(text, atts, tried, only, team) {
 		+ (skills.length ? "\nAlso say how much each of these measured skills matters for the work itself (0 to 1, only the ones that matter):\n" + skills.map((k) => k + ": " + SKILLS[k]).join("\n") + "\n" : "")
 		+ (team ? "\nAlso a way here: job: set up a teammate that works for the user's business by itself, day and night: a front desk on a link (answers their customers, takes bookings), bringing customers back (a warm, personal rebooking message for each customer on their list), or marketing (posts written in their voice and put out at the best moment), or collecting money they're owed (a polite reminder to each person who owes them, two days before it's due, on the day and after, until they pay), or an agent: ANY other job they want done by itself in the background, once or again and again, while they're away (answer or write emails; watch prices, pages, tickets, competitors or their inbox; follow news; research something and email or report it; post for them; write something every day; anything else). Choose it whenever they ask for any of these, then say in \"job\" which (kind: desk, winback, marketing, collect or agent) and what they told you (name, brief about the business, goal, topic, platforms, language; for collect, debts: who owes them what, one per line as \"name, amount exactly as they wrote it, due date, phone or email, what it's for\", and pay: how people pay them, if they said; for an agent, what: the job in their words, and staff [{name, role}] with the name they gave it, if any). When they ask for several of these for their business at once (a front desk that also calls or emails customers to rebook, answers email, markets…), kind setup, with kinds listing the parts (desk, winback, email, marketing), type place (customers come to it: a shop, salon, clinic) or online, assistant (a name they gave it, if any) and everything else they told you. When they want several agents at once, each for a role (\"Jim for marketing, Cindy for finance\", \"agents for every job my company needs\"), kind team, with staff listing each one as {name, role} (the names they gave; for \"every job\", the roles that business truly needs to grow, at most 8, each with a short first name) and name and brief about the business. Never ask them what you can decide yourself: fill in anything missing with the most likely choice and say in one line what you assumed; ask only when nothing useful can be done without the answer.\n" : "")
 		+ (team ? "\nThis is Celestin Together: a team of AI teammates working with the user in a group chat, and you're its Lead too. The teammates:\n" + TEAM.filter((t) => t.id !== "lead").map((t) => "- " + t.id + ": " + t.role + (mateNote(t.id) ? " (the user wants them to: " + mateNote(t.id).slice(0, 200) + ")" : "")).join("\n") + "\nIn \"team\", give them the work: the fewest pieces that do it really well, each to the one teammate best at it, in the order they should happen. Most requests are one piece for one teammate, and then every other field describes that piece (it's the whole request). Use more only when the work really has separate parts (research, then a document; a build, then a review), each task complete on its own: what to make and everything that matters from the user's words (a later piece builds on what earlier ones made: say so in it). In \"after\", the earlier pieces (numbered from 1) a piece needs finished first; empty when it needs none, so it's done at the same time as the others (two pieces of research on different things; a budget and a packing list). Never give one piece to two teammates. A greeting or a quick question goes to the writer. \"say\" is one short line to the user on who's doing what, only when several are. \"ask\" is a question for the user only when it can't be done well without the answer (then \"team\" is empty).\n" : "")
-		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\", \"craft\": \"barbershop website\", \"lesson\": \"\", \"brand\": \"\", \"mood\": \"sunday morning at the beach\", \"recheck\": \"\", \"relook\": false, \"last\": \"\"" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup|team\", \"staff\": [{\"name\": \"\", \"role\": \"\"}], \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
+		+ "\nReply with ONLY this JSON:\n{\"way\": \"one of: " + ways.map(([k]) => k).join(", ") + "\", \"request\": \"the request written out whole, or empty when it stands on its own\", \"skills\": [\"design\"], \"edit\": false, \"how\": \"one sentence: what they'll end up with (a script, an app, a report...), never how to make it: the expert who does the work decides that\", \"task\": \"one line, as specific as the request really is\", \"kind\": \"code|reasoning|write|research|brainstorm|vision|quick\", \"level\": \"easy|medium|hard\", \"spelled\": \"true only when they already said in detail exactly what they want and how (its parts, their order, the look, what happens where), so it only needs doing, not working out; false for anything open that still needs deciding (an ad campaign for this, a business plan, a greeting)\", \"weights\": {\"skill\": 0.5}, \"tags\": [\"python\", \"pandas\", \"csv-cleaning\"], \"language\": \"the language the request is written in\", \"check\": false, \"qty\": 10, \"length\": \"5 min\", \"topic\": \"the subject, for study sets\", \"name\": \"a-short-project-name\", \"schedule\": {\"every\": \"once|hour|day|weekdays|week\", \"time\": \"07:00\", \"dow\": 1, \"todo\": \"only for a task: what to do each time, written as the request itself\"}" + (mem ? ", \"remember\": [\"a lasting fact about the user\"]" : "") + ", \"refs\": [{\"name\": \"Rick's Clips\", \"kind\": \"YouTube channel\", \"take\": \"its animation style and pacing\"}], \"made\": \"coded|filmed (a video only)\", \"craft\": \"barbershop website\", \"lesson\": \"\", \"brand\": \"\", \"mood\": \"sunday morning at the beach\", \"recheck\": \"\", \"relook\": false" + (team ? ", \"job\": {\"kind\": \"desk|winback|marketing|agent|setup|team\", \"staff\": [{\"name\": \"\", \"role\": \"\"}], \"kinds\": [\"desk\", \"winback\", \"email\", \"marketing\"], \"name\": \"\", \"assistant\": \"\", \"type\": \"place|online\", \"brief\": \"\", \"goal\": \"\", \"topic\": \"\", \"platforms\": [\"x\"], \"lang\": \"\", \"what\": \"\"}" : "") + (team ? ", \"team\": [{\"to\": \"researcher|builder|designer|writer|analyst|reviewer\", \"task\": \"...\", \"after\": []}], \"say\": \"\", \"ask\": \"\"" : "") + "}\n"
 		+ "\"check\" is true when a second expert checking the work would catch real mistakes (code, proofs, calculations). \"kind\" is quick for greetings and everyday questions."
 		+ " \"request\" is the request written out so it stands on its own, keeping every detail they asked for: when it leans on the conversation (\"keep going\", \"continue\", \"do it again\", \"try again\", \"make it 3D\", \"the second one\"), write out in full what it asks for, from the conversation (\"keep going\" after a build that was stopped is that whole build, as it was asked for); when it already stands on its own, \"\" (it's used exactly as they wrote it). Choose the way and judge everything else from what it really asks for."
-		+ " \"craft\": when something is being made (an app, a site, a game, a film, a picture, a document, a deck), the kind of thing it is in 2 to 5 general words, named the common way most people would ask for it so what's learned serves them all (\"cafe website\", not \"beach cafe for surfers website\"; \"product trailer video\", \"3D product model\", \"logo\"); the occasion or feeling goes in \"mood\", never here; never personal details. \"lesson\": only when this message complains about or corrects the last thing made, the general rule a maker should always follow from now on, in one line, without personal details (\"a phone is 9 wide by 19.5 tall, never a chunky tablet\"). \"brand\": when the work is for or about a real, existing business, brand or product (theirs or a known one; never a private person), its name exactly as written, without the town; else empty. \"mood\": when what's made has a look (a site, an app, a film, a picture, a deck), the occasion or feeling its look should give, in 2 to 6 general words, the common way people would put it (\"sunday morning at the beach\", \"chinese new year\", \"funeral notice\", \"luxury night out\"), never personal details; else empty. \"recheck\": when they say what was made is wrong or ask to check it, or criticise it at all, even vaguely (\"this looks bad\", \"the colours are off\", \"meh\", \"no\"): \"mood\" when it's about the look, the colours or the type, \"craft\" otherwise; \"ai\" when what they say is that it looks AI-made, generic, or like everything AI makes; empty when they only ask for a change they'd like (\"make the button blue\"). \"relook\": true when they want the colours, the typefaces or the whole look of what was made changed. \"last\": how this message shows the last answer landed, when it does: \"good\" (thanks, it works, it's right, they build on it or move on pleased), \"bad\" (it's wrong, it didn't work, it isn't what they asked, they correct it or ask again); empty when it doesn't say."
+		+ " \"craft\": when something is being made (an app, a site, a game, a film, a picture, a document, a deck), the kind of thing it is in 2 to 5 general words, named the common way most people would ask for it so what's learned serves them all (\"cafe website\", not \"beach cafe for surfers website\"; \"product trailer video\", \"3D product model\", \"logo\"); the occasion or feeling goes in \"mood\", never here; never personal details. \"lesson\": only when this message complains about or corrects the last thing made, the general rule a maker should always follow from now on, in one line, without personal details (\"a phone is 9 wide by 19.5 tall, never a chunky tablet\"). \"brand\": when the work is for or about a real, existing business, brand or product (theirs or a known one; never a private person), its name exactly as written, without the town; else empty. \"mood\": when what's made has a look (a site, an app, a film, a picture, a deck), the occasion or feeling its look should give, in 2 to 6 general words, the common way people would put it (\"sunday morning at the beach\", \"chinese new year\", \"funeral notice\", \"luxury night out\"), never personal details; else empty. \"recheck\": when they say what was made is wrong or ask to check it, or criticise it at all, even vaguely (\"this looks bad\", \"the colours are off\", \"meh\", \"no\"): \"mood\" when it's about the look, the colours or the type, \"craft\" otherwise; \"ai\" when what they say is that it looks AI-made, generic, or like everything AI makes; empty when they only ask for a change they'd like (\"make the button blue\"). \"relook\": true when they want the colours, the typefaces or the whole look of what was made changed."
 		+ " \"refs\": only when the request asks for something like, in the style of, or replicating a specific named thing it should match (a creator or channel, a game, a film or show, a brand, a website, an artist, a particular video or page): each one's name as they wrote it, what it is, and exactly what to take from it; never for a plain topic (a video ABOUT black holes has none)."
 		+ " Leave out every field that doesn't apply to this request: \"qty\", \"length\", \"topic\", \"name\" and \"schedule\" only when they do, \"language\" only when it isn't English, \"edit\" only when true."
 		+ " \"level\" is how hard the work truly is for a top expert, which decides how much is spent on it: easy (a short script or a fix, a clear fact, a short post or email), medium (a real feature or page, a careful explanation, a page of writing), hard (a big or subtle system, a hard proof or derivation, deep research, many parts that depend on each other). Judge it honestly, from the work itself: hard only when it is."
@@ -3811,7 +3810,7 @@ async function conduct(text, atts, tried, only, team) {
 		say: team ? String(j.say || "").slice(0, 300) : "", ask: team ? String(j.ask || "").slice(0, 500) : "", by: reader,
 		made: j.made === "coded" || j.made === "filmed" ? j.made : "",
 		job: team && j.job && typeof j.job === "object" ? j.job : null,
-		craft: craftKey(j.craft), lesson: String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300), brand: String(j.brand || "").replace(/\s+/g, " ").trim().slice(0, 80), mood: craftKey(j.mood), recheck: ["craft", "mood", "ai"].includes(j.recheck) ? j.recheck : "", last: j.last === "good" || j.last === "bad" ? j.last : "", relook: j.relook === true || j.relook === "true",
+		craft: craftKey(j.craft), lesson: String(j.lesson || "").replace(/\s+/g, " ").trim().slice(0, 300), brand: String(j.brand || "").replace(/\s+/g, " ").trim().slice(0, 80), mood: craftKey(j.mood), recheck: ["craft", "mood", "ai"].includes(j.recheck) ? j.recheck : "", relook: j.relook === true || j.relook === "true",
 		refs: (Array.isArray(j.refs) ? j.refs : []).filter((x) => x && String(x.name || "").trim()).slice(0, 2).map((x) => ({ name: String(x.name).trim().slice(0, 80), kind: String(x.kind || "").slice(0, 60), take: String(x.take || "").slice(0, 200) })) };
 }
 // the way it chose, done by the part of Celestin that does it
@@ -4764,7 +4763,7 @@ const rateBtns = (m, i) => (m.by && creditsMode() && account ? [[1, "Good answer
 // What Celestin learns from: which model answered, a few topic words, and whether it was good (never what was written),
 // into its own record of which models do best at exactly that. Only with Help improve Celestin on
 function learnSend(results) {
-	if (!capOn("learn") || !creditsMode() || !account) return;
+	if (!creditsMode() || !account) return;
 	const rs = results.filter((r) => r && r.model).map((r) => ({ model: r.model, ok: !!r.ok, tags: (r.tags && r.tags.length ? r.tags : ["general"]).slice(0, 6) }));
 	if (rs.length) api("/api/skills", { method: "POST", body: JSON.stringify({ results: rs }) }).catch(() => {});
 }
@@ -7257,7 +7256,7 @@ async function runAuto(text, atts) {
 	const fast = everyday ? bestFirst(quarkFirst(arenaRank("quick").filter((x) => FAST.test(x.m.id) && fastEnough(x.m.id)), undefined, undefined, (x, c) => callCost(x, c, 400))).map((x) => x.m) : [];
 	const cands = fast.length ? fast : rank(task, light || undefined, record ? { tags, record } : null);
 	// what running its code showed, added to that record: whose code ran first time, on exactly this
-	const share = (results) => { if (tags.length && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results: results.map((r) => ({ ...r, tags })) }) }).catch(() => {}); };
+	const share = (results) => { if (tags.length && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results: results.map((r) => ({ ...r, tags })) }) }).catch(() => {}); };
 	const code = task === "code" ? chatCode() : null;
 	const msg = { role: "assistant", text: "", streaming: true, chips: [] };
 	current.msgs.push(msg);
@@ -8360,22 +8359,6 @@ async function serve(text, atts, tool, o = {}) {
 	if (PROFILE && !/^[a-z0-9][a-z0-9+#.\-]{0,39}$/.test(CRAFT_TAG)) CRAFT_TAG = "";
 	if (PROFILE) PROFILE.tags = routeTags();
 	if (PROFILE && PROFILE.tags && PROFILE.tags.length) { const P = PROFILE; P.record = skillRecord(P.tags).then((r) => { P.recordMap = r; return r; }).catch(() => null); }
-	// (they're saying the last thing made was wrong: the model that made it didn't hold up on that kind of work)
-	{
-		const verdict = plan && (plan.last === "bad" || plan.lesson || plan.recheck || plan.relook) ? false : plan && plan.last === "good" ? true : null;
-		if (verdict !== null && current) {
-			// (the newest answer, and only it: whoever wrote it, every model that made a part of it, or what was last made)
-			const prev = [...current.msgs].reverse().find((m) => m.role === "assistant" && !m.streaming);
-			const who = prev && prev.judged ? [] : prev && prev.makers && prev.makers.length ? prev.makers : prev && prev.by ? [{ model: prev.by, tags: prev.tags || [] }] : current.lastMaker ? [current.lastMaker] : [];
-			// (one verdict for each model, under everything it made here)
-			const by = new Map();
-			for (const w of who) if (w && w.model && (w.tags || []).length) by.set(w.model, [...new Set([...(by.get(w.model) || []), ...w.tags])].slice(0, 8));
-			const rs = [...by].map(([model, tags]) => ({ model, tags, ok: verdict }));
-			if (rs.length) learnSend(rs);
-			if (prev) prev.judged = true;
-			current.lastMaker = null;
-		}
-	}
 	// Max: a second expert checks the work; Fast: straight to the answer
 	if (PROFILE && speed() === "max") PROFILE.check = true;
 	if (PROFILE && speed() === "fast") PROFILE.check = false;
@@ -8796,7 +8779,7 @@ function readQuarks(raw, idx) {
 // up or down; with little evidence it moves little, with none not at all. Only tags and pass/fail are sent.
 async function skillRecord(tags) {
 	const list = [...new Set(tags || [])].slice(0, 80);
-	if (!list.length || !capOn("learn") || !creditsMode() || !account) return null;
+	if (!list.length || !creditsMode() || !account) return null;
 	try {
 		const j = await api("/api/skills?tags=" + encodeURIComponent(list.join(",")));
 		const map = new Map();
@@ -8805,8 +8788,8 @@ async function skillRecord(tags) {
 	} catch { return null; }
 }
 // What Celestin's own checks find (a tester's bugs, a designer's problems, the AI look, a critic's notes, a deck's or a
-// picture's marks) and what people say afterwards ("that's wrong", "it looks AI-made") teach its routing too: the model that
-// made it held up, or didn't, on exactly this kind of work. Every task's routing gets better from every task, by itself
+// picture's marks, a team checker's verdict, whether code ran) teach its routing: the model that made it held up, or didn't,
+// on exactly this kind of work. Nothing waits on anyone saying anything: every task's routing gets better by itself
 var CRAFT_TAG = "";
 const routeTags = () => [...new Set([...((PROFILE && PROFILE.tags) || []).filter((t) => !/^k-/.test(t) && t !== CRAFT_TAG).slice(0, 4), ...(CRAFT_TAG ? [CRAFT_TAG] : []), ...(PROFILE && PROFILE.kind ? ["k-" + PROFILE.kind] : [])])].slice(0, 6);
 function learnFrom(model, ok) {
@@ -8815,7 +8798,6 @@ function learnFrom(model, ok) {
 	const tags = routeTags();
 	if (!tags.length) return;
 	learnSend([{ model: id, ok: !!ok, tags }]);
-	if (current) current.lastMaker = { model: id, tags };
 }
 // (the makers whose routing weighs that record: what a check or a complaint judges is what they made)
 const MAKERS = new Set(["app", "appFromImage", "sim", "animation", "drawn", "docx", "pptx", "xlsx", "board", "director", "directorFromImage", "podcast", "flashcards", "quiz", "open", "mindmap"]);
@@ -8845,7 +8827,7 @@ function learned(cands, tags, record, pool) {
 }
 // what a checked team answer adds to the record: each piece's model, its tags, and whether its work held up
 function shareRecord(plan, steps, verdict) {
-	if (!verdict || !capOn("learn") || !creditsMode() || !account) return;
+	if (!verdict || !creditsMode() || !account) return;
 	const results = plan.pieces.map((p) => {
 		const st = steps.get(p.id);
 		if (!st || !st.id || st.error || !p.tags.length) return null;
@@ -8917,7 +8899,7 @@ async function runQuarks(text, atts) {
 	// what running a piece's code showed goes into Celestin's own record too: whose code ran first time, on exactly that
 	const shareRun = (pieces, model, ok) => {
 		const results = pieces.filter((p) => p.tags && p.tags.length).map((p) => ({ model, tags: p.tags, ok }));
-		if (results.length && model && capOn("learn") && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results }) }).catch(() => {});
+		if (results.length && model && creditsMode() && account) api("/api/skills", { method: "POST", body: JSON.stringify({ results }) }).catch(() => {});
 	};
 	// the best for a mix of skills, at the effort each scored best at; at most two from one lab near the top. On free
 	// credits the same models (what the user reads is never written by a weaker one), thinking a step lighter
@@ -9129,9 +9111,6 @@ async function runQuarks(text, atts) {
 		}
 		if (!msg.text) throw new Error("None of the models answered");
 	}
-	// (who made which part, on exactly what, so what the person says next judges each of them: see serve)
-	msg.makers = plan.pieces.map((p) => { const st = steps.get(p.id); return st && st.id && !st.error ? { model: st.id, tags: [...new Set([...(p.tags || []), ...routeTags()])].slice(0, 6) } : null; }).filter(Boolean);
-	if (fin && fin.id && !fin.error) msg.makers.push({ model: fin.id, tags: routeTags() });
 
 	// 4. checked by the model that's measurably best at getting this field's facts and reasoning right (not the one that
 	// wrote it), and anything real it finds is fixed
@@ -13784,9 +13763,10 @@ function fileCopyNote() {
 	$("#fcSave").onclick = () => exportAll();
 	$("#fcGo").onclick = () => { location.href = REAL_SITE + location.hash; };
 }
-// once, the first time someone is in Celestin signed in (on this device): what Help improve Celestin does, and a way off
+// (once asked about the learning on first sign-in; it's anonymous and always on now, so there's nothing to ask)
 function learnNote(tries = 0) {
-	if (!account || !creditsMode() || store.get("learnNoted", false) || !capOn("learn")) return;
+	// (nothing to ask: the learning is anonymous and always on, as Privacy says)
+	return;
 	const box = $("#learnNote");
 	if (!box || !box.hidden) return;
 	// not over an open window (What's new, the shop, signing in) or a message: when they've gone
@@ -14058,7 +14038,7 @@ const HELP = [
 	["Something isn't working", "An app or game didn't build, or stopped halfway", "Ask again in the same chat with what went wrong (\"it shows a white screen\", \"the player can't jump\"): Celestin fixes it from there. If it keeps failing, write to us below and we'll look at it."],
 	["An answer was wrong", "An answer was wrong or made something up", "Press 👎 under it: Celestin learns which models get this kind of question right. Press ↻ for another answer, from another model if you like. Celestin is told never to make things up and to say when it isn't sure, but AI can still be wrong, so check what matters."],
 	["Privacy and my data", "Where are my chats kept?", "In your browser, on your device. Our server passes your messages to the AI models that answer them and doesn't keep them, except chats you share and scheduled tasks. Settings lets you export everything or delete your chats; Account lets you delete your account."],
-	["Privacy and my data", "What does Help improve Celestin do?", "When it's on (it is by default, in Settings), Celestin learns which AI models give the best answers from your 👍 and 👎, retries and whether code runs: only which model answered, a few topic words and the outcome, never what you wrote. Turn it off anytime."],
+	["Privacy and my data", "How does Celestin learn which models are best?", "From its own checks (a tester, a designer, a critic, whether code runs) and your 👍, 👎 and retries, it keeps anonymous counts of whether each model's work held up on each kind of task: only which model, a few topic words and the outcome. Never what you wrote, and never who you are."],
 	["Other", "Can Celestin use my other apps, like Higgsfield?", "Yes: Connect apps (in the sidebar) links apps that speak MCP. Celestin then uses them when a request needs them; Higgsfield, for example, makes pictures and videos on your own Higgsfield account."],
 ];
 function openHelp(kind) {
