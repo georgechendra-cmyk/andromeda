@@ -5871,7 +5871,7 @@ const PLUGINS = [
 	["sentry", "Sentry", "Errors and issues in your apps", "https://mcp.sentry.dev/mcp", "more"],
 	["huggingface", "Hugging Face", "Models, datasets and Spaces", "https://huggingface.co/mcp", "more"],
 ];
-var PLG = { tab: "plugins", q: "", apps: [], busy: "" };
+var PLG = { tab: "plugins", q: "", apps: [], busy: "", reg: { q: "", list: null }, regT: 0 };
 const plgColor = (name) => { let h = 0; for (const ch of String(name)) h = (h * 31 + ch.charCodeAt(0)) % 360; return "hsl(" + h + " 45% 45%)"; };
 const plgRow = (key, name, what, on, c) => '<div class="plg-row"><span class="plg-ic" style="--c:' + (c || plgColor(name)) + '">' + esc(String(name).replace(/[^A-Za-z0-9]/g, "").charAt(0).toUpperCase() || "•") + '</span><div class="plg-tx"><b>' + esc(name) + "</b><span>" + esc(what) + '</span></div><button class="plg-plus' + (on ? " on" : "") + '" data-plg="' + esc(key) + '" aria-label="' + esc((on ? "Manage " : "Connect ") + name) + '"' + (PLG.busy === key ? " disabled" : "") + ">" + (on ? "✓" : "+") + "</button></div>";
 async function syncPlugins() { if (!creditsMode() || !account) { PLG.apps = []; return; } try { PLG.apps = (await api("/api/mcp")).apps || []; } catch { PLG.apps = []; } }
@@ -5902,7 +5902,11 @@ function drawPlugins() {
 	const pick = (k) => PLUGINS.filter((p) => p[4] === k && !mine(p[3]) && hit(p[1], p[2])).map(row);
 	const accts = TOGETHER_APP ? Object.entries(CONN_INFO).filter(([k, x]) => !connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, x.what, false, x.c)) : [];
 	const local = hit("On this computer Blender Figma Unity files Claude Desktop") ? [plgRow("local", "On this computer", "Blender, Unity, your files and the apps Claude Desktop has", APPS.servers.some((x) => x.local))] : [];
-	const html = sec("Connected", conn) + sec("For your business", accts, "your team posts and messages through these by itself") + sec("Popular", pick("popular")) + sec("New & noteworthy", pick("new")) + sec("More apps", pick("more")) + sec("Your computer", local);
+	// (searching: the open MCP registry too, 20,000+ servers published by their makers)
+	if (q.length >= 2 && PLG.reg.q !== q) { PLG.reg = { q, list: null }; clearTimeout(PLG.regT); PLG.regT = setTimeout(async () => { let list = []; try { list = (await api("/api/mcp/registry?q=" + encodeURIComponent(q))).servers || []; } catch {} if (PLG.reg.q === q) { PLG.reg.list = list; drawPlugins(); } }, 350); }
+	const known = new Set([...PLUGINS.map((p) => p[3]), ...PLG.apps.map((a) => a.url)]);
+	const reg = q.length >= 2 && PLG.reg.q === q && PLG.reg.list ? PLG.reg.list.filter((x) => !known.has(x.url)).map((x, k) => plgRow("reg:" + k, x.name, x.what || x.url.replace(/^https:\/\//, ""), false)) : [];
+	const html = sec("Connected", conn) + sec("For your business", accts, "your team posts and messages through these by itself") + sec("Popular", pick("popular")) + sec("New & noteworthy", pick("new")) + sec("More apps", pick("more")) + sec("From the open MCP registry", reg, "published by their makers, not checked by Celestin") + (q.length >= 2 && PLG.reg.q === q && !PLG.reg.list ? '<div class="plg-none">Searching 20,000+ more in the open MCP registry…</div>' : "") + sec("Your computer", local);
 	box.innerHTML = html || '<div class="plg-none">Nothing called that yet. Press Add to connect any app by its MCP address, or connect Zapier: it reaches 8,000+ more.</div>';
 	$$("[data-plg]").forEach((b) => (b.onclick = () => plgTap(b.dataset.plg)));
 }
@@ -5918,6 +5922,7 @@ async function plgTap(key) {
 		await api("/api/mcp/" + a.id, { method: "DELETE" }).catch(() => {});
 		await syncPlugins(); loadApps(true).catch(() => {}); drawPlugins(); return;
 	}
+	if (kind === "reg") { const r = (PLG.reg.list || [])[+k]; if (r) await plgConnect(r.name, r.url, key); return; }
 	const p = PLUGINS.find((x) => x[0] === k);
 	if (p) await plgConnect(p[1], p[3], key);
 }
@@ -9506,6 +9511,51 @@ function probeScript(id) {
 		"setTimeout(function(){var b=document.body;send('done',{text:b?(b.innerText||'').trim().length:0,els:b?b.getElementsByTagName('*').length:0,canvas:document.getElementsByTagName('canvas').length+document.getElementsByTagName('svg').length})},700)},700)});" +
 		"})()<\/script>";
 }
+// Every control a person would press, pressed one at a time in the sealed page, each watched for ANY effect: the page
+// changing, a link, map or phone number opening, a window, a scroll, a form going out, a sound starting. One with none is
+// dead. The page's own background changes (a clock, an animation) are measured just before each press and don't count.
+// (The owner, Nov 15: the site "looked better ... but the buttons didnt work": the old test pressed them all at once and
+// only listened for crashes.)
+function auditScript(id) {
+	return "<script>(function(){var id=" + JSON.stringify(id) + ";function send(t,d){try{parent.postMessage({andromedaAudit:id,type:t,data:d},'*')}catch(e){}}" +
+		"var hit=0,mut=0,noisy=new Set(),watch=false,mo=new MutationObserver(function(l){count(l)});function count(l){l.forEach(function(r){var t=r.target,p=t&&t.parentNode;if(!watch){noisy.add(t);if(r.type==='characterData'&&p)noisy.add(p)}else if(!noisy.has(t)&&!(t.nodeType===3&&p&&noisy.has(p)))mut++})}" +
+		"window.open=function(){hit++;return null};" +
+		"try{var pp=HTMLMediaElement.prototype.play;HTMLMediaElement.prototype.play=function(){hit++;return pp.apply(this,arguments)}}catch(e){}" +
+		"try{['AudioBufferSourceNode','OscillatorNode'].forEach(function(k){var P=window[k]&&window[k].prototype;if(P){var st=P.start;P.start=function(){hit++;return st.apply(this,arguments)}}})}catch(e){}" +
+		"try{var sp=window.speechSynthesis&&speechSynthesis.speak;if(sp)speechSynthesis.speak=function(){hit++;return sp.apply(speechSynthesis,arguments)}}catch(e){}" +
+		"document.addEventListener('click',function(e){var a=e.target&&e.target.closest&&e.target.closest('a[href]');if(!a)return;var h=(a.getAttribute('href')||'').trim();if(/^(https?:|mailto:|tel:|sms:|whatsapp:|geo:|maps:)/i.test(h)){hit++;e.preventDefault()}else if(/^#./.test(h)){var t=h.slice(1);try{if(document.getElementById(decodeURIComponent(t))||document.getElementsByName(t).length)hit++}catch(x){}e.preventDefault()}else if(h&&!/^(#|javascript:)/i.test(h)){hit++;e.preventDefault()}else e.preventDefault()},true);" +
+		"document.addEventListener('submit',function(e){var f=e.target;if(f&&f.getAttribute&&f.getAttribute('action'))hit++;e.preventDefault()},true);" +
+		"window.addEventListener('load',function(){setTimeout(function(){" +
+		"var seen={},els=[].slice.call(document.querySelectorAll('button,[role=button],a[href],input[type=button],input[type=submit],[onclick],summary,[class*=btn],[class*=button]')).filter(function(b){var r=b.getBoundingClientRect(),st=getComputedStyle(b);return (r.width>0&&r.height>0)&&st.visibility!=='hidden'&&st.display!=='none'&&!b.disabled&&!b.closest('[aria-hidden=true]')}).slice(0,36);" +
+		"var dead=[],i=0;mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true,characterData:true});" +
+		"function label(b){return ((b.innerText||b.value||b.getAttribute('aria-label')||b.title||b.getAttribute('href')||b.tagName)+'').trim().replace(/\\s+/g,' ').slice(0,60)}" +
+		"function next(){if(i>=els.length){mo.disconnect();send('done',{dead:dead,n:els.length});return}var b=els[i++],k=label(b);if(seen[k]){next();return}seen[k]=1;" +
+		"count(mo.takeRecords());watch=false;setTimeout(function(){count(mo.takeRecords());watch=true;mut=0;hit=0;var y=window.scrollY,x=window.scrollX;try{b.click()}catch(e){}" +
+		"setTimeout(function(){count(mo.takeRecords());watch=false;if(window.scrollY!==y||window.scrollX!==x)hit++;if(!hit&&!mut)dead.push(k);next()},200)},200)}" +
+		"next()},700)})})()<\/script>";
+}
+// (the labels of the controls that do nothing, or [] when it couldn't look)
+function deadControls(files, ms = 16000) {
+	return new Promise((res) => {
+		const page = appDoc(files);
+		if (!page || !/<(button|a|input|summary)\b|onclick|class="[^"]*\b(btn|button)/i.test(page)) { res([]); return; }
+		const id = Math.random().toString(36).slice(2);
+		const f = document.createElement("iframe");
+		// (forms allowed, so a form's own code runs when it's sent: the audit stops it leaving the page)
+		f.setAttribute("sandbox", "allow-scripts allow-forms");
+		f.setAttribute("aria-hidden", "true");
+		// (on the screen but unseen, like the pictures: a page moved off it or hidden gets its timers slowed to once a second)
+		f.style.cssText = "position:fixed;left:0;top:0;width:1280px;height:800px;border:0;opacity:0;pointer-events:none;z-index:-1";
+		let out = [];
+		const done = () => { removeEventListener("message", on); clearTimeout(timer); f.remove(); res(out); };
+		const on = (e) => { const d = e.data; if (!d || d.andromedaAudit !== id) return; if (d.type === "done") { out = (d.data.dead || []).slice(0, 12); done(); } };
+		addEventListener("message", on);
+		const timer = setTimeout(done, ms);
+		const head = SANDBOX_CSP + auditScript(id);
+		f.srcdoc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html>" + head + page;
+		document.body.appendChild(f);
+	});
+}
 // the page as the preview runs it, with the error reporter first so it hears the app's own scripts fail
 function probeDoc(page, id) {
 	const head = SANDBOX_CSP + probeScript(id);
@@ -9866,15 +9916,24 @@ async function deepRounds(files, request, msg, rules, by, cap) {
 // it was): too big to read whole, too few credits, or no tester answered.
 // what the tester found (null: it couldn't look: too big to read whole, or no tester answered)
 async function findBugs(files, request, msg, by) {
+	// (every control pressed for real, while the tester reads the code)
+	const deadP = deadControls(files).catch(() => []);
+	const withDead = async (bugs) => {
+		const dead = await deadP;
+		if (!dead.length) return bugs;
+		if (!msg.used.some((u) => /^Button check/.test(u.desc))) msg.used.push({ name: "Celestin", desc: "Button check: pressed every button and link for real; " + dead.length + " did nothing, sent to be fixed" });
+		learnFrom(by, false);
+		return [...(bugs || []), "These look clickable but do NOTHING when pressed (pressed for real in a browser: no change on the page, no link, map, phone number or window opening, no scroll, no form sent): " + dead.map((x) => "\"" + x + "\"").join(", ") + ". Make each one do what its label promises (a map or directions: a real Google Maps link opening in a new tab; a phone or WhatsApp: a tel: or wa.me link; a booking or contact form: it checks the fields and shows a clear confirmation; a menu or tab: it opens), or take it out if it shouldn't be there."];
+	};
 	const code = Object.entries(files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n");
-	if (code.length > 120000) return null;
+	if (code.length > 120000) { const d = await withDead([]); return d.length ? d : null; }
 	const testers = checkersFor("code", by ? provider(by.id) : "");
-	if (!testers.length) return null;
+	if (!testers.length) { const d = await withDead([]); return d.length ? d : null; }
 	const look = await askFirst(testers.slice(0, 3), [{ role: "user", content: "You test apps and games for a living. Someone asked for:\n" + String(request).slice(0, 3000) + "\n\nThis was built for them:\n\n" + code +
 			"\n\nRead the code and play it through in your head, start to finish: the first screen, every control, every state it can be in, a few minutes of real use. Find only REAL bugs: things that don't work, get stuck, or break the rules of the real thing it imitates. For example: an AI player or goalkeeper that holds the ball and never acts again; a timer or cooldown that can never run out because it's reset or counted back every frame; starting positions or rules that are wrong for the real thing (players in the wrong half at kick-off); a pass or move that comes straight back to whoever made it; a control, button, option or meter that does nothing the person can see or feel (its effect cancelled out in the code, too small to notice, or only a label: it should really work if the request needs it, otherwise be taken out); the thing the person has to watch or aim at hidden behind a character, the HUD, a panel or the camera's angle; a state with no way out; a score, clock or win condition that's wrong; movement with no speeding up or slowing down; computer players that copy or mirror the person's moves, or never make a mistake; a game that restarts, resets or pauses by itself. Not style, not wording, not ideas for new features.\n\nReply with ONLY this JSON:\n{\"bugs\": [\"where it is (file and function), what's wrong, and what should happen instead\"]}\nAn empty list if there are none. At most 8, the worst first." }], msg, undefined, "medium");
 	const bugs = ((parseJSON(look.out) || {}).bugs || []).map((x) => String(x).slice(0, 400)).filter((x) => x.trim()).slice(0, 8);
 	if (!msg.used.some((u) => /^Tester/.test(u.desc))) msg.used.push({ name: shortName(look.model), desc: "Tester: played it through, looking for what doesn't work" });
-	return bugs;
+	return withDead(bugs);
 }
 // The tester plays it through and, unless it's a change the person asked for (look false), the designer looks at it
 // running, both at the same time; then ONE fix by the builder does what both found, reading the project and thinking it
