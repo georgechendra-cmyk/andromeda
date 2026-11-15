@@ -205,3 +205,7 @@ CREATE INDEX IF NOT EXISTS calls_user ON calls (user_id, created_at);
 
 -- a person's settings (act without asking)
 CREATE TABLE IF NOT EXISTS prefs (user_id TEXT PRIMARY KEY, state TEXT, updated_at INTEGER);
+-- what goes out by itself: through the send guard, waiting 10 minutes (stoppable) or held for the owner
+CREATE TABLE IF NOT EXISTS outbox (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, kind TEXT NOT NULL, to_key TEXT, payload TEXT NOT NULL, src TEXT, why TEXT, send_at INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'wait', created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS outbox_due ON outbox(status, send_at);
+CREATE INDEX IF NOT EXISTS outbox_user ON outbox(user_id, created_at);

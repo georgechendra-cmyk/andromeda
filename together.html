@@ -15669,7 +15669,8 @@ function drawJob(kind, edit, pre) {
 			else if (kind === "winback") Object.assign(config, { customers: $("#jbList").value, every: +$("#jbEvery").value, link: $("#jbLink").value, via: (($$('[name="jbVia"]').find((x) => x.checked) || {}).value) || "whatsapp", callModels: bestFor("reader").slice(0, 2).map((m) => m.id) });
 			else Object.assign(config, { topic: $("#jbTopic").value, perDay: +$("#jbPer").value, platforms: $$("[data-plat]").filter((x) => x.checked).map((x) => x.dataset.plat), auto: !!($("#jbAuto") && $("#jbAuto").checked) });
 			const models = jobModels();
-			if (kind === "marketing") config.critic = jobCriticModel(models);
+			// (a second AI from another lab checks what it writes before anything goes out by itself: every kind of job)
+			config.critic = jobCriticModel(models);
 			try {
 				await api("/api/jobs", { method: "POST", body: JSON.stringify({ id: ed && ed.id, kind, name: $("#jbName").value, config, models }) });
 				try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch {}
@@ -15886,7 +15887,7 @@ function drawConns(kind) {
 		return;
 	}
 	const back = SETUP_DRAFT ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn dark" id="cnSetup">Back to setting up ' + esc(SETUP_DRAFT.name || "your business") + "</button></div>" : "";
-	box.innerHTML = back + '<div class="field desk"><label class="chk" style="font-weight:600"><input type="checkbox" id="cnAuto"' + (PREFS.auto ? " checked" : "") + '> Act without asking</label><div class="help" style="margin:2px 0 0 24px">Emails and replies go out without waiting for your OK. Everything it does is in its log, and it never spends money.</div></div>' +
+	box.innerHTML = back + '<div class="field desk"><label class="chk" style="font-weight:600"><input type="checkbox" id="cnAuto"' + (PREFS.auto ? " checked" : "") + '> Act without asking</label><div class="help" style="margin:2px 0 0 24px">Emails and posts go out without waiting for your OK, but only when they pass every check: nothing your own facts don\x27t back up (no price, link or new person it wasn\x27t given), never a password, card or ID number, and a second AI from another lab agrees. Then each waits 10 minutes in Needs you, where you can stop it. Anything it isn\x27t sure of waits for you. It never spends money.</div></div>' +
 		'<div class="field desk"><label class="chk" style="font-weight:600"><input type="checkbox" id="cnBrief"' + (PREFS.brief ? " checked" : "") + '> A morning message when something needs me</label><div class="help" style="margin:2px 0 0 24px">At 8 your time, on Telegram, only on days something is waiting for you. Off unless you turn it on.</div></div>' +
 		(Object.keys(CONN_INFO).some((k) => !connOf(k)) ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn dark" id="cnAll">Connect everything, one after another</button></div>' : "") + Object.entries(CONN_INFO).map(([k, x]) => { const c = connOf(k); return '<div class="field desk"><div class="row" style="justify-content:space-between;align-items:center;gap:8px"><div class="row" style="gap:10px;align-items:center"><span class="tav" style="--c:' + x.c + ';--s:30px"><b style="color:#fff;font-size:13px">' + esc(x.name[0]) + "</b></span><div><b>" + esc(x.name) + '</b><div class="help">' + esc(c ? "Connected: " + c.name : x.what) + "</div></div></div>" +
 		'<div class="row" style="gap:8px">' + (c ? (k === "gmail" && !((c.meta || {}).version >= 3) ? '<button class="btn dark" data-cnon="gmail">Update its script</button>' : "") + (POST_KINDS.includes(k) || k === "gmail" ? '<button class="btn" data-cntest="' + k + '">Send a test</button>' : "") + '<button class="btn" data-cnoff="' + k + '">Disconnect</button>' : '<button class="btn dark" data-cnon="' + k + '">Connect</button>') + "</div></div></div>"; }).join("") +
@@ -15960,7 +15961,7 @@ async function startSetup() {
 		if (bot) made.push("Front desk: " + deskLink(bot.id));
 		const base = { brief: d.brief, lang: d.lang || LOC.lang, tz, tzName: TZ_NAME, country: LOC.call, type: place ? "place" : "online", assistant: d.assistant || "", ...(place && d.hours.days.length ? { hours: d.hours } : {}) };
 		if (parts.includes("winback") && !d.done.winback && (bot || String(d.customers || "").trim())) {
-			await api("/api/jobs", { method: "POST", body: JSON.stringify({ kind: "winback", name: d.name, models: jobModels(), config: { ...base, goal: "ask each recent customer, warmly, if they'd like to come back and book again", customers: d.customers || "", every: d.every || 30, via: "auto", fromDesk: bot ? bot.id : "", link: bot ? deskLink(bot.id) : "", callModels: bestFor("reader").slice(0, 2).map((m) => m.id) } }) });
+			await api("/api/jobs", { method: "POST", body: JSON.stringify({ kind: "winback", name: d.name, models: jobModels(), config: { ...base, goal: "ask each recent customer, warmly, if they'd like to come back and book again", customers: d.customers || "", every: d.every || 30, via: "auto", fromDesk: bot ? bot.id : "", link: bot ? deskLink(bot.id) : "", callModels: bestFor("reader").slice(0, 2).map((m) => m.id), critic: jobCriticModel(jobModels()) } }) });
 			made.push("Bringing customers back"); d.done.winback = 1;
 		}
 		if (parts.includes("email") && !d.done.email) {
@@ -15988,7 +15989,7 @@ const AGENT_EVERY = [[0, "once, now (in the background)"], [10, "every 10 minute
 const AGENT_SRC = { url: "A page", news: "News about", rss: "A feed (RSS)", hn: "Hacker News about", gmail: "My Gmail (new emails)" };
 const everyText = (m) => (AGENT_EVERY.find(([k]) => k === m) || [0, "every " + m + " minutes"])[1];
 // who does its quick looks and its work: the quick reader, and the best at following a brief exactly, by the rules
-const agentModels = () => { try { return { quick: bestFor("reader").slice(0, 2).map((m) => m.id), work: bestFor("agent").slice(0, 3).map((m) => m.id) }; } catch { return { quick: [], work: [] }; } };
+const agentModels = () => { try { const work = bestFor("agent").slice(0, 3).map((m) => m.id); return { quick: bestFor("reader").slice(0, 2).map((m) => m.id), work, check: [jobCriticModel(work)].filter(Boolean) }; } catch { return { quick: [], work: [], check: [] }; } };
 async function syncAgents(quiet) {
 	if (!TOGETHER_APP || !creditsMode() || !account) return;
 	if (!CONNS.at) { CONNS.at = 1; syncConns(); }
@@ -16101,8 +16102,15 @@ function drawAgentForm(a) {
 var DESKS = { bots: [], items: [], at: 0 };
 // ---- Needs you: every decision waiting, from every part of the team, with its button; the rest it handled
 var NEEDS = { items: [], yesterday: {} };
+let CHECK_SENT = "";
+async function syncCheck() {
+	const pick = jobCriticModel(jobModels());
+	if (!pick || pick === CHECK_SENT) return;
+	try { await api("/api/prefs", { method: "POST", body: JSON.stringify({ check: [pick] }) }); CHECK_SENT = pick; } catch {}
+}
 async function syncNeeds() {
 	if (!TOGETHER_APP || !creditsMode() || !account) return;
+	syncCheck();
 	const before = NEEDS.items.length;
 	try { NEEDS = { items: [], yesterday: {}, ...(await api("/api/needs")) }; } catch { return; }
 	railBadges();
@@ -16118,6 +16126,9 @@ function openNeeds() {
 function needRow(it) {
 	const head = (t) => '<div class="nd-h"><b>' + t + '</b><span class="help">' + esc(it.from || "") + " · " + esc(new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })) + "</span></div>";
 	const btns = (x) => '<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">' + x + "</div>";
+	const toLine = () => (it.kind === "post" ? "A post to " + esc(it.to) : esc(it.to ? "To " + it.to : "A reply in the thread") + (it.subject ? " · " + esc(it.subject) : ""));
+	if (it.type === "out") return head("Going out by itself at " + esc(new Date(it.sendAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))) + '<div class="help">' + toLine() + " · it passed every check</div>" + '<div style="white-space:pre-wrap;margin-top:6px">' + esc(it.text) + "</div>" + btns('<button class="btn dark" data-ndostop>Stop it</button><button class="btn" data-ndosend>Send now</button>');
+	if (it.type === "held") return head("Held for your OK") + '<div class="help"><b>Why:</b> ' + esc(it.why) + '</div><div class="help">' + toLine() + '</div><textarea class="inp" rows="4" data-ndbody style="margin-top:6px">' + esc(it.text) + "</textarea>" + btns('<button class="btn dark" data-ndosend>Send</button><button class="btn" data-ndodiscard>Discard</button>');
 	if (it.type === "approve") return head("An email for your OK") + '<div class="help">' + esc(it.to ? "To " + it.to : "A reply in the thread") + (it.subject ? " · " + esc(it.subject) : "") + '</div><textarea class="inp" rows="4" data-ndbody style="margin-top:6px">' + esc(it.text) + "</textarea>" + btns('<button class="btn dark" data-ndsend>Send</button><button class="btn" data-nddiscard>Discard</button>');
 	if (it.type === "desk" && it.kind === "reminder") return head("A reminder to send") + '<div style="white-space:pre-wrap">' + esc(it.reminder || it.text) + "</div>" + btns((it.link ? '<a class="btn dark" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-ndgo>Send on WhatsApp</a>' : "") + '<button class="btn" data-nddone>Done</button>');
 	if (it.type === "desk") return head(it.kind === "question" ? "A customer asked" : it.kind === "booking" ? "A booking request" : it.kind === "lead" ? "A website enquiry" : it.kind === "paid" ? "A payment arrived" : it.kind === "message" || !it.kind ? "A customer message" : "A customer's " + String(it.kind).replace(/[^a-z]/gi, "").toLowerCase()) + "<div>" + esc(it.text) + "</div>" + (it.money ? '<div style="margin-top:2px"><b>' + esc(it.money) + "</b></div>" : "") + (it.who ? '<div class="help">' + esc(it.who) + "</div>" : "") + btns('<input class="inp" data-ndreply placeholder="' + (it.kind === "question" ? "Your answer (it reaches them, and your desk learns it)" : "Your reply (it reaches them)") + '" style="flex:1;min-width:200px"><button class="btn dark" data-ndanswer>Send</button><button class="btn" data-nddone>Done</button>');
@@ -16128,10 +16139,11 @@ function drawNeeds() {
 	const box = $("#ndBox");
 	if (!box) return;
 	const y = NEEDS.yesterday || {}, done = [y.chats && y.chats + " chats answered", y.booked && y.booked + " booked", y.mailed && y.mailed + " emails sent", y.posted && y.posted + " posted", y.calls && y.calls + " calls"].filter(Boolean);
-	const top = done.length ? '<div class="nd-y">Yesterday your team: ' + done.map(esc).join(" · ") + "</div>" : "";
+	const top = (done.length ? '<div class="nd-y">Yesterday your team: ' + done.map(esc).join(" · ") + "</div>" : "") + (NEEDS.items.some((x) => x.type === "out") ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn" id="ndStopAll">Stop everything going out</button></div>' : "");
 	if (!NEEDS.items.length) { box.innerHTML = top + '<div class="nd-none">Nothing needs you right now. Your team has it.</div>'; return; }
 	box.innerHTML = top + NEEDS.items.map((it, k) => '<div class="nd-it" data-ndk="' + k + '">' + needRow(it) + "</div>").join("");
 	const gone = (it) => { NEEDS.items = NEEDS.items.filter((x) => x !== it); railBadges(); drawNeeds(); };
+	if ($("#ndStopAll")) $("#ndStopAll").onclick = async () => { try { const j = await api("/api/outbox/stop", { method: "POST", body: "{}" }); toast((j.stopped || 0) + " stopped: each waits for you"); syncNeeds(); } catch (e) { toast(e.message || String(e)); } };
 	const act = async (it, path, bodyObj, okText) => { try { await api(path, { method: "POST", body: JSON.stringify(bodyObj || {}) }); if (okText) toast(okText); gone(it); } catch (e) { toast(e.message || String(e)); } };
 	$$(".nd-it").forEach((el) => {
 		const it = NEEDS.items[+el.dataset.ndk], q = (x) => el.querySelector(x);
@@ -16143,6 +16155,9 @@ function drawNeeds() {
 		if (q("[data-ndskip]")) q("[data-ndskip]").onclick = () => act(it, itemPath, { status: "skipped" });
 		if (q("[data-ndgo]")) q("[data-ndgo]").addEventListener("click", () => setTimeout(() => act(it, itemPath, { status: "done" }), 400));
 		if (q("[data-ndseen]")) q("[data-ndseen]").onclick = () => act(it, "/api/agents/seen", { ids: [it.id] });
+		if (q("[data-ndostop]")) q("[data-ndostop]").onclick = async () => { await act(it, "/api/outbox/" + it.id + "/stop", {}, "Stopped: it waits for you"); syncNeeds(); };
+		if (q("[data-ndosend]")) q("[data-ndosend]").onclick = () => act(it, "/api/outbox/" + it.id + "/send", q("[data-ndbody]") ? { text: q("[data-ndbody]").value } : {}, "Sent");
+		if (q("[data-ndodiscard]")) q("[data-ndodiscard]").onclick = () => act(it, "/api/outbox/" + it.id + "/discard", {}, "Thrown away");
 	});
 }
 // its phone: on its Twilio number it answers calls as the business, books, takes messages, puts callers through
