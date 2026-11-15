@@ -4595,6 +4595,8 @@ function openPreview(wrap) {
 	box.className = "pv";
 	const f = document.createElement("iframe");
 	f.setAttribute("sandbox", PV_SANDBOX);
+	// (loaded when it's scrolled to, so a long chat full of them stays quick)
+	f.setAttribute("loading", "lazy");
 	f.setAttribute("title", "Preview");
 	f.setAttribute("allow", "fullscreen; clipboard-write");
 	f.srcdoc = buildPreview(wrap.dataset.pv, wrap.querySelector("code").textContent, wrap);
@@ -4633,9 +4635,11 @@ function drawPreviews(root) {
 		if (!m || m.role === "user" || m.streaming) continue;
 		const blocks = [...el.querySelectorAll(":scope > .md .code[data-pv]")];
 		if (!blocks.length) continue;
-		if (m.pv == null) {
+		if (m.pv == null || m.pvv !== 2) {
+			m.pvv = 2;
 			const best = blocks.findIndex((b) => b.dataset.pv === "react" || /<html[\s>]|<!doctype|<body[\s>]/i.test(b.querySelector("code").textContent));
-			m.pv = i === current.msgs.length - 1 ? [best >= 0 ? best : blocks.findIndex((b) => b.dataset.pv === "svg")].filter((k) => k >= 0) : [];
+			// (every answer's page keeps its preview, not only the newest one's: asking something else never takes it away)
+			m.pv = [best >= 0 ? best : blocks.findIndex((b) => b.dataset.pv === "svg")].filter((k) => k >= 0);
 		}
 		for (const k of m.pv) if (blocks[k]) openPreview(blocks[k]);
 	}
@@ -7010,6 +7014,8 @@ async function send(textOverride, fork, attsOverride) {
 	keepAtts(atts);
 	current.msgs.push({ role: "user", text, atts, ...(fork ? { alts: fork.alts, alt: fork.alt } : {}) });
 	if (current.title === "New chat") current.title = text.slice(0, 48) || atts[0]?.name || "New chat";
+	// (a project made in one click takes its name from the first thing said in it)
+	{ const sp = current.space && spaceOf(current.space); if (sp && sp.auto && text) saveSpaces(spaces().map((x) => (x.id === sp.id ? { ...x, name: text.replace(/\s+/g, " ").trim().split(" ").slice(0, 5).join(" ").slice(0, 40), auto: false } : x))); }
 	current.at = Date.now();
 	pinned = true;
 	render();
@@ -15122,7 +15128,15 @@ async function addSpaceFiles(id, files) {
 	drawSpaceFiles(id);
 }
 function openSpace(id) { openSidebar(false); navTo(() => { SPACE_VIEW = id; current = null; EDITING = -1; render(); }); setTimeout(() => $("#input").focus(), 60); }
+// a new project in one click, like a new chat: named from the first thing said in it (rename it, or give it instructions,
+// any time from the project's page)
 function newSpace() {
+	const s = { id: uid(), name: "New project", auto: true, about: "", at: Date.now() };
+	saveSpaces([s, ...spaces()]);
+	SPACE_FILES.set(s.id, []);
+	openSpace(s.id);
+}
+function newSpaceForm() {
 	openModal('<h2>New project</h2><p class="sub">Chats in a project share its instructions and files, so Celestin always has the background.</p><div class="field"><label for="spName">Name</label><input class="inp" id="spName" maxlength="60" placeholder="e.g. Thesis, Bean There café, My Minecraft mod"></div><div class="field"><label for="spAbout0">Instructions (you can add them later)</label><textarea class="inp" id="spAbout0" rows="3" maxlength="4000" placeholder="What should Celestin know, or always do, in this project?"></textarea></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="spNo">Cancel</button><button class="btn dark" id="spGo">Make the project</button></div>');
 	const go = () => {
 		const name = $("#spName").value.trim();
