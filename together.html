@@ -16431,6 +16431,39 @@ function openNeeds() {
 	drawNeeds();
 	syncNeeds();
 }
+// alerts on this device (Web Push): Celestin messages them first, like an app
+async function pushState() {
+	try {
+		if (!("serviceWorker" in navigator) || !("PushManager" in window) || !window.Notification) return /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone ? "ios" : "none";
+		const reg = await navigator.serviceWorker.getRegistration(), sub = reg && (await reg.pushManager.getSubscription());
+		return sub ? "on" : Notification.permission === "denied" ? "blocked" : "off";
+	} catch { return "none"; }
+}
+async function pushOn() {
+	try {
+		if (Notification.permission !== "granted" && (await Notification.requestPermission()) !== "granted") { toast("Alerts are blocked for this site: allow notifications for it in your browser's settings"); return; }
+		const reg = await navigator.serviceWorker.ready, key = (await api("/api/push/key")).key;
+		const raw = Uint8Array.from(atob(key.replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (key.length % 4)) % 4)), (c) => c.charCodeAt(0));
+		const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw }));
+		await api("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub.toJSON()) });
+		await api("/api/push/test", { method: "POST", body: "{}" }).catch(() => {});
+		toast("Alerts are on for this device");
+	} catch (e) { toast(e.message || String(e)); }
+}
+async function pushOff() {
+	try { const reg = await navigator.serviceWorker.getRegistration(), sub = reg && (await reg.pushManager.getSubscription()); if (sub) { await api("/api/push/subscribe", { method: "DELETE", body: JSON.stringify({ endpoint: sub.endpoint }) }).catch(() => {}); await sub.unsubscribe(); } toast("Alerts are off for this device"); } catch (e) { toast(e.message || String(e)); }
+}
+async function drawPush() {
+	const box = $("#ndPush");
+	if (!box) return;
+	const st = await pushState();
+	box.innerHTML = st === "on" ? '<span class="help">Alerts are on for this device: what needs you shows up here, even with Celestin closed.</span><button class="btn" id="ndPushOff">Turn off</button>'
+		: st === "off" ? '<span class="help">Get an alert on this device the moment something needs you, even with Celestin closed.</span><button class="btn dark" id="ndPushOn">Alert me here</button>'
+		: st === "blocked" ? '<span class="help">Alerts are blocked for this site in your browser: allow notifications for it in the browser\'s settings.</span>'
+		: st === "ios" ? '<span class="help">On iPhone: tap Share, then Add to Home Screen, and open Celestin from there to get alerts.</span>' : "";
+	if ($("#ndPushOn")) $("#ndPushOn").onclick = async () => { await pushOn(); drawPush(); };
+	if ($("#ndPushOff")) $("#ndPushOff").onclick = async () => { await pushOff(); drawPush(); };
+}
 function needRow(it) {
 	const head = (t) => '<div class="nd-h"><b>' + t + '</b><span class="help">' + esc(it.from || "") + " · " + esc(new Date(it.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })) + "</span></div>";
 	const btns = (x) => '<div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">' + x + "</div>";
@@ -16448,9 +16481,10 @@ function drawNeeds() {
 	const box = $("#ndBox");
 	if (!box) return;
 	const y = NEEDS.yesterday || {}, done = [y.chats && y.chats + " chats answered", y.booked && y.booked + " booked", y.mailed && y.mailed + " emails sent", y.posted && y.posted + " posted", y.calls && y.calls + " calls"].filter(Boolean);
-	const top = (done.length ? '<div class="nd-y">Yesterday your team: ' + done.map(esc).join(" · ") + "</div>" : "") + (NEEDS.items.some((x) => x.type === "out") ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn" id="ndStopAll">Stop everything going out</button></div>' : "");
-	if (!NEEDS.items.length) { box.innerHTML = top + '<div class="nd-none">Nothing needs you right now. Your team has it.</div>'; return; }
+	const top = '<div class="row" id="ndPush" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"></div>' + (done.length ? '<div class="nd-y">Yesterday your team: ' + done.map(esc).join(" · ") + "</div>" : "") + (NEEDS.items.some((x) => x.type === "out") ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn" id="ndStopAll">Stop everything going out</button></div>' : "");
+	if (!NEEDS.items.length) { box.innerHTML = top + '<div class="nd-none">Nothing needs you right now. Your team has it.</div>'; drawPush(); return; }
 	box.innerHTML = top + NEEDS.items.map((it, k) => '<div class="nd-it" data-ndk="' + k + '">' + needRow(it) + "</div>").join("");
+	drawPush();
 	const gone = (it) => { NEEDS.items = NEEDS.items.filter((x) => x !== it); railBadges(); drawNeeds(); };
 	if ($("#ndStopAll")) $("#ndStopAll").onclick = async () => { try { const j = await api("/api/outbox/stop", { method: "POST", body: "{}" }); toast((j.stopped || 0) + " stopped: each waits for you"); syncNeeds(); } catch (e) { toast(e.message || String(e)); } };
 	const act = async (it, path, bodyObj, okText) => { try { await api(path, { method: "POST", body: JSON.stringify(bodyObj || {}) }); if (okText) toast(okText); gone(it); } catch (e) { toast(e.message || String(e)); } };

@@ -137,6 +137,7 @@ export default {
 			.then(() => deskReminders(env)).catch(() => {})
 			.then(() => runDueAgents(env, ctx)).catch(() => {})
 			.then(() => runOutbox(env)).catch(() => {})
+			.then(() => pushNeeds(env)).catch(() => {})
 			.then(() => warmFeeds(env)).catch(() => {})
 			.then(() => runBriefs(env)).catch(() => {})
 			.then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3), env.DB.prepare("DELETE FROM config WHERE k LIKE 'browser:%' AND k < ?").bind(browserDay())])).catch(() => {}));
@@ -208,6 +209,10 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/mcp" && m === "GET") return mcpList(env, user);
 	if (p === "/api/mcp/registry" && m === "GET") return mcpRegistry(req);
 	if (p === "/api/apps" && m === "POST") return appRegister(req, env, user);
+	if (p === "/api/push/key" && m === "GET") return json({ key: (await vapidKeys(env)).pub });
+	if (p === "/api/push/subscribe" && m === "POST") return pushSubscribe(req, env, user);
+	if (p === "/api/push/subscribe" && m === "DELETE") return pushUnsubscribe(req, env, user);
+	if (p === "/api/push/test" && m === "POST") return json({ sent: await pushTo(env, user.id, { title: "Celestin", body: "Alerts are on for this device: when something needs you, it shows up here.", url: needsLink(env), tag: "test" }) });
 	if (p === "/api/apps/rows/seen" && m === "POST") return appSeen(req, env, user);
 	if (p === "/api/mcp/connect" && m === "POST") return mcpConnect(req, env, user);
 	if ((fd = p.match(/^\/api\/mcp\/([a-f0-9]{24})$/)) && m === "DELETE") return mcpDelete(env, user, fd[1]);
@@ -4778,6 +4783,90 @@ async function mcpCallback(req, env) {
 	await env.DB.prepare("INSERT INTO mcps (id, user_id, name, url, secret, tools, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id(), w.uid, w.name, w.url, await seal(env, sec), JSON.stringify(tools), now()).run();
 	return page(w.name + " is connected to Celestin" + (tools.length ? " (" + tools.length + " things it can do)" : "") + ". You can close this tab.", true);
 }
+// ------------------------------------------------------------------ alerts on their devices (Web Push)
+// Claude Duet and Grok Bot message you first from their phone apps. Celestin installs from the browser and does the same
+// through the standard Web Push: anything that lands in Needs you (any kind, now or added later) reaches every device they
+// turned alerts on for, within the cron's ten minutes, and an app's notify() at once. Each alert is encrypted for that
+// device alone (RFC 8291) and signed with Celestin's own key (VAPID, RFC 8292), made once and sealed. Only the browsers'
+// push services are ever sent to, so this can't be used to reach anywhere else
+const PUSH_HOSTS = /(^|\.)(googleapis\.com|push\.services\.mozilla\.com|notify\.windows\.com|push\.apple\.com)$/i;
+const te = (x) => new TextEncoder().encode(x);
+const b64uD = (x) => { const t = String(x || "").replace(/-/g, "+").replace(/_/g, "/"); return b64d(t + "=".repeat((4 - (t.length % 4)) % 4)); };
+const cat = (...a) => { const out = new Uint8Array(a.reduce((k, x) => k + x.length, 0)); let o = 0; for (const x of a) { out.set(x, o); o += x.length; } return out; };
+async function hmac256(key, data) { const k = await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]); return new Uint8Array(await crypto.subtle.sign("HMAC", k, data)); }
+async function vapidKeys(env) {
+	const read = async () => { const r = await env.DB.prepare("SELECT v FROM config WHERE k = 'vapid'").first().catch(() => null); return r ? await unseal(env, r.v) : null; };
+	const had = await read();
+	if (had) return had;
+	const kp = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+	const keys = { jwk: await crypto.subtle.exportKey("jwk", kp.privateKey), pub: b64u(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey))) };
+	// (two made at once: the first one kept wins)
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('vapid', ?) ON CONFLICT(k) DO NOTHING").bind(await seal(env, keys)).run();
+	return await read();
+}
+async function pushEncrypt(sub, text) {
+	const ua = b64uD(sub.p256dh), auth = b64uD(sub.auth);
+	const eph = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+	const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", eph.publicKey));
+	const uaKey = await crypto.subtle.importKey("raw", ua, { name: "ECDH", namedCurve: "P-256" }, false, []);
+	const secret = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, eph.privateKey, 256));
+	const ikm = (await hmac256(await hmac256(auth, secret), cat(te("WebPush: info\0"), ua, asPub, new Uint8Array([1])))).slice(0, 32);
+	const salt = crypto.getRandomValues(new Uint8Array(16)), prk = await hmac256(salt, ikm);
+	const cek = (await hmac256(prk, cat(te("Content-Encoding: aes128gcm\0"), new Uint8Array([1])))).slice(0, 16);
+	const nonce = (await hmac256(prk, cat(te("Content-Encoding: nonce\0"), new Uint8Array([1])))).slice(0, 12);
+	const key = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+	const ct = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, key, cat(te(text), new Uint8Array([2]))));
+	const head = new Uint8Array(21 + asPub.length);
+	head.set(salt, 0); new DataView(head.buffer).setUint32(16, 4096); head[20] = asPub.length; head.set(asPub, 21);
+	return cat(head, ct);
+}
+async function vapidAuth(env, endpoint) {
+	const keys = await vapidKeys(env);
+	const h = b64u(te(JSON.stringify({ typ: "JWT", alg: "ES256" }))), c = b64u(te(JSON.stringify({ aud: new URL(endpoint).origin, exp: Math.floor(now() / 1000) + 12 * 3600, sub: "https://celestin.pages.dev" })));
+	const k = await crypto.subtle.importKey("jwk", keys.jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+	const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, k, te(h + "." + c)));
+	return "vapid t=" + h + "." + c + "." + b64u(sig) + ", k=" + keys.pub;
+}
+// {title, body, url, tag, urgent} to every device they turned alerts on for; how many it reached
+async function pushTo(env, uid, msg) {
+	const subs = (await env.DB.prepare("SELECT * FROM push_subs WHERE user_id = ? ORDER BY created_at DESC LIMIT 10").bind(uid).all().catch(() => ({ results: [] }))).results || [];
+	const text = JSON.stringify({ title: String(msg.title || "Celestin").slice(0, 80), body: String(msg.body || "").slice(0, 600), url: msg.url || "", tag: msg.tag || "celestin" });
+	let sent = 0;
+	for (const sub of subs) {
+		try {
+			const r = await fetch(sub.endpoint, { method: "POST", headers: { TTL: "86400", "Content-Encoding": "aes128gcm", "Content-Type": "application/octet-stream", Urgency: msg.urgent ? "high" : "normal", Authorization: await vapidAuth(env, sub.endpoint) }, body: await pushEncrypt(sub, text), signal: AbortSignal.timeout(15000) });
+			if (r.status === 404 || r.status === 410) await env.DB.prepare("DELETE FROM push_subs WHERE id = ?").bind(sub.id).run();
+			else if (r.ok) sent++;
+		} catch {}
+	}
+	return sent;
+}
+const needsLink = (env) => String(env.SITE_URL || "https://celestin.pages.dev").replace(/\/+$/, "") + "/together#needs";
+async function pushSubscribe(req, env, user) {
+	const b = await body(req), ep = String(b.endpoint || ""), k = b.keys || {};
+	let host = "";
+	try { host = new URL(ep).hostname; } catch {}
+	if (!/^https:\/\//.test(ep) || !PUSH_HOSTS.test(host) || !k.p256dh || !k.auth || b64uD(k.p256dh).length !== 65 || b64uD(k.auth).length !== 16) throw fail(400, "That isn't a push subscription from a browser.");
+	await env.DB.prepare("DELETE FROM push_subs WHERE endpoint = ?").bind(ep).run();
+	await env.DB.prepare("INSERT INTO push_subs (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)").bind(id(), user.id, ep, String(k.p256dh), String(k.auth), now()).run();
+	await env.DB.prepare("DELETE FROM push_subs WHERE user_id = ? AND id NOT IN (SELECT id FROM push_subs WHERE user_id = ? ORDER BY created_at DESC LIMIT 10)").bind(user.id, user.id).run();
+	return json({ ok: true });
+}
+async function pushUnsubscribe(req, env, user) { const b = await body(req); await env.DB.prepare("DELETE FROM push_subs WHERE endpoint = ? AND user_id = ?").bind(String(b.endpoint || ""), user.id).run(); return json({ ok: true }); }
+// what's new in Needs you, on their devices: one alert per check, the newest first, saying what each is
+async function pushNeeds(env) {
+	const users = (await env.DB.prepare("SELECT DISTINCT user_id FROM push_subs LIMIT 500").all().catch(() => ({ results: [] }))).results || [];
+	for (const { user_id } of users) {
+		const st = await prefsOf(env, user_id), since = Number(st.pushAt) || now() - 15 * 60e3;
+		// (an app's own message went at once)
+		const fresh = (await needsOf(env, user_id)).items.filter((x) => x.at > since && !(x.type === "appdata" && x.kind === "_notify")).sort((a, b) => b.at - a.at);
+		if (!fresh.length) continue;
+		st.pushAt = fresh[0].at;
+		await env.DB.prepare("INSERT INTO prefs (user_id, state, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at").bind(user_id, JSON.stringify(st), now()).run();
+		const what = (x) => x.type === "out" ? "Going out soon: " + (x.kind === "post" ? "a post to " + x.to : x.kind === "tool" ? String(x.tool).replace(/_/g, " ") + " in " + x.to : "an email to " + (x.to || "a thread")) + ". Tap to stop it." : x.type === "held" ? "Held for your OK: " + x.why : x.type === "approve" ? "An email for your OK, to " + (x.to || "a thread") : x.type === "desk" ? (x.kind === "question" ? "A customer asked: " : "A customer: ") + x.text : x.type === "appdata" ? "New in " + x.from + ": " + String(x.text).split("\n").slice(0, 2).join(", ") : x.type === "job" ? x.from + ": " + (x.title || String(x.text).slice(0, 80)) : x.type === "report" ? x.from + " found something" : String(x.text || "").slice(0, 120);
+		await pushTo(env, user_id, { title: fresh.length === 1 ? "Celestin" : fresh.length + " things need you", body: fresh.slice(0, 3).map(what).join("\n"), url: needsLink(env), tag: "needs", urgent: fresh.some((x) => x.type === "out" || x.type === "held") });
+	}
+}
 // ------------------------------------------------------------------ a backend for every app Celestin builds
 // The owner, Nov 16: working forms, saved data, telling the owner "should already have been built or allowed ... you cant
 // calculate an answer for every single possible question or need". So every app Celestin builds has one general backend,
@@ -4826,6 +4915,7 @@ async function appNotify(req, env, key) {
 	await env.DB.prepare("INSERT INTO app_rows (id, app, coll, data, ip, seen, created_at) VALUES (?, ?, '_notify', ?, ?, 0, ?)").bind(id(), key, JSON.stringify({ text }), await appIp(req), t).run();
 	// (on their phone too, when they connected Telegram)
 	try { await connPost(env, app.user_id, "telegram", "📱 " + app.title + ": " + text); } catch {}
+	try { await pushTo(env, app.user_id, { title: app.title, body: text, url: needsLink(env), tag: "app-" + key, urgent: true }); } catch {}
 	return json({ ok: true });
 }
 async function appSeen(req, env, user) {

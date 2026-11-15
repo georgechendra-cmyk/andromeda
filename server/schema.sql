@@ -217,3 +217,6 @@ CREATE TABLE IF NOT EXISTS app_keys (key TEXT PRIMARY KEY, user_id TEXT NOT NULL
 CREATE INDEX IF NOT EXISTS app_keys_user ON app_keys(user_id);
 CREATE TABLE IF NOT EXISTS app_rows (id TEXT PRIMARY KEY, app TEXT NOT NULL, coll TEXT NOT NULL, data TEXT NOT NULL, ip TEXT, seen INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS app_rows_app ON app_rows(app, coll, created_at);
+-- the devices each person turned alerts on for (Web Push)
+CREATE TABLE IF NOT EXISTS push_subs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs(user_id);

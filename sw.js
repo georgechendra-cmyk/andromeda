@@ -78,3 +78,18 @@ self.addEventListener("fetch", (e) => {
 		);
 	}
 });
+
+// alerts: what needs them, on this device even with Celestin closed; a tap opens it where it's waiting
+self.addEventListener("push", (e) => {
+	let d = {};
+	try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : "" }; }
+	e.waitUntil(self.registration.showNotification(d.title || "Celestin", { body: d.body || "Something needs you.", icon: "icons/icon-192.png", badge: "icons/icon-192.png", tag: d.tag || "celestin", renotify: true, data: { url: d.url || "./together#needs" } }));
+});
+self.addEventListener("notificationclick", (e) => {
+	e.notification.close();
+	const url = new URL((e.notification.data && e.notification.data.url) || "./", self.location).href;
+	e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
+		for (const c of list) if (c.url.split("#")[0] === url.split("#")[0] && "focus" in c) return c.focus().then((f) => (f && f.navigate ? f.navigate(url).catch(() => f) : f));
+		return self.clients.openWindow(url);
+	}));
+});
