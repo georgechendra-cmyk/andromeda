@@ -16194,7 +16194,7 @@ function untable(h) {
 var CONNS = { on: false, conns: [] }, CONN_QUEUE = [];
 const POST_KINDS = ["telegram", "discord", "bluesky", "x"];
 const CONN_INFO = {
-	telegram: { name: "Telegram", c: "#2aabee", what: "Your agents' reports on your phone the moment they find something, and posts to your channel.", how: "In Telegram, open @BotFather, send /newbot and copy the token it gives you. For messages to you: send any message to your new bot. For a channel: add the bot as an admin and write the channel's @name below.", fields: [["token", "Bot token", "123456789:AA…"], ["chat", "Channel (optional)", "@yourchannel, or empty for messages to you"]] },
+	telegram: { name: "Telegram", c: "#2aabee", what: "Message your team from your phone and it does it: anything you send your bot is done and answered there. Reports, and posts to your channel, too.", how: "In Telegram, open @BotFather, send /newbot and copy the token it gives you. For messages to you: send any message to your new bot. For a channel: add the bot as an admin and write the channel's @name below.", fields: [["token", "Bot token", "123456789:AA…"], ["chat", "Channel (optional)", "@yourchannel, or empty for messages to you"]] },
 	discord: { name: "Discord", c: "#5865f2", what: "Posts and reports in a channel of your server.", how: "In Discord: Server settings → Integrations → Webhooks → New webhook, pick the channel, then Copy webhook URL.", fields: [["webhook", "Webhook URL", "https://discord.com/api/webhooks/…"]] },
 	bluesky: { name: "Bluesky", c: "#1185fe", what: "Marketing posts go out by themselves at the best moment.", how: "In Bluesky: Settings → Privacy and security → App passwords → Add app password. Use it here with your handle (never your real password).", fields: [["handle", "Handle", "yourname.bsky.social"], ["appPassword", "App password", "xxxx-xxxx-xxxx-xxxx"]] },
 	gmail: { name: "Gmail & Google", c: "#ea4335", what: "Your agents read your inbox and send email for you, keep Google Sheets, write Google Docs and see your Google Calendar; front desk bookings go in it too.", how: "", fields: [["url", "Your script's web app link", "https://script.google.com/macros/s/…/exec"]] },
@@ -16517,9 +16517,9 @@ var DESKS = { bots: [], items: [], at: 0 };
 var NEEDS = { items: [], yesterday: {} };
 let CHECK_SENT = "";
 async function syncCheck() {
-	const pick = jobCriticModel(jobModels());
-	if (!pick || pick === CHECK_SENT) return;
-	try { await api("/api/prefs", { method: "POST", body: JSON.stringify({ check: [pick] }) }); CHECK_SENT = pick; } catch {}
+	const pick = jobCriticModel(jobModels()), am = agentModels(), sig = pick + "|" + am.work.join(",") + "|" + am.quick.join(",");
+	if (!pick || !am.work.length || sig === CHECK_SENT) return;
+	try { await api("/api/prefs", { method: "POST", body: JSON.stringify({ check: [pick], work: am.work, quick: am.quick }) }); CHECK_SENT = sig; } catch {}
 }
 async function syncNeeds() {
 	if (!TOGETHER_APP || !creditsMode() || !account) return;

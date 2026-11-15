@@ -138,6 +138,7 @@ export default {
 			.then(() => runDueAgents(env, ctx)).catch(() => {})
 			.then(() => runOutbox(env)).catch(() => {})
 			.then(() => pushNeeds(env)).catch(() => {})
+			.then(() => tgHooks(env)).catch(() => {})
 			.then(() => warmFeeds(env)).catch(() => {})
 			.then(() => runBriefs(env)).catch(() => {})
 			.then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3), env.DB.prepare("DELETE FROM config WHERE k LIKE 'browser:%' AND k < ?").bind(browserDay())])).catch(() => {}));
@@ -169,6 +170,7 @@ async function route(req, env, ctx, url) {
 	if ((cl = p.match(/^\/api\/text\/([a-f0-9]{24})$/)) && m === "POST") return textHook(req, env, ctx, cl[1]);
 	if ((cl = p.match(/^\/api\/lead\/([a-f0-9]{24})$/)) && m === "POST") return leadIn(req, env, ctx, cl[1]);
 	if (p === "/api/mcp/callback" && m === "GET") return mcpCallback(req, env);
+	if ((cl = p.match(/^\/api\/tg\/([a-f0-9]{24})$/)) && m === "POST") return tgIn(req, env, ctx, cl[1]);
 	if ((cl = p.match(/^\/api\/app\/([a-f0-9]{24})\/notify$/)) && m === "POST") return appNotify(req, env, cl[1]);
 	if ((cl = p.match(/^\/api\/app\/([a-f0-9]{24})\/([\w.-]{1,40})$/)) && (m === "POST" || m === "GET")) return appRows(req, env, cl[1], cl[2], m);
 	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env, ownerKeyOk(req, env) ? undefined : (await config(env)).publicGateways)));
@@ -3351,7 +3353,8 @@ async function connCheck(kind, b) {
 		const me = await tgCall(token, "getMe");
 		let chat = v("chat");
 		// (no chat given: the last one that messaged the bot, which is them)
-		if (!chat) { const ups = await tgCall(token, "getUpdates", { limit: 20 }); const last = [...ups].reverse().map((u) => (u.message || u.channel_post || u.my_chat_member || {}).chat).find(Boolean); if (!last) throw fail(400, "Send any message to @" + me.username + " first (or write your channel's @name), then connect again."); chat = String(last.id); }
+		// (a bot already talking to Celestin can't be asked for its messages: that link is cleared first, then made again)
+		if (!chat) { await tgCall(token, "deleteWebhook").catch(() => {}); const ups = await tgCall(token, "getUpdates", { limit: 20 }); const last = [...ups].reverse().map((u) => (u.message || u.channel_post || u.my_chat_member || {}).chat).find(Boolean); if (!last) throw fail(400, "Send any message to @" + me.username + " first (or write your channel's @name), then connect again."); chat = String(last.id); }
 		const ch = await tgCall(token, "getChat", { chat_id: chat });
 		return { secret: { token, chat }, name: "@" + me.username + " → " + (ch.title || ch.username || ch.first_name || chat), meta: { bot: me.username, chat: ch.username ? "@" + ch.username : chat, kind: ch.type } };
 	}
@@ -3961,6 +3964,9 @@ async function prefsSet(req, env, user) {
 	if ("brief" in b) st.briefOn = !!b.brief;
 	// (the second AI that checks what goes out by itself: chosen by Celestin's routing on the site)
 	if (Array.isArray(b.check)) st.check = b.check.filter((x) => typeof x === "string" && x.length < 120).slice(0, 2);
+	// (the models its agents work with, for what's asked from their phone: chosen by Celestin's routing on the site)
+	if (Array.isArray(b.work)) st.work = b.work.filter((x) => typeof x === "string" && x.length < 120).slice(0, 3);
+	if (Array.isArray(b.quick)) st.quick = b.quick.filter((x) => typeof x === "string" && x.length < 120).slice(0, 2);
 	await env.DB.prepare("INSERT INTO prefs (user_id, state, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at").bind(user.id, JSON.stringify(st), now()).run();
 	return json({ auto: !!st.auto, brief: !!st.briefOn });
 }
@@ -4782,6 +4788,82 @@ async function mcpCallback(req, env) {
 	await env.DB.prepare("DELETE FROM mcps WHERE user_id = ? AND url = ?").bind(w.uid, w.url).run();
 	await env.DB.prepare("INSERT INTO mcps (id, user_id, name, url, secret, tools, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id(), w.uid, w.name, w.url, await seal(env, sec), JSON.stringify(tools), now()).run();
 	return page(w.name + " is connected to Celestin" + (tools.length ? " (" + tools.length + " things it can do)" : "") + ". You can close this tab.", true);
+}
+// ------------------------------------------------------------------ their Telegram bot, two-way
+// Claude lets you steer its work from your phone, and Grok Bot lives on your phone. Celestin Together answers in the chat
+// app they already have: their own Telegram bot (connected in Plugins) talks back. Anything they send from their own chat
+// is done by one persistent agent (it remembers the conversation, and works like any agent: research, their connected
+// apps, emails through the send guard) and answered there; /needs lists what's waiting for them, /stop stops everything
+// going out. Messages from anyone else, or without Telegram's secret for this link, are ignored
+const TG_AGENT = "📱 From your phone", TG_DAY = 40;
+const workerUrl = (env) => String(env.WORKER_URL || "https://andromeda-credits.georgechendra.workers.dev").replace(/\/+$/, "");
+async function tgHookSet(env, uid) {
+	const row = await env.DB.prepare("SELECT * FROM conns WHERE user_id = ? AND kind = 'telegram'").bind(uid).first();
+	if (!row) return false;
+	let meta = {};
+	try { meta = JSON.parse(row.meta || "{}"); } catch {}
+	// (only a chat with them can talk back: a channel can't)
+	if (meta.hook || (meta.kind && meta.kind !== "private")) return false;
+	const c = await unseal(env, row.secret), hook = id(), secret = rnd(24);
+	await tgCall(c.token, "setWebhook", { url: workerUrl(env) + "/api/tg/" + hook, secret_token: secret, allowed_updates: ["message"] });
+	await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?)").bind("tghook:" + hook, JSON.stringify({ uid, secret })).run();
+	meta.hook = hook;
+	await env.DB.prepare("UPDATE conns SET meta = ? WHERE id = ?").bind(JSON.stringify(meta), row.id).run();
+	return true;
+}
+// (every few minutes: a Telegram connected since, made two-way)
+async function tgHooks(env) {
+	const rows = (await env.DB.prepare("SELECT user_id, meta FROM conns WHERE kind = 'telegram' LIMIT 300").all().catch(() => ({ results: [] }))).results || [];
+	let k = 0;
+	for (const r of rows) { if (k >= 20) break; let m = {}; try { m = JSON.parse(r.meta || "{}"); } catch {} if (m.hook || (m.kind && m.kind !== "private")) continue; k++; try { await tgHookSet(env, r.user_id); } catch {} }
+}
+async function tgIn(req, env, ctx, hook) {
+	const cfg = await env.DB.prepare("SELECT v FROM config WHERE k = ?").bind("tghook:" + hook).first().catch(() => null);
+	if (!cfg) return json({ ok: true });
+	let h = {};
+	try { h = JSON.parse(cfg.v); } catch {}
+	if (!h.secret || req.headers.get("X-Telegram-Bot-Api-Secret-Token") !== h.secret) return json({ ok: true });
+	const up = await req.json().catch(() => null), msg = up && up.message;
+	if (!msg || typeof msg.text !== "string" || !msg.text.trim()) return json({ ok: true });
+	const row = await env.DB.prepare("SELECT * FROM conns WHERE user_id = ? AND kind = 'telegram'").bind(h.uid).first();
+	if (!row) return json({ ok: true });
+	const c = await unseal(env, row.secret);
+	// (their own chat only)
+	if (String(msg.chat && msg.chat.id) !== String(c.chat)) return json({ ok: true });
+	const job = tgTask(env, ctx, h.uid, c, msg.text.trim().slice(0, 3000)).catch(() => {});
+	if (ctx && ctx.waitUntil) ctx.waitUntil(job); else await job;
+	return json({ ok: true });
+}
+async function tgTask(env, ctx, uid, c, text) {
+	const say = (t) => tgCall(c.token, "sendMessage", { chat_id: c.chat, text: String(t).slice(0, 4000) }).catch(() => {});
+	if (/^\/start\b/i.test(text)) return say("This is your Celestin Together. Message me anything you want done: research, writing, plans, work in your connected apps, emails (they wait for your OK). /needs shows what's waiting for you. /stop stops everything going out.");
+	if (/^\/stop\b/i.test(text)) { const r = await env.DB.prepare("UPDATE outbox SET status = 'held', why = 'You stopped everything going out (from Telegram): it waits for you' WHERE user_id = ? AND status = 'wait'").bind(uid).run(); const k = (r.meta && r.meta.changes) || 0; return say(k ? k + " stopped: each waits for you in Needs you." : "Nothing was going out."); }
+	if (/^\/needs\b/i.test(text)) {
+		const nd = await needsOf(env, uid);
+		const line = (x) => (x.type === "held" ? "Held for your OK: " + x.why : x.type === "out" ? "Going out soon: " + (x.subject || x.to) : x.type === "approve" ? "An email for your OK, to " + x.to : x.type === "appdata" ? "New in " + x.from + ": " + String(x.text).split("\n")[0] : String(x.text || x.title || "").split("\n")[0]).slice(0, 160);
+		return say(nd.items.length ? nd.items.length + (nd.items.length === 1 ? " thing needs" : " things need") + " you:\n• " + nd.items.slice(0, 8).map(line).join("\n• ") + "\n\n" + needsLink(env) : "Nothing needs you right now.");
+	}
+	const p = await prefsOf(env, uid), work = (p.work || []).filter(Boolean);
+	if (!work.length) return say("Open Celestin Together once (on your phone or computer) so it can pick the best AI for your team, then message me again.");
+	const day = new Date(now()).toISOString().slice(0, 10);
+	if (p.tgDay !== day) { p.tgDay = day; p.tgN = 0; }
+	if (p.tgN >= TG_DAY) return say("That's " + TG_DAY + " jobs from here today: more tomorrow, or open Celestin Together.");
+	p.tgN++;
+	await env.DB.prepare("INSERT INTO prefs (user_id, state, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET state = excluded.state, updated_at = excluded.updated_at").bind(uid, JSON.stringify(p), now()).run();
+	await say("On it.");
+	const models = JSON.stringify({ quick: (p.quick || []).filter(Boolean).slice(0, 2), work: work.slice(0, 3), check: (p.check || []).filter(Boolean).slice(0, 2) });
+	const act = JSON.stringify({ send: ["telegram"], posts: [], email: "ask" });
+	let a = await env.DB.prepare("SELECT * FROM agents WHERE user_id = ? AND name = ?").bind(uid, TG_AGENT).first();
+	if (a) await env.DB.prepare("UPDATE agents SET goal = ?, models = ?, act = ? WHERE id = ?").bind(text, models, act, a.id).run();
+	else {
+		const z = await env.DB.prepare("SELECT tz, tzname FROM agents WHERE user_id = ? UNION ALL SELECT tz, tzname FROM bots WHERE user_id = ? LIMIT 1").bind(uid, uid).first().catch(() => null);
+		await env.DB.prepare("INSERT INTO agents (id, user_id, name, goal, every_min, sources, notify, email, models, tz, tzname, act, state, next_at, active, created_at) VALUES (?, ?, ?, ?, 1440, '[]', '', 0, ?, ?, ?, ?, '{}', ?, 0, ?)").bind(id(), uid, TG_AGENT, text, models, (z && z.tz) || 420, (z && z.tzname) || "", act, now() + 3650 * 864e5, now()).run();
+	}
+	a = await env.DB.prepare("SELECT * FROM agents WHERE user_id = ? AND name = ?").bind(uid, TG_AGENT).first();
+	const r = await runAgent(env, ctx, a, true);
+	// (what it answered there, they read there: not news again in Needs you, nor on their phone a second time)
+	await env.DB.prepare("UPDATE agent_log SET seen = 1 WHERE agent_id = ? AND kind = 'report'").bind(a.id).run().catch(() => {});
+	if (r && !r.reported && !r.waiting) await say("Done: " + (r.look || "nothing to report"));
 }
 // ------------------------------------------------------------------ alerts on their devices (Web Push)
 // Claude Duet and Grok Bot message you first from their phone apps. Celestin installs from the browser and does the same
