@@ -9494,7 +9494,7 @@ async function runSim(text, atts, pick) {
 // ---- testing what was built: load it unseen, press everything, collect every error
 // (what a build may load from outside: three.js for real 3D, from cdnjs, and Google Fonts; nothing else leaves the sandbox)
 const THREE_SRC = "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js";
-const SANDBOX_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com/ajax/libs/three.js/; img-src data: blob:; media-src data:">';
+const SANDBOX_CSP = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; script-src \'unsafe-inline\' https://cdnjs.cloudflare.com/ajax/libs/three.js/; img-src data: blob:; media-src data:; connect-src ' + SERVER + '">';
 function probeScript(id) {
 	return "<script>(function(){var id=" + JSON.stringify(id) + ";function send(t,d){try{parent.postMessage({andromedaProbe:id,type:t,data:d},'*')}catch(e){}}" +
 		"window.addEventListener('error',function(e){send('error',(e.message||'Error')+(e.lineno?' (line '+e.lineno+')':''))});" +
@@ -9537,7 +9537,7 @@ function auditScript(id) {
 // (the labels of the controls that do nothing, or [] when it couldn't look)
 function deadControls(files, ms = 16000) {
 	return new Promise((res) => {
-		const page = appDoc(files);
+		const page = appDoc(testable(files));
 		if (!page || !/<(button|a|input|summary)\b|onclick|class="[^"]*\b(btn|button)/i.test(page)) { res([]); return; }
 		const id = Math.random().toString(36).slice(2);
 		const f = document.createElement("iframe");
@@ -9586,7 +9586,7 @@ function probeApp(files, ms = 4000) {
 		};
 		addEventListener("message", on);
 		const timer = setTimeout(done, ms);
-		f.srcdoc = probeDoc(appDoc(files), id);
+		f.srcdoc = probeDoc(appDoc(testable(files)), id);
 		document.body.appendChild(f);
 	});
 }
@@ -9622,7 +9622,7 @@ function snapApp(files, W = 1280, H = 800) {
 			"window.addEventListener('load',function(){setTimeout(function(){snap().then(function(a){send({shot:a});" +
 			"try{var b=document.querySelector('button:not([disabled]),[role=button],input[type=submit]');if(b)b.click()}catch(e){}" +
 			"var keys=[' ','ArrowRight','ArrowUp','ArrowRight','ArrowLeft'],k=0,iv=setInterval(function(){press(keys[k%keys.length]);if(++k>=10){clearInterval(iv);setTimeout(function(){snap().then(function(b){send({shot:b,end:true})})},500)}},150)})},1300)})})()<\/script>";
-		const page = appDoc(files), head = SANDBOX_CSP + script;
+		const page = appDoc(testable(files)), head = SANDBOX_CSP + script;
 		f.srcdoc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html>" + head + page;
 		document.body.appendChild(f);
 	}));
@@ -10301,9 +10301,20 @@ function cutShort(p, cut) {
 	return true;
 }
 // the project as one page: its stylesheet and script files go inline
+// Every app Celestin builds has a backend (see the server's "a backend for every app"): celestin.js, a file of the app, so
+// it goes with it when it's downloaded or published. window.celestin.add(collection, record) keeps a record for the owner
+// (public-… collections are shared), .list(collection) reads a public one, .notify(text) tells the owner at once
+const celestinJs = (key) => "// Celestin: this app's backend. add(name, record) keeps a record for the app's owner; collections named public-...\n// are shared, list(name) reads one; notify(text) tells the owner at once.\nwindow.celestin=(function(){var S=" + JSON.stringify(SERVER + "/api/app/" + key + "/") + ";function go(p,b){return fetch(S+p,b?{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(b)}:{}).then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok)throw new Error((j.error&&j.error.message)||'It could not be saved. Please try again.');return j})})}return{add:function(c,d){return go(encodeURIComponent(c),{data:d}).then(function(j){return j.id})},list:function(c){return go(encodeURIComponent(c)).then(function(j){return j.rows||[]})},notify:function(t){return go('notify',{text:String(t)}).then(function(){return true})}}})();\n";
+// (in tests, a stand-in that keeps nothing: pressing every button never sends the owner test bookings)
+const CELESTIN_TEST = "window.celestin={add:function(){return new Promise(function(r){setTimeout(function(){r('test')},30)})},list:function(){return Promise.resolve([])},notify:function(){return Promise.resolve(true)}};";
+const BACKEND_RULE = "- It has a real backend, already on the page: window.celestin (from celestin.js, part of the project: keep that file and its script tag exactly as they are). Anything that must outlive the visit or reach the owner uses it, never localStorage: await celestin.add('bookings', {name, phone, time}) keeps a record for the app's owner (they see each one in Celestin at once; visitors never see each other's); a collection named public-… ('public-scores', 'public-guestbook') is shared by everyone using the app: await celestin.list('public-scores') returns its records, newest first, each with _id and _at; await celestin.notify('New order: 2 kopi susu') tells the owner right away. After saving, show a clear confirmation; if it fails, say so kindly and keep what they typed. Use it wherever the app needs it, and only there.\n";
+const testable = (files) => (files && files["celestin.js"] != null ? { ...files, "celestin.js": CELESTIN_TEST } : files);
+// (its script tag, first in the head, when the builder left it out)
+const withBackendTag = (h) => (!h || /src=["']?\.?\/?celestin\.js/i.test(h) ? h : /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + '\n<script src="celestin.js"><\/script>') : '<script src="celestin.js"><\/script>\n' + h);
 function appDoc(files) {
 	let h = files["index.html"] || Object.entries(files).find(([k]) => /\.html?$/i.test(k))?.[1] || "";
 	if (!h) return "<!doctype html><body style='font-family:sans-serif;padding:24px'>This project has no index.html yet.</body>";
+	if (files["celestin.js"] != null) h = withBackendTag(h);
 	const get = (p) => files[String(p).replace(/^\.?\//, "")];
 	h = h.replace(/<link[^>]*>/gi, (tag) => {
 		// (with quotes round the address or without: href="style.css", href=style.css)
@@ -10411,6 +10422,9 @@ async function buildApp(text, atts, pick) {
 	updateLast();
 	const have = prev ? Object.entries(prev.data.files).map(([p, c]) => "=== FILE: " + p + " ===\n" + c).join("\n\n").slice(0, 70000) : "";
 	const source = sourceOf(atts, 30000);
+	// (its backend: one key for its whole life, kept through every change; signed out, an app has none)
+	let appKey = prev ? String(prev.data.appKey || "") : "";
+	if (!appKey && creditsMode() && account) { try { appKey = String((await api("/api/apps", { method: "POST", body: JSON.stringify({ title: pick.title || text.slice(0, 60) }) })).key || ""); } catch {} }
 	const rules = "You are an expert engineer working in a browser sandbox with a live preview.\n" +
 		"Rules:\n- Plain HTML, CSS and JavaScript. No build step, no frameworks, no images or network requests from outside. Two things may load from outside: fonts from Google Fonts (a <link> to fonts.googleapis.com, two families at most, with a fallback stack), and, for real 3D, three.js r128 with <script src=\"" + THREE_SRC + "\"><\/script> before your own script (only that file: no add-ons such as OrbitControls or loaders, so write camera controls yourself; r128's API: BufferGeometry, no Geometry). Pictures and icons are drawn: inline SVG (icons in one consistent stroke style), CSS and canvas; emoji only where emoji is the content, never as icons.\n" +
 		"- Complete and working on the first run: no placeholders, no TODOs, no lorem ipsum: real, specific words for this subject.\n" +
@@ -10422,7 +10436,7 @@ async function buildApp(text, atts, pick) {
 		"- A game feels right: movement works with both WASD and the arrow keys unless asked otherwise; players and vehicles speed up and slow down (never full speed or a dead stop at once) and a ball rolls on with momentum and slows with friction; computer players think for themselves, each keeping its own position and job, reacting to the ball after a short delay and sometimes getting it wrong (difficulty changes how often), and never copying or mirroring the person's moves; it never restarts, resets or pauses by itself (only a goal, the clock or a key the person presses does that).\n" +
 		(MODEL3D_RE.test(text) ? "- It's a 3D model they'll use elsewhere (to sell, print or put in a game): they download what's on screen as .glb, .stl or .obj, so build it as a real object: real-world size in metres, its parts as separate meshes with clear names, MeshStandardMaterial with real colours, roughness and metalness, smooth enough geometry (enough segments), and nothing else in the scene that would end up in the file (no ground, grid, helpers or text); show it on a turntable with good studio lighting.\n" : "") +
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
-		"- Don't store anything the app can't lose (no localStorage needed).\n" +
+		(appKey ? BACKEND_RULE : "- Don't store anything the app can't lose (no localStorage needed).\n") +
 		"OUTPUT FORMAT, exactly, nothing before or after:\n=== FILE: index.html ===\n(full file)\n=== FILE: style.css ===\n(full file)\n=== NOTES ===\n(2-4 short plain sentences: what you built or changed and how to use it)\n" +
 		"Write each file COMPLETE. No markdown fences around files.\n" +
 		"Changing a project that already exists: the change format you're given instead (only what changes).";
@@ -10452,7 +10466,7 @@ async function buildApp(text, atts, pick) {
 		const n = (String(t).match(LIVE_MARK) || []).length;
 		if (n === marks) return;
 		marks = n;
-		const p = liveParse(t), files = Object.assign({}, prev ? prev.data.files : {}, p.files);
+		const p = liveParse(t), files = Object.assign({}, prev ? prev.data.files : {}, p.files, appKey ? { "celestin.js": celestinJs(appKey) } : {});
 		p.del.forEach((x) => delete files[x]);
 		const now = applyEdits(files, p.edits).files, page = now["index.html"];
 		const missing = page ? pageNeeds(page).filter((f) => now[f] == null) : ["index.html"];
@@ -10501,12 +10515,15 @@ async function buildApp(text, atts, pick) {
 	}
 	if (!parsed) throw lastErr || new Error("No model could build that.");
 	let files = prev ? await applyChange(prev.data.files, parsed, by, asked, said, msg) : Object.assign({}, parsed.files);
+	if (appKey) files = { ...files, "celestin.js": celestinJs(appKey) };
 	if (unfinished) msg.tested = { ok: false, fixed: 0, rounds: 0, problems: [unfinished + " was cut off before it was finished"], short: true };
 	else files = await heal(files, text, msg, rules, !prev, by);
 	// (a set time or Max: the full deep work; a build the conductor read as hard: up to DEEP_HARD rounds, when covered)
 	const hard = !longRunOf(text) && speed() !== "fast" && !!(PROFILE && PROFILE.level === "hard");
 	if (!unfinished && (longRunOf(text) || (hard && (await canDeepen(by)))) && !(msg.tested && msg.tested.short)) files = await deepenApp(files, text, msg, rules, by, hard ? DEEP_HARD : 0);
-	msg.data = { files, title };
+	// (its backend's file and tag, whatever the fixes did: it goes with it when it's downloaded or published)
+	if (appKey) files = { ...files, "celestin.js": celestinJs(appKey), "index.html": withBackendTag(files["index.html"]) };
+	msg.data = { files, title, appKey };
 	msg.tab = "preview";
 	{
 		const i = current ? current.msgs.indexOf(msg) : -1;
@@ -16346,6 +16363,7 @@ function needRow(it) {
 	const toLine = () => (it.kind === "tool" ? "In " + esc(it.to) + ": " + esc(String(it.tool || "").replace(/_/g, " ")) : it.kind === "post" ? "A post to " + esc(it.to) : esc(it.to ? "To " + it.to : "A reply in the thread") + (it.subject ? " · " + esc(it.subject) : ""));
 	if (it.type === "out") return head("Going out by itself at " + esc(new Date(it.sendAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))) + '<div class="help">' + toLine() + " · it passed every check</div>" + '<div style="white-space:pre-wrap;margin-top:6px">' + esc(it.text) + "</div>" + btns('<button class="btn dark" data-ndostop>Stop it</button><button class="btn" data-ndosend>Send now</button>');
 	if (it.type === "held") return head("Held for your OK") + '<div class="help"><b>Why:</b> ' + esc(it.why) + '</div><div class="help">' + toLine() + '</div><textarea class="inp" rows="4" data-ndbody style="margin-top:6px">' + esc(it.text) + "</textarea>" + btns('<button class="btn dark" data-ndosend>Send</button><button class="btn" data-ndodiscard>Discard</button>');
+	if (it.type === "appdata") return head(it.kind === "_notify" ? "Your app says" : "New in your app: " + esc(String(it.kind).replace(/[-_.]+/g, " "))) + '<div style="white-space:pre-wrap">' + esc(it.text) + "</div>" + btns('<button class="btn" data-ndappseen>Got it</button>');
 	if (it.type === "approve") return head("An email for your OK") + '<div class="help">' + esc(it.to ? "To " + it.to : "A reply in the thread") + (it.subject ? " · " + esc(it.subject) : "") + '</div><textarea class="inp" rows="4" data-ndbody style="margin-top:6px">' + esc(it.text) + "</textarea>" + btns('<button class="btn dark" data-ndsend>Send</button><button class="btn" data-nddiscard>Discard</button>');
 	if (it.type === "desk" && it.kind === "reminder") return head("A reminder to send") + '<div style="white-space:pre-wrap">' + esc(it.reminder || it.text) + "</div>" + btns((it.link ? '<a class="btn dark" href="' + esc(it.link) + '" target="_blank" rel="noopener" data-ndgo>Send on WhatsApp</a>' : "") + '<button class="btn" data-nddone>Done</button>');
 	if (it.type === "desk") return head(it.kind === "question" ? "A customer asked" : it.kind === "booking" ? "A booking request" : it.kind === "lead" ? "A website enquiry" : it.kind === "paid" ? "A payment arrived" : it.kind === "message" || !it.kind ? "A customer message" : "A customer's " + String(it.kind).replace(/[^a-z]/gi, "").toLowerCase()) + "<div>" + esc(it.text) + "</div>" + (it.money ? '<div style="margin-top:2px"><b>' + esc(it.money) + "</b></div>" : "") + (it.who ? '<div class="help">' + esc(it.who) + "</div>" : "") + btns('<input class="inp" data-ndreply placeholder="' + (it.kind === "question" ? "Your answer (it reaches them, and your desk learns it)" : "Your reply (it reaches them)") + '" style="flex:1;min-width:200px"><button class="btn dark" data-ndanswer>Send</button><button class="btn" data-nddone>Done</button>');
@@ -16372,6 +16390,7 @@ function drawNeeds() {
 		if (q("[data-ndskip]")) q("[data-ndskip]").onclick = () => act(it, itemPath, { status: "skipped" });
 		if (q("[data-ndgo]")) q("[data-ndgo]").addEventListener("click", () => setTimeout(() => act(it, itemPath, { status: "done" }), 400));
 		if (q("[data-ndseen]")) q("[data-ndseen]").onclick = () => act(it, "/api/agents/seen", { ids: [it.id] });
+		if (q("[data-ndappseen]")) q("[data-ndappseen]").onclick = () => act(it, "/api/apps/rows/seen", { ids: [it.id] });
 		if (q("[data-ndostop]")) q("[data-ndostop]").onclick = async () => { await act(it, "/api/outbox/" + it.id + "/stop", {}, "Stopped: it waits for you"); syncNeeds(); };
 		if (q("[data-ndosend]")) q("[data-ndosend]").onclick = () => act(it, "/api/outbox/" + it.id + "/send", q("[data-ndbody]") ? { text: q("[data-ndbody]").value } : {}, "Sent");
 		if (q("[data-ndodiscard]")) q("[data-ndodiscard]").onclick = () => act(it, "/api/outbox/" + it.id + "/discard", {}, "Thrown away");

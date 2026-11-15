@@ -212,3 +212,8 @@ CREATE INDEX IF NOT EXISTS outbox_user ON outbox(user_id, created_at);
 -- apps connected through MCP: each one's own sign-in, the tokens sealed
 CREATE TABLE IF NOT EXISTS mcps (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL, url TEXT NOT NULL, secret TEXT NOT NULL, tools TEXT, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS mcps_user ON mcps(user_id);
+-- the backend of the apps Celestin builds: what they keep for their owners, and what they share
+CREATE TABLE IF NOT EXISTS app_keys (key TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS app_keys_user ON app_keys(user_id);
+CREATE TABLE IF NOT EXISTS app_rows (id TEXT PRIMARY KEY, app TEXT NOT NULL, coll TEXT NOT NULL, data TEXT NOT NULL, ip TEXT, seen INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS app_rows_app ON app_rows(app, coll, created_at);

@@ -168,6 +168,8 @@ async function route(req, env, ctx, url) {
 	if ((cl = p.match(/^\/api\/text\/([a-f0-9]{24})$/)) && m === "POST") return textHook(req, env, ctx, cl[1]);
 	if ((cl = p.match(/^\/api\/lead\/([a-f0-9]{24})$/)) && m === "POST") return leadIn(req, env, ctx, cl[1]);
 	if (p === "/api/mcp/callback" && m === "GET") return mcpCallback(req, env);
+	if ((cl = p.match(/^\/api\/app\/([a-f0-9]{24})\/notify$/)) && m === "POST") return appNotify(req, env, cl[1]);
+	if ((cl = p.match(/^\/api\/app\/([a-f0-9]{24})\/([\w.-]{1,40})$/)) && (m === "POST" || m === "GET")) return appRows(req, env, cl[1], cl[2], m);
 	if (p === "/api/media/models" && m === "GET") return json(wsOn(env) ? await wsCatalog(env) : gwMediaCatalog(await gwMedia(env, ownerKeyOk(req, env) ? undefined : (await config(env)).publicGateways)));
 	// a shared chat: anyone with its link can read it; a picture shared with an app, anyone with its link can fetch
 	let sh, up;
@@ -205,6 +207,8 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/outbox/stop" && m === "POST") return outboxStopAll(env, user);
 	if (p === "/api/mcp" && m === "GET") return mcpList(env, user);
 	if (p === "/api/mcp/registry" && m === "GET") return mcpRegistry(req);
+	if (p === "/api/apps" && m === "POST") return appRegister(req, env, user);
+	if (p === "/api/apps/rows/seen" && m === "POST") return appSeen(req, env, user);
 	if (p === "/api/mcp/connect" && m === "POST") return mcpConnect(req, env, user);
 	if ((fd = p.match(/^\/api\/mcp\/([a-f0-9]{24})$/)) && m === "DELETE") return mcpDelete(env, user, fd[1]);
 	if ((fd = p.match(/^\/api\/mcp\/([a-f0-9]{24})\/call$/)) && m === "POST") return mcpCall(req, env, user, fd[1]);
@@ -276,7 +280,9 @@ function corsHeaders(req, env) {
 	// the site, and the same page opened on this computer (from a file, which says "null", or a local server): sign-in is a
 	// token the page holds, not a cookie, so where the page is opened from gives nobody else's account away
 	const local = origin === "null" || /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(origin);
-	const ok = !allowed.length || allowed.includes(origin) || allowed.includes("*") || local;
+	// (the backend of the apps Celestin builds answers them wherever they run: no account, no cookie, only the app's key)
+	const appApi = new URL(req.url).pathname.startsWith("/api/app/");
+	const ok = !allowed.length || allowed.includes(origin) || allowed.includes("*") || local || appApi;
 	return {
 		"Access-Control-Allow-Origin": ok ? origin || "*" : allowed[0],
 		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
@@ -3897,7 +3903,7 @@ async function prefsOf(env, uid) { const r = await env.DB.prepare("SELECT state 
 // everything waiting for its owner's decision, from every part of the team, and what got done yesterday
 async function needsOf(env, uid) {
 	const day = now() - 864e5, all = async (sql, ...a) => (await env.DB.prepare(sql).bind(...a).all().catch(() => ({ results: [] }))).results || [], one = (sql, ...a) => env.DB.prepare(sql).bind(...a).first().catch(() => null);
-	const [approve, reports, desk, jobs, chats, booked, mailed, posted, calls, outs] = await Promise.all([
+	const [approve, reports, desk, jobs, chats, booked, mailed, posted, calls, outs, appd] = await Promise.all([
 		all("SELECT l.id, l.text, l.created_at, a.name FROM agent_log l JOIN agents a ON a.id = l.agent_id WHERE l.user_id = ? AND l.kind = 'approve' ORDER BY l.created_at DESC LIMIT 20", uid),
 		all("SELECT l.id, l.text, l.created_at, a.name FROM agent_log l JOIN agents a ON a.id = l.agent_id WHERE l.user_id = ? AND l.kind = 'report' AND l.seen = 0 ORDER BY l.created_at DESC LIMIT 10", uid),
 		all("SELECT i.id, i.kind, i.summary, i.details, i.slot, i.created_at, b.name AS bot_name FROM bot_items i JOIN bots b ON b.id = i.bot_id WHERE i.user_id = ? AND i.status = 'new' AND NOT (i.kind = 'booking' AND i.slot IS NOT NULL) ORDER BY i.created_at DESC LIMIT 20", uid),
@@ -3908,12 +3914,14 @@ async function needsOf(env, uid) {
 		one("SELECT COUNT(*) AS n FROM team_job_items WHERE user_id = ? AND kind IN ('post', 'email') AND status = 'done' AND created_at > ?", uid, day),
 		one("SELECT COUNT(*) AS n FROM calls WHERE user_id = ? AND created_at > ?", uid, day),
 		all("SELECT id, kind, payload, src, why, send_at, status, created_at FROM outbox WHERE user_id = ? AND status IN ('wait', 'held') ORDER BY created_at DESC LIMIT 30", uid),
+		all("SELECT r.id, r.coll, r.data, r.created_at, k.title FROM app_rows r JOIN app_keys k ON k.key = r.app WHERE k.user_id = ? AND r.seen = 0 ORDER BY r.created_at DESC LIMIT 40", uid),
 	]);
 	const items = [
 		...outs.map((r) => { let p = {}, src = {}; try { p = JSON.parse(r.payload || "{}"); src = JSON.parse(r.src || "{}"); } catch {} return { type: r.status === "wait" ? "out" : "held", id: r.id, kind: r.kind, from: src.name || "", to: p.to || "", subject: p.subject || "", tool: p.tool || "", text: p.body || p.text || (p.args ? JSON.stringify(p.args, null, 1) : ""), why: r.why || "", sendAt: r.send_at, at: r.created_at }; }),
 		...approve.map((l) => { let m = {}; try { m = JSON.parse(l.text); } catch {} return { type: "approve", id: l.id, from: l.name, to: m.to || "", subject: m.subject || "", text: m.body || "", at: l.created_at }; }),
 		...desk.map((i) => { let d = {}; try { d = JSON.parse(i.details || "{}"); } catch {} return { type: "desk", id: i.id, kind: i.kind, from: i.bot_name, text: i.summary || "", who: [d.name, d.contact, d.when].filter(Boolean).join(" · "), money: d.totalText ? (d.lines || []).map((l) => l.qty + " × " + l.item).join(", ") + " · " + d.totalText + (d.pay === "paid" ? " · paid" : d.pay === "waiting" ? " · waiting for payment" : "") : "", link: d.link || "", reminder: d.text || "", at: i.created_at }; }),
 		...jobs.map((i) => ({ type: "job", id: i.id, kind: i.kind, from: i.job_name, title: i.title || "", text: i.text || "", link: i.link || "", at: i.created_at })),
+		...appd.map((r) => { let d = null; try { d = JSON.parse(r.data); } catch {} return { type: "appdata", id: r.id, kind: r.coll, from: r.title, text: r.coll === "_notify" ? String((d && d.text) || "") : d && typeof d === "object" ? Object.entries(d).map(([k, v]) => k + ": " + (typeof v === "object" ? JSON.stringify(v) : v)).join("\n").slice(0, 2000) : String(d), at: r.created_at }; }),
 		...reports.map((l) => ({ type: "report", id: l.id, from: l.name, text: l.text, at: l.created_at })),
 	];
 	const n = (x) => Number(x && x.n) || 0;
@@ -3935,7 +3943,7 @@ async function runBriefs(env) {
 		if (!nd.items.length) continue;
 		const c = (type, kind) => nd.items.filter((x) => x.type === type && (!kind || x.kind === kind)).length;
 		const plural = (k, one, many) => k + " " + (k === 1 ? one : many);
-		const lines = [c("held") && plural(c("held"), "message held for your OK", "messages held for your OK"), c("approve") && plural(c("approve"), "email waiting for your OK", "emails waiting for your OK"), c("desk", "question") && plural(c("desk", "question"), "question from a customer", "questions from customers"), c("desk", "message") + c("desk", "booking") && plural(c("desk", "message") + c("desk", "booking"), "customer message", "customer messages"), c("desk", "reminder") && plural(c("desk", "reminder"), "reminder to send", "reminders to send"), c("job", "post") && plural(c("job", "post"), "post ready", "posts ready"), c("job", "message") && plural(c("job", "message"), "rebooking message to send", "rebooking messages to send"), c("job", "call") && plural(c("job", "call"), "call result", "call results"), c("report") && plural(c("report"), "thing your agents found", "things your agents found")].filter(Boolean);
+		const lines = [c("held") && plural(c("held"), "message held for your OK", "messages held for your OK"), c("approve") && plural(c("approve"), "email waiting for your OK", "emails waiting for your OK"), c("desk", "question") && plural(c("desk", "question"), "question from a customer", "questions from customers"), c("desk", "message") + c("desk", "booking") && plural(c("desk", "message") + c("desk", "booking"), "customer message", "customer messages"), c("desk", "reminder") && plural(c("desk", "reminder"), "reminder to send", "reminders to send"), c("job", "post") && plural(c("job", "post"), "post ready", "posts ready"), c("job", "message") && plural(c("job", "message"), "rebooking message to send", "rebooking messages to send"), c("job", "call") && plural(c("job", "call"), "call result", "call results"), c("report") && plural(c("report"), "thing your agents found", "things your agents found"), c("appdata") && plural(c("appdata"), "thing from your apps", "things from your apps")].filter(Boolean);
 		const y = nd.yesterday, done = [y.chats && y.chats + " chats answered", y.booked && y.booked + " booked", y.mailed && y.mailed + " emails sent", y.posted && y.posted + " posted", y.calls && y.calls + " calls"].filter(Boolean);
 		try { await connPost(env, user_id, "telegram", "☀️ Good morning. " + plural(nd.items.length, "thing needs you", "things need you") + ":\n• " + lines.join("\n• ") + (done.length ? "\n\nYesterday: " + done.join(" · ") : "") + "\n\nOpen: https://celestin.pages.dev/together#needs"); } catch {}
 	}
@@ -4769,6 +4777,61 @@ async function mcpCallback(req, env) {
 	await env.DB.prepare("DELETE FROM mcps WHERE user_id = ? AND url = ?").bind(w.uid, w.url).run();
 	await env.DB.prepare("INSERT INTO mcps (id, user_id, name, url, secret, tools, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id(), w.uid, w.name, w.url, await seal(env, sec), JSON.stringify(tools), now()).run();
 	return page(w.name + " is connected to Celestin" + (tools.length ? " (" + tools.length + " things it can do)" : "") + ". You can close this tab.", true);
+}
+// ------------------------------------------------------------------ a backend for every app Celestin builds
+// The owner, Nov 16: working forms, saved data, telling the owner "should already have been built or allowed ... you cant
+// calculate an answer for every single possible question or need". So every app Celestin builds has one general backend,
+// wherever it runs (the preview, a published site, a downloaded file), and its builder uses it for whatever the app needs:
+// records only its owner sees (what visitors send: bookings, orders, sign-ups, messages, votes; each one in Needs you),
+// shared ones anyone using it can read (collections named public-…: scores, a guestbook, live counts), and a way to tell
+// the owner at once. Anyone using the app can write, so each address writes at most APP_IP_MIN a minute
+const APP_ROWS_MAX = 5000, APP_ROW_BYTES = 8000, APP_IP_MIN = 20, APP_NOTIFY_DAY = 30;
+async function appRegister(req, env, user) {
+	const b = await body(req), title = String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 80) || "My app";
+	const k = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_keys WHERE user_id = ?").bind(user.id).first();
+	if (k && k.n >= 500) throw fail(429, "500 apps have a backend already.");
+	const key = id();
+	await env.DB.prepare("INSERT INTO app_keys (key, user_id, title, created_at) VALUES (?, ?, ?, ?)").bind(key, user.id, title, now()).run();
+	return json({ key });
+}
+const appIp = async (req) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode("app:" + (req.headers.get("CF-Connecting-IP") || "?"))))].slice(0, 8).map((b) => b.toString(16).padStart(2, "0")).join("");
+async function appBody(req) { try { return JSON.parse((await req.text()) || "{}") || {}; } catch { throw fail(400, "That wasn't readable."); } }
+const appRowOut = (r) => { let d = null; try { d = JSON.parse(r.data); } catch {} return { ...(d && typeof d === "object" && !Array.isArray(d) ? d : { value: d }), _id: r.id, _at: r.created_at }; };
+async function appRows(req, env, key, coll, m) {
+	const app = await env.DB.prepare("SELECT * FROM app_keys WHERE key = ?").bind(key).first();
+	if (!app) throw fail(404, "This app's backend isn't switched on.");
+	const pub = /^public[-_.]/i.test(coll);
+	if (m === "GET") {
+		if (!pub) throw fail(403, "Only collections named public-… can be read by everyone; the rest are for the app's owner.");
+		const rows = (await env.DB.prepare("SELECT id, data, created_at FROM app_rows WHERE app = ? AND coll = ? ORDER BY created_at DESC LIMIT 200").bind(key, coll).all()).results || [];
+		return json({ rows: rows.map(appRowOut) });
+	}
+	const b = await appBody(req), raw = JSON.stringify(b.data === undefined ? null : b.data);
+	if (raw.length > APP_ROW_BYTES) throw fail(413, "That's too big to keep (8 KB at most).");
+	const ip = await appIp(req), t = now();
+	const c = await env.DB.prepare("SELECT COUNT(*) AS n, SUM(CASE WHEN ip = ? AND created_at > ? THEN 1 ELSE 0 END) AS mine FROM app_rows WHERE app = ?").bind(ip, t - 60e3, key).first();
+	if (c && Number(c.mine) >= APP_IP_MIN) throw fail(429, "That's a lot at once: try again in a minute.");
+	if (c && Number(c.n) >= APP_ROWS_MAX) throw fail(507, "This app has all it can keep: its owner can clear old ones.");
+	const rid = id();
+	await env.DB.prepare("INSERT INTO app_rows (id, app, coll, data, ip, seen, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(rid, key, coll, raw, ip, pub ? 1 : 0, t).run();
+	return json({ id: rid });
+}
+async function appNotify(req, env, key) {
+	const app = await env.DB.prepare("SELECT * FROM app_keys WHERE key = ?").bind(key).first();
+	if (!app) throw fail(404, "This app's backend isn't switched on.");
+	const b = await appBody(req), text = String(b.text || "").trim().slice(0, 500);
+	if (!text) throw fail(400, "Nothing to say.");
+	const t = now(), c = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_rows WHERE app = ? AND coll = '_notify' AND created_at > ?").bind(key, t - 864e5).first();
+	if (c && Number(c.n) >= APP_NOTIFY_DAY) throw fail(429, "It has told its owner a lot today already.");
+	await env.DB.prepare("INSERT INTO app_rows (id, app, coll, data, ip, seen, created_at) VALUES (?, ?, '_notify', ?, ?, 0, ?)").bind(id(), key, JSON.stringify({ text }), await appIp(req), t).run();
+	// (on their phone too, when they connected Telegram)
+	try { await connPost(env, app.user_id, "telegram", "📱 " + app.title + ": " + text); } catch {}
+	return json({ ok: true });
+}
+async function appSeen(req, env, user) {
+	const b = await body(req), ids = (Array.isArray(b.ids) ? b.ids : []).filter((x) => /^[a-f0-9]{24}$/.test(String(x))).slice(0, 100);
+	for (const x of ids) await env.DB.prepare("UPDATE app_rows SET seen = 1 WHERE id = ? AND app IN (SELECT key FROM app_keys WHERE user_id = ?)").bind(x, user.id).run();
+	return json({ ok: true });
 }
 // ------------------------------------------------------------------ the send guard
 // The owner, Nov 15, on letting Together send by itself: "make sure it NEVER slips up ... their whole business could
