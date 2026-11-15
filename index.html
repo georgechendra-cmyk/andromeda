@@ -8515,7 +8515,39 @@ function useRefs(plan, text, found) {
 // How Celestin serves one request: the conductor reads it and decides how (small talk needs no reading), then the part of
 // Celestin for that does it with the model measured best; a way that fails is told why and it chooses again. Celestin
 // Together's teammates are served exactly this way too, with their own field weighed in (o.weights)
+// Every link in a finished answer, opened (in the background, after it's shown): one that doesn't exist (404, 410, a page
+// saying it's not found, a site that doesn't answer) is marked so, so nobody clicks into a dead end or a made-up source.
+// A site that only turns robots away (403, 429) isn't marked: it's probably fine for a person. Links in code stay as written
+const LINK_RE = /\[([^\]\n]{1,200})\]\((https?:\/\/[^\s)]+)\)|(?<![(\["'\/])\bhttps?:\/\/[^\s<>()"'\x60\]]+[^\s<>()"'\x60\].,;:!?*_]/g;
+async function checkLinksIn(chat, from) {
+	try {
+		if (!chat || LANE) return;
+		for (const m of chat.msgs.slice(from).filter((x) => x.role === "assistant" && !x.error && !x.linksChecked && typeof x.text === "string" && /https?:\/\//.test(x.text))) {
+			m.linksChecked = true;
+			const parts = m.text.split(/(\x60\x60\x60[\s\S]*?\x60\x60\x60|\x60[^\x60\n]*\x60)/);
+			const prose = parts.filter((p, i) => i % 2 === 0).join("\n");
+			const urls = [...new Set([...prose.matchAll(LINK_RE)].map((x) => x[2] || x[0]))].filter((u) => !/^https?:\/\/([^/]*\.)?(celestin\.pages\.dev|localhost|127\.0\.0\.1)/i.test(u)).slice(0, 12);
+			if (!urls.length) continue;
+			const dead = [];
+			await Promise.all(urls.map(async (u) => {
+				try { const j = await toolCall("/api/tools/fetch", { url: u }, 9000); if (/(^|\b)(404|page not found|not found|doesn['’]t exist|does not exist|no longer available|page unavailable)\b/i.test(String((j && j.title) || ""))) dead.push(u); }
+				catch (e) { if (/answered (404|410)\b|didn['’]t answer/i.test(String((e && e.message) || e))) dead.push(u); }
+			}));
+			if (!dead.length) continue;
+			const rx = (u) => u.replace(/[.*+?^(){}$|[\]\\]/g, "\\$&");
+			m.text = parts.map((p, i) => {
+				if (i % 2) return p;
+				for (const u of dead) p = p.replace(new RegExp("\\[([^\\]\\n]{1,200})\\]\\(" + rx(u) + "\\)", "g"), "$1 *(its link didn't open when Celestin checked it)*").split(u).join("~~" + u + "~~ *(didn't open when Celestin checked it)*");
+				return p;
+			}).join("");
+			(m.used ||= []).push({ name: "Celestin", desc: "Link check: opened every link; " + dead.length + (dead.length === 1 ? " didn't" : " didn't") + " open and " + (dead.length === 1 ? "is" : "are") + " marked" });
+			save();
+			if (chat === current) render();
+		}
+	} catch {}
+}
 async function serve(text, atts, tool, o = {}) {
+	const serveFrom = current ? current.msgs.length : 0;
 	// Celestin reads it and decides how to serve it (the strongest fast reader, by measurement)
 	// small talk ("hi", "thanks", "ok") needs no reading: straight to an answer (a credit and several seconds saved)
 	const smallTalk = !atts.length && !tool && !(PROJECT && !PROJECT.asleep) && SMALL_TALK.test(text.trim());
@@ -8642,6 +8674,8 @@ async function serve(text, atts, tool, o = {}) {
 		else if (code) await runApp(text, atts, code);
 		else await runSmart(text, atts);
 	}
+	// (its links, opened, while they read it)
+	checkLinksIn(current, serveFrom);
 }
 // a failed way that spent more than this (credits; about Rp1k) isn't redone another way by itself
 const RETRY_SPENT_MAX = 15;
