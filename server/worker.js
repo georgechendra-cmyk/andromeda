@@ -577,7 +577,6 @@ async function authUser(req, env) {
 	if (!token) throw fail(401, "Sign in to use Celestin credits.");
 	const row = await env.DB.prepare("SELECT u.* , s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?").bind(await sha256hex(token)).first();
 	if (!row || row.expires_at < now()) throw fail(401, "Your session ended. Sign in again.");
-	if (Number(row.banned_at) > 0) throw fail(403, "This account was closed: " + (row.ban_reason || "it broke the Terms") + "." + (Number(row.refund_idr) > 0 ? " You'll get back Rp" + Number(row.refund_idr).toLocaleString("id-ID") + ", what you paid for and hadn't used yet: write to us in Help and support with where to send it." : ""));
 	row.owner = ownerHere(req, env, row.id);
 	return readyUser(env, row, await config(env));
 }
@@ -681,7 +680,7 @@ let COLS = null;
 function columns(env) {
 	if (!COLS) COLS = (async () => {
 		const have = new Set(((await env.DB.prepare("PRAGMA table_info(users)").all()).results || []).map((r) => r.name));
-		for (const [k, t] of [["plan_terms", "TEXT"], ["banned_at", "INTEGER NOT NULL DEFAULT 0"], ["ban_reason", "TEXT"], ["refund_idr", "INTEGER NOT NULL DEFAULT 0"], ["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"], ["email_ok", "INTEGER NOT NULL DEFAULT 0"], ["period_at", "INTEGER NOT NULL DEFAULT 0"]]) {
+		for (const [k, t] of [["plan_terms", "TEXT"], ["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"], ["email_ok", "INTEGER NOT NULL DEFAULT 0"], ["period_at", "INTEGER NOT NULL DEFAULT 0"]]) {
 			if (have.has(k)) continue;
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
