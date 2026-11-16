@@ -138,6 +138,7 @@ export default {
 			.then(() => runDueAgents(env, ctx)).catch(() => {})
 			.then(() => runOutbox(env)).catch(() => {})
 			.then(() => pushNeeds(env)).catch(() => {})
+			.then(() => paySaidWatch(env)).catch(() => {})
 			.then(() => tgHooks(env)).catch(() => {})
 			.then(() => warmFeeds(env)).catch(() => {})
 			.then(() => runBriefs(env)).catch(() => {})
@@ -576,6 +577,7 @@ async function authUser(req, env) {
 	if (!token) throw fail(401, "Sign in to use Celestin credits.");
 	const row = await env.DB.prepare("SELECT u.* , s.expires_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?").bind(await sha256hex(token)).first();
 	if (!row || row.expires_at < now()) throw fail(401, "Your session ended. Sign in again.");
+	if (Number(row.banned_at) > 0) throw fail(403, "This account was closed: " + (row.ban_reason || "it broke the Terms") + "." + (Number(row.refund_idr) > 0 ? " You'll get back Rp" + Number(row.refund_idr).toLocaleString("id-ID") + ", what you paid for and hadn't used yet: write to us in Help and support with where to send it." : ""));
 	row.owner = ownerHere(req, env, row.id);
 	return readyUser(env, row, await config(env));
 }
@@ -609,11 +611,17 @@ function planOf(u, c) {
 	const plans = c.plans || [];
 	// (a plan the owner has since taken off sale still runs out its month, as the first plan on sale)
 	const bought = u && u.plan && Number(u.plan_until) > now() ? plans.find((p) => p.id === u.plan) || plans[0] : null;
-	const p = bought || c.free;
+	let p = bought || c.free;
+	// (what they bought, as it was when they paid: never less until it ends, more where the plan got better since; for a
+	// week or month cap, 0 is no cap at all)
+	if (bought && u.plan_terms) { try { const s = JSON.parse(u.plan_terms); if (s && s.id === bought.id) p = planBest(bought, s); } catch {} }
 	const credits = Number(p.credits) || 0, hours = Number(p.hours) || 24;
 	const every = !bought && Number(c.free.every) > 0 && Number(c.free.every) < hours ? Number(c.free.every) : hours;
 	return { id: bought ? bought.id : "free", name: bought ? bought.name : "Free", paid: !!bought, credits, hours, every, share: Math.round(credits * every / hours * 1000) / 1000, stepMs: every * 3600e3, week: Math.max(0, Number(p.week) || 0), month: Math.max(0, Number(p.month) || 0), days: Number(p.days) || 30, until: bought ? Number(u.plan_until) : 0 };
 }
+const capBest = (a, b) => { const x = Math.max(0, Number(a) || 0), y = Math.max(0, Number(b) || 0); return !x || !y ? 0 : Math.max(x, y); };
+const planBest = (cur, s) => ({ ...cur, credits: Math.max(Number(cur.credits) || 0, Number(s.credits) || 0), hours: Math.min(Number(cur.hours) || 24, Number(s.hours) || 24), week: capBest(cur.week, s.week), month: capBest(cur.month, s.month) });
+const planTerms = (plan, old) => { const s = { id: plan.id, credits: plan.credits, hours: plan.hours, week: plan.week, month: plan.month }; return JSON.stringify(old && old.id === plan.id ? { ...planBest(s, old), id: plan.id } : s); };
 // what's been spent from windows this week (a week that's over counts nothing)
 const weekUsed = (u) => (u.week_at && now() < u.week_at ? Math.max(0, u.week_mc || 0) : 0);
 const UNLIMITED_MC = 1e9;
@@ -655,12 +663,16 @@ function planChange(u, plans, plan, days, t) {
 async function startPlan(env, userId, plan, days) {
 	// (two payments approved at once: the second goes again with what the first did)
 	for (let tries = 0; tries < 5; tries++) {
-		const u = await env.DB.prepare("SELECT plan, plan_until, plan_mc, period_at FROM users WHERE id = ?").bind(userId).first();
+		const u = await env.DB.prepare("SELECT plan, plan_until, plan_mc, period_at, plan_terms FROM users WHERE id = ?").bind(userId).first();
 		if (!u) return false;
 		const x = planChange(u, (await config(env)).plans || [], plan, days, now());
+		// (its terms locked in as they are today: never less until it ends; the same plan again keeps the better of the two)
+		let old = null;
+		try { old = JSON.parse(u.plan_terms || "null"); } catch {}
+		const terms = planTerms(plan, x.same ? old : null);
 		const r = x.same ? await env.DB.prepare("UPDATE users SET plan_until = ?, period_at = ? WHERE id = ? AND plan_until = ?").bind(x.plan_until, x.period_at, userId, u.plan_until).run()
 			: await env.DB.prepare("UPDATE users SET plan = ?, plan_until = ?, period_at = ?, plan_mc = ?, free_mc = ?, free_reset_at = 0, week_mc = 0, week_at = 0 WHERE id = ? AND plan_until = ?").bind(x.plan, x.plan_until, x.period_at, x.plan_mc, x.free_mc, userId, u.plan_until).run();
-		if (r.meta && r.meta.changes) return true;
+		if (r.meta && r.meta.changes) { await env.DB.prepare("UPDATE users SET plan_terms = ? WHERE id = ?").bind(terms, userId).run(); return true; }
 	}
 	return false;
 }
@@ -669,7 +681,7 @@ let COLS = null;
 function columns(env) {
 	if (!COLS) COLS = (async () => {
 		const have = new Set(((await env.DB.prepare("PRAGMA table_info(users)").all()).results || []).map((r) => r.name));
-		for (const [k, t] of [["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"], ["email_ok", "INTEGER NOT NULL DEFAULT 0"], ["period_at", "INTEGER NOT NULL DEFAULT 0"]]) {
+		for (const [k, t] of [["plan_terms", "TEXT"], ["banned_at", "INTEGER NOT NULL DEFAULT 0"], ["ban_reason", "TEXT"], ["refund_idr", "INTEGER NOT NULL DEFAULT 0"], ["plan", "TEXT"], ["plan_until", "INTEGER NOT NULL DEFAULT 0"], ["week_mc", "INTEGER NOT NULL DEFAULT 0"], ["week_at", "INTEGER NOT NULL DEFAULT 0"], ["plan_mc", "INTEGER NOT NULL DEFAULT 0"], ["email_ok", "INTEGER NOT NULL DEFAULT 0"], ["period_at", "INTEGER NOT NULL DEFAULT 0"]]) {
 			if (have.has(k)) continue;
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
@@ -5754,6 +5766,8 @@ async function qrisPayment(req, env, user) {
 		const p = await env.DB.prepare("SELECT * FROM payments WHERE id = ? AND user_id = ?").bind(b.id, user.id).first();
 		if (!p) throw fail(404, "That payment isn't yours.");
 		if (reference) await env.DB.prepare("UPDATE payments SET note = ? WHERE id = ?").bind(reference, p.id).run();
+		// (if it hasn't matched in 15 minutes, the owner hears)
+		if (p.status === "pending") await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO NOTHING").bind("paysaid:" + p.id, String(now())).run();
 		return json({ ok: true, payment: payOut(p) });
 	}
 	// a month of a plan, or a pack of credits (a plan's payment is "plan:<id>" and carries no credits of its own)
@@ -5804,6 +5818,34 @@ async function payKey(env, make) {
 	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('pay-notify-key', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(k).run();
 	return k;
 }
+// the owner, told at once wherever they are: their phone (alerts), their Telegram, their email
+async function ownerAlert(env, title, body) {
+	for (const uid of OWNER_IDS) {
+		try { await pushTo(env, uid, { title, body, url: String(env.SITE_URL || "https://celestin.pages.dev").replace(/\/+$/, "") + "/#app", tag: "owner-pay", urgent: true }); } catch {}
+		try { await connPost(env, uid, "telegram", "💸 " + title + "\n\n" + body); } catch {}
+		try { const u = await env.DB.prepare("SELECT email FROM users WHERE id = ?").bind(uid).first(); if (u && u.email && mailOn(env)) await sendMail(env, u.email, title, body); } catch {}
+	}
+}
+// the payments waiting that this money could be (same amount at any age first, then close amounts)
+async function payCandidates(env, amounts) {
+	const out = [];
+	for (const a of amounts.slice(0, 3)) {
+		const rows = (await env.DB.prepare("SELECT p.id, p.amount, p.pack, p.note, p.created_at, u.email FROM payments p JOIN users u ON u.id = p.user_id WHERE p.method = 'qris' AND p.status = 'pending' AND p.amount BETWEEN ? AND ? ORDER BY ABS(p.amount - ?) LIMIT 3").bind(a - 1000, a + 1000, a).all().catch(() => ({ results: [] }))).results || [];
+		for (const r of rows) if (!out.some((x) => x.id === r.id)) out.push(r);
+	}
+	return out.slice(0, 3);
+}
+const payLine = (r) => r.email + " · Rp" + Number(r.amount).toLocaleString("id-ID") + " · " + (/^plan:/.test(r.pack || "") ? r.pack.slice(5) + " plan" : "credits") + " · " + Math.round((now() - r.created_at) / 60e3) + " min ago" + (r.note ? " · paid as: " + r.note : "") + "\n  node owner.mjs approve " + r.id;
+// (every few minutes: someone said they paid, and 15 minutes on nothing has matched)
+async function paySaidWatch(env) {
+	const t = now(), rows = (await env.DB.prepare("SELECT k, v FROM config WHERE k LIKE 'paysaid:%'").all().catch(() => ({ results: [] }))).results || [];
+	for (const r of rows) {
+		if (t - Number(r.v) < 15 * 60e3) continue;
+		await env.DB.prepare("DELETE FROM config WHERE k = ?").bind(r.k).run();
+		const p = await env.DB.prepare("SELECT p.*, u.email FROM payments p JOIN users u ON u.id = p.user_id WHERE p.id = ? AND p.status = 'pending'").bind(r.k.slice(8)).first();
+		if (p) await ownerAlert(env, "Someone paid and is still waiting", "They pressed \"I've paid\" " + Math.round((t - Number(r.v)) / 60e3) + " minutes ago and nothing has matched. Check your OVO for it, then approve it:\n\n" + payLine(p));
+	}
+}
 async function payNotify(req, env) {
 	const raw = await req.text();
 	let b = {};
@@ -5824,6 +5866,8 @@ async function payNotify(req, env) {
 	let list = [];
 	try { list = JSON.parse((seen && seen.v) || "[]"); } catch {}
 	list.unshift({ at: t, text: text.slice(0, 200), amounts, matched: matched ? { id: matched.id, amount: Number(matched.amount) } : null });
+	// (money in that matched nothing: someone may have paid and got nothing yet, so the owner hears now, with who it could be)
+	if (!matched && amounts.length) { const cands = await payCandidates(env, amounts); await ownerAlert(env, "Money came in that matched no payment", "Rp" + amounts.map((a) => a.toLocaleString("id-ID")).join(" / ") + " arrived but matched no payment by itself" + (cands.length ? ". It could be:\n\n" + cands.map(payLine).join("\n\n") : ", and no payment waiting is close to it.") + "\n\nWhat the notification said: " + text.slice(0, 200)); }
 	await env.DB.prepare("INSERT INTO config (k, v) VALUES ('pay-seen', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v").bind(JSON.stringify(list.slice(0, 30))).run();
 	return json({ ok: true, matched: matched ? matched.id : null, amounts });
 }

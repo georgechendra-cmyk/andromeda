@@ -14,6 +14,10 @@ CREATE TABLE IF NOT EXISTS users (
 	week_at INTEGER NOT NULL DEFAULT 0, -- when this week ends (0 = no week running)
 	plan_mc INTEGER NOT NULL DEFAULT 0, -- what's left of a bought plan's credits for this month (they don't carry over)
 	period_at INTEGER NOT NULL DEFAULT 0, -- when this month of the plan ends and the next month's credits arrive
+	plan_terms TEXT, -- the plan as it was when they paid: they never get less until it ends (more if it got better)
+	banned_at INTEGER NOT NULL DEFAULT 0, -- when the account was closed for breaking the Terms (0: it wasn't)
+	ban_reason TEXT, -- why, as they're told
+	refund_idr INTEGER NOT NULL DEFAULT 0, -- what they paid for and hadn't used when it was closed, owed back to them
 	email_ok INTEGER NOT NULL DEFAULT 0, -- someone has proven the email is theirs (a code sent to it, or Google)
 	created_at INTEGER NOT NULL
 );

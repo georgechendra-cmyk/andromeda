@@ -7,6 +7,9 @@
 //   node owner.mjs plan <email> <plan> [days]  give a plan (nova, pulsar, quasar) from today, or added to the one running
 //   node owner.mjs credits <email> <n>         add (or, negative, take) pack credits
 //   node owner.mjs stats                       what's been sold, what AI has cost, and free use by day
+//   node owner.mjs owed <email>                what they paid for and haven't used (what closing it would give back)
+//   node owner.mjs ban <email> <why> [--no-refund]   close it: they're told why and what's coming back; you send it
+//   node owner.mjs unban <email>
 //
 // Prices, plans and the shop's settings are in worker.js (DEFAULT_CONFIG); this reads the plans from there.
 import { execFileSync } from "node:child_process";
@@ -35,7 +38,10 @@ const CONFIG = Function("return (" + piece("const DEFAULT_CONFIG = {").slice("co
 const planChange = Function(piece("function planChange(") + "\nreturn planChange;")();
 
 const q = (v) => (v == null ? "NULL" : typeof v === "number" ? String(Math.round(v)) : "'" + String(v).replace(/'/g, "''") + "'");
+// (for tests only: OWNER_DB=<a SQLite file> runs everything against that file instead of the real database)
+const LOCAL = process.env.OWNER_DB ? new (await import("node:sqlite")).DatabaseSync(process.env.OWNER_DB) : null;
 function sql(command) {
+	if (LOCAL) { if (/^\s*select/i.test(command)) return LOCAL.prepare(command).all().map((r) => ({ ...r })); LOCAL.exec(command); return []; }
 	const args = ["--yes", "wrangler@4", "d1", "execute", "andromeda", "--remote", "--json", "--command", command];
 	const out = existsSync(NPX) ? execFileSync(process.execPath, [NPX, ...args], { cwd: DIR, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] })
 		: execFileSync("npx", args, { cwd: DIR, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -51,6 +57,8 @@ const userOf = (email) => {
 // starts today (what was left of the old one becomes extra days of it); credits never pile up (planChange in worker.js)
 function startPlan(u, plan, days) {
 	const x = planChange(u, CONFIG.plans, plan, days, Date.now());
+	// (its terms locked in as they are today, as the server does)
+	sql("UPDATE users SET plan_terms = " + q(JSON.stringify({ id: plan.id, credits: plan.credits, hours: plan.hours, week: plan.week, month: plan.month })) + " WHERE id = " + q(u.id));
 	if (x.same) sql("UPDATE users SET plan_until = " + q(x.plan_until) + ", period_at = " + q(x.period_at) + " WHERE id = " + q(u.id));
 	else sql("UPDATE users SET plan = " + q(x.plan) + ", plan_until = " + q(x.plan_until) + ", period_at = " + q(x.period_at) + ", plan_mc = " + q(x.plan_mc) + ", free_mc = " + q(x.free_mc) + ", free_reset_at = 0, week_mc = 0, week_at = 0 WHERE id = " + q(u.id));
 	return new Date(x.plan_until).toISOString().slice(0, 10);
@@ -82,6 +90,30 @@ if (cmd === "pending") {
 	sql("INSERT INTO payments (id, user_id, method, amount, currency, credits_mc, status, note, created_at, decided_at) VALUES (" + [randomBytes(12).toString("hex"), u.id, "manual", 0, "USD", n * 1000, "approved", "by hand", Date.now(), Date.now()].map(q).join(", ") + ")");
 	sql("UPDATE users SET balance_mc = MAX(0, balance_mc + " + q(n * 1000) + ") WHERE id = " + q(u.id));
 	console.log((n > 0 ? "Added " : "Took ") + Math.abs(n) + " credits.");
+} else if (cmd === "owed" || cmd === "ban" || cmd === "unban") {
+	const u = sql("SELECT id, email, plan, plan_until, balance_mc, banned_at FROM users WHERE email = " + q(String(args[0] || "").trim().toLowerCase()))[0];
+	if (!u) throw new Error("No account with that email.");
+	if (cmd === "unban") { sql("UPDATE users SET banned_at = 0, ban_reason = NULL, refund_idr = 0 WHERE id = " + q(u.id)); console.log("Open again: " + u.email + " can sign in."); process.exit(0); }
+	// what they paid for and haven't had: their bought credits left, at what they paid for them, and the rest of a paid
+	// plan, day by day (never more than they paid); free credits aren't money they gave
+	const packs = sql("SELECT SUM(amount) AS idr, SUM(credits_mc) AS mc FROM payments WHERE user_id = " + q(u.id) + " AND status = 'approved' AND currency = 'IDR' AND method != 'manual' AND (pack IS NULL OR pack NOT LIKE 'plan:%')")[0] || {};
+	const credits = Number(packs.mc) > 0 ? Math.min(Number(packs.idr) || 0, Math.round((Number(u.balance_mc) || 0) * (Number(packs.idr) || 0) / Number(packs.mc))) : 0;
+	const plans = sql("SELECT SUM(amount) AS idr FROM payments WHERE user_id = " + q(u.id) + " AND status = 'approved' AND currency = 'IDR' AND pack LIKE 'plan:%'")[0] || {};
+	const last = sql("SELECT amount, pack FROM payments WHERE user_id = " + q(u.id) + " AND status = 'approved' AND currency = 'IDR' AND pack LIKE 'plan:%' ORDER BY decided_at DESC LIMIT 1")[0];
+	const p = last && CONFIG.plans.find((x) => "plan:" + x.id === last.pack), days = (p && p.days) || 30, left = Math.max(0, (Number(u.plan_until) || 0) - Date.now()) / 864e5;
+	const plan = last && left > 0 ? Math.min(Number(plans.idr) || 0, Math.round((Number(last.amount) / days) * left)) : 0;
+	const card = sql("SELECT COUNT(*) AS n FROM payments WHERE user_id = " + q(u.id) + " AND status = 'approved' AND currency != 'IDR' AND method != 'manual'")[0] || {};
+	const owed = credits + plan;
+	console.log(u.email + ": Rp" + owed.toLocaleString("id-ID") + " owed back (credits left Rp" + credits.toLocaleString("id-ID") + ", plan left Rp" + plan.toLocaleString("id-ID") + " for " + left.toFixed(1) + " days)" + (card.n ? ". They also paid by card " + card.n + "x: refund those in Lemon Squeezy." : "."));
+	if (cmd === "ban") {
+		const noRefund = args.includes("--no-refund"), why = args.slice(1).filter((a) => a !== "--no-refund").join(" ").trim();
+		if (why.length < 5) throw new Error("Say why: they're told it. node owner.mjs ban <email> <why>");
+		const t = Date.now(), give = noRefund ? 0 : owed;
+		sql("UPDATE users SET banned_at = " + q(t) + ", ban_reason = " + q(why) + ", refund_idr = " + q(give) + ", balance_mc = 0, plan_until = MIN(plan_until, " + q(t) + "), plan_mc = 0 WHERE id = " + q(u.id));
+		// (everything it was doing stops: its sign-ins, agents, jobs, front desks, anything waiting to go out, its apps' backends and alerts)
+		for (const s of ["DELETE FROM sessions WHERE user_id = ", "UPDATE agents SET active = 0 WHERE user_id = ", "UPDATE team_jobs SET active = 0 WHERE user_id = ", "UPDATE bots SET active = 0 WHERE user_id = ", "UPDATE outbox SET status = 'stopped' WHERE status IN ('wait', 'held') AND user_id = ", "DELETE FROM app_keys WHERE user_id = ", "DELETE FROM push_subs WHERE user_id = "]) { try { sql(s + q(u.id)); } catch (e) { console.log("(skipped: " + s.split(" ")[0] + " " + s.split(" ")[2] + ")"); } }
+		console.log("Closed. They see: \"This account was closed: " + why + ".\"" + (give ? " and that Rp" + give.toLocaleString("id-ID") + " is coming back. When they write in Help and support with where to send it, send it from your OVO." : noRefund ? " (no refund: the payment itself was fraud)" : ""));
+	}
 } else if (cmd === "stats") {
 	for (const t of sql("SELECT currency, SUM(amount) AS amount, COUNT(*) AS n FROM payments WHERE status = 'approved' AND method != 'manual' GROUP BY currency")) console.log("Sold: " + money(t) + " (" + t.n + ")");
 	const s = sql("SELECT SUM(cost_usd) AS cost, SUM(charged_mc) AS charged, COUNT(*) AS n FROM usage")[0] || {};
