@@ -5349,6 +5349,9 @@ const AGENT_TOOLS = [
 	["docs", "Current official documentation for a library or framework (Context7). Use it before writing code against any API you aren't certain of.", { library: { type: "string", description: "e.g. react, next.js, fabric, three.js" }, topic: { type: "string", description: "What you need from it" } }, ["library"]],
 	["web_search", "Search the web for something current: a release, an error message, a changed API.", { query: { type: "string" } }, ["query"]],
 	["fetch_url", "Read a web page or raw file by URL.", { url: { type: "string" } }, ["url"]],
+	["find_videos", "Find videos on YouTube about anything (a creator, a game, a how-to, an ad style): their real videos, with channel, views and length.", { query: { type: "string" } }, ["query"]],
+	["watch_video", "Watch a YouTube video or short with the model best at watching and listening: it describes exactly what's seen and heard (people, what they say and how, style, editing, sound), or answers your question about it.", { url: { type: "string" }, question: { type: "string" } }, ["url"]],
+	["read_wikis", "Read what the wikis say about something (fandom wikis and Wikipedia), whole, as text: people, characters, creators, games, shows, lore, quotes.", { query: { type: "string" } }, ["query"]],
 	["check", "Check your work: syntax of JavaScript, JSON and HTML scripts, and small web pages are run for errors. With no paths it checks every file you changed.", { paths: { type: "array", items: { type: "string" } } }, []],
 	["finish", "End the task with a short summary for the user: what you changed and why, how to try it, and anything they must do themselves. For a question, the answer goes here.", { summary: { type: "string" } }, ["summary"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
@@ -5467,6 +5470,7 @@ async function runTool(name, a, run, msg) {
 			log("Opened " + j.url);
 			return (j.title ? j.title + "\n\n" : "") + j.text;
 		}
+		{ const seen = await seeTool(name, a, log, msg); if (seen != null) return seen; }
 		if (name === "web_search") {
 			// Perplexity searches on its own; any other model gets the web plugin
 			const top = rank("research")[0], pplx = !!top && /^perplexity\//.test(top.id);
@@ -6123,6 +6127,9 @@ const BUILT_IN = [
 	["run_javascript", "Run JavaScript right here (in a worker, no page). console.log() what you want to see; return a value to see it too.", { code: { type: "string" } }, ["code"]],
 	["web_search", "Search the web for current information. Returns titles, links and the relevant text.", { query: { type: "string" } }, ["query"]],
 	["fetch_url", "Read a web page (or a raw file) as text.", { url: { type: "string" } }, ["url"]],
+	["find_videos", "Find videos on YouTube about anything (a creator, a game, a how-to, an ad style): their real videos, with channel, views and length.", { query: { type: "string" } }, ["query"]],
+	["watch_video", "Watch a YouTube video or short with the model best at watching and listening: it describes exactly what's seen and heard (people, what they say and how, style, editing, sound), or answers your question about it.", { url: { type: "string" }, question: { type: "string" } }, ["url"]],
+	["read_wikis", "Read what the wikis say about something (fandom wikis and Wikipedia), whole, as text: people, characters, creators, games, shows, lore, quotes.", { query: { type: "string" } }, ["query"]],
 	["lookup_docs", "Current documentation for a library or framework (React, Fabric, pandas, three.js...), so code matches today's API.", { library: { type: "string" }, topic: { type: "string" } }, ["library"]],
 	["remember", "Save a lasting fact about the user or their work to remember in future chats (their projects, preferences, decisions).", { fact: { type: "string" } }, ["fact"]],
 	["ask_expert", "Hand one piece of the work to the AI model measured best at exactly that skill (Celestin routes it by the leaderboards and its own record, and takes the cheapest model the ratings can't tell apart from the best). Give the task complete: everything the expert needs to know, and exactly what to return. Its answer comes back to you.", {
@@ -6528,6 +6535,7 @@ async function basicTool(name, args, msg, log, pics) {
 		return r.text + (r.figs.length ? "\n(" + r.figs.length + " chart" + (r.figs.length > 1 ? "s" : "") + ", shown to the user and to you next)" : "");
 	}
 	if (name === "run_javascript") { log("Ran JavaScript", String(args.code).split("\n")[0]); return runJs(args.code); }
+	{ const seen = await seeTool(name, args, log, msg); if (seen != null) return seen; }
 	if (name === "web_search") {
 		log("Searched the web", args.query);
 		const j = await toolCall("/api/tools/search", { query: args.query, n: 6 }, 25000);
@@ -7838,6 +7846,28 @@ async function teamReview(chat, text, parts, plan) {
 	Object.assign(msg, { streaming: false, by: c.id, at: Date.now(), used: [{ name: shortName(c), desc: "Reviewer: checked the team's work (another lab than whoever made most of it)" }] });
 	return true;
 }
+// ---- Seeing, hearing and reading everywhere (the owner, Nov 17: by default, never needing a plugin only to look): the
+// server finds (YouTube's own search, wikis read whole); the model best at watching and listening (by the rules, of those
+// that can watch YouTube: Gemini's) watches; public Telegram channels and TikTok links are read like any page
+const videoWatcher = () => (bestFirst(quarkFirst(arenaRank("vision", { "vision:overall": 1 }).filter((x) => provider((x.m || x).id) === "google")))[0] || {}).m || null;
+const lenText = (sec) => (sec >= 3600 ? Math.floor(sec / 3600) + "h" + String(Math.floor((sec % 3600) / 60)).padStart(2, "0") : Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"));
+const YT_ONE = /^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)[\w-]{6,}/i;
+async function watchVideo(url, question, msg) {
+	const w = videoWatcher();
+	if (!w) return "";
+	return String(await stream(w.id, [{ role: "user", content: [{ type: "file", file: { file_id: url, format: "video/mp4" } }, { type: "text", text: (question ? "First answer this about the video, precisely, from what you see and hear: " + question + "\n\nThen describe" : "Describe") + " exactly what's seen and heard, so someone who never watched it could recreate it: who's in it, what they do and say (their own words, catchphrases, and how they talk: energy, pace, humour), how it looks (style, colours, camera, editing, words on screen), and the sound. Only what you can see and hear; 400 words at most." }] }], () => {}, busy.signal, { max_tokens: 1600, temperature: 0, ...effortFor(w.id, "low") }, msg)).trim();
+}
+async function seeTool(name, args, log, msg) {
+	if (name === "find_videos") { log("Looked on YouTube", args.query); const j = await toolCall("/api/tools/videos", { query: args.query, n: 10 }, 20000); return (j.videos || []).map((v, i) => "[" + (i + 1) + "] " + v.title + " · " + v.channel + " · " + lenText(v.seconds) + " · " + Number(v.views).toLocaleString() + " views · " + v.url).join("\n") || "No videos found."; }
+	if (name === "read_wikis") { log("Read the wikis", args.query); const j = await toolCall("/api/tools/wikis", { query: args.query, n: 3 }, 30000); return (j.pages || []).map((p) => "## " + p.title + " (" + p.url + ")\n" + p.text).join("\n\n") || "No wiki pages found."; }
+	if (name === "watch_video") {
+		const url = String(args.url || "").trim();
+		if (!YT_ONE.test(url)) return "Only YouTube links can be watched (youtube.com/watch, youtu.be or /shorts/). Read a TikTok or any other page with fetch_url.";
+		log("Watched " + url.replace(/^https?:\/\/(www\.)?/, "").slice(0, 50));
+		return (await watchVideo(url, args.question, msg)) || "No model that can watch videos answered right now.";
+	}
+	return null;
+}
 // ---- References: what a named thing the work should be like is really like, looked up before the work starts
 const YT_RE = /\bhttps?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)[\w-]{6,}[^\s)]*/gi;
 async function studyRefs(plan, text, atts) {
@@ -7857,17 +7887,30 @@ async function studyRefs(plan, text, atts) {
 			catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 			// (no link given: the first video of it the search found is watched instead, so the work is matched to the real
 			// thing, not to a description of it. Owner, Nov 14: upgrade the self-routing, not one task)
-			const links = given.length ? given : [...new Set(hits.flatMap((x) => (String(x.url || "") + " " + String(x.text || "")).match(YT_RE) || []))].slice(0, 1);
+			let links = given.length ? given : [...new Set(hits.flatMap((x) => (String(x.url || "") + " " + String(x.text || "")).match(YT_RE) || []))].slice(0, 1);
+			// (no link given: YouTube's own search, so it's their real videos: their own channel first, each short enough to
+			// watch whole; a web search without a key rarely links a video at all)
+			if (!given.length && visual) {
+				try {
+					const vids = (await toolCall("/api/tools/videos", { query: ref.name + (ref.take && ref.take.length < 40 ? " " + ref.take : ""), n: 20 }, 20000)).videos || [];
+					const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, ""), nm = norm(ref.name), own = (v) => { const c = norm(v.channel); return !!c && !!nm && (c === nm || c.includes(nm) || nm.includes(c)); };
+					const fit = (v) => v.seconds >= 20 && v.seconds <= 15 * 60, about = (v) => new RegExp(ref.name.replace(/[.*+?^(){}$|[\]\\]/g, "\\$&"), "i").test(v.title);
+					const pick = [...vids.filter((v) => own(v) && fit(v)), ...vids.filter((v) => !own(v) && fit(v) && about(v)), ...vids.filter((v) => own(v) && !fit(v) && v.seconds <= 90 * 60)].filter((v, k, all) => all.findIndex((x) => x.id === v.id) === k).slice(0, 3);
+					if (pick.length) { links = pick.map((v) => v.url); bits.push("Their videos found on YouTube: " + pick.map((v) => "\"" + v.title + "\" (" + v.channel + ", " + lenText(v.seconds) + ")").join("; ")); }
+				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			}
 			const foundIt = !given.length && links.length > 0;
 			// a YouTube video they linked: its title, channel and thumbnail (YouTube's own oEmbed), the thumbnail read for its look
 			// the watcher: the best at reading pictures and video of the models that can watch YouTube (Gemini's), by the rules
 			const watcher = links.length ? (bestFirst(quarkFirst(arenaRank("vision", { "vision:overall": 1 }).filter((x) => provider((x.m || x).id) === "google")))[0] || {}).m : null;
 			if (watcher && !REF_WATCH) {
-				hold.status = foundIt ? "Watching a video of " + ref.name : "Watching the video you linked";
+				hold.status = (foundIt ? "Watching " + Math.min(3, links.length) + (Math.min(3, links.length) === 1 ? " video" : " videos") + " of " + ref.name : "Watching the video you linked") + " (" + shortName(watcher) + ")";
 				updateLast();
 				try {
-					const seen = String(await stream(watcher.id, [{ role: "user", content: [{ type: "file", file: { file_id: links[0], format: "video/mp4" } }, { type: "text", text: "Watch this whole video carefully, the way a lead animator studies a reference before recreating its look. The user wants work made like it" + (ref.take ? ", for " + ref.take : "") + ". Write a replication spec, concrete enough that someone who never saw it could match it, in this order:\n1. How it's made: 2D, 3D, or 2D characters in a 3D world (or flat layers with depth); flat, cel-shaded or textured; hand-drawn, vector or rendered; how smooth the motion is (on twos, or smooth).\n2. Each main character: head shape (oval, round, bean, square...), head-to-body ratio, body and limbs, eyes (dots, ovals, pupils), mouth and how it moves when they talk, nose, ears, hair, outline (colour and thickness, or none), colours (hex), shading, and how they move.\n3. The world: what it's built from, palette (hex), lighting, depth, props.\n4. Camera and editing: framing, camera moves, seconds per shot, transitions.\n5. Words on screen: captions or subtitles (look, size, colour, outline, placement, word by word or whole lines).\n6. Personality and format: who's in it, their energy and humour, how they talk, catchphrases, the structure (hook, beats, ending), length.\n7. Sound: voices (pitch, pace), music, sound effects.\nOnly what you can see and hear; 450 words at most." }] }], () => {}, busy.signal, { max_tokens: 1800, temperature: 0, ...effortFor(watcher.id, "low") }, hold)).trim();
-					if (seen) { bits.push("Watched it (" + links[0] + "): " + seen); REF_WATCH = { model: watcher, video: links[0], brief: seen, name: ref.name, take: ref.take }; }
+					const seenAll = await Promise.all(links.slice(0, 3).map(async (link) => { try { return String(await stream(watcher.id, [{ role: "user", content: [{ type: "file", file: { file_id: link, format: "video/mp4" } }, { type: "text", text: "Watch this whole video carefully, the way a lead animator studies a reference before recreating its look. The user wants work made like it" + (ref.take ? ", for " + ref.take : "") + ". Write a replication spec, concrete enough that someone who never saw it could match it, in this order:\n1. How it's made: 2D, 3D, or 2D characters in a 3D world (or flat layers with depth); flat, cel-shaded or textured; hand-drawn, vector or rendered; how smooth the motion is (on twos, or smooth).\n2. Each main character: head shape (oval, round, bean, square...), head-to-body ratio, body and limbs, eyes (dots, ovals, pupils), mouth and how it moves when they talk, nose, ears, hair, outline (colour and thickness, or none), colours (hex), shading, and how they move.\n3. The world: what it's built from, palette (hex), lighting, depth, props.\n4. Camera and editing: framing, camera moves, seconds per shot, transitions.\n5. Words on screen: captions or subtitles (look, size, colour, outline, placement, word by word or whole lines).\n6. Personality and format: who's in it, their energy and humour, how they talk, catchphrases, the structure (hook, beats, ending), length.\n7. Sound: voices (pitch, pace), music, sound effects.\nOnly what you can see and hear; 450 words at most." }] }], () => {}, busy.signal, { max_tokens: 1800, temperature: 0, ...effortFor(watcher.id, "low") }, hold)).trim(); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return ""; } }));
+					const got = links.slice(0, 3).map((l, k) => [l, seenAll[k]]).filter(([, x]) => x);
+					for (const [l, x] of got) bits.push("Watched it (" + l + "): " + x);
+					if (got.length) REF_WATCH = { model: watcher, video: got[0][0], videos: got.map(([l]) => l), brief: got.map(([, x]) => x).join("\n\n"), name: ref.name, take: ref.take };
 				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 			}
 			for (const link of links) {
@@ -7882,6 +7925,21 @@ async function studyRefs(plan, text, atts) {
 						if (String(look).trim()) bits.push("Its thumbnail's look: " + String(look).trim());
 					}
 				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			}
+			// (what's written about it, read whole: its fandom wiki pages and Wikipedia; a TikTok or public Telegram channel they
+			// gave, read like any page)
+			try {
+				const pages = (await toolCall("/api/tools/wikis", { query: ref.name, n: 2 }, 30000)).pages || [];
+				for (const p of pages) bits.push("Read " + p.url + " (" + p.title + "):\n" + String(p.text).replace(/\s+/g, " ").slice(0, 3500));
+			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			for (const tt of [...new Set(String(text).match(/https?:\/\/(?:www\.|vm\.|vt\.)?tiktok\.com\/[^\s)]+/gi) || [])].slice(0, 2)) {
+				try { const o = JSON.parse((await toolCall("/api/tools/fetch", { url: "https://www.tiktok.com/oembed?url=" + encodeURIComponent(tt) }, 15000)).text || "{}"); if (o.title || o.author_name) bits.push("The TikTok they gave (" + tt + "): \"" + String(o.title || "").slice(0, 400) + "\" by " + (o.author_name || "?")); }
+				catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			}
+			const tg = String(text).match(/(?:t\.me|telegram\.me)\/(?:s\/)?([A-Za-z0-9_]{5,32})/i) || (/telegram/i.test(ref.kind + " " + ref.take) && /^@?([A-Za-z0-9_]{5,32})$/.exec(String(ref.name).trim()));
+			if (tg) {
+				try { const p = await toolCall("/api/tools/fetch", { url: "https://t.me/s/" + tg[1] }, 20000); if (p && p.text) bits.push("Their public Telegram channel (t.me/" + tg[1] + "), the latest posts:\n" + String(p.text).replace(/\s+/g, " ").slice(-3500)); }
+				catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 			}
 			// a clip of it they attached: its frames read for the style, the same way
 			const clip = (atts || []).find((a) => Array.isArray(a.frames) && a.frames.length);
@@ -8477,6 +8535,54 @@ async function refJudge(what, made, msg) {
 		return { match: j.match !== false, notes: (Array.isArray(j.notes) ? j.notes : []).map(String).filter(Boolean).slice(0, 6) };
 	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }
 }
+// Anything made from references, checked by the ones who watched and read them, for any kind of work: a written answer is
+// rewritten (refRevise); an app or a project (a mod, a game, code) goes back to its maker with their notes, round after
+// round, until they say it's like it, two rounds at most. The owner, Nov 17: "shows it to the models that was best at
+// researching ... if gemini and the models say not accurate enough it gotta be more blank or like this like that"
+async function refVerdict(made, msg) {
+	if (REF_WATCH) return refJudge("what was made (its code, and what it does, says and how it behaves)", made, msg);
+	if (!REF_NOTE) return null;
+	const sage = bestFirst(quarkFirst(arenaRank("research", { "factuality:overall": 0.7, "text:expert": 0.3 })))[0];
+	if (!sage) return null;
+	try {
+		const raw = await stream((sage.m || sage).id, [{ role: "user", content: "You researched what this work should be like:\n" + REF_NOTE + "\n\nThis is what was made:\n" + String(made).slice(0, 16000) + "\n\nJudge it against what you found: is it really like it (the personality, the way they talk, the facts, the style)? Only real misses, said plainly (\"he swears less and jokes more\", \"his catchphrase is ...\"). Reply with ONLY this JSON: {\"match\": true or false, \"notes\": [\"...\"]}" }], () => {}, busy.signal, { max_tokens: 900, temperature: 0, ...effortFor((sage.m || sage).id, "low") }, msg);
+		const j = parseJSON(raw) || {};
+		return { match: j.match !== false, notes: (Array.isArray(j.notes) ? j.notes : []).map(String).filter(Boolean).slice(0, 6) };
+	} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }
+}
+async function refCheckAll(request, mark) {
+	const last = () => [...current.msgs.slice(mark)].reverse().find((x) => x.role === "assistant" && !x.error && (x.kind === "app" || x.kind === "agent"));
+	if (!last()) { if (REF_WATCH) await refRevise(request, mark); return; }
+	for (let round = 1; round <= 2; round++) {
+		const m = last();
+		if (!m || busy.signal.aborted) return;
+		const made = m.kind === "app" ? Object.entries((m.data && m.data.files) || {}).filter(([p]) => p !== "celestin.js").map(([p, c]) => "=== " + p + " ===\n" + c).join("\n\n") : (m.text || "") + "\n\nWhat it changed:\n" + JSON.stringify((m.data && m.data.diffs) || []).slice(0, 14000);
+		m.status = "The ones who watched and read the references are checking it"; m.streaming = true; updateLast();
+		const v = await refVerdict(made, m);
+		m.streaming = false;
+		if (!v) { updateLast(); return; }
+		(m.used = m.used || []).push({ name: shortName(REF_WATCH ? REF_WATCH.model : "Celestin"), desc: "Checked it against what they watched and read" + (v.match ? ": it's like it" : ": " + v.notes.length + (v.notes.length === 1 ? " thing" : " things") + " to change") });
+		updateLast();
+		if (v.match || !v.notes.length) return;
+		const fix = "The ones who watched and read the references checked what was made and say it isn't like them yet:\n- " + v.notes.join("\n- ") + "\nChange it so it is, keeping everything that already works.";
+		if (m.kind === "agent") { await runAgent(request + "\n\n" + fix, []); continue; }
+		// (an app: its maker changes it with their notes; kept only if it still runs)
+		const files = m.data.files, fixers = bestFor("app");
+		if (!fixers.length) return;
+		m.status = "Making it more like the references"; m.streaming = true; updateLast();
+		try {
+			const ask = [{ role: "system", content: "You are an expert engineer changing an existing project to match its references exactly." }, { role: "user", content: "The request was: " + request + "\n\nThe project:\n\n" + made.slice(0, 80000) + "\n\n" + fix + " " + CHANGE_FORMAT }];
+			const r = await askFirst(fixers.slice(0, 3), ask, m, undefined, "high");
+			const p = parseFiles(r.out);
+			if (changed(p)) {
+				const next = await applyChange(files, p, r.model, ask, r.out, m);
+				const t = await probeApp(next);
+				if (!t.errors.length && !t.blank) { m.data = { ...m.data, files: next }; m.refFixed = (m.refFixed || 0) + 1; }
+			}
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		m.streaming = false; updateLast(); save();
+	}
+}
 // a written answer made from a reference: the watcher's verdict, and once more with its notes when it isn't like it
 async function refRevise(request, mark) {
 	if (!REF_WATCH) return;
@@ -8628,7 +8734,7 @@ async function serve(text, atts, tool, o = {}) {
 		const tried = [], start = current.msgs.length;
 		for (let round = 0; ; round++) {
 			const mark = current.msgs.length;
-			try { await runWay(plan, text, atts); if (REF_WATCH && !LANE) await refRevise(text, start); break; }
+			try { await runWay(plan, text, atts); if ((REF_WATCH || REF_NOTE) && !LANE) await refCheckAll(text, start); break; }
 			catch (e) {
 				// (something this server can't make yet isn't made into something else)
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402 || e.quiet || round >= 2) throw e;

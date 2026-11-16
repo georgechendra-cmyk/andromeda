@@ -259,6 +259,8 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/tools/docs" && m === "POST") return toolDocs(req, env);
 	if (p === "/api/tools/fetch" && m === "POST") return toolFetch(req, env);
 	if (p === "/api/tools/search" && m === "POST") return toolSearch(req, env, user);
+	if (p === "/api/tools/videos" && m === "POST") return toolVideos(req);
+	if (p === "/api/tools/wikis" && m === "POST") return toolWikis(req);
 	if (p === "/api/payments/qris" && m === "POST") return qrisPayment(req, env, user);
 	if ((tk = p.match(/^\/api\/payments\/([a-f0-9]{24})$/)) && m === "GET") return paymentState(env, user, tk[1]);
 	if (p === "/api/owner/paynotify" && m === "GET") return payNotifySetup(env, user, false);
@@ -3009,6 +3011,49 @@ async function toolDocs(req, env) {
 }
 
 // a live web search for Celestin working on its own (Tavily or Brave, when the server has a key for one)
+// ------------------------------------------------------------------ seeing and reading everywhere
+// The owner, Nov 17: Celestin should search and watch everywhere by default ("youtube tiktok telegram wiki everywhere"),
+// never needing a plugin only to look. A keyless web search reaches only the news and Wikipedia, so: YouTube's own search
+// (its real videos, each with its channel, views and length, read the way anyone's browser reads the page), and wikis read
+// whole (fandom's wikis about it, found by fandom's own search, and Wikipedia), as plain text
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+async function ytSearch(q, n) {
+	const r = await fetch("https://www.youtube.com/results?search_query=" + encodeURIComponent(q) + "&hl=en", { headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9", Cookie: "CONSENT=YES+1; SOCS=CAI" }, signal: AbortSignal.timeout(15000) }).catch(() => null);
+	if (!r || !r.ok) return [];
+	const m = (await r.text()).match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
+	let d = null;
+	try { d = m && JSON.parse(m[1]); } catch {}
+	if (!d) return [];
+	const out = [], txt = (x) => (x && (x.simpleText || (x.runs || []).map((y) => y.text).join(""))) || "";
+	const secs = (t) => String(t || "").split(":").reduce((a, x) => a * 60 + (Number(x) || 0), 0);
+	const walk = (o, depth) => {
+		if (!o || typeof o !== "object" || depth > 60 || out.length >= 40) return;
+		if (o.videoRenderer && o.videoRenderer.videoId) { const v = o.videoRenderer; out.push({ id: v.videoId, url: "https://www.youtube.com/watch?v=" + v.videoId, title: txt(v.title), channel: txt(v.ownerText), views: Number(txt(v.viewCountText).replace(/\D/g, "")) || 0, seconds: secs(txt(v.lengthText)) }); return; }
+		for (const k in o) walk(o[k], depth + 1);
+	};
+	walk(d, 0);
+	return out.slice(0, Math.max(1, Math.min(20, Number(n) || 12)));
+}
+async function wikiRead(q, n) {
+	const out = [], get = async (u) => { const r = await fetch(u, { headers: { "User-Agent": BROWSER_UA }, signal: AbortSignal.timeout(12000) }); return r.ok ? r.json() : null; };
+	try {
+		const j = await get("https://services.fandom.com/unified-search/community-search?query=" + encodeURIComponent(q) + "&lang=en&limit=3");
+		for (const wk of ((j && j.results) || []).slice(0, 2)) {
+			const base = String(wk.url || "").replace(/\/+$/, "");
+			if (!/^https:\/\/[\w-]+\.fandom\.com$/.test(base)) continue;
+			const s = await get(base + "/api.php?action=query&list=search&srsearch=" + encodeURIComponent(q) + "&format=json&srlimit=2");
+			for (const hit of ((s && s.query && s.query.search) || []).slice(0, 1)) {
+				const p = await get(base + "/api.php?action=query&prop=extracts&explaintext=1&titles=" + encodeURIComponent(hit.title) + "&format=json");
+				const pg = Object.values((p && p.query && p.query.pages) || {})[0] || {};
+				if (pg.extract) out.push({ title: hit.title + " (" + (wk.name || "a fandom wiki") + ")", url: base + "/wiki/" + encodeURIComponent(String(hit.title).replace(/ /g, "_")), text: String(pg.extract).slice(0, 6000) });
+			}
+		}
+	} catch {}
+	try { for (const x of await wikiSearch(q, 2)) out.push({ title: x.title, url: x.url, text: String(x.text || "").slice(0, 4000) }); } catch {}
+	return out.slice(0, Math.max(1, Math.min(6, Number(n) || 4)));
+}
+async function toolVideos(req) { const b = await body(req), q = String(b.query || "").trim().slice(0, 120); if (q.length < 2) throw fail(400, "Search for what?"); return json({ videos: await ytSearch(q, b.n) }); }
+async function toolWikis(req) { const b = await body(req), q = String(b.query || "").trim().slice(0, 120); if (q.length < 2) throw fail(400, "Search for what?"); return json({ pages: await wikiRead(q, b.n) }); }
 async function toolSearch(req, env, user) {
 	const b = await body(req);
 	const q = String(b.query || "").trim();
@@ -4335,7 +4380,7 @@ async function runAgent(env, ctx, a, manual) {
 					try { if (mo.sheet) { const r = await gmailCall(gw.c, { action: "sheetRead", name: String(mo.sheet).slice(0, 100), max: 100 }); found += "\n\nYour sheet \"" + mo.sheet + "\":\n" + (r.rows || []).map((x) => x.join(" | ")).join("\n").slice(0, 8000); } } catch (e) { found += "\n\nCouldn't read the sheet: " + (e.message || e); }
 					try { if (mo.calendar) { const r = await gmailCall(gw.c, { action: "calendar", days: Math.min(31, Number(mo.calendar) || 7) }); found += "\n\nTheir calendar:\n" + (r.events || []).map((x) => x.start + " " + x.title + (x.where ? " @ " + x.where : "")).join("\n").slice(0, 6000); } } catch (e) { found += "\n\nCouldn't read the calendar: " + (e.message || e); }
 				}
-				const [pages, news, wiki, seen] = await Promise.all([Promise.all(urls.map((u) => pageSee(env, u, 7000, null, null, { uid: a.user_id }))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiSearch(String(q), 3))), Array.isArray(mo.browse) && mo.browse.length && env.BROWSER ? browse(env, mo.browse, 12000, { uid: a.user_id }) : null]);
+				const [pages, news, wiki, seen] = await Promise.all([Promise.all(urls.map((u) => pageSee(env, u, 7000, null, null, { uid: a.user_id }))), Promise.all((Array.isArray(mo.news) ? mo.news : []).slice(0, 2).map((q) => newsSearch(String(q), 6, 7, env))), Promise.all((Array.isArray(mo.wiki) ? mo.wiki : []).slice(0, 2).map((q) => wikiRead(String(q), 3))), Array.isArray(mo.browse) && mo.browse.length && env.BROWSER ? browse(env, mo.browse, 12000, { uid: a.user_id }) : null]);
 				found += "\n\n" + [...pages.map((p, i) => p && !p.error ? "Read " + urls[i] + ":\n" + p.text : "Couldn't read " + urls[i]), ...news.flat().map((x) => "- " + x.title + " · " + x.url + " · " + x.text), ...wiki.flat().map((x) => "- " + x.title + " · " + x.url + "\n" + x.text), ...(seen ? ["In your browser (" + (seen.did || []).join(", ") + ")" + (seen.error ? ": " + seen.error : ", now at " + seen.url + ":\n" + seen.text)] : [])].join("\n\n");
 				look = "Researched (" + (round + 1) + ")";
 				j = jsonIn(await ask(round === 1));
