@@ -12264,7 +12264,11 @@ async function loadFilmType(type) {
 	const fams = [...new Set([type && type.title, type && type.text].filter(Boolean))];
 	if (!fams.length) return;
 	const href = "https://fonts.googleapis.com/css2?" + fams.map((f) => "family=" + f.trim().replace(/\s+/g, "+")).join("&") + "&display=swap";
-	if (![...document.querySelectorAll("link[data-film-type]")].some((l) => l.href === href)) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.dataset.filmType = "1"; document.head.appendChild(l); }
+	// (the stylesheet has to have arrived before the font can be asked for: asked any sooner, nothing matches yet and the
+	// words fall back to another face)
+	let link = [...document.querySelectorAll("link[data-film-type]")].find((l) => l.href === href);
+	if (!link) { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; l.dataset.filmType = "1"; document.head.appendChild(l); link = document.querySelector('link[data-film-type][href="' + href + '"]') || [...document.querySelectorAll("link[data-film-type]")].find((l) => l.href === href); }
+	if (link && !link.sheet) await new Promise((r) => { link.addEventListener("load", r, { once: true }); link.addEventListener("error", r, { once: true }); setTimeout(r, 5000); });
 	await Promise.race([Promise.all(fams.map((f) => document.fonts.load("800 48px '" + f + "'").catch(() => null))), new Promise((r) => setTimeout(r, 6000))]);
 }
 const faceOf = (f, fallback) => "'" + String(f || fallback).replace(/'/g, "") + "', " + fallback;
@@ -13868,7 +13872,7 @@ async function motionTells(html, total, W, H, brief) {
 }
 // the bar, as a picture: three original style frames at the standard of the best product films (docs/film-bar.jpg),
 // shown to the animator and the critic; "" when it can't be had
-let FILM_BAR = null;
+let FILM_BAR = null, SKETCH_NOW = null;
 async function filmBar() {
 	if (FILM_BAR != null) return FILM_BAR;
 	try {
@@ -13901,11 +13905,117 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 	return { by: r.model, ship: !!j.ship && !coded.length, fixes: [...coded, ...(Array.isArray(j.fixes) ? j.fixes : []).map((x) => String(x).slice(0, 500)).filter((x) => x.trim()).slice(0, 4)] };
 }
 // The film (or, with prev, the change to it), checked to run, then the critic's rounds. { html, by, critic, rounds }
+// ---- the sketch, before any code, the way the best motion designers work (Miles Holden's own words: "turn simple
+// sketches into advanced motion graphics with a single prompt"): imagination first, then the storyboard, drawn
+const SKETCHER = "You sketch short films the way Miles Holden does before Claude animates them: for every scene, a quick black-pen wireframe on white paper of exactly what that frame shows, plus a few hand-written motion notes. His sketches are the plan the animation makes real, and their magic is in the little interactions and in how each scene turns into the next.\n\n" +
+	"How his sketches look: a pill for a search bar with its words in it (\"Where to?\"), boxes for cards and rows, squiggles where small text goes, a phone outline when there's a phone, a button with its label, a check in a circle, the logo as a simple mark, a chart as a zigzag, a map route as a curve; only a few words written out (the big line, a label or two). Beside them, two-to-four-word motion notes with arrows: \"pop!\", \"drag, cards flip\", \"tap, coin flies\", \"rows slide up\", \"whip up\", \"glow\", \"typed\", \"drops in\", \"light up\", \"live + pulse\", \"split\", \"zoom in\".\n\n" +
+	"The imagination is his: every scene has one interaction that delights (a card flips, a coin flies into a pot, a search types itself and the results drop in, a route draws itself, a logo pops with burst lines, a word wheel stops on the chosen word), and every scene grows out of the one before (an icon grows into the app, a notification opens into its screen, the camera pushes through one thing into the next, a shape becomes another); never a fade or a plain cut. A product film is a tiny story: a familiar moment, a need in a person's own words, the product answering it, the payoff, the brand's name and one line to end. Light and roomy (a white, off-white or warm paper ground) unless the brand's own look is dark. Only true things: no prices, numbers, results or names nobody gave.\n\n" +
+	"Sketch each scene of the shot list, on its times.\n\n" +
+	'Reply with ONLY JSON: {"idea": "the film\'s one idea, a sentence", "scenes": [{"from": 0, "to": 3.5, "line": "the big words on screen, six or fewer, or empty", "picture": "what\'s on screen and what happens, 25 to 45 words, concrete enough to build", "parts": [{"kind": "pill|box|card|button|phone|text|squiggle|circle|check|logo|chart|route|arrow|line", "label": "words in it, if any", "x": 50, "y": 30, "w": 70, "h": 8}], "notes": [{"text": "pop!", "x": 80, "y": 20, "to": [62, 28]}], "into": "how it turns into the next scene", "camera": "hold, push in on…, follow…, pull back…"}]}. x and y are the centre, w and h the size, in percent of the frame; at most eight parts and three notes a scene; a note\'s "to" is the point its arrow points at.';
+async function sketchFilm(plan, brief, msg, signal) {
+	let sk = null;
+	for (const m of bestFor("director").slice(0, 2)) {
+		try {
+			sk = parseJSON(await stream(m.id, [{ role: "system", content: SKETCHER }, { role: "user", content: brief + "\n\nSketch it." }], () => {}, signal, { response_format: { type: "json_object" }, max_tokens: 6000, ...effortExtra(m.id) }, msg));
+			if (sk && Array.isArray(sk.scenes) && sk.scenes.length) { if (msg && msg.used) msg.used.push({ name: shortName(m), desc: "Sketch: invented the idea and storyboarded it" }); break; }
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		sk = null;
+	}
+	if (!sk) return null;
+	const num = (v, d) => (Number.isFinite(Number(v)) ? Math.max(0, Math.min(100, Number(v))) : d);
+	sk.scenes = sk.scenes.slice(0, 12).map((x) => ({ from: Number(x.from) || 0, to: Number(x.to) || 0, line: String(x.line || "").slice(0, 60), picture: String(x.picture || "").slice(0, 400), parts: (Array.isArray(x.parts) ? x.parts : []).slice(0, 8).map((p) => ({ kind: String(p.kind || "box"), label: String(p.label || "").slice(0, 40), x: num(p.x, 50), y: num(p.y, 50), w: num(p.w, 30), h: num(p.h, 10) })), notes: (Array.isArray(x.notes) ? x.notes : []).slice(0, 3).map((t) => ({ text: String(t.text || "").slice(0, 30), x: num(t.x, 80), y: num(t.y, 20), to: Array.isArray(t.to) && t.to.length === 2 ? [num(t.to[0], 50), num(t.to[1], 50)] : null })).filter((t) => t.text), into: String(x.into || "").slice(0, 200), camera: String(x.camera || "").slice(0, 160) }));
+	const text = "The sketch to build, from the creative director (the picture shows it drawn; build exactly this: its layout, its moments and its transitions, in the film's own look):\nThe idea: " + String(sk.idea || "").slice(0, 300) + "\n" +
+		sk.scenes.map((x, k) => "Scene " + (k + 1) + " (" + x.from.toFixed(1) + " to " + x.to.toFixed(1) + " s): " + (x.line ? "big words \"" + x.line + "\" · " : "") + x.picture + (x.notes.length ? " · motion: " + x.notes.map((t) => t.text).join("; ") : "") + (x.into ? " · into the next: " + x.into : "") + (x.camera ? " · camera: " + x.camera : "")).join("\n");
+	let url = "";
+	try { url = await drawSketch(sk, plan.aspect); } catch {}
+	return { sk, text, url };
+}
+// the sketches, drawn the way he draws them: black pen on white paper, one card a scene, the frame's parts as quick
+// wireframe shapes (squiggles for small text), a few motion notes with arrows, and its number and times above
+async function drawSketch(sk, aspect) {
+	await loadFilmType({ title: "Caveat", text: "Caveat" }).catch(() => {});
+	// (a canvas never asks for a web font itself: the hand is loaded before a word is drawn)
+	try { await Promise.all(["700 24px Caveat", "600 16px Caveat"].map((f) => document.fonts.load(f))); } catch {}
+	const tall = aspect === "9:16", sq = aspect === "1:1", pw = tall ? 230 : sq ? 300 : 380, ph = tall ? 409 : sq ? 300 : 214, cols = tall ? 4 : 3, gap = 24, head = 28;
+	const S = sk.scenes, rows = Math.ceil(S.length / cols), top = 54;
+	const c = document.createElement("canvas");
+	c.width = cols * (pw + gap) + gap;
+	c.height = top + rows * (head + ph + gap) + gap;
+	const g = c.getContext("2d"), hand = "Caveat, 'Comic Sans MS', cursive", ink = "#1d1c1a", soft = "#77726a";
+	g.fillStyle = "#2b2a28";
+	g.fillRect(0, 0, c.width, c.height);
+	let q = 11;
+	const r = () => ((q = (q * 1664525 + 1013904223) >>> 0) / 4294967296);
+	const wob = (x, y) => [x + (r() - 0.5) * 2, y + (r() - 0.5) * 2];
+	const line = (x0, y0, x1, y1) => { const k = Math.max(2, Math.round(Math.hypot(x1 - x0, y1 - y0) / 12)); g.beginPath(); g.moveTo(...wob(x0, y0)); for (let i = 1; i <= k; i++) g.lineTo(...wob(x0 + ((x1 - x0) * i) / k, y0 + ((y1 - y0) * i) / k)); g.stroke(); };
+	const box = (x, y, w, h, rr = 0) => { if (rr) { g.beginPath(); g.roundRect(x + (r() - 0.5) * 1.5, y + (r() - 0.5) * 1.5, w, h, rr); g.stroke(); return; } line(x, y, x + w, y); line(x + w, y, x + w, y + h); line(x + w, y + h, x, y + h); line(x, y + h, x, y); };
+	const ell = (cx, cy, rx, ry) => { g.beginPath(); for (let a = 0, i = 0; a <= Math.PI * 2 + 0.35; a += 0.28, i++) { const [x, y] = wob(cx + Math.cos(a) * rx, cy + Math.sin(a) * ry); if (!i) g.moveTo(x, y); else g.lineTo(x, y); } g.stroke(); };
+	const squig = (x, y, w) => { g.beginPath(); g.moveTo(x, y); for (let i = 0; i <= w; i += 4) g.lineTo(x + i, y + Math.sin(i * 0.9 + r()) * 1.6); g.stroke(); };
+	const arrow = (x0, y0, x1, y1) => { const mx = (x0 + x1) / 2 + (y1 - y0) * 0.2, my = (y0 + y1) / 2 - (x1 - x0) * 0.2; g.beginPath(); g.moveTo(x0, y0); g.quadraticCurveTo(mx, my, x1, y1); g.stroke(); const a = Math.atan2(y1 - my, x1 - mx); line(x1, y1, x1 - 9 * Math.cos(a - 0.5), y1 - 9 * Math.sin(a - 0.5)); line(x1, y1, x1 - 9 * Math.cos(a + 0.5), y1 - 9 * Math.sin(a + 0.5)); };
+	const say = (t, x, y, size, w, o = {}) => {
+		g.font = (o.weight || 600) + " " + size + "px " + hand;
+		g.fillStyle = o.color || ink;
+		g.textAlign = o.align || "center";
+		g.textBaseline = "middle";
+		const words = String(t).split(/\s+/), out = [];
+		let cur = "";
+		for (const wd of words) { const tt = cur ? cur + " " + wd : wd; if (g.measureText(tt).width > w && cur) { out.push(cur); cur = wd; } else cur = tt; }
+		if (cur) out.push(cur);
+		out.slice(0, o.lines || 3).forEach((l, i) => g.fillText(l, x, y + i * size * 1.05));
+	};
+	g.lineCap = "round";
+	g.lineJoin = "round";
+	say(String(sk.idea || ""), c.width / 2, 28, 24, c.width - 60, { weight: 700, color: "#f3efe6", lines: 1 });
+	S.forEach((x, k) => {
+		const col = k % cols, row = Math.floor(k / cols), x0 = gap + col * (pw + gap), y0 = top + row * (head + ph + gap), py = y0 + head;
+		say((k + 1) + " · " + x.from.toFixed(1) + " to " + x.to.toFixed(1) + " s", x0, y0 + 12, 17, pw, { align: "left", color: "#cfc9bd", lines: 1 });
+		g.save();
+		g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 10; g.shadowOffsetY = 3;
+		g.fillStyle = "#fbfaf7"; g.fillRect(x0, py, pw, ph);
+		g.restore();
+		const X = (v) => x0 + (v / 100) * pw, Y = (v) => py + (v / 100) * ph;
+		g.strokeStyle = ink;
+		g.lineWidth = 1.6;
+		for (const p of x.parts) {
+			const cx = X(p.x), cy = Y(p.y), w = Math.max(8, (p.w / 100) * pw), h = Math.max(6, (p.h / 100) * ph), k2 = p.kind;
+			if (k2 === "text") { if (p.label && p.label.length <= 22) say(p.label, cx, cy, Math.max(14, Math.min(28, h * 0.8)), Math.max(40, w), { weight: 700, lines: 2 }); else for (let i = 0; i < Math.max(1, Math.round(h / 8)); i++) squig(cx - w / 2, cy - h / 2 + 4 + i * 8, w * (i % 2 ? 0.7 : 1)); continue; }
+			if (k2 === "squiggle") { for (let i = 0; i < Math.max(1, Math.round(h / 7)); i++) squig(cx - w / 2, cy - h / 2 + 3 + i * 7, w * (i % 3 === 2 ? 0.6 : 1)); continue; }
+			if (k2 === "arrow") { arrow(cx, cy, cx + w, cy + h); continue; }
+			if (k2 === "line") { line(cx - w / 2, cy, cx + w / 2, cy); continue; }
+			if (k2 === "route") { g.beginPath(); g.moveTo(cx - w / 2, cy + h / 2); g.bezierCurveTo(cx - w / 4, cy - h / 2, cx + w / 4, cy + h / 2, cx + w / 2, cy - h / 2); g.stroke(); ell(cx + w / 2, cy - h / 2, 4, 4); continue; }
+			if (k2 === "chart") { g.beginPath(); for (let i = 0; i <= 6; i++) { const xx = cx - w / 2 + (w * i) / 6, yy = cy + (i % 2 ? -h / 2.5 : h / 2.5) * (0.5 + r() * 0.5); if (!i) g.moveTo(xx, yy); else g.lineTo(xx, yy); } g.stroke(); continue; }
+			if (k2 === "circle") { ell(cx, cy, w / 2, h / 2); }
+			else if (k2 === "check") { ell(cx, cy, w / 2, w / 2); line(cx - w * 0.22, cy, cx - w * 0.05, cy + w * 0.18); line(cx - w * 0.05, cy + w * 0.18, cx + w * 0.25, cy - w * 0.18); continue; }
+			else if (k2 === "logo") { box(cx - w / 2, cy - w / 2, w, w, w * 0.22); }
+			else if (k2 === "pill") { box(cx - w / 2, cy - h / 2, w, h, h / 2); }
+			else if (k2 === "button") { box(cx - w / 2, cy - h / 2, w, h, Math.min(10, h / 2)); box(cx - w / 2 + 2, cy - h / 2 + 2, w - 4, h - 4, Math.min(8, h / 2)); }
+			else if (k2 === "phone") { box(cx - w / 2, cy - h / 2, w, h, w * 0.14); line(cx - w * 0.13, cy - h / 2 + 8, cx + w * 0.13, cy - h / 2 + 8); }
+			else box(cx - w / 2, cy - h / 2, w, h, k2 === "card" ? 6 : 0);
+			if (p.label) {
+				let fs = Math.max(12, Math.min(20, h * 0.5));
+				const room = Math.max(24, w - (k2 === "pill" ? 22 : 14));
+				g.font = "600 " + fs + "px " + hand;
+				while (fs > 11 && g.measureText(p.label).width > room) { fs -= 1; g.font = "600 " + fs + "px " + hand; }
+				say(p.label, k2 === "pill" ? cx - w / 2 + 12 : cx, k2 === "phone" ? cy - h / 2 + 24 : cy, fs, room, { align: k2 === "pill" ? "left" : "center", lines: k2 === "card" || k2 === "box" ? 2 : 1 });
+			}
+		}
+		if (x.line) say(x.line, x0 + pw / 2, py + Math.min(42, ph * 0.1), 24, pw - 18, { weight: 700, lines: 2 });
+		// (the motion notes, in a softer pen, each with its arrow)
+		g.strokeStyle = soft;
+		g.lineWidth = 1.3;
+		for (const t of x.notes) {
+			const tx = X(t.x), ty = Y(t.y);
+			say(t.text, tx, ty, 17, pw * 0.42, { color: soft, lines: 2 });
+			if (t.to) arrow(tx, ty + 10, X(t.to[0]), Y(t.to[1]));
+		}
+	});
+	return c.toDataURL("image/jpeg", 0.82);
+}
 async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, onStatus) {
 	const total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
 	let at = 0;
 	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
-	const brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
+	let brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
 		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type. Celestin's own look, for a film about it: a white or soft off-white ground (#ffffff, #f7f7f6), near-black words (#0b0b0b), a quiet grey for what's secondary (#5f6063), and its indigo (#5141ee, or a gradient from #5b48ff to #2f6bff only on the mark or on what's chosen) kept to a few touches; light, calm and roomy, like its own app, with words in Hanken Grotesk." : "") +
 		(plan.craftNote ? "\n\n" + String(plan.craftNote).slice(0, 6000) : "") +
 		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
@@ -13915,8 +14025,8 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	// (the animator at the thought it earned its rank at, read again right before each call)
 	const best = (m) => { bestFor("animation"); return effortExtra(m.id); };
 	const write = async (m, content) => {
-		const bar = (m.input || []).includes("image") ? await filmBar() : "";
-		const said = bar ? [{ type: "text", text: content + "\n\nThe picture: three style frames at the bar (made for a made-up app, in the manner of the best product films). Match their polish: a light ground, big confident words, generous room, one accent colour, real interface detail, soft shadows. Never their subject, words or colours." }, { type: "image_url", image_url: { url: bar } }] : content;
+		const sees = (m.input || []).includes("image"), bar = sees ? await filmBar() : "", sk = sees && SKETCH_NOW ? SKETCH_NOW.url : "";
+		const said = bar || sk ? [{ type: "text", text: content + (sk ? "\n\nThe first picture is the sketch, drawn: build exactly that." : "") + (bar ? "\n\nThe " + (sk ? "second" : "") + " picture: three style frames at the bar (made for a made-up app, in the manner of the best product films). Match their polish: a light ground, big confident words, generous room, one accent colour, real interface detail, soft shadows. Never their subject, words or colours." : "") }, ...(sk ? [{ type: "image_url", image_url: { url: sk } }] : []), ...(bar ? [{ type: "image_url", image_url: { url: bar } }] : [])] : content;
 		return htmlOf(await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: said }], () => {}, signal, best(m), msg));
 	};
 	const edit = async (m, why, html) => {
@@ -13929,6 +14039,18 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	};
 	const runs = (html) => checkScene(html, total, Math.round(W / 4), Math.round(H / 4));
 	let html = "", by = null, lastErr;
+	// (a new film: sketched first, imagination and storyboard, and the sketch shown while it's made)
+	SKETCH_NOW = null;
+	if (!prev) {
+		try {
+			onStatus("Sketching it first: inventing the idea, then drawing the storyboard");
+			SKETCH_NOW = await sketchFilm(plan, brief, msg, signal);
+			if (SKETCH_NOW) {
+				brief += "\n\n" + SKETCH_NOW.text;
+				if (SKETCH_NOW.url && msg && msg.data) { msg.data.sketch = await vault.put(await (await fetch(SKETCH_NOW.url)).blob()); onStatus("Sketched: now animating it"); }
+			}
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
 	// (two animators at most: past that it's made shot by shot instead)
 	for (const m of cands.slice(0, 2)) {
 		try {
@@ -14472,7 +14594,7 @@ async function renderStudio(m, i, box) {
 	const fin = d.final ? await vault.url(d.final) : null;
 	const frames = await Promise.all(d.scenes.map((s) => (s.frame ? vault.url(s.frame) : s.poster ? vault.url(s.poster) : null)));
 	const vertical = plan.aspect === "9:16";
-	const thumb = d.thumb ? await vault.url(d.thumb) : null;
+	const thumb = d.thumb ? await vault.url(d.thumb) : null, sketchUrl = d.sketch ? await vault.url(d.sketch) : null;
 	box.innerHTML = (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"' + (thumb || frames[0] ? ' poster="' + (thumb || frames[0]) + '"' : "") + '></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button>' + (thumb ? '<button class="btn" data-tdl>Download thumbnail</button>' : "") + (plan.youtube ? '<button class="btn" data-ytcopy>Copy title, description and tags</button>' : "") + '<button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' +
 		(thumb ? '<img class="yt-thumb" src="' + thumb + '" alt="Thumbnail" style="display:block;width:min(100%,360px);border-radius:12px;margin:0 0 12px">' : "") + (plan.youtube ? kitHtml(plan.youtube, null) : "") :
 		d.stage === "planned" ? '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-make>Make it</button></div>' : "") +
@@ -14480,6 +14602,7 @@ async function renderStudio(m, i, box) {
 			'<figcaption><b>' + (n + 1) + "</b> " + esc(plan.scenes[n].caption || plan.scenes[n].vo || plan.scenes[n].shot).slice(0, 70) + '<span class="st">' + ({ waiting: "waiting", drawing: "drawing", animating: "animating", queued: "queued", rendering: "filming", fetching: "fetching", done: "✓", failed: "failed" }[s.state] || "") + "</span>" +
 			(fin || s.state === "failed" ? '<button class="mini" data-redo="' + n + '">Redo</button>' : "") + "</figcaption></figure>").join("") + "</div></details>") +
 		(d.music && d.music.state ? '<div class="help" style="margin-top:8px">Sound: ' + ({ composing: "composing the music and sound effects…", done: "music and sound effects ✓", failed: "couldn't be made this time" }[d.music.state] || esc(d.music.state)) + "</div>" : "");
+	if (sketchUrl) box.insertAdjacentHTML("beforeend", '<details class="sketch-fold"' + (fin ? "" : " open") + '><summary class="help">The sketch it was made from</summary><img src="' + sketchUrl + '" alt="The storyboard, sketched by hand" style="display:block;width:100%;max-width:720px;border-radius:12px;margin-top:8px;border:1px solid var(--line)"></details>');
 	const dl = $("[data-vdl]", box);
 	if (dl) dl.onclick = async () => { const b = await vault.get(d.final); saveBlob(b, plan.title.replace(/[^\w -]+/g, "").slice(0, 40) + "." + (b.type.includes("mp4") ? "mp4" : "webm")); };
 	const tdl = $("[data-tdl]", box);
