@@ -4919,6 +4919,7 @@ function safeMsg(m, i) {
 function renderMsg(m, i) {
 	// (a Celestin Together brief: what the Lead gave a teammate, read by the models, not shown)
 	if (m.brief) return "";
+	if (m.side && m.streaming && current && current.msgs.some((x, k) => k !== i && x.role === "assistant" && x.streaming && !x.error && (!x.side || k < i))) return '<div class="msg" data-i="' + i + '" hidden></div>';
 	if (m.role === "user") {
 		const atts = (m.atts || []).length ? '<div class="att">' + m.atts.map((a) => '<span class="att-pill">' + (a.kind === "image" && a.data ? '<img src="' + a.data + '" alt="">' : "") + "<span>" + esc(a.name) + "</span></span>").join("") + "</div>" : "";
 		if (EDITING === i) return '<div class="msg user editing" data-i="' + i + '"><div class="edit">' + atts + '<textarea id="editBox" rows="2" aria-label="Edit your message">' + esc(m.text) +
@@ -4939,7 +4940,7 @@ function renderMsg(m, i) {
 	if (STUDY[m.kind]) body += '<div data-study="' + i + '"></div>';
 		// a team's steps (each piece and the model doing it) show while it works; once it's answered, "Show models used" has them
 		const tg = TOGETHER_APP && m.member && MATE[m.member];
-		return '<div class="msg' + (tg ? " tg" : "") + (m.streaming ? " live" : "") + '" data-i="' + i + '">' + (tg ? mateAvatar(m.member) + '<div class="tname">' + esc(MATE[m.member].name) + "</div>" : '<svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + (m.member ? memberTag(m.member) : "")) + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? (tg ? '<span class="typing" role="status" aria-label="' + esc(MATE[m.member].name) + ' is working"><i></i><i></i><i></i></span>' + (m.status ? '<span class="tstat">' + esc(m.status) + "</span>" : "") : '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>") : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? councilHtml(m, body) : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
+		return '<div class="msg' + (tg ? " tg" : "") + (m.streaming ? " live" : "") + '" data-i="' + i + '">' + (tg ? mateAvatar(m.member) + '<div class="tname">' + esc(MATE[m.member].name) + "</div>" : '<svg class="av" aria-hidden="true"><use href="#logo"/></svg>' + (m.member ? memberTag(m.member) : "")) + usedHtml(m, i) + thinkHtml(m) + '<div class="md' + (m.streaming && m.text && !m.kind ? " caret" : "") + '">' + (m.text ? md(shownText(m), m.streaming) : m.streaming && !m.think ? (tg ? '<span class="typing" role="status" aria-label="' + esc(MATE[m.member].name) + ' is working"><i></i><i></i><i></i></span>' + (m.status ? '<span class="tstat">' + esc(m.status) + "</span>" : "") : '<span class="thinking">' + (m.status ? esc(m.status) + "…" : "Thinking") + "</span>") : "") + "</div>" + offerHtml(m, i) + (m.kind === "council" ? councilHtml(m, body) : m.kind === "build" ? (m.streaming && !m.text ? body : "") : body) +
 			(m.dropped && !m.streaming ? '<div class="limit-bar net dropnote" role="note"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.4a5 5 0 0 1 7 0M5 12.9a10 10 0 0 1 5.2-2.7M19 12.9a10 10 0 0 0-2.3-1.6M2 8.8a15 15 0 0 1 4.2-2.6M22 8.8A15 15 0 0 0 10.7 5M12 20h.01"/></svg><span>Your connection dropped here, and didn\'t come back. Ask again when it\'s back.</span></div>' : "") +
 		(!m.streaming && m.text ? '<div class="actions">' + (current.msgs[i - 1] && current.msgs[i - 1].role === "user" ? verNav(current.msgs[i - 1], i - 1) : "") + actBtn("copymsg", i, "Copy", ACT_IC.copy) + actBtn("speak", i, "Read aloud", ACT_IC.speak) + (!m.kind && (m.text || "").length >= 400 ? actBtn("canvas", i, "Open in canvas: edit it, or ask for changes", ACT_IC.canvas) : "") + (i === current.msgs.length - 1 ? (m.cut && !m.dropped ? actBtn("continue", "", "Carry on from where it stopped (it reached its length limit)", ACT_IC.go) : "") + actBtn("regen", "", "Try again: as it was, shorter, more detailed, or with another model (this answer is kept as a version)", ACT_IC.regen).replace("<button ", '<button aria-haspopup="menu" aria-controls="regenPop" ') : "") + (m.cost && m.unit !== "credits" && !creditsMode() ? ('<span class="act cost" title="What this answer cost on OpenRouter">$' + (m.cost < 0.01 ? m.cost.toFixed(4) : m.cost.toFixed(3)) + "</span>") : "") + "</div>" : "") + "</div>";
 }
@@ -4978,7 +4979,7 @@ function paintLast() {
 	if (!el) { renderThread(); return; }
 	const key = structKey(st);
 	const box = el.querySelector(":scope > .md");
-	if (st.role === "assistant" && st.streaming && st.text && box && el.dataset.key === key) {
+	if (st.role === "assistant" && st.streaming && st.text && !st.kind && box && el.dataset.key === key) {
 		box.innerHTML = md(shownText(st), true);
 		box.classList.add("caret");
 		stick();
@@ -8148,7 +8149,7 @@ async function craftBrief(raw, mood) {
 	const keep = (j) => { all[sk] = { brief: j.brief, lessons: [...new Set([...(j.lessons || []), ...((mine && mine.lessons) || [])])].slice(-30), at: Date.now() }; store.set("craft", all); return all[sk]; };
 	// (researched already, for everyone)
 	try { const j = await api("/api/craft/" + encodeURIComponent(sk)); if (j && j.brief) return keep(j); } catch {}
-	const hold = { role: "assistant", text: "", streaming: true, status: mood ? "Learning what colours and type fit " + key : "Learning how the best make a " + key };
+	const hold = { role: "assistant", text: "", streaming: true, side: true, status: mood ? "Learning what colours and type fit " + key : "Learning how the best make a " + key };
 	current.msgs.push(hold);
 	updateLast();
 	try {
@@ -12170,7 +12171,7 @@ async function direct(text, atts, msg, signal, drawn) {
 	const want = lengthOf(text);
 	const imgs = atts.filter((a) => a.kind === "image" && a.data);
 	const ask = "Plan this: " + text + "\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
-		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\".\n\n" + STUDIED : "") +
+		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\". Unless the brand's own look is dark, a product, app or brand film is light and roomy: a white, off-white or warm paper ground, dark words big enough to read on a phone, the brand's colour only on what matters, one idea per shot; never a dark neon look.\n\n" + STUDIED : "") +
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
 		(sourceOf(atts, 1) ? "\n\nWhat they gave you about it (their page, notes or files): use the real names, products, prices, places and tone from it, never invent ones that contradict it.\n" + sourceOf(atts, 12000) : "") +
 		"\n\nVoices: " + Object.entries(VOICES).map(([k, v]) => k + " (" + v + ")").join(", ") + "." + (langLine() ? "\n" + langLine() + " (keep the JSON keys in English)" : "");
@@ -12628,9 +12629,12 @@ async function produce(msg, only, signal) {
 					note(shortName(r.model), "Sound: composed the score and the sound effects in code, timed to the cut");
 				} catch (e) {
 					if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
-					d.music.state = "failed";
-					d.music.error = String(e.message || e);
-				}
+					// (no composed score passed its checks: Celestin's own, timed to the cut, so a film is never silent)
+						try {
+							d.music = { key: await vault.put(await ownScore(plan)), composed: true, state: "done", own: true };
+							note("Celestin", "Sound: its own score, timed to the cut");
+						} catch (e2) { d.music.state = "failed"; d.music.error = String(e.message || e); }
+					}
 				paint();
 				return;
 			}
@@ -12747,7 +12751,7 @@ async function cut(d, onProgress) {
 			const sh = { i, drawn: true, own, clipDur: plan.scenes[i].seconds, vo: s.vo, caption: plan.scenes[i].caption, scene: null, bmp: null };
 			sh.prepare = async (local) => {
 				try {
-					if (!sh.scene) sh.scene = own ? openScene(html, cw, ch) : openScene(html, Math.round(cw * CAM_ROOM / 2) * 2, Math.round(ch * CAM_ROOM / 2) * 2);
+					if (!sh.scene) sh.scene = openScene(html, Math.round(cw * CAM_ROOM / 2) * 2, Math.round(ch * CAM_ROOM / 2) * 2);
 					const t = Math.min(local, sh.clipDur - 1 / 120), b = await sh.scene.frame(t);
 					const out = sh.fps ? await shutter(sh, t, b) : b;
 					if (sh.bmp && sh.bmp !== out && sh.bmp.close) sh.bmp.close();
@@ -12755,6 +12759,7 @@ async function cut(d, onProgress) {
 				} catch {} // a scene that stumbles on a frame holds its last one
 			};
 			sh.release = () => { if (sh.scene) sh.scene.close(); sh.scene = null; };
+			if (own) { try { Object.assign(sh, await scoutTake(html, sh.clipDur, plan.parts, cw, ch)); } catch (e) { if (e.name === "AbortError") throw e; } }
 			shots.push(sh);
 			continue;
 		}
@@ -12778,6 +12783,11 @@ async function cut(d, onProgress) {
 	}
 	// (each drawn shot's sound moments, as its film declared them: a click where it clicks, a whoosh where it moves)
 	for (const s of shots) if (s.drawn) { await s.prepare(0); s.cues = s.scene ? s.scene.cues().filter((c) => c.t >= 0 && SFX_KINDS.includes(c.sfx)).slice(0, 200) : []; }
+	// (words typed with the kit: a key for each letter exactly as it appears, in place of any typing sound declared over them)
+	for (const s of shots) if ((s.typed || []).length) {
+		const spans = s.typed.map((y) => { const k = typeTimes(y) || []; return [y.t, y.t + (k[k.length - 1] || 0)]; });
+		s.cues = [...s.cues.filter((c) => c.sfx !== "type" || !spans.some(([a, b]) => c.t >= a - 0.3 && c.t <= b + 0.3)), ...s.typed].slice(0, 300);
+	}
 	const ac = STUDIO_AUDIO.ctx || (STUDIO_AUDIO.ctx = new AudioContext());
 	const decode = async (blob) => { try { return await ac.decodeAudioData(await blob.arrayBuffer()); } catch { return null; } };
 	for (const s of shots) {
@@ -12798,7 +12808,7 @@ async function cut(d, onProgress) {
 	for (const s of shots) lay(s.sfx, s.start, anyVoice || d.music.key ? 0.35 : 0.9, Math.min(s.clipDur, s.dur));
 	for (const s of shots) lay(s.voBuf, s.start + 0.3, 1);
 	// (the sound effects, made here, each exactly on its moment, a little under the voice and over the music)
-	for (const s of shots) for (const c of s.cues || []) if (c.t < s.dur) lay(sfxBuffer(oc, c.sfx, Math.round(c.t * 1000) + s.i * 7919), s.start + c.t, anyVoice ? 0.45 : 0.6);
+	for (const s of shots) for (const c of s.cues || []) if (c.t < s.dur) lay(sfxBuffer(oc, c.sfx, Math.round(c.t * 1000) + s.i * 7919, c), s.start + c.t, anyVoice ? 0.45 : 0.6);
 	const music = d.music.key ? await decode(await vault.get(d.music.key)) : null;
 	if (music) {
 		const src = oc.createBufferSource(), g = oc.createGain();
@@ -12848,6 +12858,20 @@ async function cut(d, onProgress) {
 	// the camera over a drawn shot: the move the director gave it (or the next one in turn), and for a film made in one take
 	// a move for each of its parts; a drawn shot is rendered CAM_ROOM larger, so even the closest moment is at full sharpness
 	const DRAWN_MOVES = ["push in", "pan right", "pull out", "pan left", "tilt up", "drift"];
+	// the camera over a film made in one take, the way the best product films move (measured, Nov 17): still while
+		// there's something to read, then a decisive push in, about a second, eased, toward where the action is in that
+		// part; carried on from part to part (in, further in and across, back out to show it all), never snapping back, and
+		// out to the whole frame for the ending
+		const ZS = [1.08, 1.14, 1, 1.1, 1.06, 1];
+		const takeCam = (s, local, alpha) => {
+			const parts = plan.parts && plan.parts.length ? plan.parts : [{ seconds: s.dur }];
+			let t0 = 0, k = 0;
+			while (k < parts.length - 1 && local >= t0 + parts[k].seconds) t0 += parts[k++].seconds;
+			const aim = (j) => (j < 0 ? [1, 0, 0] : j === parts.length - 1 && parts.length > 1 ? [1, 0, 0] : [ZS[j % ZS.length], ...(((s.focus || [])[j]) || [0, 0])]);
+			const A = aim(k - 1), B = aim(k), len = Math.max(0.5, parts[k].seconds), mv = Math.min(1.3, Math.max(0.6, len * 0.3)), at = Math.max(0, Math.min(len * 0.3, len - mv - 0.3));
+			const p0 = Math.max(0, Math.min(1, (local - t0 - at) / mv)), p = p0 < 0.5 ? 4 * p0 * p0 * p0 : 1 - Math.pow(-2 * p0 + 2, 3) / 2;
+			cover(s.bmp, alpha, A[0] + (B[0] - A[0]) * p, -(A[1] + (B[1] - A[1]) * p), -(A[2] + (B[2] - A[2]) * p));
+		};
 	const drawnCam = (s, local, alpha) => {
 		const parts = plan.parts && plan.parts.length > 1 ? plan.parts : null;
 		let p0, move;
@@ -12922,7 +12946,7 @@ async function cut(d, onProgress) {
 			if (local < 0 || local >= s.dur) continue;
 			const fadeIn = s === shots[0] ? Math.min(1, local / 0.4) : Math.min(1, local / XF);
 			if (s.still) camera(s, local, fadeIn);
-			else if (s.drawn) { if (s.bmp) { if (s.own) cover(s.bmp, fadeIn, 1); else drawnCam(s, local, fadeIn); } }
+			else if (s.drawn) { if (s.bmp) { if (s.own) takeCam(s, local, fadeIn); else drawnCam(s, local, fadeIn); } }
 			else cover(s.v, fadeIn, 1 + Math.max(0, local - s.clipDur) * 0.02);
 			caption(s.caption, local - 0.15);
 		}
@@ -12987,6 +13011,48 @@ const MUXER_JS = "https://cdn.jsdelivr.net/npm/mp4-muxer@5.2.1/build/mp4-muxer.m
 // faster it moves, so even a whip streaks smoothly instead of showing copies), and a moment from the other side of a cut is left out. Measured on the studied films: their fast
 // moves are blurred exactly so, and frames without it are one of the tells of a film made in code
 const SHUTTER = 0.5;
+// A film made in one take, looked through once, small and quickly, before it's rendered: where the action is in each of its
+// parts (the camera pushes in toward it) and every word typed with the kit (a key sounds for each letter). Five looks a second
+async function scoutTake(html, total, parts, W, H) {
+	const sc = openScene(html, 72, Math.max(40, Math.round((72 * H) / W))), c = Object.assign(document.createElement("canvas"), { width: 36, height: Math.max(20, Math.round((36 * H) / W)) });
+	const G = [];
+	let typed = [];
+	try {
+		for (let t = 0; t < total; t += 0.2) { const b = await sc.frame(Math.min(total - 0.02, t)); G.push({ t, g: grayOf(b, c) }); if (b.close) b.close(); }
+		typed = await sc.typed();
+	} finally { sc.close(); }
+	const ps = parts && parts.length ? parts : [{ seconds: total }];
+	let t0 = 0;
+	const focus = ps.map((p) => {
+		const a = t0, b = t0 + p.seconds;
+		t0 = b;
+		let sx = 0, sy = 0, sw = 0;
+		for (let k = 1; k < G.length; k++) {
+			if (G[k].t < a || G[k].t >= b) continue;
+			const P = G[k - 1].g, Q = G[k].g;
+			for (let i = 0; i < Q.length; i++) { const d = Math.abs(Q[i] - P[i]); if (d > 8) { sx += (i % c.width) * d; sy += Math.floor(i / c.width) * d; sw += d; } }
+		}
+		if (!sw) return [0, 0];
+		const fx = (sx / sw / (c.width - 1)) * 2 - 1, fy = (sy / sw / (c.height - 1)) * 2 - 1;
+		return [Math.max(-0.7, Math.min(0.7, fx)), Math.max(-0.7, Math.min(0.7, fy))];
+	});
+	return { focus, typed: (typed || []).filter((x) => x && x.text && x.cps > 0) };
+}
+// when each letter of a word typed with the kit appears, from its start (the same rhythm MO.typed draws it in); or keys for
+// as long as a declared typing sound lasts
+function typeTimes(c) {
+	if (c && c.text && c.cps > 0) {
+		const txt = String(c.text);
+		let q = (txt.length * 7919 + 13) >>> 0 || 1;
+		const r = () => { q = (q + 0x6d2b79f5) >>> 0; let x = Math.imul(q ^ (q >>> 15), 1 | q); x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x; return ((x ^ (x >>> 14)) >>> 0) / 4294967296; };
+		const out = [];
+		let clock = 0;
+		for (let i = 0; i < txt.length && out.length < 400; i++) { clock += (0.55 + 0.9 * r()) / c.cps + (txt[i] === " " ? 0.04 : 0); out.push(clock); }
+		return out;
+	}
+	if (c && c.dur > 0) { const out = []; let q = 7; for (let at = 0; at < Math.min(30, c.dur); ) { out.push(at); q = (q * 1664525 + 1013904223) >>> 0; at += 0.07 + 0.06 * (q / 4294967296); } return out; }
+	return null;
+}
 function grayOf(pic, c) {
 	const g = c.getContext("2d", { willReadFrequently: true });
 	g.drawImage(pic, 0, 0, c.width, c.height);
@@ -13108,7 +13174,8 @@ function sceneDoc(html, W, H) {
 		"addEventListener('error',function(e){send({sceneError:(e.message||'Error')+(e.lineno?' (line '+e.lineno+')':'')})});" +
 		"addEventListener('unhandledrejection',function(e){var r=e.reason;send({sceneError:'Unhandled rejection: '+(r&&r.message||r)})});" +
 		"addEventListener('message',async function(e){var m=e.data||{};try{" +
-		"if(m.type==='ready'){if(document.fonts){var L=[];document.fonts.forEach(function(f){L.push(f.load().catch(function(){}))});await Promise.race([Promise.all(L),new Promise(function(r){setTimeout(r,8000)})]);await document.fonts.ready}var until=Date.now()+4000;while(typeof window.seek!=='function'&&Date.now()<until)await new Promise(function(r){setTimeout(r,50)});send({id:m.id,ok:typeof window.seek==='function',cues:Array.isArray(window.CUES)?window.CUES.slice(0,300).map(function(c){return{t:+(c&&c.t)||0,sfx:String(c&&c.sfx||'')}}):[]});return}" +
+		"if(m.type==='ready'){if(document.fonts){var L=[];document.fonts.forEach(function(f){L.push(f.load().catch(function(){}))});await Promise.race([Promise.all(L),new Promise(function(r){setTimeout(r,8000)})]);await document.fonts.ready}var until=Date.now()+4000;while(typeof window.seek!=='function'&&Date.now()<until)await new Promise(function(r){setTimeout(r,50)});send({id:m.id,ok:typeof window.seek==='function',cues:Array.isArray(window.CUES)?window.CUES.slice(0,300).map(function(c){return{t:+(c&&c.t)||0,sfx:String(c&&c.sfx||''),dur:Math.min(30,+(c&&c.dur)||0)}}):[]});return}" +
+		"if(m.type==='typed'){send({id:m.id,typed:window.__moTyped?Array.from(window.__moTyped.values()).slice(0,300):[]});return}" +
 		"if(m.type==='seek'){await window.seek(m.t);var c=document.getElementById('c')||document.querySelector('canvas');if(!c)throw new Error('There is no canvas to draw on');var b=await createImageBitmap(c);send({id:m.id,bmp:b},[b])}" +
 		"}catch(err){send({id:m.id,error:String(err&&err.message||err).slice(0,500)})}})})()<\/script>";
 	return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (x) => x + head + MOTION_KIT_TAG) : "<!doctype html><head>" + head + MOTION_KIT_TAG + "</head>" + html;
@@ -13145,6 +13212,7 @@ function openScene(html, W, H) {
 		frame: async (t) => { await api.ready(); return (await ask({ type: "seek", t }, 10000)).bmp; },
 		close: () => { removeEventListener("message", on); f.remove(); },
 		crash: () => crash,
+		typed: async () => { await api.ready(); return (await ask({ type: "typed" }, 10000)).typed || []; },
 	};
 	return api;
 }
@@ -13195,6 +13263,22 @@ async function checkScene(html, secs, W, H) {
 // stays exact.
 function motionKit() {
 	const W = window, PI = Math.PI;
+	// a safety net under every word in the film: letter spacing kept to what reads as words, never so wide the letters fly
+	// apart, never so negative they pile up or run backwards, whatever number it was given (Nov 17: a film's words came
+	// out spelt backwards with gaps, from a pixel number given where em was meant)
+	for (const C of [W.CanvasRenderingContext2D, W.OffscreenCanvasRenderingContext2D]) {
+		const d = C && Object.getOwnPropertyDescriptor(C.prototype, "letterSpacing");
+		if (!d || !d.set || d.set.__mo) continue;
+		const set = function (v) {
+			const m = String(v).trim().match(/^(-?\d*\.?\d+)(px|em|rem)?$/);
+			if (!m) return d.set.call(this, v);
+			const fs = Number((String(this.font).match(/(\d+(?:\.\d+)?)px/) || [])[1]) || 16;
+			const px = Number(m[1]) * (m[2] === "em" || m[2] === "rem" ? fs : 1);
+			d.set.call(this, Math.max(-0.08 * fs, Math.min(0.3 * fs, px)) + "px");
+		};
+		set.__mo = true;
+		Object.defineProperty(C.prototype, "letterSpacing", { ...d, set });
+	}
 	const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
 	const ease = {
 		linear: (x) => x,
@@ -13332,7 +13416,9 @@ function motionKit() {
 		ctx.fillStyle = o.color || "#111";
 		ctx.textAlign = o.align || "left";
 		ctx.textBaseline = o.base || "alphabetic";
-		if ("letterSpacing" in ctx) ctx.letterSpacing = (o.track || 0) * size + "px";
+		// (tracking in em: -0.02 tight, 0.08 for small capitals; a number past 0.5 either way is taken as pixels)
+		const tr = Number(o.track) || 0;
+		if ("letterSpacing" in ctx) ctx.letterSpacing = (Math.abs(tr) > 0.5 ? tr : tr * size) + "px";
 		if (o.alpha != null) ctx.globalAlpha *= clamp(o.alpha);
 		const lines = [];
 		if (o.maxW) { let line = ""; for (const w of String(s).split(/\s+/)) { const tt = line ? line + " " + w : w; if (ctx.measureText(tt).width > o.maxW && line) { lines.push(line); line = w; } else line = tt; } if (line) lines.push(line); }
@@ -13346,6 +13432,7 @@ function motionKit() {
 	// typing: how much of s is typed by time t (a person's uneven rhythm, the same every time), and a caret that blinks
 	// only while idle
 	const typed = (s, t, at, cps = 14) => {
+		(W.__moTyped || (W.__moTyped = new Map())).set(at + "|" + s, { t: at, sfx: "type", text: String(s).slice(0, 300), cps });
 		const r = rng(s.length * 7919 + 13);
 		let clock = at, n = 0;
 		while (n < s.length) { clock += (0.55 + 0.9 * r()) / cps + (s[n] === " " ? 0.04 : 0); if (clock > t) break; n++; }
@@ -13362,6 +13449,7 @@ function motionKit() {
 		ctx.fillStyle = o.color || "#111";
 		ctx.textBaseline = "alphabetic";
 		ctx.textAlign = "center";
+		if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
 		const dw = ctx.measureText("0").width, ws = [...B].map((c) => (/\d/.test(c) ? dw : ctx.measureText(c).width)), total = ws.reduce((a, b) => a + b, 0);
 		let cx = o.align === "center" ? x - total / 2 : o.align === "right" ? x - total : x;
 		for (let i = 0; i < n; i++) {
@@ -13474,8 +13562,8 @@ const MOTION_KIT_DOC = `Celestin's motion kit is already in your document as win
 - MO.rr(ctx, x, y, w, h, r): a rounded-rectangle path with continuous corners like Apple's (r at half the short side makes a capsule); MO.card(ctx, x, y, w, h, r, fill, elevation): a raised surface with soft real shadows; MO.glass(ctx, x, y, w, h, r, behind, {dark, blur, tint}): frosted glass, where behind(ctx) draws again what's behind it; MO.edge(ctx, x, y, w, h, r, alpha): a fine edge lit from above, for dark cards.
 - MO.phone(ctx, cx, cy, height, {screen: (ctx) => {...}, dark, bg, time, status, home, shadow}): a phone at its real proportions, centred at cx, cy. screen() draws in iOS points (393 wide, 852 tall), already clipped, under the status bar, the Dynamic Island and the home bar (status: false or home: false leaves them out). Returns the screen's {x, y, w, h, k}.
 - MO.icon(ctx, name, cx, cy, size, color): line icons in one weight: search, home, cart, bag, user, menu, heart, bell, check, chevronRight, chevronLeft, chevronDown, plus, minus, close, trash, play, pause, next, mic, camera, send, star, pin, clock, lock, share, card, chat, calendar, music, bolt, gift, filter, edit, image, phone, video, mail, map, settings, sun, moon, globe, arrowRight, arrowUp, download, refresh.
-- MO.text(ctx, s, x, y, {size, weight, font, color, align, base, track, maxW, lh, alpha}): words, wrapped to maxW; set MO.kit.ui (and MO.kit.display) to your Google Fonts first.
-- MO.typed(s, t, at, charsPerSecond): the part of s typed by t, in a person's uneven rhythm; MO.caret(t, lastKeyAt): whether the caret shows.
+- MO.text(ctx, s, x, y, {size, weight, font, color, align, base, track, maxW, lh, alpha}): words, wrapped to maxW; track is letter spacing in em (-0.02 for a tight title, 0.06 to 0.1 for small capitals, 0 otherwise), never pixels; set MO.kit.ui (and MO.kit.display) to your Google Fonts first.
+- MO.typed(s, t, at, charsPerSecond): the part of s typed by t, in a person's uneven rhythm (a key sounds for each letter as it appears, by itself: declare nothing for it); MO.caret(t, lastKeyAt): whether the caret shows.
 - MO.roll(ctx, to, x, y, k, {from, size, weight, font, color, align}): digits rolling like an odometer from "from" to "to" (a price, a count, a clock); MO.num(from, to, k, decimals).
 - MO.press(t, at): a scale for a button pressed at "at" (in fast, out on a spring); MO.tap(ctx, x, y, t, at): a finger's touch arriving, pressing and rippling; MO.arc(k, x0, y0, x1, y1, lift): a point along an arc (something flying into a cart).
 - MO.grain(ctx, W, H, t, amount): film grain; MO.vignette(ctx, W, H, amount).
@@ -13487,11 +13575,12 @@ const FILM_CRAFT = `Taste, camera and realism (what separates a film people shar
 - ${AI_TELLS.picture}
 - A camera, like a film: draw each scene into a world a virtual camera moves through (MO.cam and MO.view: one transform over the whole frame). As measured on the best channels, it holds while there's something to read, then moves decisively (a quarter to half a second, eased, or springing a little past and settling); it pushes in on what matters (push-ins outnumber pull-outs two to nine times over), pans and tracks with what moves, and pushes through an object into the next scene; a big transition takes about a second, accelerating into the cut. While the camera holds, the frame still lives (a cursor, a counter, a bubble, steam, light, a character breathing): nothing in the film stands completely still for more than a second or two. Depth: a foreground, the subject and a background moving at different speeds, the background softly out of focus (ctx.filter = "blur(...)") when the camera is close.
 - Real things at their real proportions, measured, never guessed: a phone is 9 wide by 19.5 tall (71.5 by 147.5 mm), its corners rounded by about 18% of its width, a thin even bezel (about 3% of its width), a pill-shaped camera cut-out at the top, a status bar (time, signal, battery) and a home bar at the bottom; a tablet is 3:4; a laptop screen 16:10 on a thin base; a watch face a rounded square. Never a chunky tablet for a phone.
-- A phone in the world, never floating on a plain background: held in a hand or lying on a table, lit like the rest of the scene (a highlight along its edge, a shadow under it, its screen's glow on what's near), its screen in the platform's own manner (message bubbles with tails, names and timestamps, a typing indicator, the keyboard rising as someone types, a notification sliding down from the top), and the camera with it: push in to read a message, follow the thumb, tilt as it's picked up.
+- A phone or a screen the way the best product films show one: the screen itself filling much of the frame, or a phone (MO.phone) standing upright and centred on a clean ground, with a soft shadow under it; never lying on a table, never at an angle you can't read, never in a hand unless the story needs one. Its screen in the platform's own manner (message bubbles with tails, names and timestamps, a typing indicator, the keyboard rising as someone types, a notification sliding down from the top), and the camera with it: push in to read what matters, follow the tap.
+- Light, roomy and readable, the way the studied product films are: unless the brand's own look is dark, a white, off-white or warm paper ground with near-black words and the brand's colour only on what matters; never a dark neon look, never glows. One idea per scene, said in a few big words: a title at least 7% of the frame's height, other words at least 3.5% (on a phone's screen, 17-point and up), never a dense dashboard of tiny text, never several cards stacked over what the scene is about. Every number and word sits fully inside the box it belongs to.
 - Colour like a colourist: about 60% a dominant (a neutral tinted toward the main hue), 30% a secondary, 10% an accent kept for what matters; lightness contrast before hue; the palette shifts with the story (cool and desaturated for tension or loss, warm and saturated for joy, one saturated colour to point the eye); light has a colour and everything in the scene takes it on; meanings checked for the audience (white is mourning across much of East Asia, red is luck in China and Indonesia).
 ${STUDIED}
 - When a brand's real logo is given, use exactly that shape; never draw a logo of your own for a real brand.
-- Sound moments, declared so the editor lays a real sound exactly there: window.CUES = [{t: seconds from the start of this program, sfx: "click" | "type" | "whoosh" | "swipe" | "pop" | "notify" | "impact" | "rise"}]: a click for every tap or cursor click, type for every burst of typing, whoosh for a fast camera move or a cut, swipe for anything sliding, pop when something appears, notify for a message or notification arriving, impact when a big title lands, rise into the big moment.
+- Sound moments, declared so the editor lays a real sound exactly there: window.CUES = [{t: seconds from the start of this program, sfx: "click" | "type" | "whoosh" | "swipe" | "pop" | "notify" | "impact" | "rise"}]: a click for every tap or cursor click, type for typing you draw yourself (with dur: how many seconds it goes on; typing drawn with MO.typed sounds by itself, a key for each letter), whoosh for a fast camera move or a cut, swipe for anything sliding, pop when something appears, notify for a message or notification arriving, impact when a big title lands, rise into the big moment.
 - Never invent facts: no prices, plans, numbers, statistics, results, names, reviews or testimonials that weren't given. A product's screen shows only real things from the brief, or neutral content with no numbers at all (never a made-up price such as "$2,400/mo" or a made-up "42 leads").`;
 const ANIMATOR = `You animate one shot of a film in code: a motion designer and animator at the best studio in the world, writing the shot as a program that draws every frame.
 
@@ -13656,7 +13745,7 @@ function takeView(d) {
 // twelve frames evenly through the film, each with its time under it, as one picture
 async function filmSheet(html, total, W, H) {
 	const tall = H > W, cols = tall ? 6 : 4, n = 12, rows = Math.ceil(n / cols);
-	const cw = Math.round(W / (tall ? 5 : 4)), ch = Math.round((cw * H) / W), lab = 22;
+	const cw = Math.round(W / (tall ? 3.4 : 3)), ch = Math.round((cw * H) / W), lab = 22;
 	const sheet = document.createElement("canvas");
 	sheet.width = cols * cw;
 	sheet.height = rows * (ch + lab);
@@ -13683,6 +13772,8 @@ async function filmSheet(html, total, W, H) {
 function filmTells(html, brief) {
 	const out = [], asked = String(brief || "").toLowerCase();
 	const ours = LOOK ? [LOOK.bg, LOOK.surface, LOOK.text, LOOK.accent, LOOK.second, LOOK.accentInk].filter(Boolean) : [];
+	// (a film about Celestin: its own indigo is its brand, not the AI look)
+	if (/\bcelestin\b/.test(asked)) ours.push("#5141ee", "#5b48ff", "#2f6bff", "#9a8fff");
 	const cols = [...new Set((String(html).match(COLOUR_IN) || []).map((c) => c.toLowerCase()))].filter((c) => { const h = hslOf(c); const x = hexOf(c.replace(/^#?([0-9a-f]{6})[0-9a-f]{2}$/i, "#$1")); return h && h.s > 0.35 && h.l > 0.12 && h.l < 0.9 && h.h >= 245 && h.h <= 300 && !(x && ours.some((o) => rgbDist(o, x) < 24)); });
 	if (cols.length >= 2 && !/purple|violet|indigo|lavender|lilac|ungu/.test(asked)) out.push("It uses purple, violet or indigo (" + cols.slice(0, 4).join(", ") + "), the most recognisable AI look: change every one to the film's own palette.");
 	const glows = (String(html).match(/shadowBlur\s*=\s*(?:[1-9]\d+|\d+\s*\*)/g) || []).length;
@@ -13738,7 +13829,7 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 	if (!critics.length) return null;
 	const sheet = await filmSheet(html, total, W, H);
 	const text = "You're the creative director of a top motion-design studio. This is a contact sheet: 12 frames taken evenly through a " + total + "-second film (each one's time under it), made from this brief:\n\n" + brief +
-		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (" + tellOf("film") + " " + tellOf("picture") + " " + tellOf("colour") + " " + tellOf("type") + "); padding (" + tellOf("padding") + "); a real object at the wrong proportions (a phone drawn like a chunky tablet); a camera that never moves (no push-ins, pans or depth), or one that drifts all the time instead of holding and then moving decisively). The bar, measured from the films people share most: screens that look like the real product and answer every tap; each scene growing out of the last (out of an icon, through an object, a notification opening into its screen) rather than a plain cut or fade; something new about every second; nothing that would stop it passing for a film Apple posted. Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
+		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; any word garbled, spelt backwards, with its letters spread far apart or piled on one another, or a number outside the box it belongs in (read every word closely); a dark, crowded look where a light, roomy one belongs; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (" + tellOf("film") + " " + tellOf("picture") + " " + tellOf("colour") + " " + tellOf("type") + "); padding (" + tellOf("padding") + "); a real object at the wrong proportions (a phone drawn like a chunky tablet); a camera that never moves (no push-ins, pans or depth), or one that drifts all the time instead of holding and then moving decisively). The bar, measured from the films people share most: screens that look like the real product and answer every tap; each scene growing out of the last (out of an icon, through an object, a notification opening into its screen) rather than a plain cut or fade; something new about every second; nothing that would stop it passing for a film Apple posted. Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
 	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: [{ type: "text", text }, { type: "image_url", image_url: { url: sheet } }] }], msg, undefined, "high");
 	const j = parseJSON(r.out) || {};
 	// (what the film's own code shows, first: the AI look and invented numbers are fixed whatever the critic thought)
@@ -13754,7 +13845,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	let at = 0;
 	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
 	const brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
-		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type." : "") +
+		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type. Celestin's own look, for a film about it: a white or soft off-white ground (#ffffff, #f7f7f6), near-black words (#0b0b0b), a quiet grey for what's secondary (#5f6063), and its indigo (#5141ee, or a gradient from #5b48ff to #2f6bff only on the mark or on what's chosen) kept to a few touches; light, calm and roomy, like its own app, with words in Hanken Grotesk." : "") +
 		(plan.craftNote ? "\n\n" + String(plan.craftNote).slice(0, 6000) : "") +
 		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
 		"\nIts typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words (a device's screen may use Figtree or Hanken Grotesk, like a real app); never Inter, Roboto, Arial or a system font." +
@@ -13886,14 +13977,16 @@ function renderSound(html, secs) {
 const CAM_ROOM = 1.1;
 const SFX_KINDS = ["click", "type", "whoosh", "swipe", "pop", "notify", "impact", "rise"];
 // One sound effect, synthesized (the same every time for the same seed): what the film declared at that moment
-function sfxBuffer(ctx, kind, seed) {
-	const sr = ctx.sampleRate, len = Math.round(sr * ({ click: 0.05, type: 0.55, whoosh: 0.5, swipe: 0.26, pop: 0.12, notify: 0.5, impact: 0.9, rise: 1.3 }[kind] || 0.1));
+function sfxBuffer(ctx, kind, seed, cue) {
+	const keys = kind === "type" ? typeTimes(cue) : null;
+	const sr = ctx.sampleRate, len = Math.round(sr * (keys && keys.length ? keys[keys.length - 1] + 0.1 : { click: 0.05, type: 0.55, whoosh: 0.5, swipe: 0.26, pop: 0.12, notify: 0.5, impact: 0.9, rise: 1.3 }[kind] || 0.1));
 	const buf = ctx.createBuffer(2, len, sr), L = buf.getChannelData(0), R = buf.getChannelData(1);
 	let x = (seed >>> 0) || 1;
 	const rnd = () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
 	const put = (i, v, pan = 0) => { if (i < 0 || i >= len) return; L[i] += v * (1 - Math.max(0, pan)); R[i] += v * (1 + Math.min(0, pan)); };
 	const tick = (at, gain, tone) => { for (let i = 0; i < sr * 0.03; i++) { const e = Math.exp(-i / (sr * 0.0035)); put(Math.round(at * sr) + i, (rnd() * 0.6 + Math.sin(2 * Math.PI * tone * i / sr) * 0.5) * e * gain); } };
 	if (kind === "click") tick(0, 0.9, 2400);
+	else if (kind === "type" && keys && keys.length) for (const at of keys) tick(at, 0.5 + 0.25 * Math.abs(rnd()), 1700 + 700 * Math.abs(rnd()));
 	else if (kind === "type") { let at = 0; for (let k = 0; k < 5; k++) { tick(at, 0.55 + 0.2 * Math.abs(rnd()), 1800 + 600 * Math.abs(rnd())); at += 0.07 + 0.05 * Math.abs(rnd()); } }
 	else if (kind === "pop") { let ph = 0; for (let i = 0; i < len; i++) { const f = 900 * Math.exp(-i / (sr * 0.03)) + 260; ph += 2 * Math.PI * f / sr; put(i, Math.sin(ph) * Math.exp(-i / (sr * 0.025)) * 0.8); } }
 	else if (kind === "notify") { for (const [f, at] of [[880, 0], [1320, 0.12]]) for (let i = 0; i < sr * 0.35; i++) { const e = Math.exp(-i / (sr * 0.09)); put(Math.round(at * sr) + i, (Math.sin(2 * Math.PI * f * i / sr) + 0.3 * Math.sin(4 * Math.PI * f * i / sr)) * e * 0.45); } }
@@ -13935,7 +14028,7 @@ function soundCheck(L, R) {
 		for (let s0 = 0; s0 + step <= L.length - 72000; s0 += step) {
 			let sum = 0;
 			for (let i = s0; i < s0 + step; i += 4) sum += L[i] * L[i] + R[i] * R[i];
-			if (Math.sqrt(sum / (step / 2)) * k < 0.003) { if (++run >= 6) throw new Error("The sound drops out from about " + ((s0 - (run - 1) * step) / 48000).toFixed(1) + " s: keep the music and sound going through every cut, right to the end"); }
+			if (Math.sqrt(sum / (step / 2)) * k < 0.003) { if (++run >= 12) throw new Error("The sound drops out from about " + ((s0 - (run - 1) * step) / 48000).toFixed(1) + " s: keep the music and sound going through every cut, right to the end"); }
 			else run = 0;
 		}
 	}
@@ -13949,6 +14042,63 @@ function wavOf(L, R, sr) {
 	for (let i = 0, o = 44; i < n; i++, o += 4) { v.setInt16(o, Math.max(-1, Math.min(1, L[i])) * 32767, true); v.setInt16(o + 2, Math.max(-1, Math.min(1, R[i])) * 32767, true); }
 	return new Blob([buf], { type: "audio/wav" });
 }
+// Celestin's own score, when no composed one passes its checks: a warm, steady bed in time with the cut (a pad on a
+// four-chord loop, a moving bass, a soft kick from the second bar and hats from the third, a hit as it ends), the same
+// every time, made here with no model and no cost
+async function ownScore(plan) {
+	const times = cutTimes(plan), secs = Math.max(4, Math.min(180, times.total)), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(secs * sr), sr);
+	const said = String((plan.music && plan.music.prompt) || "") + " " + String(plan.look || "");
+	const minor = /\b(tense|dark|dramatic|suspense|sad|epic|serious|mysterious|cinematic)\b/i.test(said), slow = /\b(calm|gentle|soft|slow|ambient|lo-?fi|warm|chill)\b/i.test(said);
+	const beat = 60 / (slow ? 84 : 104), bar = beat * 4, root = 48, hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+	const prog = minor ? [[0, 3, 7], [-4, 0, 3], [-9, -5, -2], [-2, 2, 5]] : [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]];
+	const comp = oc.createDynamicsCompressor(), out = oc.createGain();
+	comp.connect(oc.destination);
+	out.connect(comp);
+	out.gain.setValueAtTime(0, 0);
+	out.gain.linearRampToValueAtTime(0.8, 0.6);
+	out.gain.setValueAtTime(0.8, Math.max(0.7, secs - 1.2));
+	out.gain.linearRampToValueAtTime(0, secs);
+	for (let b = 0, t = 0; t < secs; b++, t += bar) {
+		const ch = prog[b % 4];
+		for (const iv of ch) for (const det of [-7, 7]) {
+			const o = oc.createOscillator(), f = oc.createBiquadFilter(), g = oc.createGain();
+			o.type = "sawtooth"; o.frequency.value = hz(root + 12 + iv); o.detune.value = det;
+			f.type = "lowpass"; f.frequency.value = 900;
+			g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.03, t + 0.4); g.gain.setValueAtTime(0.03, t + bar - 0.25); g.gain.linearRampToValueAtTime(0, t + bar + 0.1);
+			o.connect(f).connect(g).connect(out); o.start(t); o.stop(Math.min(secs, t + bar + 0.15));
+		}
+		for (const q of [0, 2]) {
+			const tt = t + q * beat;
+			if (tt >= secs) break;
+			const o = oc.createOscillator(), g = oc.createGain();
+			o.type = "sine"; o.frequency.value = hz(root - 12 + ch[0]);
+			g.gain.setValueAtTime(0.0001, tt); g.gain.exponentialRampToValueAtTime(0.22, tt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, tt + beat * 1.8);
+			o.connect(g).connect(out); o.start(tt); o.stop(Math.min(secs, tt + beat * 2));
+		}
+	}
+	const noise = oc.createBuffer(1, Math.round(sr * 0.2), sr), nd = noise.getChannelData(0);
+	let x = 7;
+	for (let i = 0; i < nd.length; i++) { x = (x * 1664525 + 1013904223) >>> 0; nd[i] = (x / 4294967296) * 2 - 1; }
+	for (let t = bar; t < secs - 0.6; t += beat) {
+		const o = oc.createOscillator(), g = oc.createGain();
+		o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+		g.gain.setValueAtTime(0.45, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+		o.connect(g).connect(out); o.start(t); o.stop(t + 0.3);
+		if (t >= bar * 2) {
+			const hb = oc.createBufferSource(), hf = oc.createBiquadFilter(), hg = oc.createGain(), ht = t + beat / 2;
+			hb.buffer = noise; hf.type = "highpass"; hf.frequency.value = 7000;
+			hg.gain.setValueAtTime(0.07, ht); hg.gain.exponentialRampToValueAtTime(0.0001, ht + 0.06);
+			hb.connect(hf).connect(hg).connect(out); hb.start(ht); hb.stop(ht + 0.08);
+		}
+	}
+	const end = Math.max(0.5, secs - 1.8), im = oc.createOscillator(), ig = oc.createGain();
+	im.frequency.setValueAtTime(90, end); im.frequency.exponentialRampToValueAtTime(38, end + 0.6);
+	ig.gain.setValueAtTime(0.55, end); ig.gain.exponentialRampToValueAtTime(0.0001, end + 1.2);
+	im.connect(ig).connect(out); im.start(end); im.stop(end + 1.3);
+	const buf = await oc.startRendering(), L = buf.getChannelData(0), R = buf.getChannelData(1);
+	soundCheck(L, R);
+	return wavOf(L, R, sr);
+}
 async function composeSound(plan, msg, signal) {
 	const times = cutTimes(plan), long = times.total > 180, secs = Math.round(Math.min(180, times.total) * 100) / 100;
 	// a long film: a three-minute piece that loops under all of it, with no effects to keep in step
@@ -13961,7 +14111,7 @@ async function composeSound(plan, msg, signal) {
 }
 async function composeFrom(ask, secs, msg, signal) {
 	let lastErr;
-	for (const m of bestFor("animation").slice(0, 3)) {
+	for (const m of bestFor("animation").slice(0, 2)) {
 		let html = "", err = "";
 		for (let attempt = 0; attempt < 2; attempt++) {
 			try {
