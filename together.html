@@ -3756,6 +3756,7 @@ async function conduct(text, atts, tried, only, team) {
 		+ (pc ? "; on the user's own computer: run commands and programs, build and test their projects, install things, read, write and organise their files, look at the screen" : "")
 		+ (others.length ? "; in the user's connected apps: " + others.map((s) => s.name + " (" + s.tools.slice(0, 10).map((x) => x.name).join(", ") + (s.tools.length > 10 ? "…" : "") + ")").join("; ") : "")
 		+ "; edit the user's own videos, audio and pictures like a professional editor, with ffmpeg (cut, trim, join, crop to vertical, speed, captions and titles, music and fades, GIFs)"
+		+ "; post on the user's own X, Bluesky, Telegram channel or Discord channel when they ask (they see the post and press Post first" + (POST_KINDS.some(connOf) ? "; connected: " + POST_KINDS.filter(connOf).map((k) => CONN_INFO[k].name).join(", ") : "; they connect an account once, from a button Celestin shows") + ")"
 		+ ". It is also the way for anything no single way above makes directly, or that combines several of them (a game mod, a business plan with a deck and a pitch video, a dataset with its analysis, a launch with a site and an ad): Celestin works out the steps itself, hands each piece to the AI model measured best at exactly it, can use every way above as one of its tools, and hands over files, a whole project, as a download. Choose it whenever the request needs something done, built, combined or checked rather than only said"]);
 	ways = ways.filter(([k]) => wayOn(k));
 	// a tool the person picked themselves: one of its ways (when this server can do it)
@@ -5854,23 +5855,23 @@ async function waitForJob(hit, args, out, msg, before) {
 // one click: the person signs in on the app's own page, and Celestin's server keeps the tokens sealed. Zapier reaches
 // 8,000+ more. [id, name, what it does for them, its MCP address, section]
 const PLUGINS = [
-	["zapier", "Zapier", "8,000+ more apps through your Zapier account", "https://mcp.zapier.com/api/mcp/mcp", "popular"],
-	["notion", "Notion", "Read and write your pages and databases", "https://mcp.notion.com/mcp", "popular"],
-	["stripe", "Stripe", "Customers, invoices, payments and subscriptions", "https://mcp.stripe.com", "popular"],
-	["square", "Square", "Your shop's orders, items, customers and payments", "https://mcp.squareup.com/mcp", "popular"],
-	["paypal", "PayPal", "Invoices, orders and payments", "https://mcp.paypal.com/mcp", "popular"],
-	["airtable", "Airtable", "Your bases, tables and records", "https://mcp.airtable.com/mcp", "popular"],
-	["canva", "Canva", "Find, make and edit designs", "https://mcp.canva.com/mcp", "new"],
+	["zapier", "Zapier", "Post and send in 8,000+ more apps (Instagram, Facebook Pages, LinkedIn…) through your Zapier account", "https://mcp.zapier.com/api/mcp/mcp", "popular"],
+	["notion", "Notion", "Write and update your pages and databases", "https://mcp.notion.com/mcp", "popular"],
+	["stripe", "Stripe", "Make invoices, payment links and customers", "https://mcp.stripe.com", "popular"],
+	["square", "Square", "Update your shop's items, orders and customers", "https://mcp.squareup.com/mcp", "popular"],
+	["paypal", "PayPal", "Make invoices and orders", "https://mcp.paypal.com/mcp", "popular"],
+	["airtable", "Airtable", "Add and update records in your bases", "https://mcp.airtable.com/mcp", "popular"],
+	["canva", "Canva", "Make and edit designs", "https://mcp.canva.com/mcp", "new"],
 	["figma", "Figma", "Read your designs and turn them into code", "https://mcp.figma.com/mcp", "new"],
-	["wix", "Wix", "Your Wix sites, store and bookings", "https://mcp.wix.com/mcp", "new"],
-	["webflow", "Webflow", "Your sites, pages and CMS", "https://mcp.webflow.com/mcp", "new"],
+	["wix", "Wix", "Update your Wix site, store and bookings", "https://mcp.wix.com/mcp", "new"],
+	["webflow", "Webflow", "Update and publish your pages and CMS", "https://mcp.webflow.com/mcp", "new"],
 	["intercom", "Intercom", "Customer conversations and contacts", "https://mcp.intercom.com/mcp", "new"],
 	["close", "Close", "Leads, deals and calls in your CRM", "https://mcp.close.com/mcp", "new"],
-	["linear", "Linear", "Issues, projects and cycles", "https://mcp.linear.app/mcp", "more"],
-	["atlassian", "Jira & Confluence", "Issues, pages and spaces", "https://mcp.atlassian.com/v1/mcp", "more"],
-	["monday", "monday.com", "Boards, items and updates", "https://mcp.monday.com/mcp", "more"],
-	["clickup", "ClickUp", "Tasks, docs and spaces", "https://mcp.clickup.com/mcp", "more"],
-	["supabase", "Supabase", "Manage and query your databases", "https://mcp.supabase.com/mcp", "more"],
+	["linear", "Linear", "Make and update issues and projects", "https://mcp.linear.app/mcp", "more"],
+	["atlassian", "Jira & Confluence", "Make issues and write pages", "https://mcp.atlassian.com/v1/mcp", "more"],
+	["monday", "monday.com", "Add and update items on your boards", "https://mcp.monday.com/mcp", "more"],
+	["clickup", "ClickUp", "Make tasks and docs", "https://mcp.clickup.com/mcp", "more"],
+	["supabase", "Supabase", "Change and query your databases", "https://mcp.supabase.com/mcp", "more"],
 	["vercel", "Vercel", "Deployments, projects and logs", "https://mcp.vercel.com", "more"],
 	["cloudflare", "Cloudflare", "Workers, DNS and your Cloudflare account", "https://mcp.cloudflare.com/mcp", "more"],
 	["sentry", "Sentry", "Errors and issues in your apps", "https://mcp.sentry.dev/mcp", "more"],
@@ -5888,7 +5889,7 @@ function openPlugins(tab) {
 	$$("[data-plgtab]").forEach((b) => (b.onclick = () => { PLG.tab = b.dataset.plgtab; drawPlugins(); }));
 	$("#plgAdd").onclick = () => (PLG.tab === "skills" ? editSkill() : addPlugin());
 	drawPlugins();
-	Promise.all([syncPlugins(), TOGETHER_APP ? syncConns() : null, loadApps(false).catch(() => {})]).then(() => { if ($("#plgBody")) drawPlugins(); });
+	Promise.all([syncPlugins(), syncConns(), loadApps(false).catch(() => {})]).then(() => { if ($("#plgBody")) drawPlugins(); });
 }
 function drawPlugins() {
 	const box = $("#plgBody");
@@ -5900,18 +5901,21 @@ function drawPlugins() {
 	const mine = (url) => PLG.apps.find((a) => a.url === url);
 	const sec = (title, rows, note) => (rows.length ? '<div class="plg-sec">' + esc(title) + (note ? '<span class="help">' + esc(note) + "</span>" : "") + '</div><div class="plg-grid">' + rows.join("") + "</div>" : "");
 	const listed = new Set(PLUGINS.map((p) => p[3]));
+	const accounts = Object.entries(CONN_INFO).filter(([k]) => TOGETHER_APP || POST_KINDS.includes(k));
 	const conn = [...PLG.apps.filter((a) => hit(a.name, a.url)).map((a) => plgRow("app:" + a.id, a.name, (listed.has(a.url) ? (PLUGINS.find((p) => p[3] === a.url) || [])[2] : a.url.replace(/^https:\/\//, "")) + (a.tools.length ? " · " + a.tools.length + " things it can do" : ""), true)),
-		...(TOGETHER_APP ? Object.entries(CONN_INFO).filter(([k, x]) => connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, connOf(k).name || x.what, true, x.c)) : []),
+		...accounts.filter(([k, x]) => connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, connOf(k).name || x.what, true, x.c)),
 		...APPS.servers.filter((x) => x.local && hit(x.name)).map((x) => plgRow("local", x.name, "On this computer" + (x.tools ? " · " + x.tools.length + " things it can do" : ""), true))];
 	const row = (p) => plgRow("mcp:" + p[0], p[1], p[2], !!mine(p[3]));
 	const pick = (k) => PLUGINS.filter((p) => p[4] === k && !mine(p[3]) && hit(p[1], p[2])).map(row);
-	const accts = TOGETHER_APP ? Object.entries(CONN_INFO).filter(([k, x]) => !connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, x.what, false, x.c)) : [];
+	const accts = accounts.filter(([k, x]) => !connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, TOGETHER_APP ? x.what : "Post here when you ask: you see each post first", false, x.c));
 	const local = hit("On this computer Blender Figma Unity files Claude Desktop") ? [plgRow("local", "On this computer", "Blender, Unity, your files and the apps Claude Desktop has", APPS.servers.some((x) => x.local))] : [];
 	// (searching: the open MCP registry too, 20,000+ servers published by their makers)
 	if (q.length >= 2 && PLG.reg.q !== q) { PLG.reg = { q, list: null }; clearTimeout(PLG.regT); PLG.regT = setTimeout(async () => { let list = []; try { list = (await api("/api/mcp/registry?q=" + encodeURIComponent(q))).servers || []; } catch {} if (PLG.reg.q === q) { PLG.reg.list = list; drawPlugins(); } }, 350); }
 	const known = new Set([...PLUGINS.map((p) => p[3]), ...PLG.apps.map((a) => a.url)]);
 	const reg = q.length >= 2 && PLG.reg.q === q && PLG.reg.list ? PLG.reg.list.filter((x) => !known.has(x.url)).map((x, k) => plgRow("reg:" + k, x.name, x.what || x.url.replace(/^https:\/\//, ""), false)) : [];
-	const html = sec("Connected", conn) + sec("For your business", accts, "your team posts and messages through these by itself") + sec("Popular", pick("popular")) + sec("New & noteworthy", pick("new")) + sec("More apps", pick("more")) + sec("From the open MCP registry", reg, "published by their makers, not checked by Celestin") + (q.length >= 2 && PLG.reg.q === q && !PLG.reg.list ? '<div class="plg-none">Searching 20,000+ more in the open MCP registry…</div>' : "") + sec("Your computer", local);
+	// (looking needs nothing connected: plugins are for doing)
+	const note = q ? "" : '<p class="help plg-note">Reading, watching and searching need nothing connected: Celestin already reads any website and watches YouTube, TikTok, Telegram channels and wikis. Plugins are for doing things in your apps: posting, sending, booking, updating.</p>';
+	const html = note + sec("Connected", conn) + sec("Post and send", accts, TOGETHER_APP ? "your team posts and messages through these by itself" : "it posts when you ask, after you've seen the post") + sec("Popular", pick("popular")) + sec("New & noteworthy", pick("new")) + sec("More apps", pick("more")) + sec("From the open MCP registry", reg, "published by their makers, not checked by Celestin") + (q.length >= 2 && PLG.reg.q === q && !PLG.reg.list ? '<div class="plg-none">Searching 20,000+ more in the open MCP registry…</div>' : "") + sec("Your computer", local);
 	box.innerHTML = html || '<div class="plg-none">Nothing called that yet. Press Add to connect any app by its MCP address, or connect Zapier: it reaches 8,000+ more.</div>';
 	$$("[data-plg]").forEach((b) => (b.onclick = () => plgTap(b.dataset.plg)));
 }
@@ -6132,6 +6136,7 @@ const BUILT_IN = [
 	["read_wikis", "Read what the wikis say about something (fandom wikis and Wikipedia), whole, as text: people, characters, creators, games, shows, lore, quotes.", { query: { type: "string" } }, ["query"]],
 	["lookup_docs", "Current documentation for a library or framework (React, Fabric, pandas, three.js...), so code matches today's API.", { library: { type: "string" }, topic: { type: "string" } }, ["library"]],
 	["remember", "Save a lasting fact about the user or their work to remember in future chats (their projects, preferences, decisions).", { fact: { type: "string" } }, ["fact"]],
+	["post", "Post on the user's own account: X, Bluesky, their Telegram channel or their Discord channel, when they ask for a post there. Write it ready to go (X takes 280 characters, Bluesky 300). They see the exact words and press Post before it goes; if the account isn't connected yet, they're shown a button to connect it.", { to: { type: "string", enum: ["x", "bluesky", "telegram", "discord"] }, text: { type: "string" } }, ["to", "text"]],
 	["ask_expert", "Hand one piece of the work to the AI model measured best at exactly that skill (Celestin routes it by the leaderboards and its own record, and takes the cheapest model the ratings can't tell apart from the best). Give the task complete: everything the expert needs to know, and exactly what to return. Its answer comes back to you.", {
 		task: { type: "string", description: "The complete piece of work, with every fact, file excerpt or constraint it needs" },
 		skills: { type: "object", description: "How much each measured skill matters for exactly this piece, 0 to 1 (keys from the skills list in your instructions), e.g. {\"text:coding\": 0.6, \"factuality:coding\": 0.4}", additionalProperties: { type: "number" } },
@@ -6599,12 +6604,38 @@ const planTool = (args, msg, log) => {
 // what changes something on the computer: asked about first (reading, listing, searching and looking are not)
 const CHANGES = /^(run_command|start_command|stop_job|write_file|edit_file|open)$/;
 const ASKS = new Map();
-function approve(msg, what, detail) {
-	if (settings.trustComputer || (current && current.trustComputer)) return Promise.resolve(true);
+// A post on the person's own account: only when they asked for one, after they've seen it word for word and pressed Post;
+// then out through the server's guard (never a password, a key, a card or an ID number). Not connected yet: a button to
+// connect it, shown under the answer
+async function postTool(args, msg, log) {
+	const to = String(args.to || "").toLowerCase(), text = String(args.text || "").trim(), info = CONN_INFO[to];
+	if (!info || !POST_KINDS.includes(to)) return "Celestin can post to X, Bluesky, a Telegram channel or a Discord channel.";
+	if (!text) return "There's nothing to post.";
+	if (!account || !creditsMode()) return "They need to be signed in to Celestin to post from it: tell them to sign in, then ask again.";
+	if (!CONNS.at || Date.now() - CONNS.at > 60000) await syncConns();
+	const c = connOf(to);
+	if (!c) { msg.data.connect = to; updateLast(); log("Needs " + info.name + " connected", "", true); return "Their " + info.name + " isn't connected yet, so nothing was posted. A Connect " + info.name + " button is shown under your answer: tell them to press it, connect once, and ask again. Don't post anywhere else instead."; }
+	const most = { x: 280, bluesky: 300, telegram: 4000, discord: 1900 }[to];
+	if (text.length > most) return "It's " + text.length + " characters and " + info.name + " takes " + most + ": make it shorter and post again.";
+	if (!(await approve(msg, "post this on " + info.name + (c.name ? " (" + c.name + ")" : ""), text, { always: true, yes: "Post" }))) { log("Not posted to " + info.name, "", true); return "They chose not to post it. Ask what they'd like changed."; }
+	try {
+		const j = await api("/api/post", { method: "POST", body: JSON.stringify({ to, text }) });
+		log("Posted to " + info.name, j.url || "");
+		return "Posted to " + info.name + (j.url ? ": " + j.url : "") + ".";
+	} catch (e) {
+		if (e.name === "AbortError") throw e;
+		log("Couldn't post to " + info.name, e.message, true);
+		return "It couldn't post: " + (e.message || e);
+	}
+}
+// (o.always: asked every time, whatever "allow everything in this chat" said, as anything posted publicly is; o.yes: its
+// button's words)
+function approve(msg, what, detail, o = {}) {
+	if (!o.always && (settings.trustComputer || (current && current.trustComputer))) return Promise.resolve(true);
 	return new Promise((done) => {
 		const id = uid();
 		ASKS.set(id, (ok) => { msg.data.ask = null; ASKS.delete(id); updateLast(); done(ok); });
-		msg.data.ask = { id, what, detail: String(detail || "").slice(0, 4000) };
+		msg.data.ask = { id, what, detail: String(detail || "").slice(0, 4000), yes: o.yes || "", always: !!o.always };
 		msg.status = "Waiting for you to allow it";
 		updateLast();
 		if (talk && talk.on) toast("Celestin is asking to " + what);
@@ -6740,7 +6771,7 @@ async function compact(messages, keep = 14) {
 }
 async function runAct(text, atts, resume) {
 	const servers = capOn("computer") ? liveApps() : [];
-	const toolOn = (n) => (/^run_/.test(n) ? capOn("code") : /^(web_search|fetch_url)$/.test(n) ? capOn("web") : n === "remember" ? settings.memory !== false : true);
+	const toolOn = (n) => (/^run_/.test(n) ? capOn("code") : /^(web_search|fetch_url)$/.test(n) ? capOn("web") : n === "remember" ? settings.memory !== false : n === "post" ? !!(account && creditsMode()) : true);
 	const apps = appTools(servers), map = apps.map;
 	const tools = [...BUILT_IN.filter((t) => toolOn(t.function.name)), ...POWER_TOOLS, ...apps.tools];
 	const names = servers.map((s) => s.name).join(", ");
@@ -6758,7 +6789,7 @@ async function runAct(text, atts, resume) {
 		const files = codeFiles();
 		const idx = arenaIndex(), skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
 		const system = "You are Celestin, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
-			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Celestin has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Celestin's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), edit the user's own videos, audio and pictures with ffmpeg like a professional editor (edit_media), with original music composed for them (compose_music), and hand over files, even a whole project, as a download (save_file, then deliver_files)."
+			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Celestin has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Celestin's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), edit the user's own videos, audio and pictures with ffmpeg like a professional editor (edit_media), with original music composed for them (compose_music), and hand over files, even a whole project, as a download (save_file, then deliver_files). When they ask for a post, you post it on their own X, Bluesky, Telegram or Discord (post): they see it and press Post first."
 			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + " (every word of each; what's in your messages may be excerpts of a long one, so for work on all of it, read it there and hand pieces to experts)." : "")
 			+ (mediaLine() ? " " + mediaLine() : "")
 			+ (skillLine() ? "\n\n" + skillLine() : "")
@@ -6815,6 +6846,7 @@ async function runAct(text, atts, resume) {
 					const basic = await basicTool(fn, args, msg, log, pics);
 					if (basic != null) out = basic;
 					else if (fn === "remember") { out = remember(args.fact) ? "Saved." : "Already remembered."; log("Remembered", args.fact); }
+					else if (fn === "post") out = await postTool(args, msg, log);
 					else if (fn === "plan") out = planTool(args, msg, log);
 					else if (fn === "edit_media") out = await editMedia(args, msg, log, pics);
 					else if (fn === "compose_music") out = await composeMusic(args, msg, log);
@@ -6970,7 +7002,9 @@ function renderAgent(m, i, box) {
 		'<pre class="ag-diff">' + f.lines.map(([t, s]) => '<span class="' + ({ "+": "a", "-": "d", "@": "h", " ": "c" })[t] + '">' + (t === "@" ? "" : t + " ") + esc(s) + "</span>").join("\n") + (f.more ? '\n<span class="h">… ' + f.more + " more lines</span>" : "") + "</pre></details>").join("");
 	let act = "";
 	// asking before it changes something on the computer: exactly what, and yes, yes to everything in this chat, or no
-	const ask = d.ask ? '<div class="ask"><b>Celestin wants to ' + esc(d.ask.what) + "</b>" + (d.ask.detail ? '<pre class="ag-diff">' + esc(d.ask.detail) + "</pre>" : "") + '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn dark" data-askyes>Allow</button><button class="btn" data-askall>Allow everything in this chat</button><button class="btn" data-askno>Don\'t allow</button></div></div>' : "";
+	const ask = (d.ask ? '<div class="ask"><b>Celestin wants to ' + esc(d.ask.what) + "</b>" + (d.ask.detail ? '<pre class="ag-diff">' + esc(d.ask.detail) + "</pre>" : "") + '<div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn dark" data-askyes>' + esc(d.ask.yes || "Allow") + "</button>" + (d.ask.always ? "" : '<button class="btn" data-askall>Allow everything in this chat</button>') + '<button class="btn" data-askno>' + (d.ask.yes ? "Don\'t " + esc(d.ask.yes.toLowerCase()) : "Don\'t allow") + "</button></div></div>" : "")
+		// (an account it needs, not connected yet)
+		+ (d.connect && CONN_INFO[d.connect] && !connOf(d.connect) ? '<div class="row ag-act"><button class="btn dark" data-agconn>Connect ' + esc(CONN_INFO[d.connect].name) + "</button></div>" : "");
 	if (d.pkind === "act" && d.running && !m.streaming && !busy) act = '<span class="ag-done">This job was cut off.</span><button class="btn dark" data-agresume>Carry on</button>';
 	if (!m.streaming && d.diffs && d.diffs.length) {
 		if (d.pkind === "folder" || d.pkind === "browser") act = (d.undone ? '<span class="ag-done">Undone: the files are back as they were.</span>' : '<button class="btn" data-agundo>Undo these changes</button>') + (d.pkind === "browser" ? '<button class="btn" data-agsave>Download</button>' : "");
@@ -6991,10 +7025,11 @@ function renderAgent(m, i, box) {
 	if (d.ask) {
 		const answer = (ok, all) => { const go = ASKS.get(d.ask.id); if (all && current) { current.trustComputer = true; save(); } if (go) go(ok); else { d.ask = null; renderStudy(m, i); } };
 		q("[data-askyes]").onclick = () => answer(true);
-		q("[data-askall]").onclick = () => answer(true, true);
+		if (q("[data-askall]")) q("[data-askall]").onclick = () => answer(true, true);
 		q("[data-askno]").onclick = () => answer(false);
 	}
 	if (q("[data-agresume]")) q("[data-agresume]").onclick = () => resumeAct(i);
+	if (q("[data-agconn]")) q("[data-agconn]").onclick = () => openConns(d.connect);
 	box.querySelectorAll("[data-agzip]").forEach((b) => (b.onclick = async () => { const x = d.downloads[+b.dataset.agzip], blob = x && (await vault.get(x.key)); if (blob) saveBlob(blob, x.name); else toast("That download isn't on this device anymore"); }));
 	if (d.made && d.made.length) {
 		const g = document.createElement("div");
@@ -16789,12 +16824,12 @@ function drawConns(kind) {
 		const k = CONN_INFO[kind];
 		box.innerHTML = "<h3 style=\"margin:0 0 6px\">" + esc(k.name) + '</h3><p class="help" style="margin:0 0 12px">' + esc(k.how) + "</p>" + k.fields.map(([f, l, ph]) => '<div class="field"><label for="cn_' + f + '">' + esc(l) + '</label><input class="inp" id="cn_' + f + '" autocomplete="off" spellcheck="false" placeholder="' + esc(ph) + '"' + (/secret|password/i.test(f) ? ' type="password"' : "") + "></div>").join("") +
 			'<div class="status" id="cnStatus" role="status"></div><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="cnBack">Back</button><button class="btn dark" id="cnGo">Connect</button></div>';
-		$("#cnBack").onclick = () => drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined); if (CONN_QUEUE.length) $("#cnBack").textContent = "Skip this one";
+		$("#cnBack").onclick = () => (TOGETHER_APP ? drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined) : openPlugins()); if (CONN_QUEUE.length) $("#cnBack").textContent = "Skip this one";
 		$("#cnGo").onclick = async () => {
 			const st = $("#cnStatus"); st.className = "status"; st.innerHTML = '<span class="spin"></span> Checking it…'; $("#cnGo").disabled = true;
 			const b = { kind };
 			k.fields.forEach(([f]) => (b[f] = $("#cn_" + f).value.trim()));
-			try { await api("/api/conns", { method: "POST", body: JSON.stringify(b) }); await syncConns(); drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined); toast(k.name + " connected"); }
+			try { await api("/api/conns", { method: "POST", body: JSON.stringify(b) }); await syncConns(); if (TOGETHER_APP) drawConns(CONN_QUEUE.length ? CONN_QUEUE.shift() : undefined); else openPlugins(); toast(k.name + " connected"); }
 			catch (e) { st.className = "status bad"; st.textContent = e.message || String(e); $("#cnGo").disabled = false; }
 		};
 		return;

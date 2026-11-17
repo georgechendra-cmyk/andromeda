@@ -209,6 +209,7 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/agents\/log\/([a-f0-9]{24})\/(send|discard)$/)) && m === "POST") return agentApprove(req, env, user, fd[1], fd[2]);
 	if ((fd = p.match(/^\/api\/outbox\/([a-f0-9]{24})\/(send|stop|discard)$/)) && m === "POST") return outboxAct(req, env, user, fd[1], fd[2]);
 	if (p === "/api/outbox/stop" && m === "POST") return outboxStopAll(env, user);
+	if (p === "/api/post" && m === "POST") return postNow(req, env, user);
 	if (p === "/api/mcp" && m === "GET") return mcpList(env, user);
 	if (p === "/api/mcp/registry" && m === "GET") return mcpRegistry(req);
 	if (p === "/api/apps" && m === "POST") return appRegister(req, env, user);
@@ -5199,7 +5200,7 @@ async function outSend(env, r, byOwner) {
 		const said = (r.kind === "tool" ? "Did " + String(p.tool).replace(/_/g, " ") + " in " + p.to + (url ? ": " + url : "") : r.kind === "post" ? "Posted to " + p.to + (url ? " (" + url + ")" : "") : "Emailed " + (p.to || "a reply in the thread") + (p.subject ? ": " + p.subject : "")) + (byOwner ? " (you sent it)" : " (by itself, after passing every check)");
 		if (src.type === "agent") await env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at) VALUES (?, ?, ?, 'action', ?, ?)").bind(id(), src.id, r.user_id, said + "\n\n" + String(p.body || p.text || "").slice(0, 3000), now()).run();
 		if (src.type === "job" && src.item) await env.DB.prepare("UPDATE team_job_items SET status = 'done', text = ?, why = ? WHERE id = ? AND user_id = ?").bind(String(p.body || p.text || ""), (src.why ? src.why + " · " : "") + said, src.item, r.user_id).run();
-		return true;
+		return url || true;
 	} catch (e) {
 		await env.DB.prepare("UPDATE outbox SET status = 'held', why = ? WHERE id = ?").bind("It couldn't go out: " + String(e.message || e).slice(0, 200), r.id).run();
 		return false;
@@ -5236,6 +5237,24 @@ async function outboxAct(req, env, user, oid, what) {
 	if (!(took.meta && took.meta.changes)) throw fail(409, "It's already going out.");
 	if (!(await outSend(env, { ...r, payload: JSON.stringify(p) }, true))) throw fail(502, "It couldn't go out: it's back in Needs you with why.");
 	return json({ ok: true });
+}
+// A post the person asked for in a chat and approved there, word for word: their OK is the send, as "Send now" is (no
+// wait, no second AI), but never with a password, a key, a card or an ID number in it, and never cut short: too long for
+// the place is sent back to be rewritten. Kept in the outbox like everything that goes out
+const POST_TO = { x: 280, bluesky: 300, telegram: 4000, discord: 1900 };
+async function postNow(req, env, user) {
+	const b = await body(req), to = String(b.to || "").toLowerCase(), text = String(b.text || "").trim();
+	if (!POST_TO[to]) throw fail(400, "Post where? X, Bluesky, Telegram or Discord.");
+	if (!text) throw fail(400, "Post what?");
+	if (text.length > POST_TO[to]) throw fail(400, "It's " + text.length + " characters and " + { x: "X", bluesky: "Bluesky", telegram: "Telegram", discord: "Discord" }[to] + " takes " + POST_TO[to] + ": make it shorter.");
+	const hard = neverShare(text, "", true);
+	if (hard) throw fail(400, "Celestin never posts " + hard + ": take it out first.");
+	if (!(await env.DB.prepare("SELECT 1 AS x FROM conns WHERE user_id = ? AND kind = ?").bind(user.id, to).first())) throw fail(404, "No " + to + " account is connected.");
+	const oid = id(), t = now(), payload = JSON.stringify({ to, text }), src = JSON.stringify({ type: "chat" });
+	await env.DB.prepare("INSERT INTO outbox (id, user_id, kind, to_key, payload, src, why, send_at, status, created_at) VALUES (?, ?, 'post', ?, ?, ?, '', ?, 'sending', ?)").bind(oid, user.id, "post:" + to, payload, src, t, t).run();
+	const done = await outSend(env, { id: oid, user_id: user.id, kind: "post", payload, src }, true);
+	if (!done) { const r = await env.DB.prepare("SELECT why FROM outbox WHERE id = ?").bind(oid).first(); throw fail(502, (r && r.why) || "It couldn't go out."); }
+	return json({ ok: true, url: typeof done === "string" ? done : null });
 }
 async function outboxStopAll(env, user) {
 	const r = await env.DB.prepare("UPDATE outbox SET status = 'held', why = 'You stopped everything going out: it waits for you' WHERE user_id = ? AND status = 'wait'").bind(user.id).run();
