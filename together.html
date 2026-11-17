@@ -1290,6 +1290,7 @@ body.art-open .msg > .av { display: none; }
 .sp-row .x { opacity: 0; padding: 2px 6px; border-radius: 6px; color: var(--faint); display: grid; place-items: center; flex: none; transition: opacity .15s; }
 .sp-row:hover .x, .sp-row:focus-within .x { opacity: 1; }
 .sp-row .x:hover { color: var(--err); }
+.armed, .btn.armed, .x.armed { color: var(--err) !important; background: color-mix(in srgb, var(--err) 14%, transparent) !important; border-color: color-mix(in srgb, var(--err) 45%, transparent) !important; opacity: 1 !important; }
 @media (hover: none) { .sp-row .x { opacity: .7; padding: 6px; } }
 .sp-new, .sp-new svg { color: var(--muted); }
 .crumb { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 4px 0 10px; border-radius: 10px; font-size: 14px; color: var(--muted); white-space: nowrap; max-width: 30%; }
@@ -5986,9 +5987,9 @@ async function plgTap(key) {
 	if (!creditsMode() || !account) { openAccount(); return; }
 	if (kind === "app") {
 		const a = PLG.apps.find((x) => x.id === k);
-		if (!a || !confirm("Disconnect " + a.name + "? Celestin stops using it at once.")) return;
-		await api("/api/mcp/" + a.id, { method: "DELETE" }).catch(() => {});
-		await syncPlugins(); loadApps(true).catch(() => {}); drawPlugins(); return;
+		if (!a) return;
+		const b = $('[data-plg="' + key + '"]');
+		return twice(b, async () => { await api("/api/mcp/" + a.id, { method: "DELETE" }).catch(() => {}); await syncPlugins(); loadApps(true).catch(() => {}); drawPlugins(); }, "disconnect");
 	}
 	if (kind === "reg") { const r = (PLG.reg.list || [])[+k]; if (r) await plgConnect(r.name, r.url, key); return; }
 	const p = PLUGINS.find((x) => x[0] === k);
@@ -13176,7 +13177,8 @@ function sceneDoc(html, W, H) {
 		"addEventListener('message',async function(e){var m=e.data||{};try{" +
 		"if(m.type==='ready'){if(document.fonts){var L=[];document.fonts.forEach(function(f){L.push(f.load().catch(function(){}))});await Promise.race([Promise.all(L),new Promise(function(r){setTimeout(r,8000)})]);await document.fonts.ready}var until=Date.now()+4000;while(typeof window.seek!=='function'&&Date.now()<until)await new Promise(function(r){setTimeout(r,50)});send({id:m.id,ok:typeof window.seek==='function',cues:Array.isArray(window.CUES)?window.CUES.slice(0,300).map(function(c){return{t:+(c&&c.t)||0,sfx:String(c&&c.sfx||''),dur:Math.min(30,+(c&&c.dur)||0)}}):[]});return}" +
 		"if(m.type==='typed'){send({id:m.id,typed:window.__moTyped?Array.from(window.__moTyped.values()).slice(0,300):[]});return}" +
-		"if(m.type==='seek'){await window.seek(m.t);var c=document.getElementById('c')||document.querySelector('canvas');if(!c)throw new Error('There is no canvas to draw on');var b=await createImageBitmap(c);send({id:m.id,bmp:b},[b])}" +
+		"if(m.type==='texts'){send({id:m.id,texts:window.__moTexts?window.__moTexts.slice(0,5000):[]});return}" +
+		"if(m.type==='seek'){window.__moSeekT=m.t;await window.seek(m.t);var c=document.getElementById('c')||document.querySelector('canvas');if(!c)throw new Error('There is no canvas to draw on');var b=await createImageBitmap(c);send({id:m.id,bmp:b},[b])}" +
 		"}catch(err){send({id:m.id,error:String(err&&err.message||err).slice(0,500)})}})})()<\/script>";
 	return /<head[^>]*>/i.test(html) ? html.replace(/<head[^>]*>/i, (x) => x + head + MOTION_KIT_TAG) : "<!doctype html><head>" + head + MOTION_KIT_TAG + "</head>" + html;
 }
@@ -13213,6 +13215,7 @@ function openScene(html, W, H) {
 		close: () => { removeEventListener("message", on); f.remove(); },
 		crash: () => crash,
 		typed: async () => { await api.ready(); return (await ask({ type: "typed" }, 10000)).typed || []; },
+		texts: async () => { await api.ready(); return (await ask({ type: "texts" }, 10000)).texts || []; },
 	};
 	return api;
 }
@@ -13278,6 +13281,24 @@ function motionKit() {
 		};
 		set.__mo = true;
 		Object.defineProperty(C.prototype, "letterSpacing", { ...d, set });
+	}
+	// what size the film's words are drawn at, for the measured check (a fraction of the frame's height, with the moment)
+	{
+		const C = W.CanvasRenderingContext2D;
+		if (C && !C.prototype.fillText.__mo) {
+			const ft = C.prototype.fillText;
+			const wrapped = function (txt, x, y, mw) {
+				try {
+					if (W.__moSeekT != null && this.canvas && this.canvas.id === "c" && String(txt).trim().length > 1 && this.globalAlpha > 0.3) {
+						const fs = Number((String(this.font).match(/(\d+(?:\.\d+)?)px/) || [])[1]) || 0, m = this.getTransform(), list = W.__moTexts || (W.__moTexts = []);
+						if (list.length < 5000) list.push([W.__moSeekT, (fs * Math.hypot(m.c, m.d)) / (this.canvas.height || 1)]);
+					}
+				} catch {}
+				return ft.call(this, txt, x, y, mw);
+			};
+			wrapped.__mo = true;
+			C.prototype.fillText = wrapped;
+		}
 	}
 	const clamp = (v, a = 0, b = 1) => (v < a ? a : v > b ? b : v);
 	const ease = {
@@ -13717,6 +13738,7 @@ Write ONE complete HTML document, exactly to this contract:
 - Everything in this file. Nothing may be loaded except Google Fonts (a <link> to fonts.googleapis.com; await document.fonts.ready inside seek before drawing text) and, only for real 3D, three.js r128 from https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js (WebGLRenderer with preserveDrawingBuffer: true, drawn into the canvas #c). For flat 2D characters in a 3D world, draw each character on its own offscreen canvas for the frame and show it as a CanvasTexture (needsUpdate = true) on a plane facing the camera, in the three.js scene. No images, video or files: draw everything yourself.
 
 How the best ones are built:
+- Sketch it first, the way the best motion designers work from a drawing: before any code, write the storyboard as a comment at the top of the script, one line per scene: its one idea in six words or fewer (set big), its one hero element and where it sits in the frame, what moves, and the camera's move. Then build exactly that.
 - One timeline: a list of scenes with start and end times, each scene a function of its own local progress. One design system for the whole film, defined once at the top: palette, type scale, grid and margins, line weights, corner radii, shadows, and a motion language (the same easings and timings everywhere). Each recurring character, product or screen is drawn by one helper, so it's identical in every scene.
 - Transitions designed, never an accidental jump: a match cut, a shape that grows into the next scene, a push through, a wipe in the film's own style, an element carried across.
 - Motion: every move eased (expo or cubic out, a little anticipation, overshoot that settles); springs as pure functions of time (a damped oscillator); elements arrive in stages, staggered 40 to 80 ms, never all at once; secondary motion and gentle parallax so no frame is ever static; holds long enough to read (words stay on screen at least as long as it takes to read them twice).
@@ -13787,10 +13809,11 @@ function filmTells(html, brief) {
 // What the film's own frames show, measured rather than judged (the way the studied films were measured): a stretch where
 // nothing at all moves, a frame that flashes for an instant and is gone, a blank frame in the middle. Ten frames a
 // second at most (400 in all), small
-async function motionTells(html, total, W, H) {
+async function motionTells(html, total, W, H, brief) {
 	const out = [], w = 64, h = Math.max(36, Math.round((64 * H) / W)), rate = Math.min(10, 400 / Math.max(1, total)), n = Math.floor(total * rate);
 	const c = Object.assign(document.createElement("canvas"), { width: 32, height: Math.max(18, Math.round((32 * H) / W)) });
 	const sc = openScene(html, w, h), G = [], flat = [];
+	let texts = [];
 	try {
 		for (let i = 0; i <= n; i++) {
 			const b = await sc.frame(Math.min(total - 0.02, i / rate)), g = grayOf(b, c);
@@ -13800,14 +13823,33 @@ async function motionTells(html, total, W, H) {
 			G.push(g);
 			flat.push(hi - lo < 6);
 		}
+		texts = await sc.texts().catch(() => []);
 	} finally {
 		sc.close();
 	}
 	const d = G.map((g, i) => (i ? madOf(G[i - 1], g) : 0)), at = (i) => (i / rate).toFixed(1);
+	// (how much of the picture changed from the moment before, and how bright each moment is)
+	const moved = G.map((g, i) => { if (!i) return 1; let k = 0; for (let j = 0; j < g.length; j++) if (Math.abs(g[j] - G[i - 1][j]) > 10) k++; return k / g.length; });
+	const lum = G.map((g) => g.reduce((a, v) => a + v, 0) / g.length);
+	const darkAsked = /\b(dark|night|neon|noir|black|moody|horror|space)\b/i.test(String(brief || "")) || (LOOK && LOOK.bg && (hslOf(LOOK.bg) || { l: 1 }).l < 0.25);
+	if (!darkAsked && lum.length) {
+		let k = 0;
+		while (k < lum.length && lum[k] < 18) k++;
+		if (k / rate >= 1.2) out.push("It opens on a near-black screen for " + at(k) + " s: open straight on the hook, on the film's own light ground.");
+		const avg = lum.reduce((a, v) => a + v, 0) / lum.length;
+		if (avg < 60) out.push("It's dark from start to end (average brightness " + Math.round(avg) + " of 255) where the best product films are light: put it on a light ground (white, off-white or warm paper) with dark words and the brand's colour only on what matters.");
+	}
+	// (words: in each three seconds that has any, its biggest should read at a glance on a phone)
+	const small = [];
+	for (let a0 = 0; a0 < total - 0.5; a0 += 3) {
+		const here = texts.filter((x) => x[0] >= a0 && x[0] < a0 + 3).map((x) => x[1]);
+		if (here.length >= 2 && Math.max(...here) < 0.032) small.push([a0, Math.max(...here)]);
+	}
+	if (small.length) out.push("The words are too small to read on a phone from " + small[0][0].toFixed(1) + " s" + (small.length > 1 ? " (and " + (small.length - 1) + " more stretch" + (small.length > 2 ? "es" : "") + ")" : "") + ": the biggest there is " + (small[0][1] * 100).toFixed(1) + "% of the frame's height. Say each scene's one idea in a few big words (a title at least 7% of the height) and cut the small print and the crowded cards.");
 	// a dead stretch: over two and a half seconds with nothing moving, before the last second and a half
 	for (let i = 1; i < d.length; ) {
 		let j = i;
-		while (j < d.length && d[j] < 0.35) j++;
+		while (j < d.length && (d[j] < 0.35 || moved[j] < 0.004)) j++;
 		if ((j - i) / rate >= 2.5 && i / rate > 0.3 && (i / rate) < total - 1.5) out.push("Nothing moves at all from " + at(i - 1) + " s to " + at(j - 1) + " s: give that stretch life (the camera settling into a slow push, a cursor, a counter, light, a character breathing), or move the next beat in.");
 		i = j + 1;
 	}
@@ -13822,19 +13864,38 @@ async function motionTells(html, total, W, H) {
 		if (j > i && (j - i) / rate >= 0.5 && i / rate > 0.6 && j / rate < total - 0.6) { out.push("The frame is one flat colour from " + at(i) + " s to " + at(j) + " s: nothing is drawn there."); break; }
 		i = j + 1;
 	}
-	return out.slice(0, 3);
+	return out.slice(0, 6);
+}
+// the bar, as a picture: three original style frames at the standard of the best product films (docs/film-bar.jpg),
+// shown to the animator and the critic; "" when it can't be had
+let FILM_BAR = null;
+async function filmBar() {
+	if (FILM_BAR != null) return FILM_BAR;
+	try {
+		const r = await fetch("docs/film-bar.jpg");
+		if (!r.ok) throw new Error("no bar");
+		const b = await r.blob();
+		FILM_BAR = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result || "")); fr.onerror = () => ok(""); fr.readAsDataURL(b); });
+	} catch { FILM_BAR = ""; }
+	return FILM_BAR;
 }
 async function critiqueFilm(html, brief, total, by, W, H, msg) {
 	const critics = checkersFor("code", provider(by.id)).filter((m) => (m.input || []).includes("image"));
-	if (!critics.length) return null;
-	const sheet = await filmSheet(html, total, W, H);
+	// (no critic to look: what's measured still goes back to be fixed)
+	if (!critics.length) {
+		let moved = [];
+		try { moved = await motionTells(html, total, W, H, brief); } catch {}
+		const coded = [...filmTells(html, brief), ...moved];
+		return coded.length ? { by: null, ship: false, fixes: coded } : null;
+	}
+	const sheet = await filmSheet(html, total, W, H), bar = await filmBar();
 	const text = "You're the creative director of a top motion-design studio. This is a contact sheet: 12 frames taken evenly through a " + total + "-second film (each one's time under it), made from this brief:\n\n" + brief +
 		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; any word garbled, spelt backwards, with its letters spread far apart or piled on one another, or a number outside the box it belongs in (read every word closely); a dark, crowded look where a light, roomy one belongs; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (" + tellOf("film") + " " + tellOf("picture") + " " + tellOf("colour") + " " + tellOf("type") + "); padding (" + tellOf("padding") + "); a real object at the wrong proportions (a phone drawn like a chunky tablet); a camera that never moves (no push-ins, pans or depth), or one that drifts all the time instead of holding and then moving decisively). The bar, measured from the films people share most: screens that look like the real product and answer every tap; each scene growing out of the last (out of an icon, through an object, a notification opening into its screen) rather than a plain cut or fade; something new about every second; nothing that would stop it passing for a film Apple posted. Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
-	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: [{ type: "text", text }, { type: "image_url", image_url: { url: sheet } }] }], msg, undefined, "high");
+	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: [{ type: "text", text: text + (bar ? "\n\nThe second picture is the bar: three style frames at the standard of the best product films (light ground, big confident words, room, one accent colour, real interface detail, soft shadows), made for a made-up app. Is this film as polished as they are? If not, say exactly what to change." : "") }, { type: "image_url", image_url: { url: sheet } }, ...(bar ? [{ type: "image_url", image_url: { url: bar } }] : [])] }], msg, undefined, "high");
 	const j = parseJSON(r.out) || {};
 	// (what the film's own code shows, first: the AI look and invented numbers are fixed whatever the critic thought)
 	let moved = [];
-	try { moved = await motionTells(html, total, W, H); } catch {}
+	try { moved = await motionTells(html, total, W, H, brief); } catch {}
 	const coded = [...filmTells(html, brief), ...moved];
 	learnFrom(by, !!j.ship && !coded.length);
 	return { by: r.model, ship: !!j.ship && !coded.length, fixes: [...coded, ...(Array.isArray(j.fixes) ? j.fixes : []).map((x) => String(x).slice(0, 500)).filter((x) => x.trim()).slice(0, 4)] };
@@ -13853,7 +13914,11 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 		(plan.end.title || plan.end.sub ? "\n\nIt ends on: " + [plan.end.title, plan.end.sub].filter(Boolean).join(" / ") : "");
 	// (the animator at the thought it earned its rank at, read again right before each call)
 	const best = (m) => { bestFor("animation"); return effortExtra(m.id); };
-	const write = async (m, content) => htmlOf(await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content }], () => {}, signal, best(m), msg));
+	const write = async (m, content) => {
+		const bar = (m.input || []).includes("image") ? await filmBar() : "";
+		const said = bar ? [{ type: "text", text: content + "\n\nThe picture: three style frames at the bar (made for a made-up app, in the manner of the best product films). Match their polish: a light ground, big confident words, generous room, one accent colour, real interface detail, soft shadows. Never their subject, words or colours." }, { type: "image_url", image_url: { url: bar } }] : content;
+		return htmlOf(await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: said }], () => {}, signal, best(m), msg));
+	};
 	const edit = async (m, why, html) => {
 		const said = await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: brief + "\n\n" + why + "\n\nThe film's code, as film.html:\n" + html.slice(0, 90000) + "\n\nDon't send the whole file. " + CHANGE_FORMAT.replace(/\bpath\b/g, "film.html") }], () => {}, signal, best(m), msg);
 		const p = parseFiles(said);
@@ -15603,21 +15668,30 @@ function setMode() {
 function openSidebar(open) { $("#sidebar").classList.toggle("open", open); $("#scrim").classList.toggle("show", open); if (!open) openChats(false); }
 // Deleting a chat, from the list or from its menu: asked first, then gone from this browser; a link it was shared at stops
 // working too
-function askDelete(id) {
+// Two clicks on the same button, never a window in the middle of the screen (the owner, Nov 17): the first turns it red and
+// says "Click again to …" (words on a word button, its label on an icon), the second within three seconds does it
+function twice(btn, go, what = "delete") {
+	if (!btn) return go();
+	if (btn.classList.contains("armed")) { clearTimeout(btn._arm); btn.classList.remove("armed"); if (btn._was != null) btn.innerHTML = btn._was; return go(); }
+	const label = btn.getAttribute("aria-label"), title = btn.title, words = !btn.querySelector("svg") && btn.textContent.trim();
+	btn.classList.add("armed");
+	btn.setAttribute("aria-label", "Click again to " + what);
+	btn.title = "Click again to " + what;
+	if (words) { btn._was = btn.innerHTML; btn.textContent = "Click again to " + what; }
+	btn._arm = setTimeout(() => { btn.classList.remove("armed"); if (label != null) btn.setAttribute("aria-label", label); else btn.removeAttribute("aria-label"); btn.title = title; if (btn._was != null) { btn.innerHTML = btn._was; btn._was = null; } }, 3000);
+}
+function askDelete(id, btn) {
 	const c = convos.find((x) => x.id === id);
 	if (!c) return;
-	openModal('<h2>Delete this chat?</h2><p class="sub">“' + esc(c.title || "Untitled") + '” will be gone from this browser, with every version of it.' + (c.shared ? " The link it was shared at stops working too." : "") + '</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="dlCancel">Cancel</button><button class="btn dark danger" id="dlOk">Delete</button></div>');
-	$("#dlOk").onclick = () => {
+	twice(btn, () => {
 		const sid = c.shared && c.shared.id;
 		// (the videos and sounds kept for it go too)
 		for (const m of c.msgs || []) { for (const a of m.atts || []) { if (a.mediaKey) vault.del(a.mediaKey); if (a.dataKey) vault.del(a.dataKey); } if (m.kind === "agent" && m.data) for (const x of m.data.media || []) vault.del(x.key); }
 		convos = convos.filter((x) => x.id !== id);
 		if (current && current.id === id) { current = null; EDITING = -1; }
-		save(); render(); closeModal(); toast("Deleted");
+		save(); render(); toast("Deleted");
 		if (sid && account) api("/api/shares/" + sid, { method: "DELETE" }).catch(() => {});
-	};
-	$("#dlCancel").onclick = closeModal;
-	$("#dlOk").focus();
+	});
 }
 // the chats panel beside the rail (on a phone it's part of the drawer, always there)
 function openChats(on) {
@@ -15633,7 +15707,7 @@ document.addEventListener("click", (e) => {
 	if (t.hasAttribute("data-go-home")) { e.preventDefault(); navTo(() => showApp(false)); return; }
 	if (t.hasAttribute("data-theme-toggle")) { toggleTheme(); return; }
 	else if (t.classList.contains("convo") && !e.target.closest("[data-del]")) { openSidebar(false); navTo(() => { current = convos.find((c) => c.id === t.dataset.id); SPACE_VIEW = (current && current.space) || null; EDITING = -1; pinned = true; render(); stick(); const c = current; hydrateAtts(c).then((n) => { if (n && current === c) render(); }); }); }
-	else if (t.dataset.del) askDelete(t.dataset.del);
+	else if (t.dataset.del) askDelete(t.dataset.del, t);
 	else if (t.dataset.sug) { $("#input").value = t.dataset.sug; autosize(); updateRoute(); send(); }
 	else if (t.dataset.cat) {
 		welcomeCat = t.dataset.cat;
@@ -15700,6 +15774,7 @@ document.addEventListener("click", (e) => {
 		t.textContent = showCode ? "Diagram" : "Code";
 	}
 	else if (t.hasAttribute("data-mmsvg")) { const svg = t.closest(".code").querySelector(".diagram svg"); if (svg) saveBlob(new Blob([svg.outerHTML], { type: "image/svg+xml" }), "diagram.svg"); }
+	else if (t.dataset.chat === "delete") { if (current && current.msgs.length) askDelete(current.id, t); }
 	else if (t.dataset.chat) chatAction(t.dataset.chat);
 	else if (t.classList.contains("member")) { const m = current.msgs[t.closest(".msg").dataset.i].members[t.dataset.member]; openModal("<h2>" + esc(m.name) + '</h2><p class="sub">This model\'s own answer, before the synthesis.</p><div class="md">' + md(m.text || m.error || "") + '</div><div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="closeSettings">Close</button></div>'); $("#closeSettings").onclick = closeModal; }
 	else if (t.closest(".step") && t.classList.contains("sh")) { const s = current.msgs[t.closest(".msg").dataset.i].steps[t.closest(".step").dataset.step]; s.open = !s.open; t.closest(".step").classList.toggle("open", s.open); }
@@ -16429,9 +16504,7 @@ document.addEventListener("click", (e) => {
 	} else if (t.hasAttribute("data-spacedel") || t.dataset.spacedelid) {
 		const sp = spaceOf(t.dataset.spacedelid || SPACE_VIEW);
 		if (!sp) return;
-		openModal('<h2>Delete “' + esc(sp.name) + '”?</h2><p class="sub">Its instructions and files are deleted. Its chats stay, in your chat list.</p><div class="row" style="justify-content:flex-end;gap:8px;margin-top:14px"><button class="btn" id="sdNo">Cancel</button><button class="btn dark" id="sdGo">Delete the project</button></div>');
-		$("#sdGo").onclick = () => { saveSpaces(spaces().filter((s) => s.id !== sp.id)); vault.set("space-files:" + sp.id, null); SPACE_FILES.delete(sp.id); if (SPACE_VIEW === sp.id) SPACE_VIEW = null; closeModal(); render(); toast("Project deleted"); };
-		$("#sdNo").onclick = closeModal;
+		twice(t, () => { saveSpaces(spaces().filter((x) => x.id !== sp.id)); vault.set("space-files:" + sp.id, null); SPACE_FILES.delete(sp.id); if (SPACE_VIEW === sp.id) SPACE_VIEW = null; render(); toast("Project deleted"); });
 	}
 });
 // ---------------------------------------------------------------- the library: everything Celestin made, from every chat
@@ -16931,7 +17004,7 @@ function drawJob(kind, edit, pre) {
 	$$("[data-jbskip]").forEach((x) => (x.onclick = () => act(x.dataset.jbskip, "skipped").then(() => toast("Skipped: it'll write less like that"))));
 	$$("[data-jbcopy]").forEach((x) => (x.onclick = () => { const it = JOBS.items.find((y) => y.id === x.dataset.jbcopy); if (it) navigator.clipboard.writeText(edited(it.id) || it.text).then(() => toast("Copied"), () => {}); }));
 	$$("[data-jbedit]").forEach((x) => (x.onclick = () => drawJob(kind, x.dataset.jbedit)));
-	$$("[data-jbdel]").forEach((x) => (x.onclick = async () => { if (!confirm("Delete this job and what it made?")) return; await api("/api/jobs/" + x.dataset.jbdel, { method: "DELETE" }).catch(() => {}); await syncJobs(true); drawJob(kind); }));
+	$$("[data-jbdel]").forEach((x) => (x.onclick = () => twice(x, async () => { await api("/api/jobs/" + x.dataset.jbdel, { method: "DELETE" }).catch(() => {}); await syncJobs(true); drawJob(kind); })));
 	$$("[data-jbpaid]").forEach((x) => (x.onclick = async () => { x.disabled = true; const on = x.dataset.paid === "1"; await api("/api/jobs/" + x.dataset.jbpaid + "/paid", { method: "POST", body: JSON.stringify({ key: x.dataset.key, paid: on }) }).catch((e) => toast(e.message || String(e))); await syncJobs(true); toast(on ? "Marked paid: no more reminders" : "Not paid after all: the reminders carry on"); }));
 	$$("[data-jbrun]").forEach((x) => (x.onclick = async () => { x.disabled = true; x.textContent = "Working…"; try { await api("/api/jobs/" + x.dataset.jbrun + "/run", { method: "POST" }); } catch (e) { toast(e.message || String(e)); } await syncJobs(true); }));
 }
@@ -17206,7 +17279,7 @@ function drawConns(kind) {
 	if ($("#cnAll")) $("#cnAll").onclick = () => { CONN_QUEUE = Object.keys(CONN_INFO).filter((k) => !connOf(k)); drawConns(CONN_QUEUE.shift()); };
 	$("#cnBrief").onchange = async () => { try { PREFS.brief = (await api("/api/prefs", { method: "POST", body: JSON.stringify({ brief: $("#cnBrief").checked }) })).brief; toast(!PREFS.brief ? "No morning messages" : connOf("telegram") ? "You'll get a morning message when something needs you" : "On: connect Telegram below to get it"); } catch (e) { toast(e.message || String(e)); } };
 	$("#cnAuto").onchange = async () => { try { PREFS.auto = (await api("/api/prefs", { method: "POST", body: JSON.stringify({ auto: $("#cnAuto").checked }) })).auto; toast(PREFS.auto ? "It acts without asking now" : "It asks before sending again"); } catch (e) { toast(e.message || String(e)); } };
-	$$("[data-cnoff]").forEach((b) => (b.onclick = async () => { if (!confirm("Disconnect " + CONN_INFO[b.dataset.cnoff].name + "?")) return; await api("/api/conns/" + b.dataset.cnoff, { method: "DELETE" }).catch(() => {}); await syncConns(); drawConns(); }));
+	$$("[data-cnoff]").forEach((b) => (b.onclick = () => twice(b, async () => { await api("/api/conns/" + b.dataset.cnoff, { method: "DELETE" }).catch(() => {}); await syncConns(); drawConns(); })));
 	$$("[data-cntest]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { const j = await api("/api/conns/" + b.dataset.cntest + "/test", { method: "POST" }); toast("Sent: look on " + CONN_INFO[b.dataset.cntest].name); if (j.url) window.open(j.url, "_blank", "noopener"); } catch (e) { toast(e.message || String(e)); } b.disabled = false; }));
 }
 // ---- one business, set up whole: its front desk, bringing its customers back, its inbox and its marketing, all speaking as it
@@ -17381,7 +17454,7 @@ function drawAgents(edit, ask) {
 	$$("[data-agsendmail]").forEach((b) => (b.onclick = async () => { b.disabled = true; try { await api("/api/agents/log/" + b.dataset.agsendmail + "/send", { method: "POST", body: JSON.stringify({ body: $('[data-agbody="' + b.dataset.agsendmail + '"]').value }) }); toast("Sent from your Gmail"); } catch (e) { toast(e.message || String(e)); b.disabled = false; return; } await syncAgents(true); drawAgents(); }));
 	$$("[data-agdiscard]").forEach((b) => (b.onclick = async () => { await api("/api/agents/log/" + b.dataset.agdiscard + "/discard", { method: "POST" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
 	$$("[data-agedit]").forEach((b) => (b.onclick = () => drawAgents(b.dataset.agedit)));
-	$$("[data-agdel]").forEach((b) => (b.onclick = async () => { if (!confirm("Delete this agent and what it found?")) return; await api("/api/agents/" + b.dataset.agdel, { method: "DELETE" }).catch(() => {}); await syncAgents(true); drawAgents(); }));
+	$$("[data-agdel]").forEach((b) => (b.onclick = () => twice(b, async () => { await api("/api/agents/" + b.dataset.agdel, { method: "DELETE" }).catch(() => {}); await syncAgents(true); drawAgents(); })));
 	$$("[data-agpause]").forEach((b) => (b.onclick = async () => { const a = AGENTS.agents.find((x) => x.id === b.dataset.agpause); if (!a) return; await api("/api/agents", { method: "POST", body: JSON.stringify({ ...a, ...agentModels(), tz: -new Date().getTimezoneOffset(), tzName: TZ_NAME, active: !a.active }) }).catch((e) => toast(e.message)); await syncAgents(true); drawAgents(); }));
 	$$("[data-agrun]").forEach((b) => (b.onclick = async () => { b.disabled = true; b.innerHTML = '<span class="spin"></span> Looking…'; try { const j = await api("/api/agents/" + b.dataset.agrun + "/run", { method: "POST" }); toast(j.ran && j.ran.reported ? "It found something: it's below" : (j.ran && j.ran.look) || "Done"); } catch (e) { toast(e.message || String(e)); } await syncAgents(true); drawAgents(); }));
 	// (shown: seen)
@@ -17602,13 +17675,13 @@ function drawDesks(edit) {
 	$$("[data-dkform]").forEach((x) => (x.onclick = (e) => { e.preventDefault(); const b = DESKS.bots.find((y) => y.id === x.dataset.dkform); if (b) navigator.clipboard.writeText(deskFormHtml(b)).then(() => toast("Form copied: paste it into your website"), () => {}); }));
 	$$("[data-dkcopy]").forEach((x) => (x.onclick = () => { navigator.clipboard.writeText(deskLink(x.dataset.dkcopy)).then(() => toast("Link copied: share it with your customers"), () => {}); }));
 	$$("[data-dkedit]").forEach((x) => (x.onclick = () => drawDesks(x.dataset.dkedit)));
-	$$("[data-dkdel]").forEach((x) => (x.onclick = async () => { if (!confirm("Delete this front desk, its chats and its inbox? Its link stops working.")) return; await api("/api/bots/" + x.dataset.dkdel, { method: "DELETE" }).catch(() => {}); await syncDesks(true); drawDesks(); }));
+	$$("[data-dkdel]").forEach((x) => (x.onclick = () => twice(x, async () => { await api("/api/bots/" + x.dataset.dkdel, { method: "DELETE" }).catch(() => {}); await syncDesks(true); drawDesks(); })));
 	const act = async (iid, body) => { await api("/api/bots/items/" + iid, { method: "POST", body: JSON.stringify(body) }).catch((e) => toast(e.message || String(e))); await syncDesks(true); };
 	$$("[data-dksend]").forEach((x) => (x.onclick = () => { const v = $('[data-dkreply="' + x.dataset.dksend + '"]').value.trim(); if (v) { const q = (DESKS.items.find((y) => y.id === x.dataset.dksend) || {}).kind === "question"; act(x.dataset.dksend, { status: "done", reply: v }).then(() => toast(q ? "Sent, and your front desk knows the answer from now on" : "Sent: they'll see it in their chat")); } }));
 	$$("[data-dkdone]").forEach((x) => (x.onclick = () => act(x.dataset.dkdone, { status: "done" })));
 	$$("[data-dkrem]").forEach((x) => x.addEventListener("click", () => setTimeout(() => act(x.dataset.dkrem, { status: "done" }), 400)));
 	// (its time is free again; what's written in the reply box goes to them with it)
-	$$("[data-dkcancel]").forEach((x) => (x.onclick = () => { if (!confirm("Cancel this booking? Its time becomes free again.")) return; const v = ($('[data-dkreply="' + x.dataset.dkcancel + '"]') || {}).value || ""; act(x.dataset.dkcancel, { status: "cancelled", ...(v.trim() ? { reply: v.trim() } : {}) }).then(() => toast(v.trim() ? "Cancelled, and they've been told" : "Cancelled: the time is free again")); }));
+	$$("[data-dkcancel]").forEach((x) => (x.onclick = () => twice(x, () => { const v = ($('[data-dkreply="' + x.dataset.dkcancel + '"]') || {}).value || ""; act(x.dataset.dkcancel, { status: "cancelled", ...(v.trim() ? { reply: v.trim() } : {}) }).then(() => toast(v.trim() ? "Cancelled, and they've been told" : "Cancelled: the time is free again")); })));
 	$$("[data-dkchat]").forEach((x) => (x.onclick = async () => {
 		const [bot, visitor] = x.dataset.dkchat.split("|"), box2 = x.closest(".desk-it").querySelector(".dk-chat");
 		try { const j = await api("/api/bots/convo?bot=" + bot + "&visitor=" + encodeURIComponent(visitor)); box2.innerHTML = j.msgs.map((m) => '<div class="dk-m ' + m.role + '">' + esc(m.text) + "</div>").join(""); } catch (e) { box2.textContent = e.message || String(e); }
