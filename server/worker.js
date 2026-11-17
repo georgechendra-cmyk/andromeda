@@ -210,6 +210,8 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/outbox\/([a-f0-9]{24})\/(send|stop|discard)$/)) && m === "POST") return outboxAct(req, env, user, fd[1], fd[2]);
 	if (p === "/api/outbox/stop" && m === "POST") return outboxStopAll(env, user);
 	if (p === "/api/post" && m === "POST") return postNow(req, env, user);
+	if (p === "/api/post/video" && m === "POST") return postVideo(req, env, user);
+	if ((fd = p.match(/^\/api\/post\/video\/x\/(start|part|finish)$/)) && m === "POST") return postVideoX(req, env, user, fd[1]);
 	if (p === "/api/mcp" && m === "GET") return mcpList(env, user);
 	if (p === "/api/mcp/registry" && m === "GET") return mcpRegistry(req);
 	if (p === "/api/apps" && m === "POST") return appRegister(req, env, user);
@@ -297,7 +299,7 @@ function corsHeaders(req, env) {
 	return {
 		"Access-Control-Allow-Origin": ok ? origin || "*" : allowed[0],
 		"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-		"Access-Control-Allow-Headers": "Authorization, Content-Type, HTTP-Referer, X-Title, X-Owner-Key",
+		"Access-Control-Allow-Headers": "Authorization, Content-Type, HTTP-Referer, X-Title, X-Owner-Key, X-Post",
 		"Access-Control-Max-Age": "86400",
 		Vary: "Origin",
 	};
@@ -3377,12 +3379,17 @@ async function tgCall(token, method, b) {
 }
 // (x: OAuth 1.0a with the person's own app keys and access token, HMAC-SHA1 signed)
 const pe = (x) => encodeURIComponent(x).replace(/[!'()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
-async function xFetch(c, method, url, body) {
-	const o = { oauth_consumer_key: c.apiKey, oauth_nonce: [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join(""), oauth_signature_method: "HMAC-SHA1", oauth_timestamp: String(Math.floor(Date.now() / 1000)), oauth_token: c.accessToken, oauth_version: "1.0" };
-	const base = method + "&" + pe(url) + "&" + pe(Object.keys(o).sort().map((k) => pe(k) + "=" + pe(o[k])).join("&"));
+// (the header for one request: the URL's own query is part of what's signed, never a body)
+async function xAuth(c, method, url) {
+	const u = new URL(url), o = { oauth_consumer_key: c.apiKey, oauth_nonce: [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join(""), oauth_signature_method: "HMAC-SHA1", oauth_timestamp: String(Math.floor(Date.now() / 1000)), oauth_token: c.accessToken, oauth_version: "1.0" };
+	const params = [...Object.entries(o), ...u.searchParams.entries()].map(([k, v]) => [pe(k), pe(v)]).sort((a, b) => (a[0] === b[0] ? (a[1] < b[1] ? -1 : 1) : a[0] < b[0] ? -1 : 1));
+	const base = method + "&" + pe(u.origin + u.pathname) + "&" + pe(params.map(([k, v]) => k + "=" + v).join("&"));
 	const key = await crypto.subtle.importKey("raw", enc.encode(pe(c.apiSecret) + "&" + pe(c.accessSecret)), { name: "HMAC", hash: "SHA-1" }, false, ["sign"]);
 	o.oauth_signature = b64e(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(base))));
-	const r = await fetch(url, { method, headers: { Authorization: "OAuth " + Object.keys(o).sort().map((k) => pe(k) + '="' + pe(o[k]) + '"').join(", "), ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(15000) });
+	return "OAuth " + Object.keys(o).sort().map((k) => pe(k) + '="' + pe(o[k]) + '"').join(", ");
+}
+async function xFetch(c, method, url, body, raw) {
+	const r = await fetch(url, { method, headers: { Authorization: await xAuth(c, method, url), ...(raw ? raw.headers : body ? { "Content-Type": "application/json" } : {}) }, body: raw ? raw.body : body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(raw ? 120000 : 15000) });
 	const j = await r.json().catch(() => ({}));
 	if (!r.ok) throw fail(r.status === 429 ? 429 : 400, "X said: " + (j.detail || j.title || (j.errors && j.errors[0] && j.errors[0].message) || r.status));
 	return j;
@@ -4283,7 +4290,9 @@ async function runAgent(env, ctx, a, manual) {
 	let sources = [], models = {}, act = {};
 	try { sources = JSON.parse(a.sources || "[]"); } catch {}
 	try { act = JSON.parse(a.act || "{}") || {}; } catch {}
-	const posts = (act.posts || []).filter((k) => CONN_KINDS.includes(k)), send = (act.send || []).filter((k) => k === "telegram" || k === "discord"), mail = act.email === "auto" || act.email === "ask" ? act.email : "";
+	// (where it posts: the places it was given that are connected now, so "everywhere" grows as accounts are connected)
+	const have = new Set((((await env.DB.prepare("SELECT kind FROM conns WHERE user_id = ?").bind(a.user_id).all().catch(() => ({ results: [] }))).results) || []).map((r) => r.kind));
+	const posts = (act.posts || []).filter((k) => CONN_KINDS.includes(k) && have.has(k)), send = (act.send || []).filter((k) => k === "telegram" || k === "discord"), mail = act.email === "auto" || act.email === "ask" ? act.email : "";
 	// (their Google, through the script in their own account, version 3: a Google Sheet it keeps for them, Google Docs it
 	// writes, and what's coming up in their calendar. "Do every job": the office ones live in Sheets, Docs and a calendar)
 	const gw = await gmailOf(env, a.user_id).then((g) => (Number(g.meta && g.meta.version) >= 3 ? g : null)).catch(() => null);
@@ -5255,6 +5264,132 @@ async function postNow(req, env, user) {
 	const done = await outSend(env, { id: oid, user_id: user.id, kind: "post", payload, src }, true);
 	if (!done) { const r = await env.DB.prepare("SELECT why FROM outbox WHERE id = ?").bind(oid).first(); throw fail(502, (r && r.why) || "It couldn't go out."); }
 	return json({ ok: true, url: typeof done === "string" ? done : null });
+}
+// ---- a video, posted: passed through to the platform as it arrives, never kept on this server
+const VIDEO_MAX = { telegram: 50e6, discord: 10e6, bluesky: 100e6, x: 512e6 }, VIDEO_TEXT = { x: 280, bluesky: 300, telegram: 1024, discord: 1900 };
+const PLAT = { x: "X", bluesky: "Bluesky", telegram: "Telegram", discord: "Discord" };
+const mbOf = (b) => Math.round(b / 1e6) + " MB";
+// (multipart around a file: the fields, the file's own header, and the end)
+const mpHead = (B, fields, field, file, type) => enc.encode(fields.map(([k, v]) => "--" + B + '\r\nContent-Disposition: form-data; name="' + k + '"\r\n\r\n' + v + "\r\n").join("") + "--" + B + '\r\nContent-Disposition: form-data; name="' + field + '"; filename="' + file + '"\r\nContent-Type: ' + type + "\r\n\r\n");
+const mpTail = (B) => enc.encode("\r\n--" + B + "--\r\n");
+// the request's bytes with a start and an end around them, at a known length: streamed straight through where this
+// runtime can, read whole where it can't
+async function wrapBody(req, head, tail) {
+	const len = Number(req.headers.get("content-length") || 0);
+	if (typeof FixedLengthStream === "function" && len > 0 && req.body) {
+		const total = head.length + len + tail.length, { readable, writable } = new FixedLengthStream(total);
+		(async () => { let wr = writable.getWriter(); if (head.length) await wr.write(head); wr.releaseLock(); await req.body.pipeTo(writable, { preventClose: true }); wr = writable.getWriter(); if (tail.length) await wr.write(tail); await wr.close(); })().catch(() => {});
+		return { body: readable, length: total };
+	}
+	const buf = new Uint8Array(await req.arrayBuffer()), all = new Uint8Array(head.length + buf.length + tail.length);
+	all.set(head); all.set(buf, head.length); all.set(tail, head.length + buf.length);
+	return { body: all, length: all.length };
+}
+// what's said with a video: checked as any post is
+function videoText(to, text) {
+	if (text.length > VIDEO_TEXT[to]) throw fail(400, "It's " + text.length + " characters and " + PLAT[to] + " takes " + VIDEO_TEXT[to] + " with a video: make it shorter.");
+	const hard = neverShare(text, "", true);
+	if (hard) throw fail(400, "Celestin never posts " + hard + ": take it out first.");
+}
+async function connOfUser(env, user, to) {
+	const row = await env.DB.prepare("SELECT * FROM conns WHERE user_id = ? AND kind = ?").bind(user.id, to).first();
+	if (!row) throw fail(404, "No " + PLAT[to] + " account is connected.");
+	return { row, c: await unseal(env, row.secret) };
+}
+async function videoSent(env, user, to, text, name, url) {
+	const t = now();
+	await env.DB.prepare("INSERT INTO outbox (id, user_id, kind, to_key, payload, src, why, send_at, status, created_at) VALUES (?, ?, 'post', ?, ?, ?, '', ?, 'sent', ?)").bind(id(), user.id, "post:" + to, JSON.stringify({ to, text, video: name }), JSON.stringify({ type: "chat" }), t, t).run();
+	return json({ ok: true, url: url || null });
+}
+// Telegram, Discord and Bluesky: the whole video in one request (X: piece by piece, below)
+async function postVideo(req, env, user) {
+	const to = new URL(req.url).searchParams.get("to") || "";
+	if (!VIDEO_MAX[to] || to === "x") throw fail(400, "Post a video where? Telegram, Discord or Bluesky here.");
+	let meta = {};
+	try { meta = JSON.parse(decodeURIComponent(req.headers.get("x-post") || "")); } catch {}
+	const text = String(meta.text || "").trim(), name = String(meta.name || "video.mp4").replace(/[^\w.-]+/g, "-").slice(0, 60) || "video.mp4", len = Number(req.headers.get("content-length") || 0);
+	if (!len) throw fail(400, "Send the video.");
+	if (len > VIDEO_MAX[to]) throw fail(413, "The video is " + mbOf(len) + " and " + PLAT[to] + " takes " + mbOf(VIDEO_MAX[to]) + " at most.");
+	videoText(to, text);
+	const { row, c } = await connOfUser(env, user, to), B = "celestin" + id();
+	if (to === "telegram") {
+		const { body, length } = await wrapBody(req, mpHead(B, [["chat_id", c.chat], ["caption", text], ["supports_streaming", "true"]], "video", name, "video/mp4"), mpTail(B));
+		const r = await fetch("https://api.telegram.org/bot" + c.token + "/sendVideo", { method: "POST", headers: { "Content-Type": "multipart/form-data; boundary=" + B, "Content-Length": String(length) }, body, signal: AbortSignal.timeout(170000) });
+		const j = await r.json().catch(() => ({}));
+		if (!j.ok) throw fail(400, "Telegram said: " + (j.description || r.status));
+		const meta2 = JSON.parse(row.meta || "{}");
+		return videoSent(env, user, to, text, name, /^@/.test(meta2.chat || "") ? "https://t.me/" + meta2.chat.slice(1) + "/" + j.result.message_id : "");
+	}
+	if (to === "discord") {
+		const { body, length } = await wrapBody(req, mpHead(B, [["payload_json", JSON.stringify({ content: text, allowed_mentions: { parse: [] } })]], "files[0]", name, "video/mp4"), mpTail(B));
+		const r = await fetch(c.hook + "?wait=true", { method: "POST", headers: { "Content-Type": "multipart/form-data; boundary=" + B, "Content-Length": String(length) }, body, signal: AbortSignal.timeout(170000) });
+		const j = await r.json().catch(() => ({}));
+		if (!r.ok) throw fail(400, "Discord said: " + (j.message || r.status));
+		return videoSent(env, user, to, text, name, "");
+	}
+	// Bluesky: a token for its video service from their own server, the upload, its processing, then the post
+	const ses = await bskySession(c), pds = String(((((ses.didDoc || {}).service || []).find((s) => /atproto_pds/.test(s.id || "")) || {}).serviceEndpoint) || "https://bsky.social").replace(/\/+$/, "");
+	const sa = await fetch(pds + "/xrpc/com.atproto.server.getServiceAuth?aud=" + encodeURIComponent("did:web:" + new URL(pds).host) + "&lxm=com.atproto.repo.uploadBlob&exp=" + (Math.floor(Date.now() / 1000) + 1800), { headers: { Authorization: "Bearer " + ses.accessJwt }, signal: AbortSignal.timeout(15000) });
+	const sj = await sa.json().catch(() => ({}));
+	if (!sj.token) throw fail(400, "Bluesky didn't let it upload a video: " + (sj.message || sa.status) + " (a Bluesky account must have its email verified to post videos)");
+	const { body, length } = await wrapBody(req, new Uint8Array(0), new Uint8Array(0));
+	const up = await fetch("https://video.bsky.app/xrpc/app.bsky.video.uploadVideo?did=" + encodeURIComponent(ses.did) + "&name=" + encodeURIComponent(name), { method: "POST", headers: { Authorization: "Bearer " + sj.token, "Content-Type": "video/mp4", "Content-Length": String(length) }, body, signal: AbortSignal.timeout(170000) });
+	let job = await up.json().catch(() => ({}));
+	job = job.jobStatus || job;
+	if (!job.jobId && !job.blob) throw fail(400, "Bluesky said: " + (job.message || job.error || up.status));
+	let blob = job.blob;
+	for (let i = 0; !blob && i < 90; i++) {
+		await new Promise((r) => setTimeout(r, 1500));
+		const st = await fetch("https://video.bsky.app/xrpc/app.bsky.video.getJobStatus?jobId=" + encodeURIComponent(job.jobId), { signal: AbortSignal.timeout(15000) }).then((r) => r.json()).catch(() => ({}));
+		const s = st.jobStatus || {};
+		if (s.blob) blob = s.blob;
+		else if (/FAILED/.test(s.state || "")) throw fail(400, "Bluesky couldn't take the video: " + (s.error || s.message || "it failed processing"));
+	}
+	if (!blob) throw fail(504, "Bluesky is still processing the video: try again in a minute.");
+	const facets = [];
+	for (const m of text.matchAll(/https?:\/\/[^\s)]+/g)) { const start = enc.encode(text.slice(0, m.index)).length; facets.push({ index: { byteStart: start, byteEnd: start + enc.encode(m[0]).length }, features: [{ $type: "app.bsky.richtext.facet#link", uri: m[0] }] }); }
+	const ar = Number(meta.w) > 0 && Number(meta.h) > 0 ? { aspectRatio: { width: Math.round(meta.w), height: Math.round(meta.h) } } : {};
+	const r = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", { method: "POST", headers: { Authorization: "Bearer " + ses.accessJwt, "Content-Type": "application/json" }, body: JSON.stringify({ repo: ses.did, collection: "app.bsky.feed.post", record: { $type: "app.bsky.feed.post", text, createdAt: new Date().toISOString(), ...(facets.length ? { facets } : {}), embed: { $type: "app.bsky.embed.video", video: blob, ...ar } } }), signal: AbortSignal.timeout(15000) });
+	const j = await r.json().catch(() => ({}));
+	if (!j.uri) throw fail(400, "Bluesky said: " + (j.message || r.status));
+	return videoSent(env, user, to, text, name, "https://bsky.app/profile/" + (ses.handle || c.handle) + "/post/" + j.uri.split("/").pop());
+}
+// X: started with its size, sent in pieces of up to 5 MB (each a request of its own), then finished: processed, posted
+async function postVideoX(req, env, user, step) {
+	const { c } = await connOfUser(env, user, "x"), q = new URL(req.url).searchParams;
+	if (step === "start") {
+		const b = await body(req), size = Number(b.size) || 0;
+		if (!size) throw fail(400, "Send the video's size.");
+		if (size > VIDEO_MAX.x) throw fail(413, "The video is " + mbOf(size) + " and X takes " + mbOf(VIDEO_MAX.x) + " at most.");
+		videoText("x", String(b.text || "").trim());
+		const j = await xFetch(c, "POST", "https://api.x.com/2/media/upload/initialize", { media_type: "video/mp4", total_bytes: size, media_category: "tweet_video" });
+		if (!j.data || !j.data.id) throw fail(400, "X didn't start the upload.");
+		return json({ id: j.data.id });
+	}
+	if (step === "part") {
+		const mid = String(q.get("id") || "");
+		if (!/^\d{5,30}$/.test(mid)) throw fail(400, "Which upload?");
+		const i = Number(q.get("i"));
+		if (!(i >= 0 && i < 2000)) throw fail(400, "Which piece?");
+		if (Number(req.headers.get("content-length") || 0) > 5.3e6) throw fail(413, "A piece is 5 MB at most.");
+		const B = "celestin" + id(), { body, length } = await wrapBody(req, mpHead(B, [["segment_index", String(i)]], "media", "blob", "application/octet-stream"), mpTail(B));
+		await xFetch(c, "POST", "https://api.x.com/2/media/upload/" + mid + "/append", null, { headers: { "Content-Type": "multipart/form-data; boundary=" + B, "Content-Length": String(length) }, body });
+		return json({ ok: true });
+	}
+	// finished: X processes it, then the post goes out with it
+	const b = await body(req), text = String(b.text || "").trim(), name = String(b.name || "video.mp4").slice(0, 60), mid = String(b.id || "");
+	if (!/^\d{5,30}$/.test(mid)) throw fail(400, "Which upload?");
+	videoText("x", text);
+	const fin = await xFetch(c, "POST", "https://api.x.com/2/media/upload/" + mid + "/finalize");
+	let info = (fin.data || {}).processing_info;
+	for (let k = 0; info && !/succeeded/i.test(info.state || "") && k < 60; k++) {
+		if (/failed/i.test(info.state || "")) throw fail(400, "X couldn't take the video: " + ((info.error && (info.error.message || info.error.name)) || "it failed processing"));
+		await new Promise((r) => setTimeout(r, Math.min(10, Math.max(1, Number(info.check_after_secs) || 2)) * 1000));
+		info = ((await xFetch(c, "GET", "https://api.x.com/2/media/upload?command=STATUS&media_id=" + mid)).data || {}).processing_info;
+	}
+	if (info && !/succeeded/i.test(info.state || "")) throw fail(504, "X is still processing the video: try again in a minute.");
+	const j = await xFetch(c, "POST", "https://api.x.com/2/tweets", { text, media: { media_ids: [mid] } });
+	return videoSent(env, user, "x", text, name, "https://x.com/i/web/status/" + (j.data && j.data.id));
 }
 async function outboxStopAll(env, user) {
 	const r = await env.DB.prepare("UPDATE outbox SET status = 'held', why = 'You stopped everything going out: it waits for you' WHERE user_id = ? AND status = 'wait'").bind(user.id).run();
