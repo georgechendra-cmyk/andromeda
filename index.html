@@ -12158,12 +12158,13 @@ Write the plan so the result looks expensive and real:
 
 Return ONLY JSON:
 {"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none","type":{"title":"the Google Fonts family for titles and the end card","text":"the Google Fonts family for captions"}}`;
-// how long they asked for, any length ("30s", "20 minutes", "1.5 hours"); 3 hours at most, which is past anything
+const CELESTIN_LOOK = "Celestin's own look, for a film about it: a white or soft off-white ground (#ffffff, #f7f7f6), near-black words (#0b0b0b), a quiet grey for what's secondary (#5f6063), and its indigo (#5141ee, or a gradient from #5b48ff to #2f6bff only on the mark or on what's chosen) kept to a few touches; light, calm and roomy, like its own app, with words in Hanken Grotesk.";
+// how long they asked for, any length ("30s", "a 15-second ad", "20 minutes", "1.5 hours"); 3 hours at most, which is past anything
 // a browser can cut in one go anyway
 function lengthOf(t) {
 	// (a bare "s" only after a short number of its own, so "the 1980s" isn't 1,980 seconds)
-	const s = t.match(/(?<![\d.,])(\d{1,4})\s*(sec|secs|seconds?|detik)\b/i) || t.match(/(?<![\d.,])(\d{1,3})\s*s\b/i);
-	const m = t.match(/(?<![\d.,])(\d{1,3}(?:[.,]\d)?)\s*(m|min|mins|minutes?|menit)\b/i), h = t.match(/(?<![\d.,])(\d{1,2}(?:[.,]\d)?)\s*(h|hr|hrs|hours?|jam)\b/i);
+	const s = t.match(/(?<![\d.,])(\d{1,4})(?:\s*|-)(sec|secs|seconds?|detik)\b/i) || t.match(/(?<![\d.,])(\d{1,3})\s*s\b/i);
+	const m = t.match(/(?<![\d.,])(\d{1,3}(?:[.,]\d)?)(?:\s*(?:m|min|mins|minutes?|menit)|-(?:min|mins|minutes?|menit))\b/i), h = t.match(/(?<![\d.,])(\d{1,2}(?:[.,]\d)?)(?:\s*(?:h|hr|hrs|hours?|jam)|-(?:hr|hrs|hours?|jam))\b/i);
 	const n = (x) => Number(String(x).replace(",", "."));
 	const secs = (h ? n(h[1]) * 3600 : 0) + (m ? n(m[1]) * 60 : 0) + (s ? n(s[1]) : 0);
 	return secs ? Math.max(5, Math.min(3 * 3600, Math.round(secs))) : null;
@@ -12172,7 +12173,8 @@ async function direct(text, atts, msg, signal, drawn) {
 	const want = lengthOf(text);
 	const imgs = atts.filter((a) => a.kind === "image" && a.data);
 	const ask = "Plan this: " + text + "\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
-		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\". Unless the brand's own look is dark, a product, app or brand film is light and roomy: a white, off-white or warm paper ground, dark words big enough to read on a phone, the brand's colour only on what matters, one idea per shot; never a dark neon look.\n\n" + STUDIED : "") +
+		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\". Unless the brand's own look is dark, a product, app or brand film is light and roomy: a white, off-white or warm paper ground, dark words big enough to read on a phone, the brand's colour only on what matters, one idea per shot; never a dark neon look. Each shot is a moment, not a slide: one hero thing at a time, with something happening to it about every second (it arrives, is typed into, tapped, opens into the next screen, flies, turns into the next thing); never a list of features shown as a stack of cards or rows, never more than two cards on screen at once.\n\n" + STUDIED : "") +
+		(/\bcelestin\b/i.test(text) ? "\n\n" + CELESTIN_LOOK : "") +
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
 		(sourceOf(atts, 1) ? "\n\nWhat they gave you about it (their page, notes or files): use the real names, products, prices, places and tone from it, never invent ones that contradict it.\n" + sourceOf(atts, 12000) : "") +
 		"\n\nVoices: " + Object.entries(VOICES).map(([k, v]) => k + " (" + v + ")").join(", ") + "." + (langLine() ? "\n" + langLine() + " (keep the JSON keys in English)" : "");
@@ -13101,8 +13103,9 @@ async function shutter(sh, t, b) {
 async function encodeFilm({ canvas, total, mix, shots, frameAt, onProgress }) {
 	if (typeof VideoEncoder === "undefined" || typeof VideoFrame === "undefined") return null;
 	const cw = canvas.width, ch = canvas.height;
-	// filmed footage is 24 to 30 frames a second; pictures and drawn motion get 60, the smoothest
-	const fps = shots.some((s) => s.v) ? 30 : 60;
+	// filmed footage and drawn motion are 30 frames a second (most of the shorts studied are, with the shutter's blur:
+	// half the frames to draw, so it's ready sooner); a film of pictures only gets 60 (a slow pan over a still judders at 30)
+	const fps = shots.some((s) => s.v || s.drawn) ? 30 : 60;
 	// (drawn shots know the frame rate, for their shutter)
 	for (const s of shots) if (s.drawn) s.fps = fps;
 	let vcfg = null;
@@ -13743,6 +13746,7 @@ Write ONE complete HTML document, exactly to this contract:
 
 How the best ones are built:
 - Sketch it first, the way the best motion designers work from a drawing: before any code, write the storyboard as a comment at the top of the script, one line per scene: its one idea in six words or fewer (set big), its one hero element and where it sits in the frame, what moves, and the camera's move. Then build exactly that.
+- An animation, never a poster: a layout that arrives and then holds is a poster. Every second has a beat that changes a real part of the frame (the next thing arrives, a card flips or opens into its screen, something is typed, tapped or flies in, the camera pushes through one thing into the next). Measured on the films people share: 15 to 30% of the frame changes every second, and under a fifth of a film is ever stiller than that. One hero thing at a time, big; at most two cards on screen at once, never a stack of rows or a list of features: show what the product does by something happening to one thing.
 - One timeline: a list of scenes with start and end times, each scene a function of its own local progress. One design system for the whole film, defined once at the top: palette, type scale, grid and margins, line weights, corner radii, shadows, and a motion language (the same easings and timings everywhere). Each recurring character, product or screen is drawn by one helper, so it's identical in every scene.
 - Transitions designed, never an accidental jump: a match cut, a shape that grows into the next scene, a push through, a wipe in the film's own style, an element carried across.
 - Motion: every move eased (expo or cubic out, a little anticipation, overshoot that settles); springs as pure functions of time (a damped oscillator); elements arrive in stages, staggered 40 to 80 ms, never all at once; secondary motion and gentle parallax so no frame is ever static; holds long enough to read (words stay on screen at least as long as it takes to read them twice).
@@ -13835,13 +13839,29 @@ async function motionTells(html, total, W, H, brief) {
 	// (how much of the picture changed from the moment before, and how bright each moment is)
 	const moved = G.map((g, i) => { if (!i) return 1; let k = 0; for (let j = 0; j < g.length; j++) if (Math.abs(g[j] - G[i - 1][j]) > 10) k++; return k / g.length; });
 	const lum = G.map((g) => g.reduce((a, v) => a + v, 0) / g.length);
-	const darkAsked = /\b(dark|night|neon|noir|black|moody|horror|space)\b/i.test(String(brief || "")) || (LOOK && LOOK.bg && (hslOf(LOOK.bg) || { l: 1 }).l < 0.25);
+	const asked = (String(brief || "").match(/What the person asked for: ([\s\S]*?)\nIts look: /) || [, ""])[1];
+	const darkAsked = /\b(dark|night|neon|noir|black|moody|horror|space)\b/i.test(asked) || (LOOK && LOOK.bg && (hslOf(LOOK.bg) || { l: 1 }).l < 0.25);
 	if (!darkAsked && lum.length) {
 		let k = 0;
 		while (k < lum.length && lum[k] < 18) k++;
 		if (k / rate >= 1.2) out.push("It opens on a near-black screen for " + at(k) + " s: open straight on the hook, on the film's own light ground.");
 		const avg = lum.reduce((a, v) => a + v, 0) / lum.length;
 		if (avg < 60) out.push("It's dark from start to end (average brightness " + Math.round(avg) + " of 255) where the best product films are light: put it on a light ground (white, off-white or warm paper) with dark words and the brand's colour only on what matters.");
+	}
+	// a poster, not an animation: how much of the picture changes over each second, in the film's middle. Measured
+	// the same way (Nov 18) on Miles Holden's shorts: under 20% of each is ever below 6% change a second (15 to 30% is
+	// usual); the films that read as posters: 40% and more
+	{
+		const k1 = Math.max(1, Math.round(rate)), lo1 = Math.ceil(0.3 * rate), hi1 = Math.floor((total - 2.5) * rate), calm = [];
+		for (let i = lo1; i <= hi1 && i + k1 < G.length; i++) { let n1 = 0; for (let j = 0; j < G[i].length; j++) if (Math.abs(G[i + k1][j] - G[i][j]) > 10) n1++; calm.push([i, n1 / G[i].length < 0.06]); }
+		const share = calm.length >= 30 ? calm.filter((x) => x[1]).length / calm.length : 0;
+		if (share >= 0.3) {
+			const runs = [];
+			let s0 = -1;
+			calm.forEach(([i, q], k) => { if (q && s0 < 0) s0 = i; if (s0 >= 0 && (!q || k === calm.length - 1)) { const e = q ? i : calm[k - 1][0]; if ((e - s0) / rate >= 0.5) runs.push([s0 / rate, (e + k1) / rate]); s0 = -1; } });
+			runs.sort((a, b) => b[1] - b[0] - (a[1] - a[0]));
+			out.push("It plays like a poster, not an animation: for " + Math.round(share * 100) + "% of it, less than 6% of the picture changes in a second (in the films people share it's under 20%, and 15 to 30% of the frame changes every second)" + (runs.length ? "; stillest from " + runs.slice(0, 3).map((r) => r[0].toFixed(1) + " to " + Math.min(total, r[1]).toFixed(1) + " s").join(", ") : "") + ". A layout revealed and then held is a poster: give every second a beat that changes a real part of the frame (the next thing arrives, a card flips or opens into its screen, something is typed, tapped or flies, the camera pushes through one thing into the next), with one hero thing at a time and at most two cards on screen, never a stack.");
+		}
 	}
 	// (words: in each three seconds that has any, its biggest should read at a glance on a phone)
 	const small = [];
@@ -13908,24 +13928,46 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 // ---- the sketch, before any code, the way the best motion designers work (Miles Holden's own words: "turn simple
 // sketches into advanced motion graphics with a single prompt"): imagination first, then the storyboard, drawn
 const SKETCHER = "You sketch short films the way Miles Holden does before Claude animates them: for every scene, a quick black-pen wireframe on white paper of exactly what that frame shows, plus a few hand-written motion notes. His sketches are the plan the animation makes real, and their magic is in the little interactions and in how each scene turns into the next.\n\n" +
-	"How his sketches look: a pill for a search bar with its words in it (\"Where to?\"), boxes for cards and rows, squiggles where small text goes, a phone outline when there's a phone, a button with its label, a check in a circle, the logo as a simple mark, a chart as a zigzag, a map route as a curve; only a few words written out (the big line, a label or two). Beside them, two-to-four-word motion notes with arrows: \"pop!\", \"drag, cards flip\", \"tap, coin flies\", \"rows slide up\", \"whip up\", \"glow\", \"typed\", \"drops in\", \"light up\", \"live + pulse\", \"split\", \"zoom in\".\n\n" +
-	"The imagination is his: every scene has one interaction that delights (a card flips, a coin flies into a pot, a search types itself and the results drop in, a route draws itself, a logo pops with burst lines, a word wheel stops on the chosen word), and every scene grows out of the one before (an icon grows into the app, a notification opens into its screen, the camera pushes through one thing into the next, a shape becomes another); never a fade or a plain cut. A product film is a tiny story: a familiar moment, a need in a person's own words, the product answering it, the payoff, the brand's name and one line to end. Light and roomy (a white, off-white or warm paper ground) unless the brand's own look is dark. Only true things: no prices, numbers, results or names nobody gave.\n\n" +
+	"How his sketches look: a pill for a search bar with its words in it (\"Where to?\"), boxes for cards and rows, squiggles where small text goes, a phone outline when there's a phone, a button with its label, a check in a circle, the logo as a simple mark, a chart as a zigzag, a map route as a curve; only a few words written out (the big line, a label or two). They're sparse: often just three to six shapes in a frame. Beside them, two-to-four-word motion notes with arrows: \"pop!\", \"drag, cards flip\", \"tap, coin flies\", \"rows slide up\", \"whip up\", \"glow\", \"typed\", \"drops in\", \"light up\", \"live + pulse\", \"split\", \"zoom in\".\n\n" +
+	"The imagination is his: every scene has one interaction that delights (a card flips, a coin flies into a pot, a search types itself and the results drop in, a route draws itself, a logo pops with burst lines, a word wheel stops on the chosen word), and every scene grows out of the one before (an icon grows into the app, a notification opens into its screen, the camera pushes through one thing into the next, a shape becomes another); never a fade or a plain cut. A product film is a tiny story: a familiar moment, a need in a person's own words, the product answering it, the payoff, the brand's name and one line to end. Never a poster: a frame is one hero thing in a moment, not a layout of everything at once; at most two cards in a frame, never a stack of rows or a list of features (show what it does by something happening to one thing). It changes about every second: each scene's beats, one about every second, each a verb that changes a real part of the frame. Light and roomy (a white, off-white or warm paper ground) unless the brand's own look is dark. Only true things: no prices, numbers, results or names nobody gave.\n\n" +
 	"Sketch each scene of the shot list, on its times.\n\n" +
-	'Reply with ONLY JSON: {"idea": "the film\'s one idea, a sentence", "scenes": [{"from": 0, "to": 3.5, "line": "the big words on screen, six or fewer, or empty", "picture": "what\'s on screen and what happens, 25 to 45 words, concrete enough to build", "parts": [{"kind": "pill|box|card|button|phone|text|squiggle|circle|check|logo|chart|route|arrow|line", "label": "words in it, if any", "x": 50, "y": 30, "w": 70, "h": 8}], "notes": [{"text": "pop!", "x": 80, "y": 20, "to": [62, 28]}], "into": "how it turns into the next scene", "camera": "hold, push in on…, follow…, pull back…"}]}. x and y are the centre, w and h the size, in percent of the frame; at most eight parts and three notes a scene; a note\'s "to" is the point its arrow points at.';
+	'Reply with ONLY JSON: {"idea": "the film\'s one idea, a sentence", "scenes": [{"from": 0, "to": 3.5, "line": "the big words on screen, six or fewer, or empty", "picture": "what\'s on screen and what happens, 25 to 45 words, concrete enough to build", "parts": [{"kind": "pill|box|card|button|phone|text|squiggle|circle|check|logo|chart|route|arrow|line", "label": "words in it, if any", "x": 50, "y": 30, "w": 70, "h": 8}], "notes": [{"text": "pop!", "x": 80, "y": 20, "to": [62, 28]}], "beats": [{"at": 0.4, "do": "search pill drops in"}, {"at": 1.2, "do": "types: Where to?"}], "into": "how it turns into the next scene", "camera": "hold, push in on…, follow…, pull back…"}]}. "at" is seconds from the start of the film. x and y are the centre, w and h the size, in percent of the frame; at most eight parts and three notes a scene; a note\'s "to" is the point its arrow points at.';
 async function sketchFilm(plan, brief, msg, signal) {
 	let sk = null;
+	// (a sketch of a poster, not an animation: over three cards or rows in a frame, or under a beat every 1.6 seconds;
+	// asked once more, and the redrawn one kept unless it's worse)
+	const posterOf = (o) => {
+		const S = Array.isArray(o.scenes) ? o.scenes : [], why = [];
+		S.forEach((x, k) => { const n = (Array.isArray(x.parts) ? x.parts : []).filter((p) => /^(card|box)$/.test(String((p || {}).kind))).length; if (n > 3) why.push("scene " + (k + 1) + " stacks " + n + " cards or rows"); });
+		const secs = S.reduce((a, x) => a + Math.max(0, (Number(x.to) || 0) - (Number(x.from) || 0)), 0), beats = S.reduce((a, x) => a + (Array.isArray(x.beats) ? x.beats.length : 0), 0);
+		if (secs >= 3 && beats < secs / 1.6) why.push("only " + beats + " beats in " + Math.round(secs) + " seconds");
+		return why;
+	};
+	const whole = (o) => o && Array.isArray(o.scenes) && o.scenes.length;
 	for (const m of bestFor("director").slice(0, 2)) {
 		try {
-			sk = parseJSON(await stream(m.id, [{ role: "system", content: SKETCHER }, { role: "user", content: brief + "\n\nSketch it." }], () => {}, signal, { response_format: { type: "json_object" }, max_tokens: 6000, ...effortFor(m.id, "medium") }, msg));
-			if (sk && Array.isArray(sk.scenes) && sk.scenes.length) { if (msg && msg.used) msg.used.push({ name: shortName(m), desc: "Sketch: invented the idea and storyboarded it" }); break; }
+			const said = [{ role: "system", content: SKETCHER }, { role: "user", content: brief + "\n\nSketch it." }], opts = { response_format: { type: "json_object" }, max_tokens: 6000, ...effortFor(m.id, "medium") };
+			const raw = await stream(m.id, said, () => {}, signal, opts, msg);
+			sk = parseJSON(raw);
+			if (whole(sk)) {
+				const why = posterOf(sk);
+				if (why.length) {
+					try {
+						const again = parseJSON(await stream(m.id, [...said, { role: "assistant", content: raw }, { role: "user", content: "That's a poster, not an animation: " + why.join("; ") + ". Sketch it again: one hero thing in a frame, at most two cards in a frame, and a beat about every second." }], () => {}, signal, opts, msg));
+						if (whole(again) && posterOf(again).length <= why.length) sk = again;
+					} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+				}
+				if (msg && msg.used) msg.used.push({ name: shortName(m), desc: "Sketch: invented the idea and storyboarded it" });
+				break;
+			}
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 		sk = null;
 	}
 	if (!sk) return null;
 	const num = (v, d) => (Number.isFinite(Number(v)) ? Math.max(0, Math.min(100, Number(v))) : d);
-	sk.scenes = sk.scenes.slice(0, 12).map((x) => ({ from: Number(x.from) || 0, to: Number(x.to) || 0, line: String(x.line || "").slice(0, 60), picture: String(x.picture || "").slice(0, 400), parts: (Array.isArray(x.parts) ? x.parts : []).slice(0, 8).map((p) => ({ kind: String(p.kind || "box"), label: String(p.label || "").slice(0, 40), x: num(p.x, 50), y: num(p.y, 50), w: num(p.w, 30), h: num(p.h, 10) })), notes: (Array.isArray(x.notes) ? x.notes : []).slice(0, 3).map((t) => ({ text: String(t.text || "").slice(0, 30), x: num(t.x, 80), y: num(t.y, 20), to: Array.isArray(t.to) && t.to.length === 2 ? [num(t.to[0], 50), num(t.to[1], 50)] : null })).filter((t) => t.text), into: String(x.into || "").slice(0, 200), camera: String(x.camera || "").slice(0, 160) }));
+	sk.scenes = sk.scenes.slice(0, 12).map((x) => ({ from: Number(x.from) || 0, to: Number(x.to) || 0, line: String(x.line || "").slice(0, 60), picture: String(x.picture || "").slice(0, 400), parts: (Array.isArray(x.parts) ? x.parts : []).slice(0, 8).map((p) => ({ kind: String(p.kind || "box"), label: String(p.label || "").slice(0, 40), x: num(p.x, 50), y: num(p.y, 50), w: num(p.w, 30), h: num(p.h, 10) })), notes: (Array.isArray(x.notes) ? x.notes : []).slice(0, 3).map((t) => ({ text: String(t.text || "").slice(0, 30), x: num(t.x, 80), y: num(t.y, 20), to: Array.isArray(t.to) && t.to.length === 2 ? [num(t.to[0], 50), num(t.to[1], 50)] : null })).filter((t) => t.text), beats: (Array.isArray(x.beats) ? x.beats : []).slice(0, 16).map((b) => ({ at: Number((b || {}).at), do: String((b || {}).do || "").slice(0, 70) })).filter((b) => Number.isFinite(b.at) && b.do.trim()), into: String(x.into || "").slice(0, 200), camera: String(x.camera || "").slice(0, 160) }));
 	const text = "The sketch to build, from the creative director (the picture shows it drawn; build exactly this: its layout, its moments and its transitions, in the film's own look):\nThe idea: " + String(sk.idea || "").slice(0, 300) + "\n" +
-		sk.scenes.map((x, k) => "Scene " + (k + 1) + " (" + x.from.toFixed(1) + " to " + x.to.toFixed(1) + " s): " + (x.line ? "big words \"" + x.line + "\" · " : "") + x.picture + (x.notes.length ? " · motion: " + x.notes.map((t) => t.text).join("; ") : "") + (x.into ? " · into the next: " + x.into : "") + (x.camera ? " · camera: " + x.camera : "")).join("\n");
+		sk.scenes.map((x, k) => "Scene " + (k + 1) + " (" + x.from.toFixed(1) + " to " + x.to.toFixed(1) + " s): " + (x.line ? "big words \"" + x.line + "\" · " : "") + x.picture + (x.notes.length ? " · motion: " + x.notes.map((t) => t.text).join("; ") : "") + (x.beats.length ? " · beats: " + x.beats.map((b) => b.at.toFixed(1) + " s " + b.do).join("; ") : "") + (x.into ? " · into the next: " + x.into : "") + (x.camera ? " · camera: " + x.camera : "")).join("\n");
 	let url = "";
 	try { url = await drawSketch(sk, plan.aspect); } catch {}
 	return { sk, text, url };
@@ -14016,7 +14058,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	let at = 0;
 	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
 	let brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
-		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type. Celestin's own look, for a film about it: a white or soft off-white ground (#ffffff, #f7f7f6), near-black words (#0b0b0b), a quiet grey for what's secondary (#5f6063), and its indigo (#5141ee, or a gradient from #5b48ff to #2f6bff only on the mark or on what's chosen) kept to a few touches; light, calm and roomy, like its own app, with words in Hanken Grotesk." : "") +
+		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type. " + CELESTIN_LOOK : "") +
 		(plan.craftNote ? "\n\n" + String(plan.craftNote).slice(0, 6000) : "") +
 		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
 		"\nIts typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words (a device's screen may use Figtree or Hanken Grotesk, like a real app); never Inter, Roboto, Arial or a system font." +
