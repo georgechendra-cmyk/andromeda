@@ -13916,7 +13916,7 @@ async function sketchFilm(plan, brief, msg, signal) {
 	let sk = null;
 	for (const m of bestFor("director").slice(0, 2)) {
 		try {
-			sk = parseJSON(await stream(m.id, [{ role: "system", content: SKETCHER }, { role: "user", content: brief + "\n\nSketch it." }], () => {}, signal, { response_format: { type: "json_object" }, max_tokens: 6000, ...effortExtra(m.id) }, msg));
+			sk = parseJSON(await stream(m.id, [{ role: "system", content: SKETCHER }, { role: "user", content: brief + "\n\nSketch it." }], () => {}, signal, { response_format: { type: "json_object" }, max_tokens: 6000, ...effortFor(m.id, "medium") }, msg));
 			if (sk && Array.isArray(sk.scenes) && sk.scenes.length) { if (msg && msg.used) msg.used.push({ name: shortName(m), desc: "Sketch: invented the idea and storyboarded it" }); break; }
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 		sk = null;
@@ -14298,7 +14298,8 @@ async function composeSound(plan, msg, signal) {
 }
 async function composeFrom(ask, secs, msg, signal) {
 	let lastErr;
-	for (const m of bestFor("animation").slice(0, 2)) {
+	// (one composer and one fix: past that, the film's own score takes over, so a soundtrack never costs four tries)
+	for (const m of bestFor("animation").slice(0, 1)) {
 		let html = "", err = "";
 		for (let attempt = 0; attempt < 2; attempt++) {
 			try {
