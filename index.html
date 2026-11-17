@@ -3569,7 +3569,7 @@ const skillLine = () => { const own = typeof mySkills === "function" ? mySkills(
 // (only when the server offers it: the owner's rule is pictures and films by the models best at them, and until those are
 // connected, a plain "not yet" that costs nobody anything)
 // ("owner": only in the owner's demo, where the account is unlimited: to try it before anyone else gets it)
-const drawnOnly = () => creditsMode() && !!pricing && (pricing.drawn === true || (pricing.drawn === "owner" && !!me && !!me.owner)) && !!pricing.reach && pricing.reach.media === false;
+const drawnOnly = () => creditsMode() && !!pricing && pricing.drawn !== false && !!pricing.reach && pricing.reach.media === false;
 // whether this server can make pictures, videos, music and voice at all
 const mediaReady = () => !creditsMode() || !pricing || !pricing.reach || pricing.reach.media !== false || drawnOnly();
 const MEDIA_WHAT = { image: "pictures", video: "videos", music: "music", voice: "voiceovers" };
@@ -3598,6 +3598,8 @@ function makesMedia(text, atts) {
 	for (const k of ["video", "music", "voice", "image"]) if (id[k].test(t)) return k;
 	return null;
 }
+const DRAWN_IMAGE = "a picture drawn in code by the best designer, sharp at any size (SVG, handed over as a PNG too): logos, posters, illustrations, icons, thumbnails, cards, diagrams, infographics, or a change to one it drew";
+const CODED_MUSIC = "an original instrumental track or sound design, composed in code by the best creative coder and rendered to a WAV: any genre, mood, tempo and length up to three minutes (no singing)";
 const DRAWN_VIDEO = "a real video file (MP4), every shot animated in code by the best animator: motion graphics, kinetic typography and titles, animated illustrations and flat or 2D characters, 3D shapes, diagrams, charts, maps, particles, cut together with captions, transitions, an end card, and music and sound effects composed in code to the cut. This server has no filmed footage, photos or AI voice, so the words are on screen. The way for any video, ad, trailer, explainer, intro or animation";
 const STUDIO_WAYS = ["image", "video", "music", "voice"], STUDY_WAYS = ["flashcards", "quiz", "open", "mindmap", "podcast", "sim", "board"], FILE_WAYS = ["docx", "pdf", "pptx", "xlsx"];
 // The tools in the composer's + menu. Picking one says what kind of thing you want; how it's done, with which models, is
@@ -3758,7 +3760,7 @@ async function conduct(text, atts, tried, only, team) {
 	// (pictures, films, music and voice are always offered: a request for one is one, whether or not this server can make
 	// it yet; one it can't is told so before anything is spent, not turned into something else)
 	let ways = Object.entries(WAYS).filter(([k]) => !(drawnOnly() && STUDIO_WAYS.includes(k)));
-	if (drawnOnly()) ways.push(["video", DRAWN_VIDEO]);
+	if (drawnOnly()) ways.push(["video", DRAWN_VIDEO], ["image", DRAWN_IMAGE], ["music", CODED_MUSIC]);
 	// (where films drawn in code are on, a video they want coded is still a video: drawn shot by shot, cut into an MP4)
 	else if (drawnAllowed()) ways = ways.map(([k, d]) => (k === "video" ? [k, d + ". Made one of two ways, whichever is best for this video (say which in \"made\"): filmed, by AI video models, for real-looking footage (people, places, products, cinematic shots); or coded, every shot drawn and animated in code by the best animator and cut into a real MP4 with music composed in code, for animation of every kind (explainers, motion graphics, 2D and cartoon characters, stick figures, kinetic type, diagrams, charts, maps, UI demos), and for anything made in a style that's drawn rather than filmed (many YouTube animation channels make theirs in code)"] : [k, d]));
 	// the user's own connected apps (Blender, Figma, their files...), with what each can do
@@ -7361,7 +7363,7 @@ async function send(textOverride, fork, attsOverride) {
 			const asked = askedKind();
 			if (asked) {
 				const M = await loadMedia();
-				if (!({ image: M.image, video: M.video, music: M.music, voice: M.speech }[asked] || []).length) {
+				if (asked === "voice" && !(M.speech || []).length) {
 					if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
 					if (!appMaker(asked)) throw mediaSoon(asked, true);
 				}
@@ -7370,7 +7372,7 @@ async function send(textOverride, fork, attsOverride) {
 		if (!mediaReady()) {
 			const asked = askedKind();
 			// (unless an app the user connected makes it: Higgsfield, say)
-			if (asked) {
+			if (asked === "voice") {
 				if (appsConf().code || (appsConf().online || []).length) await loadApps().catch(() => {});
 				if (!appMaker(asked)) throw mediaSoon(asked, true);
 			}
@@ -12448,11 +12450,14 @@ async function runStudio(text, atts, pick) {
 	// cost to Celestin; otherwise nothing to make it with on this server yet is said before anyone else is asked
 	const app = appMaker(pick.kind);
 	if (app && appFirst(app, pick.kind, pick.edit, atts.some((x) => x.kind === "image"), text)) return runAct(text + (await appBrief(app, pick, text, atts)), atts);
-	if (!mediaReady()) throw mediaSoon(pick.kind);
+	if (!mediaReady() && pick.kind === "voice") throw mediaSoon(pick.kind);
 	// drawn in code: no media models to load
 	if (drawnOnly() && (pick.kind === "video" || pick.edit)) return pick.edit ? studioEdit(text, atts, pick) : runVideo(text, atts);
 	if (drawnOnly() && pick.kind === "image") return runDrawnImage(text, atts);
 	await loadMedia();
+	// nothing here makes it with an AI model: made in code (a film animated, a picture drawn; music below, composed)
+	if (!pick.edit && pick.kind === "video" && !(MEDIA.video || []).length) return runVideo(text, atts);
+	if (!pick.edit && pick.kind === "image" && !(MEDIA.image || []).length) return runDrawnImage(text, atts);
 	if (pick.edit) return studioEdit(text, atts, pick);
 	if (pick.kind === "video") return runVideo(text, atts);
 	if (pick.kind === "image") return runImage(text, atts);
@@ -12460,14 +12465,13 @@ async function runStudio(text, atts, pick) {
 	return runVoice(text, atts);
 }
 // (films drawn in code are on: for everyone, or only in the owner's demo)
-const drawnAllowed = () => creditsMode() && !!pricing && (pricing.drawn === true || (pricing.drawn === "owner" && !!me && !!me.owner));
+const drawnAllowed = () => creditsMode() && !!pricing && pricing.drawn !== false;
 // a film they ask to have made in code: "code a video", "animate it in code", "made with code"
 const codedAsk = (t) => /\b(?:code|coded)\s+(?:me\s+)?(?:a|an|the|this|my)?\s*(?:video|film|animation|short|clip|movie)\b|\b(?:in|with|using)\s+code\b|\b(?:drawn|animated?|made|written|rendered)\s+(?:it\s+|this\s+)?(?:in|with)\s+code\b/i.test(String(t || ""));
 // how the conductor said this video is best made: "coded", "filmed", or "" (not read)
 var VIDEO_MADE = "";
 async function runVideo(text, atts, planned) {
-	const drawn = drawnOnly() || (drawnAllowed() && (codedAsk(text) || VIDEO_MADE === "coded" || (VIDEO_MADE !== "filmed" && !MEDIA.video.length)));
-	if (!drawn && !MEDIA.video.length) throw new Error("Couldn't load the video models. Check your connection and try again.");
+	const drawn = drawnOnly() || !(MEDIA.video || []).length || (drawnAllowed() && (codedAsk(text) || VIDEO_MADE === "coded"));
 	const msg = { role: "assistant", kind: "studio", text: "", streaming: true, status: "Writing the shot list", used: [], data: null };
 	current.msgs.push(msg);
 	updateLast();
@@ -14145,7 +14149,17 @@ async function runMusic(text, atts) {
 	updateLast();
 	const full = !/\b(jingle|short|intro|loop|30 ?s|clip|sting)\b/i.test(text);
 	const mus = musicModel(full);
-	if (!mus) throw mediaSoon("music", true);
+	// (no music model here: composed in code by the best creative coder, rendered to a WAV)
+	if (!mus) {
+		msg.status = "Composing it in code";
+		updateLast();
+		const secs = Math.max(10, Math.min(180, lengthOf(text) || (full ? 90 : 30)));
+		const r = await composeFrom("What to write: " + String(text).slice(0, 3000) + "\nDURATION: " + secs + " seconds.", secs, msg, busy && busy.signal);
+		msg.used.push({ name: shortName(r.model), desc: "Music: composed it in code" });
+		msg.data = { kind: "music", audio: await vault.put(r.blob), prompt: text };
+		msg.text = "**Your track**";
+		return;
+	}
 	msg.used.push({ name: mus.name, desc: "Music: composed and performed it" });
 	updateLast();
 	const blob = await firstThatWorks((await aiOrder("music", [mus, ...MEDIA.music], text)).slice(0, 4), (m) => makeMusic(m, text, msg, busy.signal));
