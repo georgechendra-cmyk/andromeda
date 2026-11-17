@@ -16832,6 +16832,8 @@ async function launchVideo(j, v) {
 		if (!connOf(to)) continue;
 		const r = await postTool({ to, text: caption, video: v.media }, msg, log);
 		if (/^Posted/.test(r)) { posted.push(CONN_INFO[to].name); msg.data.launch.done.push(to); }
+		// (why it didn't go there, when it's not already in the steps: too big for it, too long)
+		else if (!/^They chose|^It couldn't/.test(r)) log(r.split(":")[0], r.slice(r.indexOf(":") + 1), true);
 	}
 	msg.data.connects = missing;
 	msg.data.share = { media: v.media, text: caption };
@@ -16850,7 +16852,7 @@ async function launchMore(m) {
 	const log = (l, d, bad) => { m.data.log.push({ label: l, detail: String(d || "").slice(0, 160), bad: !!bad }); updateLast(); };
 	try {
 		await syncConns();
-		for (const to of POST_KINDS) if (connOf(to) && !L.done.includes(to)) { const r = await postTool({ to, text: L.text, video: L.media }, m, log); if (/^Posted/.test(r)) L.done.push(to); }
+		for (const to of POST_KINDS) if (connOf(to) && !L.done.includes(to)) { const r = await postTool({ to, text: L.text, video: L.media }, m, log); if (/^Posted/.test(r)) L.done.push(to); else if (!/^They chose|^It couldn't/.test(r)) log(r.split(":")[0], r.slice(r.indexOf(":") + 1), true); }
 		m.data.connects = POST_KINDS.filter((k) => !connOf(k));
 	} catch (e) { if (e.name !== "AbortError") toast(e.message || String(e)); }
 	finally { m.streaming = false; busy = null; updateLast(); save(); }
