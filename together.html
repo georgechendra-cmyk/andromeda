@@ -13578,7 +13578,124 @@ function motionKit() {
 		ctx.restore();
 	};
 	const vignette = (ctx, w, h, amt = 0.35) => { const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.hypot(w, h) * 0.6); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(1, "rgba(0,0,0," + amt + ")"); ctx.save(); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); ctx.restore(); };
-	W.MO = { ease, spring, p, stagger, lerp, mix, clamp, rng, cam, view, rr, card, glass, edge, icon, icons: Object.keys(ICONS), text, typed, caret, num, roll, arc, press, tap, phone, statusBar, grain, vignette, kit };
+	// a map at a glance, like a real maps app (blocks between streets, a few wider roads, a river, parks, labels), the same
+	// for the same seed. x, y, w, h in the film's pixels; o: {seed, dark, scale (street spacing, px), labels: [{text, u, v}],
+	// water: false}. Returns {at(u, v)}: the pixel point at u, v (0 to 1 across and down), to plan a route through
+	const map = (ctx, x, y, w, h, o = {}) => {
+		const r = rng(o.seed || 3), dk = !!o.dark;
+		const C = dk ? { land: "#1b202b", block: "#222937", road: "#343d50", major: "#4d5872", park: "#1e3529", water: "#15304a", label: "#8f9ab0" }
+			: { land: "#f3f0ea", block: "#ebe7df", road: "#ffffff", major: "#fde7b0", park: "#d3eac8", water: "#b4d6f2", label: "#80848b" };
+		const sc = o.scale || Math.max(40, w / 6.5), at = (u, v) => [x + u * w, y + v * h];
+		ctx.save();
+		ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+		ctx.fillStyle = C.block; ctx.fillRect(x, y, w, h);
+		// parks: a couple of rounded blocks
+		ctx.fillStyle = C.park;
+		for (let i = 0; i < 2; i++) { const px = x + (0.1 + r() * 0.7) * w, py = y + (0.1 + r() * 0.7) * h; rr(ctx, px, py, sc * (1.2 + r()), sc * (0.9 + r() * 0.8), sc * 0.12); ctx.fill(); }
+		// the river: a soft band across
+		if (o.water !== false) {
+			const y0 = y + h * (0.15 + r() * 0.2), y1 = y + h * (0.55 + r() * 0.3);
+			ctx.strokeStyle = C.water; ctx.lineCap = "round"; ctx.lineWidth = sc * 0.55;
+			ctx.beginPath(); ctx.moveTo(x - sc, y0); ctx.bezierCurveTo(x + w * 0.35, y0 + h * 0.25, x + w * 0.6, y1 - h * 0.3, x + w + sc, y1); ctx.stroke();
+		}
+		// streets: a slightly uneven grid, every third one a main road, and one avenue across
+		const lines = (len, n0) => { const out = []; for (let v = -r() * sc * 0.5; v < len + sc; v += sc * (0.85 + r() * 0.3)) out.push(v); return out; };
+		const xs = lines(w), ys = lines(h);
+		const street = (x0, y0, x1, y1, main) => {
+			if (main) { ctx.strokeStyle = dk ? "#2a3142" : "#e6dcc4"; ctx.lineWidth = sc * 0.2; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); }
+			ctx.strokeStyle = main ? C.major : C.road; ctx.lineWidth = sc * (main ? 0.15 : 0.085);
+			ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke();
+		};
+		ctx.lineCap = "butt";
+		xs.forEach((v, i) => street(x + v, y, x + v, y + h, i % 3 === 1));
+		ys.forEach((v, i) => street(x, y + v, x + w, y + v, i % 3 === 2));
+		street(x - sc, y + h * (0.7 + r() * 0.2), x + w + sc, y + h * (0.05 + r() * 0.2), true);
+		// labels, small and quiet
+		ctx.fillStyle = C.label; ctx.font = "500 " + Math.round(sc * 0.2) + "px " + kit.ui; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+		for (const l of o.labels || []) { const [lx, ly] = at(l.u, l.v); ctx.fillText(String(l.text || ""), lx, ly); }
+		ctx.restore();
+		return { at };
+	};
+	// a route along points ([[x, y], ...], in pixels) drawn on as k goes from 0 to 1 (ease it with p()), white-cased like a
+	// maps app, with the moving dot at its head (white ring, the colour inside, a soft pulse while t runs). o: {color, width,
+	// dot: false, t}. Returns the head's [x, y] (to follow it with the camera, or to show what's there)
+	const route = (ctx, pts, k, o = {}) => {
+		if (!pts || pts.length < 2) return pts && pts[0];
+		const L = [0];
+		for (let i = 1; i < pts.length; i++) L.push(L[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+		const upto = clamp(k) * L[L.length - 1], col = o.color || "#0a84ff", wd = o.width || 7;
+		const path = () => {
+			ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+			let head = pts[0];
+			for (let i = 1; i < pts.length; i++) {
+				if (L[i] <= upto) { ctx.lineTo(pts[i][0], pts[i][1]); head = pts[i]; continue; }
+				const f = (upto - L[i - 1]) / ((L[i] - L[i - 1]) || 1);
+				head = [lerp(pts[i - 1][0], pts[i][0], f), lerp(pts[i - 1][1], pts[i][1], f)];
+				ctx.lineTo(head[0], head[1]);
+				break;
+			}
+			return head;
+		};
+		ctx.save(); ctx.lineCap = "round"; ctx.lineJoin = "round";
+		ctx.strokeStyle = "rgba(255,255,255,0.95)"; ctx.lineWidth = wd + 5; path(); ctx.stroke();
+		ctx.strokeStyle = col; ctx.lineWidth = wd; const head = path(); ctx.stroke();
+		if (o.dot !== false) {
+			const pr = wd * 1.5, ph = ((o.t || 0) % 1.4) / 1.4;
+			ctx.fillStyle = col; ctx.globalAlpha = 0.28 * (1 - ph); ctx.beginPath(); ctx.arc(head[0], head[1], pr * (1 + ph * 2.4), 0, 2 * PI); ctx.fill();
+			ctx.globalAlpha = 1; ctx.shadowColor = "rgba(0,0,0,0.22)"; ctx.shadowBlur = wd; ctx.shadowOffsetY = wd * 0.2;
+			ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(head[0], head[1], pr, 0, 2 * PI); ctx.fill();
+			ctx.shadowColor = "transparent"; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(head[0], head[1], pr * 0.66, 0, 2 * PI); ctx.fill();
+		}
+		ctx.restore();
+		return head;
+	};
+	// a map pin dropping onto x, y (its point) as k goes from 0 to 1: it falls, lands with a little bounce and its shadow
+	// firms up. size is its height in px; o: {color, icon (an MO.icon name inside)}
+	const pin = (ctx, x, y, size, k, o = {}) => {
+		const kk = clamp(k); if (kk <= 0) return;
+		const s = spring(kk * 0.9, 0.35, 0.55), drop = (1 - Math.min(1, s)) * size * 1.6, col = o.color || "#ff3b30", w = size * 0.72;
+		ctx.save();
+		ctx.fillStyle = "rgba(0,0,0," + (0.18 * Math.min(1, kk * 2)) + ")"; ctx.beginPath(); ctx.ellipse(x, y, w * 0.32, w * 0.12, 0, 0, 2 * PI); ctx.fill();
+		ctx.translate(x, y - drop);
+		ctx.shadowColor = "rgba(0,0,0,0.25)"; ctx.shadowBlur = size * 0.15; ctx.shadowOffsetY = size * 0.06;
+		ctx.fillStyle = col; ctx.beginPath();
+		ctx.moveTo(0, 0); ctx.bezierCurveTo(-w * 0.15, -size * 0.3, -w / 2, -size * 0.45, -w / 2, -size * 0.68);
+		ctx.arc(0, -size * 0.68, w / 2, PI, 0); ctx.bezierCurveTo(w / 2, -size * 0.45, w * 0.15, -size * 0.3, 0, 0); ctx.fill();
+		ctx.shadowColor = "transparent";
+		if (o.icon) icon(ctx, o.icon, 0, -size * 0.68, w * 0.55, "#fff"); else { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(0, -size * 0.68, w * 0.18, 0, 2 * PI); ctx.fill(); }
+		ctx.restore();
+	};
+	// a caption arriving word by word, the way the most-shared shorts do it: each word rises in and settles the moment it's
+	// said (wps words a second from "at"), the key words heavier and in their own colour. s: the words; x: the centre (or
+	// the left with align: "left"); y: the first line's middle. o: {size, wps, key: ["words", "to", "stress"], color,
+	// keyColor, weight, keyWeight, maxW, lh, font, align}. Returns the time the last word lands
+	const words = (ctx, s, x, y, t, at, o = {}) => {
+		const size = o.size || 48, wps = o.wps || 3, list = String(s || "").split(/\s+/).filter(Boolean), font = o.font || kit.ui;
+		const norm = (w) => w.toLowerCase().replace(/[^\p{L}\p{N}']/gu, ""), keys = new Set((o.key || []).map(norm));
+		const wt = (w) => (keys.has(norm(w)) ? o.keyWeight || 700 : o.weight || 500), maxW = o.maxW || ctx.canvas.width * 0.86, lh = (o.lh || 1.18) * size;
+		ctx.save(); ctx.textBaseline = "middle"; ctx.textAlign = "left";
+		if ("letterSpacing" in ctx) ctx.letterSpacing = "-0.01em";
+		const sp = (ctx.font = "500 " + size + "px " + font, ctx.measureText(" ").width), rows = [[]];
+		let rowW = 0;
+		for (const w of list) { ctx.font = wt(w) + " " + size + "px " + font; const ww = ctx.measureText(w).width; if (rowW && rowW + sp + ww > maxW) { rows.push([]); rowW = 0; } rows[rows.length - 1].push([w, ww]); rowW += (rowW ? sp : 0) + ww; }
+		let i = 0;
+		rows.forEach((row, ri) => {
+			const total = row.reduce((a, [, ww], j) => a + ww + (j ? sp : 0), 0);
+			let cx = o.align === "left" ? x : x - total / 2;
+			for (const [w, ww] of row) {
+				const k = p(t, at + i / wps, 0.34, "snappy"), on = clamp(k * 1.8);
+				if (on > 0) {
+					ctx.globalAlpha = on; ctx.font = wt(w) + " " + size + "px " + font;
+					ctx.fillStyle = keys.has(norm(w)) ? o.keyColor || o.color || "#0b0b0b" : o.color || "#0b0b0b";
+					ctx.fillText(w, cx, y + ri * lh + (1 - k) * size * 0.32);
+				}
+				cx += ww + sp; i++;
+			}
+		});
+		ctx.restore();
+		return at + Math.max(0, list.length - 1) / wps + 0.34;
+	};
+	W.MO = { ease, spring, p, stagger, lerp, mix, clamp, rng, cam, view, rr, card, glass, edge, icon, icons: Object.keys(ICONS), text, typed, caret, num, roll, arc, press, tap, phone, statusBar, map, route, pin, words, grain, vignette, kit };
 }
 // (put into every film program, before its own script, by sceneDoc)
 const MOTION_KIT_TAG = "<script>(" + motionKit + ")();<\/script>";
@@ -13598,6 +13715,8 @@ const MOTION_KIT_DOC = `Celestin's motion kit is already in your document as win
 - MO.typed(s, t, at, charsPerSecond): the part of s typed by t, in a person's uneven rhythm (a key sounds for each letter as it appears, by itself: declare nothing for it); MO.caret(t, lastKeyAt): whether the caret shows.
 - MO.roll(ctx, to, x, y, k, {from, size, weight, font, color, align}): digits rolling like an odometer from "from" to "to" (a price, a count, a clock); MO.num(from, to, k, decimals).
 - MO.press(t, at): a scale for a button pressed at "at" (in fast, out on a spring); MO.tap(ctx, x, y, t, at): a finger's touch arriving, pressing and rippling; MO.arc(k, x0, y0, x1, y1, lift): a point along an arc (something flying into a cart).
+- MO.map(ctx, x, y, w, h, {seed, dark, scale, labels: [{text, u, v}], water}): a maps-app view (streets, main roads, a river, parks), returning {at(u, v)} for points on it; MO.route(ctx, [[x, y], ...], k, {color, width, t}): the route drawing itself as k goes 0 to 1 (ease it with MO.p), with the moving dot and its pulse at the head, returning the head's [x, y] (follow it with the camera); MO.pin(ctx, x, y, size, k, {color, icon}): a pin dropping in and settling. A delivery, a ride, a walk, a trip: a dot moving along a real-looking map, inside MO.phone's screen or full frame.
+- MO.words(ctx, s, x, y, t, at, {size, wps, key: [...], color, keyColor, maxW, align}): a caption arriving word by word as it's said (wps words a second from at), its key words heavier and in their own colour, the way the most-shared shorts caption; returns when the last word lands.
 - MO.grain(ctx, W, H, t, amount): film grain; MO.vignette(ctx, W, H, amount).
 Motion blur is added for you when the film is rendered, the way a camera's shutter makes it, on anything that moves fast: never imitate it with ctx.filter blur on moving things.`;
 // What separates a film people share from one they scroll past as "AI-made": both animators follow it
