@@ -14206,12 +14206,33 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 		const said = bar || sk ? [{ type: "text", text: content + (sk ? "\n\nThe first picture is the sketch, drawn: build exactly that." : "") + (bar ? "\n\nThe " + (sk ? "second" : "") + " picture: three style frames at the bar (made for a made-up app, in the manner of the best product films). Match their polish: a light ground, big confident words, generous room, one accent colour, real interface detail, soft shadows. Never their subject, words or colours." : "") }, ...(sk ? [{ type: "image_url", image_url: { url: sk } }] : []), ...(bar ? [{ type: "image_url", image_url: { url: bar } }] : [])] : content;
 		return htmlOf(await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: said }], () => {}, signal, best(m), msg));
 	};
+	// (a film's fix is sent as changes only: the whole film written again costs as much as making it, Nov 21. A change that
+	// doesn't match the file is asked for once more, alone, before the whole file is)
+	const FILM_EDITS = CHANGE_FORMAT.replace(/A new file, or one you rewrite most of, whole: [^.]*\. To delete a file: [^.]*\. /, "").replace(/\bpath\b/g, "film.html") + " Never send the whole file: for something that runs through the whole film (its colours, type or timing), change the design system's values at the top rather than every place they're used.";
+	const patch = (text, pairs) => {
+		const missed = [], bare = (x) => x.split("\n").map((l) => l.replace(/\s+$/, "")).join("\n");
+		for (const e of pairs) {
+			const at = text.indexOf(e.search);
+			if (at >= 0) { text = text.slice(0, at) + e.replace + text.slice(at + e.search.length); continue; }
+			const t = bare(text), q = bare(e.search), j = t.indexOf(q);
+			if (j >= 0) text = t.slice(0, j) + e.replace + t.slice(j + q.length); else missed.push(e);
+		}
+		return { text, missed };
+	};
+	const pairsOf = (p) => p.edits["film.html"] || Object.values(p.edits)[0] || [];
 	const edit = async (m, why, html) => {
-		const said = await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: brief + "\n\n" + why + "\n\nThe film's code, as film.html:\n" + html.slice(0, 90000) + "\n\nDon't send the whole file. " + CHANGE_FORMAT.replace(/\bpath\b/g, "film.html") }], () => {}, signal, best(m), msg);
+		const said = await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: brief + "\n\n" + why + "\n\nThe film's code, as film.html:\n" + html.slice(0, 90000) + "\n\n" + FILM_EDITS }], () => {}, signal, best(m), msg);
 		const p = parseFiles(said);
 		if (p.files["film.html"]) return p.files["film.html"];
-		if (Object.keys(p.edits).length) { const { files, failed } = applyEdits({ "film.html": html }, p.edits); if (!failed.length) return files["film.html"]; }
-		else if (/<canvas|<script/i.test(htmlOf(said))) return htmlOf(said);
+		if (pairsOf(p).length) {
+			let { text, missed } = patch(html, pairsOf(p));
+			if (missed.length) {
+				const again = parseFiles(await stream(m.id, [{ role: "system", content: FILM_ANIMATOR }, { role: "user", content: "These changes to film.html matched nothing in it (each SEARCH has to be copied exactly from the file as it is now):\n\n" + missed.map((e) => "<<<<<<< SEARCH\n" + e.search.slice(0, 1500) + "\n=======\n" + e.replace.slice(0, 4000) + "\n>>>>>>> REPLACE").join("\n\n") + "\n\nThe file as it is now, with your other changes already in:\n" + text.slice(0, 90000) + "\n\nSend just these changes again, matched to it. " + FILM_EDITS }], () => {}, signal, best(m), msg));
+				if (again.files["film.html"]) return again.files["film.html"];
+				if (pairsOf(again).length) ({ text, missed } = patch(text, pairsOf(again)));
+			}
+			if (!missed.length) return text;
+		} else if (/<canvas|<script/i.test(htmlOf(said))) return htmlOf(said);
 		return write(m, brief + "\n\n" + why + "\n\nThe code:\n" + html.slice(0, 90000) + "\n\nSend the whole file again.");
 	};
 	const runs = (html) => checkScene(html, total, Math.round(W / 4), Math.round(H / 4));
