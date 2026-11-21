@@ -5391,6 +5391,8 @@ async function checkProject(paths, run) {
 const AGENT_TOOLS = [
 	["list_files", "List the project's file paths. Narrow it with a folder path or a glob like src/**/*.ts.", { path: { type: "string", description: "A folder, e.g. src/components" }, glob: { type: "string", description: "e.g. **/*.css" } }, []],
 	["read_file", "Read a file, with line numbers. Big files come in parts: ask for a range.", { path: { type: "string" }, start_line: { type: "integer" }, end_line: { type: "integer" } }, ["path"]],
+	["outline", "A file's map: every function, class and top-level name with its line number, so you can go straight to the part you need. Use it before reading any long file; give filter (a word) to list only names containing it.", { path: { type: "string" }, filter: { type: "string" } }, ["path"]],
+	["read_function", "Read one whole function, class or top-level const of a file by its name, with line numbers: the exact part you need from a big file.", { path: { type: "string" }, name: { type: "string" } }, ["path", "name"]],
 	["search", "Search every file for a regular expression. Returns path:line: text for each match.", { pattern: { type: "string" }, glob: { type: "string", description: "Only files matching this glob" } }, ["pattern"]],
 	["edit_file", "Replace exact text in a file. old_string must match the file exactly (copy it from read_file without the line numbers) and be unique unless replace_all is true.", { path: { type: "string" }, old_string: { type: "string" }, new_string: { type: "string" }, replace_all: { type: "boolean" } }, ["path", "old_string", "new_string"]],
 	["write_file", "Create a file, or replace a small file completely.", { path: { type: "string" }, content: { type: "string" } }, ["path", "content"]],
@@ -5405,7 +5407,7 @@ const AGENT_TOOLS = [
 	["finish", "End the task with a short summary for the user: what you changed and why, how to try it, and anything they must do themselves. For a question, the answer goes here.", { summary: { type: "string" } }, ["summary"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
 const AGENT_RULES = `You are Celestin Code, the lead engineer on a team, working directly in the user's project through tools. You have what the best coding agents have (files, search, the docs, the web, running code, the user's computer when it's connected) and a team on top: helpers who look into things in parallel, experts measured best at exactly one skill, and a different top model who reviews your work. Work the way the best engineers in the world do:
-1. Understand before you touch anything: search and read the relevant files (for a big codebase, send helpers to look into separate questions at once). Never guess what a file contains or what a function is called. Work in few, full turns, because every turn re-reads the whole conversation and is paid for again: ask for everything you already know you'll need in one turn (several searches and reads side by side), read a whole function or section at once rather than a few lines at a time, and make all the edits you've decided on together.
+1. Understand before you touch anything: search and read the relevant files (for a big codebase, send helpers to look into separate questions at once). Never guess what a file contains or what a function is called. On a long file (thousands of lines) never read page by page: outline it (with a filter word when it's huge), search for the names involved, and read_function exactly the functions you need. Work in few, full turns, because every turn re-reads the whole conversation and is paid for again: ask for everything you already know you'll need in one turn (several searches and reads side by side), read a whole function or section at once rather than a few lines at a time, and make all the edits you've decided on together.
 2. Plan anything with three or more steps (plan), and keep the plan true as you go.
 3. Build in precise edits: edit_file with old_string copied exactly from read_file (without the line-number prefix); write_file only for new files or rewriting small ones. Match the project's style, naming and structure; change only what the task needs. Before writing code against a library or API you aren't certain of, call docs; web_search for anything recent. A hard, narrow piece (an algorithm, a tricky regex, a security-sensitive function, a migration) can go to ask_expert with its exact skills.
 4. Prove it works: call check and fix everything it reports; run the code (run_python or run_javascript for logic you can test here, the real build and tests on the user's computer when it's connected); write a quick test for anything tricky. Read back what you changed.
@@ -5450,6 +5452,35 @@ async function runTool(name, a, run, msg) {
 			const list = projectPaths().filter((p) => (!under || p === under || p.startsWith(under + "/")) && (!g || g.test(p) || g.test(p.split("/").pop())));
 			log("Listed " + (under || "the project"), list.length + " files");
 			return list.length ? list.slice(0, 1000).join("\n") + (list.length > 1000 ? "\n… and " + (list.length - 1000) + " more: narrow it with path or glob" : "") : "Nothing matches.";
+		}
+		if (name === "outline") {
+			const p = normPath(a.path), lines = (await pRead(p)).split("\n"), f = String(a.filter || "").toLowerCase(), out = [];
+			const re = /^\s{0,2}(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*([\w$]+)|class\s+([\w$]+)|(?:const|let|var)\s+([\w$]+)\s*=)/;
+			lines.forEach((l, i) => { const m = l.match(re); if (m && (!f || (m[1] || m[2] || m[3]).toLowerCase().includes(f))) out.push((i + 1) + ": " + l.trim().slice(0, 110)); });
+			log("Mapped " + p, out.length + " names" + (f ? " with \"" + f + "\"" : ""));
+			return out.length ? out.slice(0, 800).join("\n") + (out.length > 800 ? "\n… " + (out.length - 800) + " more: give a filter word" : "") : "No functions or top-level names" + (f ? " containing \"" + f + "\"" : "") + " in " + p + ".";
+		}
+		if (name === "read_function") {
+			const p = normPath(a.path), t = await pRead(p), n = String(a.name || "").trim();
+			const m = new RegExp("(?:^|\\n)[ \\t]*(?:export\\s+)?(?:async\\s+)?(?:function\\s*\\*?\\s*" + n.replace(/[^\w$]/g, "") + "\\s*\\(|class\\s+" + n.replace(/[^\w$]/g, "") + "\\b|(?:const|let|var)\\s+" + n.replace(/[^\w$]/g, "") + "\\s*=)").exec(t);
+			if (!m) return "There's no function, class or top-level name " + n + " in " + p + ". Try outline with a filter, or search.";
+			const at = m.index + (m[0].startsWith("\n") ? 1 : 0);
+			let k = t.indexOf("{", at), depth = 0, q = "";
+			const endLine = t.indexOf("\n", at) < 0 ? t.length : t.indexOf("\n", at);
+			if (k < 0 || k > endLine + 400) k = -1;
+			let end = k < 0 ? endLine : k;
+			for (; k >= 0 && end < t.length; end++) {
+				const ch = t[end];
+				if (q) { if (ch === "\\") end++; else if (ch === q) q = ""; continue; }
+				if (ch === "/" && t[end + 1] === "/") { const nl = t.indexOf("\n", end); end = (nl < 0 ? t.length : nl) - 1; continue; }
+				if (ch === "/" && t[end + 1] === "*") { const e2 = t.indexOf("*/", end + 2); end = e2 < 0 ? t.length : e2 + 1; continue; }
+				if (ch === "\"" || ch === "'" || ch === "`") { q = ch; continue; }
+				if (ch === "{") depth++;
+				else if (ch === "}" && --depth === 0) { end++; break; }
+			}
+			const first = t.slice(0, at).split("\n").length, body = t.slice(at, end).split("\n").slice(0, 600);
+			log("Read " + n + " in " + p, "lines " + first + "–" + (first + body.length - 1));
+			return body.map((l, i) => (first + i) + "\t" + l).join("\n");
 		}
 		if (name === "read_file") {
 			const p = normPath(a.path), t = await pRead(p), lines = t.split("\n");
@@ -5674,6 +5705,7 @@ async function runAgent(text, atts) {
 			if (run.before.size > edits) { edits = run.before.size; sinceEdit = 0; } else sinceEdit++;
 			let climb = "";
 			if (summary != null && run.before.size) { const chk = String(await runTool("check", {}, run, msg)); if (/^Problems:/.test(chk)) climb = "it said it was done, but Celestin's own check still finds problems:\n" + chk.slice(0, 3000); }
+			else if (summary != null && !run.before.size && !(/\?\s*$/.test(String(text || "")) || (/^\s*(how|what|why|where|which|who|does|do|is|are|can|could|should|would|explain|tell me)\b/i.test(String(text || "")) && !/\b(make|fix|add|change|build|update|remove|implement|create|write|edit|rename|refactor|support|read)\b/i.test(String(text || ""))))) climb = "it stopped without changing anything, though a change was asked for";
 			else if (summary == null && (sinceEdit >= 24 || onRung >= 70)) climb = sinceEdit >= 24 ? "it went " + sinceEdit + " turns without changing anything" : "it took " + onRung + " turns";
 			if (climb && ci + 1 < Math.min(cands.length, 5)) {
 				const was = shortName(model);
