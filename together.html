@@ -14235,6 +14235,52 @@ async function drawSketch(sk, aspect) {
 	});
 	return c.toDataURL("image/jpeg", 0.82);
 }
+// ---- films made by a team (the owner, Nov 21: "a team is a ton of people working simultaneously"): a lead sets the
+// design system, each scene of the sketch goes to its own animator at the same time, Celestin puts them together in a
+// frame it writes itself (the clock, which scene shows, a short crossfade), runs it, and a scene that breaks is redone by
+// the next model up. Each call is short: quicker, cheaper models can do a scene, and none outlasts a gateway's limit
+const FILM_LEAD = "You set up a short film that a team of animators will build scene by scene, all at the same time, so everything they share must be decided here, once.\n\nWrite ONLY JavaScript (no HTML, no markdown fences): a const D, the film's design system that every scene uses, and a function background(ctx, t) that paints the film's ground on every frame (gently alive: drifting light, grain, a slow gradient), never a flat empty colour. D holds: the palette as hex (ground, ink, soft ink, the accent and anything else the film needs), D.title and D.text (the Google Fonts families given), type sizes as fractions of H (D.big at least 0.07, D.body at least 0.035), margins, corner radii, the shadow, the motion timings, and small helpers every scene will draw the same way (the brand's logo as D.logo(ctx, x, y, size) when there is one, and anything else shared). W, H and MO (the motion kit) already exist. Under 120 lines, no timers, no loading anything.";
+const FILM_SCENE = "You animate ONE scene of a short film while other animators make the other scenes at the same time, so yours must fit the shared design system exactly and hand over to the next scene the way the sketch says.\n\nWrite ONLY JavaScript (no HTML, no markdown fences), exactly: SCENES[N].draw = function (ctx, t, k) { ... }; with N your scene's number. t is the seconds since your scene began, k runs from 0 to 1 through it. The ground is already painted: draw everything of your scene, every frame, from t alone (no timers, no randomness except MO.rng). Use D (the design system, given) for every colour, font and size, and MO (the motion kit) for motion, the camera, the phone, the map, typing and captions. Make it an animation, not a poster: one hero thing, big, with a beat about every second (something arrives, is typed, tapped, flies, transforms, the camera pushes through), words big enough to read on a phone, never a stack of cards. Under 160 lines.";
+const codeOf = (t) => { const m = String(t || "").match(/\x60\x60\x60(?:js|javascript)?\s*([\s\S]*?)\x60\x60\x60/i); return (m ? m[1] : String(t || "")).trim(); };
+async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, best) {
+	const sk = SKETCH_NOW && SKETCH_NOW.sk, total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
+	if (!sk || !Array.isArray(sk.scenes) || sk.scenes.length < 2) return null;
+	// (the scenes on the film's own clock, end to end)
+	const S = sk.scenes.slice(0, 8), span = S[S.length - 1].to > 0 ? S[S.length - 1].to : total;
+	const times = S.map((x, i) => ({ from: i ? 0 : 0, to: 0, x }));
+	let at = 0;
+	S.forEach((x, i) => { const len = Math.max(1, ((x.to - x.from) / span) * total || total / S.length); times[i].from = +at.toFixed(2); at += len; times[i].to = +(i === S.length - 1 ? total : at).toFixed(2); });
+	const say = (m, sys, text) => stream(m.id, [{ role: "system", content: sys }, { role: "user", content: text }], () => {}, signal, best(m), msg);
+	const lead = cands[0];
+	onStatus("A team is making it: " + shortName(lead) + " sets the look, " + S.length + " animators make the scenes at the same time");
+	const kit = MOTION_KIT_DOC;
+	const design = codeOf(await say(lead, FILM_LEAD + "\n\n" + kit, brief + "\n\nThe film's fonts: " + ((plan.type || {}).title || "Hanken Grotesk") + " for titles, " + ((plan.type || {}).text || "Hanken Grotesk") + " for other words.\n\nWrite D and background."));
+	if (!/\bconst D\b/.test(design) || !/function background/.test(design)) throw new Error("The lead's design system didn't come back whole");
+	const sceneAsk = (i) => "The film: " + plan.title + ". " + String(sk.idea || "") + "\n\nThe design system every scene shares (use it exactly):\n" + design.slice(0, 12000) + "\n\nYour scene is number " + i + " of " + S.length + ", " + (times[i].to - times[i].from).toFixed(1) + " seconds long (" + times[i].from.toFixed(1) + " to " + times[i].to.toFixed(1) + " s in the film). The sketch of it: " + (S[i].line ? "big words \"" + S[i].line + "\" · " : "") + S[i].picture + (S[i].beats && S[i].beats.length ? " · beats (film time): " + S[i].beats.map((b) => b.at.toFixed(1) + " s " + b.do).join("; ") : "") + (S[i].camera ? " · camera: " + S[i].camera : "") + (S[i].into ? " · it turns into the next scene: " + S[i].into : "") + (i ? "\nThe scene before ends with: " + (S[i - 1].into || S[i - 1].picture) : "\nIt opens the film.") + (i + 1 < S.length ? "\nThe next scene: " + S[i + 1].picture : "\nIt ends the film: the brand's mark lands last.") + "\n\nWrite SCENES[" + i + "].draw.";
+	const writeScene = async (i, m, err, code) => codeOf(await say(m, FILM_SCENE + "\n\n" + kit, sceneAsk(i) + (err ? "\n\nThis version failed when it ran:\n" + err + "\n\nThe code:\n" + String(code).slice(0, 20000) + "\n\nFind the cause and send it again, whole." : "")));
+	// (everyone at once)
+	const parts = await Promise.all(S.map((_, i) => writeScene(i, lead).catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return ""; })));
+	const fonts = [...new Set([(plan.type || {}).title, (plan.type || {}).text].filter(Boolean))].map((f) => "family=" + encodeURIComponent(f).replace(/%20/g, "+") + ":wght@400;500;600;700;800").join("&");
+	const build = () => "<!doctype html><html><head><meta charset=\"utf-8\">" + (fonts ? "<link href=\"https://fonts.googleapis.com/css2?" + fonts + "&display=swap\" rel=\"stylesheet\">" : "") + "<style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body><canvas id=\"c\"></canvas>\n<script>\nconst c = document.getElementById(\"c\"); c.width = W; c.height = H; const ctx = c.getContext(\"2d\");\nwindow.DURATION = " + total + ";\n" + design + "\nconst SCENES = " + JSON.stringify(times.map((x) => ({ from: x.from, to: x.to }))) + ";\n" +
+		parts.map((p, i) => "// scene " + (i + 1) + "\ntry {\n" + (p || "SCENES[" + i + "].draw = function () {};") + "\n} catch (e) { SCENES[" + i + "].broken = e; }").join("\n") +
+		"\nconst XF = 0.4;\nwindow.seek = async (t) => {\n\tawait document.fonts.ready;\n\tctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;\n\tbackground(ctx, t);\n\tfor (let i = 0; i < SCENES.length; i++) {\n\t\tconst s = SCENES[i], next = SCENES[i + 1];\n\t\tif (t < s.from - XF / 2 || t > s.to + XF / 2) continue;\n\t\tif (s.broken) throw new Error(\"scene \" + (i + 1) + \": \" + s.broken.message);\n\t\tlet a = 1;\n\t\tif (i > 0 && t < s.from + XF / 2) a = Math.min(1, (t - (s.from - XF / 2)) / XF);\n\t\tif (next && t > s.to - XF / 2) a = Math.min(a, Math.max(0, (s.to + XF / 2 - t) / XF));\n\t\tctx.save(); ctx.globalAlpha = Math.max(0, a);\n\t\ttry { s.draw(ctx, Math.max(0, t - s.from), Math.min(1, Math.max(0, (t - s.from) / (s.to - s.from)))); } catch (e) { throw new Error(\"scene \" + (i + 1) + \": \" + (e && e.message || e)); }\n\t\tctx.restore();\n\t}\n};\n<\/script></body></html>";
+	// (run it; a scene that breaks is redone, once, by the next model up, with its error)
+	for (let tries = 0; tries < S.length + 1; tries++) {
+		let html = build();
+		try { await runs(html); return { html, by: lead, team: S.length }; }
+		catch (e) {
+			const m = String(e.message || e).match(/scene (\d+):/), i = m ? Number(m[1]) - 1 : parts.findIndex((p) => !p);
+			if (i < 0 || i >= S.length || parts[i] === null) throw e;
+			const up = cands[1] || lead;
+			onStatus("Scene " + (i + 1) + " broke: " + shortName(up) + " makes it again");
+			const again = await writeScene(i, up, String(e.message || e).slice(0, 600), parts[i]).catch(() => null);
+			if (!again) throw e;
+			parts[i] = again;
+			if (tries === S.length) throw e;
+		}
+	}
+	return null;
+}
 async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, onStatus) {
 	const total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
 	let at = 0;
@@ -14296,8 +14342,16 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 			}
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 	}
+	// (a new film with a sketch of two scenes or more: made by a team, all its scenes at the same time; if the team can't
+	// make it run, one animator makes it whole, as before)
+	if (!prev && SKETCH_NOW) {
+		try {
+			const t = await teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, best);
+			if (t) { html = t.html; by = t.by; if (msg && msg.used) msg.used.push({ name: shortName(t.by), desc: "Lead: set the look; " + t.team + " scenes animated at the same time" }); }
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; lastErr = e; }
+	}
 	// (two animators at most: past that it's made shot by shot instead)
-	for (const m of cands.slice(0, 2)) {
+	for (const m of by ? [] : cands.slice(0, 2)) {
 		try {
 			onStatus(prev ? "Changing the film" : "Animating the whole film in one take (" + total + " seconds of it)");
 			html = prev ? await edit(m, "The person wants this change: " + change + "\nMake it, keeping everything else.", prev) : await write(m, brief + "\n\nMake the film.");
