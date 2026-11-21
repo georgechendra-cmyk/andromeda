@@ -3047,6 +3047,15 @@ const BEST_ONLY = new Set(["app", "sim"]);
 // quality and also cost SO MUCH LESS"): first whenever it can be reached, thinking at the lightest level measured as
 // level with its own best (a hair: never measurably worse, far less thinking billed); the best by score stand behind it
 const CODE_MODEL = "openai/gpt-5.4";
+// the ladder's rungs for a job (Nov 21, the owner: "yes build the ladder"; "celestin IS a whole TEAM"): the cheapest model
+// fit for it by the 54/46 and 1.8x rules first, then the owner's pick for code, then the best by score; each at the
+// thought it was picked at. Work climbs only when it's stuck or fails Celestin's own check
+function ladderOf(ranked) {
+	const top = bestFirst(ranked)[0], cheap = bestFirst(quarkFirst(ranked))[0], mid = codeFirst(ranked)[0], rungs = [];
+	for (const x of [cheap, mid, top]) if (x && !rungs.some((y) => y.m.id === x.m.id)) rungs.push(x);
+	for (const x of rungs) EFFORT.set(x.m.id, x.effort || "");
+	return rungs;
+}
 function codeFirst(ranked) {
 	const mine = ranked.filter((x) => x.m.id === CODE_MODEL);
 	if (!mine.length) return bestFirst(ranked);
@@ -5565,7 +5574,7 @@ async function runAgent(text, atts) {
 	const tools = [...AGENT_TOOLS, ...BUILT_IN.filter((t) => /^(run_python|run_javascript|ask_expert)$/.test(t.function.name)), ...POWER_TOOLS, ...apps.tools];
 	// working through a real project with tools is its own measured skill (LMArena's agent arena), on top of the code;
 	// code work goes to the very best at it (the owner, Nov 21; see BEST_ONLY), never a cheaper one nearly as good
-	const agentic = codeFirst((arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 }).filter((x) => x.m.tools !== false))).map((x) => x.m);
+	const rungs = ladderOf((arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 }).filter((x) => x.m.tools !== false))), agentic = rungs.map((x) => x.m);
 	const cands = [...new Set([...agentic, ...teamFor("code", new Set())])].filter((m) => m.tools !== false);
 	let ci = 0, model = cands[0];
 	if (!model) throw new Error("No coding model is available right now.");
@@ -5620,7 +5629,7 @@ async function runAgent(text, atts) {
 		return null;
 	};
 	try {
-		let shots = [], dropped = 0;
+		let shots = [], dropped = 0, edits = 0, sinceEdit = 0, onRung = 0;
 		for (let step = 0; step < (long ? 4000 : 200) && summary == null; step++) {
 			if (longTick(long, messages, step, log)) { summary = "Time's up: here's where it stands. " + (messages[messages.length - 1].content || ""); break; }
 			msg.status = (long ? longStatus(long, msg) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
@@ -5655,6 +5664,22 @@ async function runAgent(text, atts) {
 			}
 			if (pics.length) shots = pics.slice(-3);
 			if (pics.length && (model.input || []).includes("image")) messages.push({ role: "user", content: [{ type: "text", text: "What the tools showed:" }, ...pics.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] });
+			// the ladder: stuck (many turns and nothing changed) or "done" while Celestin's own check still finds problems, the
+			// next model up takes over from here, with everything read and changed so far
+			onRung++;
+			if (run.before.size > edits) { edits = run.before.size; sinceEdit = 0; } else sinceEdit++;
+			let climb = "";
+			if (summary != null && run.before.size) { const chk = String(await runTool("check", {}, run, msg)); if (/^Problems:/.test(chk)) climb = "it said it was done, but Celestin's own check still finds problems:\n" + chk.slice(0, 3000); }
+			else if (summary == null && (sinceEdit >= 24 || onRung >= 70)) climb = sinceEdit >= 24 ? "it went " + sinceEdit + " turns without changing anything" : "it took " + onRung + " turns";
+			if (climb && ci + 1 < Math.min(cands.length, 5)) {
+				const was = shortName(model);
+				model = cands[++ci];
+				for (const m of messages) if (m.role === "assistant") delete m.reasoning_details;
+				messages.push({ role: "user", content: "(Celestin: " + was + " was working on this and " + climb + ". " + shortName(model) + " takes over from here, with everything read and changed so far: carry on and finish the job properly.)" });
+				log("Handed to " + shortName(model), climb.split("\n")[0].slice(0, 120));
+				summary = null; sinceEdit = 0; onRung = 0;
+				continue;
+			}
 			// it said it's finished: in a long run, reviewed first, and carried on with what the reviewer found
 			if (summary != null && (await longGoOn(long, messages, summary, changes, shots, model, msg, log))) summary = null;
 			// a long session: older tool results cleared to their start, then older file contents dropped (they can be read
@@ -14325,6 +14350,23 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 				rounds++;
 			}
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	// the ladder (Nov 21): a film the measured checks still fault after its fix (a poster, too dark, blank, words too small,
+	// nothing moving) is made again by the next model up from the same sketch, and the one with fewer faults is kept
+	if (!prev && !(signal && signal.aborted)) {
+		const serious = (l) => l.filter((x) => /poster|dark from start|one flat colour|too small to read|Nothing moves/.test(x));
+		let left = [];
+		try { left = serious(await motionTells(html, total, W, H, brief)); } catch {}
+		const up = cands.find((m) => m.id !== by.id);
+		if (left.length && up) {
+			try {
+				onStatus("The check still finds " + left.length + " problem" + (left.length > 1 ? "s" : "") + ": " + shortName(up) + " makes it again from the sketch");
+				const again = await write(up, brief + "\n\nMake the film.");
+				await runs(again);
+				const left2 = serious(await motionTells(again, total, W, H, brief).catch(() => left));
+				if (left2.length < left.length) { html = again; by = up; }
+			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		}
 	}
 	return { html, by, critic, rounds };
 }
