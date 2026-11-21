@@ -3043,6 +3043,16 @@ const FEATURE_W = {
 // the best model for big code jobs" ... "i wouldnt even qualify the said task a big task" (GLM 5.3, chosen as nearly as
 // good, read Celestin's code for 45 minutes and changed nothing)
 const BEST_ONLY = new Set(["app", "sim"]);
+// and the model for it, the owner's own pick (Nov 21: "use gpt 5.4 for code ... make sure they actually output high
+// quality and also cost SO MUCH LESS"): first whenever it can be reached, thinking at the lightest level measured as
+// level with its own best (a hair: never measurably worse, far less thinking billed); the best by score stand behind it
+const CODE_MODEL = "openai/gpt-5.4";
+function codeFirst(ranked) {
+	const mine = ranked.filter((x) => x.m.id === CODE_MODEL);
+	if (!mine.length) return bestFirst(ranked);
+	const pick = bestFirst(quarkFirst(mine))[0];
+	return [pick, ...bestFirst(ranked.filter((x) => x.m.id !== CODE_MODEL))];
+}
 function bestFor(feature, cap) {
 	const f = FEATURE_W[feature];
 	// (in Auto nothing thinks at max: at most xhigh, judged on what it scores at xhigh; only Max goes higher)
@@ -3057,7 +3067,7 @@ function bestFor(feature, cap) {
 	// (every model is picked by the 54/46 and 1.8x rules for exactly this task, nothing else: the owner, Nov 7, "DeepSeek
 	// only if it's close to the best on that topic")
 	// (code work is the exception, by the owner's word, Nov 21: the very best for it, not a cheaper one nearly as good)
-	data = bestFirst(BEST_ONLY.has(feature) ? data : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
+	data = BEST_ONLY.has(feature) ? codeFirst(data) : bestFirst(quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -5382,7 +5392,7 @@ const AGENT_TOOLS = [
 	["finish", "End the task with a short summary for the user: what you changed and why, how to try it, and anything they must do themselves. For a question, the answer goes here.", { summary: { type: "string" } }, ["summary"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
 const AGENT_RULES = `You are Celestin Code, the lead engineer on a team, working directly in the user's project through tools. You have what the best coding agents have (files, search, the docs, the web, running code, the user's computer when it's connected) and a team on top: helpers who look into things in parallel, experts measured best at exactly one skill, and a different top model who reviews your work. Work the way the best engineers in the world do:
-1. Understand before you touch anything: search and read the relevant files (for a big codebase, send helpers to look into separate questions at once). Never guess what a file contains or what a function is called.
+1. Understand before you touch anything: search and read the relevant files (for a big codebase, send helpers to look into separate questions at once). Never guess what a file contains or what a function is called. Work in few, full turns, because every turn re-reads the whole conversation and is paid for again: ask for everything you already know you'll need in one turn (several searches and reads side by side), read a whole function or section at once rather than a few lines at a time, and make all the edits you've decided on together.
 2. Plan anything with three or more steps (plan), and keep the plan true as you go.
 3. Build in precise edits: edit_file with old_string copied exactly from read_file (without the line-number prefix); write_file only for new files or rewriting small ones. Match the project's style, naming and structure; change only what the task needs. Before writing code against a library or API you aren't certain of, call docs; web_search for anything recent. A hard, narrow piece (an algorithm, a tricky regex, a security-sensitive function, a migration) can go to ask_expert with its exact skills.
 4. Prove it works: call check and fix everything it reports; run the code (run_python or run_javascript for logic you can test here, the real build and tests on the user's computer when it's connected); write a quick test for anything tricky. Read back what you changed.
@@ -5555,7 +5565,7 @@ async function runAgent(text, atts) {
 	const tools = [...AGENT_TOOLS, ...BUILT_IN.filter((t) => /^(run_python|run_javascript|ask_expert)$/.test(t.function.name)), ...POWER_TOOLS, ...apps.tools];
 	// working through a real project with tools is its own measured skill (LMArena's agent arena), on top of the code;
 	// code work goes to the very best at it (the owner, Nov 21; see BEST_ONLY), never a cheaper one nearly as good
-	const agentic = bestFirst((arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 }).filter((x) => x.m.tools !== false))).map((x) => x.m);
+	const agentic = codeFirst((arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 }).filter((x) => x.m.tools !== false))).map((x) => x.m);
 	const cands = [...new Set([...agentic, ...teamFor("code", new Set())])].filter((m) => m.tools !== false);
 	let ci = 0, model = cands[0];
 	if (!model) throw new Error("No coding model is available right now.");
@@ -6923,7 +6933,7 @@ async function runAct(text, atts, resume) {
 	// the cheapest a quark from the best (a long job is many steps, so this saves the most of all), except for code: the very
 	// best at it (the owner, Nov 21; see BEST_ONLY)
 	const ranked = arenaRank("code", blendW({ "agent:overall": 0.25, "agent_outcome:overall": 0.15, "agent_honest_tools:overall": 0.12, "agent_reliability:overall": 0.1, "agent_recovery:overall": 0.08, "agent_steerability:overall": 0.1, "text:instruction_following": 0.1, "text:hard_prompts": 0.1 }, PROFILE && PROFILE.weights, 0.3)).filter((x) => x.m.tools !== false);
-	const cands = bestFirst(PROFILE && PROFILE.kind === "code" ? ranked : quarkFirst(ranked)).map((x) => x.m);
+	const cands = (PROFILE && PROFILE.kind === "code" ? codeFirst(ranked) : bestFirst(quarkFirst(ranked))).map((x) => x.m);
 	cands.splice(0, cands.length, ...noDearer(cands));
 	let ci = 0, model = cands[0] || best("code"), summary = null, step = resume && resume.state ? resume.state.step : 0;
 	const keep = () => vault.set("act:" + msg.data.id, { messages, step }).catch(() => {});
