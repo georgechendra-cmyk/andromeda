@@ -12641,7 +12641,19 @@ async function produce(msg, only, signal) {
 		};
 		const score = async () => {
 			if (d.music.key && !only?.music) return;
-			// nothing on this server makes music: the score and the sound effects are written in code instead
+			// nothing on this server makes music: the score and the sound effects are written in code instead. Celestin's own
+			// score (free) when one of its styles fits the music the film wants and nobody asked for composed music; a model
+			// composes it only when none fits (the owner, Nov 21: "use the free music by default as long as it fits best")
+			const fits = scoreStyle(plan), composedAsked = /\b(compose[ds]?|original (music|score|soundtrack|song)|soundtrack|theme song|jingle|song)\b/i.test(String(plan.ask || ""));
+			if (!mus && fits && !composedAsked) {
+				d.music.state = "composing";
+				paint();
+				try {
+					d.music = { key: await vault.put(await ownScore(plan, fits)), composed: true, state: "done", own: true, style: fits };
+					note("Celestin", "Sound: its own " + fits + " score, timed to the cut");
+					return;
+				} catch (e) { if (e.name === "AbortError") throw e; d.music = {}; }
+			}
 			if (!mus) {
 				d.music.state = "composing";
 				paint();
@@ -14430,56 +14442,109 @@ function wavOf(L, R, sr) {
 // Celestin's own score, when no composed one passes its checks: a warm, steady bed in time with the cut (a pad on a
 // four-chord loop, a moving bass, a soft kick from the second bar and hats from the third, a hit as it ends), the same
 // every time, made here with no model and no cost
-async function ownScore(plan) {
-	const times = cutTimes(plan), secs = Math.max(4, Math.min(180, times.total)), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(secs * sr), sr);
+// Celestin's own score, written in code and free (the owner, Nov 21: "use the free music by default as long as it fits
+// best for the occassion or ad"): seven styles, each its own tempo, harmony, instruments and groove, with a whoosh into
+// each scene and a hit on the ending. Chords are semitones over the key's root; rhythms are beats within a bar.
+const SCORE_STYLES = {
+	tech: { words: /\b(upbeat|modern|tech|techy|electronic|energetic|launch|startup|future|futuristic|synth\w*|pop|driving|confident|bright|uplifting)\b/i, bpm: 118, minor: false, prog: [[0, 4, 7], [7, 11, 14], [9, 12, 16], [5, 9, 12]], pad: ["sawtooth", 1300, 0.02], arp: { wave: "square", cut: 2400, lv: 0.028, per: 4, pat: [0, 2, 1, 2] }, bass: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5], kick: [0, 1, 2, 3], clap: [1, 3], hat: [0.5, 1.5, 2.5, 3.5] },
+	calm: { words: /\b(calm|warm|gentle|soft|ambient|lo-?fi|chill|cozy|cosy|relax\w*|peaceful|dreamy|easy)\b/i, bpm: 80, minor: false, prog: [[0, 4, 7, 11], [5, 9, 12, 16], [9, 12, 16, 19], [7, 11, 14, 17]], pad: ["triangle", 900, 0.03], arp: { wave: "sine", cut: 3000, lv: 0.05, per: 2, pat: [0, 1, 2, 3], tone: "keys" }, bass: [0, 2], kick: [0, 2.5], clap: [1, 3], soft: true, hat: [0.5, 1.5, 2.5, 3.5], swing: 0.1 },
+	epic: { words: /\b(epic|cinematic|dramatic|inspir\w*|powerful|trailer|heroic|grand|orchestral|triumphant|bold)\b/i, bpm: 90, minor: true, prog: [[0, 3, 7], [-4, 0, 3], [3, 7, 10], [-2, 2, 5]], pad: ["sawtooth", 1500, 0.028], swell: true, bass: [0, 2], kick: [0, 1.5, 2], toms: [0, 0.75, 1.5, 3], clap: [2], hat: [] },
+	playful: { words: /\b(playful|fun|kids?|quirky|cheerful|happy|bouncy|cute|whimsical|silly|joyful)\b/i, bpm: 124, minor: false, prog: [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7]], pad: ["triangle", 1200, 0.014], arp: { wave: "sine", cut: 5000, lv: 0.06, per: 2, pat: [0, 1, 2, 1], tone: "mallet" }, bass: [0, 1, 2, 3], kick: [0, 2], clap: [1, 3], hat: [0.25, 0.75, 1.25, 1.75, 2.25, 2.75, 3.25, 3.75] },
+	tense: { words: /\b(tense|tension|suspense\w*|myster\w*|dark|thriller|urgent|ominous|serious|intense)\b/i, bpm: 76, minor: true, prog: [[0, 3, 7], [0, 3, 7], [-4, 0, 3], [-5, -2, 2]], pad: ["sawtooth", 600, 0.03], arp: { wave: "sawtooth", cut: 900, lv: 0.035, per: 2, pat: [0, 0, 0, 0] }, bass: [0, 1, 2, 3], kick: [0, 2], clap: [], hat: [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5], soft: true },
+	emotional: { words: /\b(emotional|sad|romantic|heartfelt|nostalgic|touching|love|tender|hopeful|moving|sentimental)\b/i, bpm: 72, minor: false, prog: [[9, 12, 16], [5, 9, 12], [0, 4, 7], [7, 11, 14]], pad: ["triangle", 800, 0.025], arp: { wave: "sine", cut: 2600, lv: 0.06, per: 1, pat: [0, 1, 2, 1], tone: "keys" }, bass: [0, 2], kick: [0], late: true, clap: [], hat: [] },
+	elegant: { words: /\b(luxury|luxurious|elegant|premium|minimal|sleek|sophisticated|fashion|refined|classy|jazzy|smooth)\b/i, bpm: 96, minor: true, prog: [[0, 3, 7, 10], [5, 8, 12, 15], [-2, 2, 5, 9], [3, 7, 10, 14]], pad: ["sine", 2000, 0.02], arp: { wave: "sine", cut: 3000, lv: 0.05, per: 1, pat: [0, 2], tone: "keys" }, bass: [0, 1.5, 2.5], kick: [0, 2], snap: [1, 3], clap: [], hat: [0.5, 1.5, 2.5, 3.5], soft: true },
+};
+// what Celestin's own score can't play: a voice, an instrument or a genre it has no sound for
+const SCORE_CANT = /\b(vocals?|voice|sing\w*|choir|lyrics|rap|hip[- ]?hop|trap|jazz|sax\w*|guitars?|rock|metal|punk|country|reggae|gamelan|dangdut|k-?pop|violins?|cellos?|string section|brass|trumpets?|flutes?|banjo|ukulele|accordion|live band|bagpipes?|sitar)\b/i;
+// the style that fits the film's music, by its own words (most of them), or null: then a model composes it
+function scoreStyle(plan) {
+	const said = String((plan && plan.music && plan.music.prompt) || "");
+	if (!said.trim() || SCORE_CANT.test(said)) return null;
+	let best = null, n = 0;
+	for (const [k, st] of Object.entries(SCORE_STYLES)) { const m = said.match(new RegExp(st.words.source, "gi")); if (m && m.length > n) { best = k; n = m.length; } }
+	return best;
+}
+async function ownScore(plan, style) {
 	const said = String((plan.music && plan.music.prompt) || "") + " " + String(plan.look || "");
-	const minor = /\b(tense|dark|dramatic|suspense|sad|epic|serious|mysterious|cinematic)\b/i.test(said), slow = /\b(calm|gentle|soft|slow|ambient|lo-?fi|warm|chill)\b/i.test(said);
-	const beat = 60 / (slow ? 84 : 104), bar = beat * 4, root = 48, hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
-	const prog = minor ? [[0, 3, 7], [-4, 0, 3], [-9, -5, -2], [-2, 2, 5]] : [[0, 4, 7], [-5, -1, 2], [-3, 0, 4], [-7, -3, 0]];
-	const comp = oc.createDynamicsCompressor(), out = oc.createGain();
-	comp.connect(oc.destination);
-	out.connect(comp);
-	out.gain.setValueAtTime(0, 0);
-	out.gain.linearRampToValueAtTime(0.8, 0.6);
-	out.gain.setValueAtTime(0.8, Math.max(0.7, secs - 1.2));
-	out.gain.linearRampToValueAtTime(0, secs);
-	for (let b = 0, t = 0; t < secs; b++, t += bar) {
-		const ch = prog[b % 4];
-		for (const iv of ch) for (const det of [-7, 7]) {
-			const o = oc.createOscillator(), f = oc.createBiquadFilter(), g = oc.createGain();
-			o.type = "sawtooth"; o.frequency.value = hz(root + 12 + iv); o.detune.value = det;
-			f.type = "lowpass"; f.frequency.value = 900;
-			g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.03, t + 0.4); g.gain.setValueAtTime(0.03, t + bar - 0.25); g.gain.linearRampToValueAtTime(0, t + bar + 0.1);
-			o.connect(f).connect(g).connect(out); o.start(t); o.stop(Math.min(secs, t + bar + 0.15));
-		}
-		for (const q of [0, 2]) {
-			const tt = t + q * beat;
-			if (tt >= secs) break;
-			const o = oc.createOscillator(), g = oc.createGain();
-			o.type = "sine"; o.frequency.value = hz(root - 12 + ch[0]);
-			g.gain.setValueAtTime(0.0001, tt); g.gain.exponentialRampToValueAtTime(0.22, tt + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, tt + beat * 1.8);
-			o.connect(g).connect(out); o.start(tt); o.stop(Math.min(secs, tt + beat * 2));
-		}
-	}
-	const noise = oc.createBuffer(1, Math.round(sr * 0.2), sr), nd = noise.getChannelData(0);
+	const key = SCORE_STYLES[style] ? style : scoreStyle(plan) || (/\b(tense|dark|dramatic|suspense|sad|epic|serious|mysterious|cinematic)\b/i.test(said) ? "epic" : /\b(calm|gentle|soft|slow|ambient|lo-?fi|warm|chill)\b/i.test(said) ? "calm" : "tech");
+	const S = SCORE_STYLES[key];
+	const times = cutTimes(plan), secs = Math.max(4, Math.min(180, times.total)), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(secs * sr), sr);
+	const beat = 60 / S.bpm, bar = beat * 4, root = S.minor ? 45 : 48, hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+	const comp = oc.createDynamicsCompressor(), out = oc.createGain(), rev = oc.createConvolver(), revIn = oc.createGain();
+	comp.threshold.value = -16; comp.ratio.value = 3;
+	comp.connect(oc.destination); out.connect(comp);
+	out.gain.setValueAtTime(0, 0); out.gain.linearRampToValueAtTime(0.9, 0.5); out.gain.setValueAtTime(0.9, Math.max(0.6, secs - 1.2)); out.gain.linearRampToValueAtTime(0, secs);
+	// (a small room: a reverb from a decaying noise, under everything)
 	let x = 7;
-	for (let i = 0; i < nd.length; i++) { x = (x * 1664525 + 1013904223) >>> 0; nd[i] = (x / 4294967296) * 2 - 1; }
-	for (let t = bar; t < secs - 0.6; t += beat) {
-		const o = oc.createOscillator(), g = oc.createGain();
-		o.frequency.setValueAtTime(130, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
-		g.gain.setValueAtTime(0.45, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
-		o.connect(g).connect(out); o.start(t); o.stop(t + 0.3);
-		if (t >= bar * 2) {
-			const hb = oc.createBufferSource(), hf = oc.createBiquadFilter(), hg = oc.createGain(), ht = t + beat / 2;
-			hb.buffer = noise; hf.type = "highpass"; hf.frequency.value = 7000;
-			hg.gain.setValueAtTime(0.07, ht); hg.gain.exponentialRampToValueAtTime(0.0001, ht + 0.06);
-			hb.connect(hf).connect(hg).connect(out); hb.start(ht); hb.stop(ht + 0.08);
+	const rnd = () => ((x = (x * 1664525 + 1013904223) >>> 0) / 4294967296) * 2 - 1;
+	const ir = oc.createBuffer(2, Math.round(sr * 1.6), sr);
+	for (let c = 0; c < 2; c++) { const d = ir.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = rnd() * Math.pow(1 - i / d.length, 3); }
+	rev.buffer = ir; revIn.gain.value = 0.22; revIn.connect(rev).connect(out);
+	const noise = oc.createBuffer(1, Math.round(sr * 0.6), sr), nd = noise.getChannelData(0);
+	for (let i = 0; i < nd.length; i++) nd[i] = rnd();
+	const tone = (wave, f, t, dur, lv, cut, att = 0.01, send = 0.25, pan = 0) => {
+		if (t >= secs) return;
+		const o = oc.createOscillator(), fl = oc.createBiquadFilter(), g = oc.createGain(), p = oc.createStereoPanner();
+		o.type = wave; o.frequency.value = f; fl.type = "lowpass"; fl.frequency.value = cut; p.pan.value = pan;
+		const end = Math.min(secs, t + dur);
+		g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(lv, t + att); g.gain.exponentialRampToValueAtTime(0.0001, end);
+		o.connect(fl).connect(g).connect(p); p.connect(out); if (send) { const sg = oc.createGain(); sg.gain.value = send; p.connect(sg).connect(revIn); }
+		o.start(t); o.stop(end + 0.02);
+	};
+	const hit = (t, hp, lp, dur, lv, pan = 0) => {
+		if (t >= secs) return;
+		const b = oc.createBufferSource(), h = oc.createBiquadFilter(), l = oc.createBiquadFilter(), g = oc.createGain(), p = oc.createStereoPanner();
+		b.buffer = noise; h.type = "highpass"; h.frequency.value = hp; l.type = "lowpass"; l.frequency.value = lp; p.pan.value = pan;
+		g.gain.setValueAtTime(lv, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+		b.connect(h).connect(l).connect(g).connect(p).connect(out); b.start(t); b.stop(Math.min(secs, t + dur + 0.02));
+	};
+	const kick = (t, lv = 0.5) => { if (t >= secs) return; const o = oc.createOscillator(), g = oc.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.11); g.gain.setValueAtTime(lv, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3); o.connect(g).connect(out); o.start(t); o.stop(t + 0.32); };
+	const bars = Math.ceil(secs / bar), drumsFrom = S.late ? Math.max(1, Math.floor(bars / 2)) : 1;
+	for (let b = 0; b < bars; b++) {
+		const t0 = b * bar, ch = S.prog[b % S.prog.length], grow = Math.min(1, (b + 1) / Math.max(1, bars - 1));
+		// the pad: the chord, two voices a little apart, its brightness growing for a swell
+		for (const iv of ch) for (const det of [-6, 6]) {
+			const o = oc.createOscillator(), fl = oc.createBiquadFilter(), g = oc.createGain();
+			o.type = S.pad[0]; o.frequency.value = hz(root + 12 + iv); o.detune.value = det;
+			fl.type = "lowpass"; fl.frequency.value = S.pad[1] * (S.swell ? 0.5 + grow : 1);
+			g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(S.pad[2], t0 + Math.min(0.6, bar * 0.2)); g.gain.setValueAtTime(S.pad[2], t0 + bar - 0.2); g.gain.linearRampToValueAtTime(0, t0 + bar + 0.15);
+			const sg = oc.createGain(); sg.gain.value = 0.4;
+			o.connect(fl).connect(g); g.connect(out); g.connect(sg).connect(revIn);
+			o.start(t0); o.stop(Math.min(secs, t0 + bar + 0.2));
 		}
+		// the melody line over it: arpeggio, keys or mallets, from the second bar
+		if (S.arp && b >= 1) {
+			const A = S.arp, n = 4 * A.per;
+			for (let i = 0; i < n; i++) {
+				const t = t0 + (i * beat) / A.per + (S.swing && i % 2 ? S.swing * beat : 0), iv = ch[A.pat[i % A.pat.length] % ch.length] + (i % 8 >= 4 && A.per > 1 ? 12 : 0), f = hz(root + 24 + iv), d = A.tone ? beat * (A.per > 1 ? 0.9 : 1.6) : beat / A.per * 0.8;
+				tone(A.wave, f, t, d, A.lv, A.cut, 0.005, 0.3, (i % 2 ? 0.25 : -0.25));
+				if (A.tone) tone("sine", f * (A.tone === "mallet" ? 4 : 2), t, d * 0.35, A.lv * 0.3, 8000, 0.003, 0.2);
+			}
+		}
+		// the bass
+		for (const q of S.bass) tone(S.minor ? "triangle" : "sine", hz(root - 12 + ch[0]), t0 + q * beat, beat * (S.bass.length > 4 ? 0.45 : 1.6), 0.2, 600, 0.01, 0);
+		if (b < drumsFrom || t0 > secs - 1.6) continue;
+		for (const q of S.kick || []) kick(t0 + q * beat, S.soft ? 0.32 : 0.5);
+		for (const q of S.toms || []) tone("sine", 95, t0 + q * beat, 0.45, 0.3, 400, 0.005, 0.4);
+		for (const q of S.clap || []) hit(t0 + q * beat, S.soft ? 1200 : 900, S.soft ? 4000 : 6000, S.soft ? 0.12 : 0.18, S.soft ? 0.12 : 0.22);
+		for (const q of S.snap || []) hit(t0 + q * beat, 2500, 9000, 0.05, 0.14, 0.2);
+		for (const q of S.hat || []) hit(t0 + q * beat + (S.swing && q % 1 ? S.swing * beat : 0), 7000, 16000, 0.04, S.soft ? 0.035 : 0.06, 0.3);
 	}
-	const end = Math.max(0.5, secs - 1.8), im = oc.createOscillator(), ig = oc.createGain();
+	// a whoosh into each scene, and a hit as the last one (or the end card) lands
+	for (const sh of times.shots.slice(1)) {
+		const t = Math.max(0, sh.start - 0.45);
+		if (t > secs - 1) continue;
+		const b = oc.createBufferSource(), f = oc.createBiquadFilter(), g = oc.createGain();
+		b.buffer = noise; f.type = "bandpass"; f.Q.value = 2; f.frequency.setValueAtTime(300, t); f.frequency.exponentialRampToValueAtTime(3500, t + 0.45);
+		g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.38); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+		b.connect(f).connect(g).connect(out); b.start(t); b.stop(t + 0.52);
+		if (S.toms || key === "epic") kick(sh.start, 0.4);
+	}
+	const end = times.end != null ? times.end : Math.max(0.5, secs - 1.8), im = oc.createOscillator(), ig = oc.createGain();
 	im.frequency.setValueAtTime(90, end); im.frequency.exponentialRampToValueAtTime(38, end + 0.6);
-	ig.gain.setValueAtTime(0.55, end); ig.gain.exponentialRampToValueAtTime(0.0001, end + 1.2);
-	im.connect(ig).connect(out); im.start(end); im.stop(end + 1.3);
+	ig.gain.setValueAtTime(0.5, end); ig.gain.exponentialRampToValueAtTime(0.0001, end + 1.2);
+	im.connect(ig).connect(out); im.start(end); im.stop(Math.min(secs, end + 1.3));
+	tone(S.pad[0], hz(root + 12 + S.prog[0][0]), end, Math.max(0.3, secs - end), 0.05, 1800, 0.02, 0.6);
 	const buf = await oc.startRendering(), L = buf.getChannelData(0), R = buf.getChannelData(1);
 	soundCheck(L, R);
 	return wavOf(L, R, sr);
