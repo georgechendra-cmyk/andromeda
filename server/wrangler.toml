@@ -33,3 +33,8 @@ crons = ["*/10 * * * *"]
 #   npx wrangler secret put LEMON_SECRET    (only when card payments are set up)
 #   npx wrangler secret put GOOGLE_CLIENT_ID (the "Continue with Google" button: an OAuth client ID for the site's address)
 
+
+# per-request logs (path, status, CPU time; never what was asked) kept a few days in the Cloudflare dashboard, free
+# within its daily allowance: to find what got stopped or slow
+[observability]
+enabled = true

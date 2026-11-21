@@ -111,6 +111,22 @@ const ownerHere = (req, env, userId) => isOwner(userId) && ownerKeyOk(req, env);
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
+// a streamed chunk that carries the bill ("usage": {...}, not the "usage": null some gateways put in every chunk)
+const USAGE_IN = /"usage"\s*:\s*\{/;
+// how many characters of words a streamed chunk carries: its delta's "content" string (never "reasoning_content",
+// which is thinking), read without parsing the chunk; escapes count as one character
+const CONTENT_AT = /"content"\s*:\s*"/;
+function saidIn(data) {
+	const m = CONTENT_AT.exec(data);
+	if (!m) return 0;
+	let p = m.index + m[0].length, n = 0;
+	for (; p < data.length; p++, n++) {
+		const c = data.charCodeAt(p);
+		if (c === 34) break;
+		if (c === 92) p += data.charCodeAt(p + 1) === 117 ? 5 : 1;
+	}
+	return n;
+}
 
 export default {
 	async fetch(req, env, ctx) {
@@ -2137,10 +2153,12 @@ async function chat(req, env, ctx, user) {
 				const { done, value } = await reader.read().catch((e) => { upDone = true; throw e; });
 				if (done) { upDone = true; break; }
 				buf += mine.decode(value, { stream: true });
-				let out = "", i;
-				while ((i = buf.indexOf("\n")) >= 0) {
-					const line = buf.slice(0, i).trim();
-					buf = buf.slice(i + 1);
+				// (whole lines only, split once a piece: the unfinished last one waits for the next piece)
+				const lines = buf.split("\n");
+				buf = lines.pop();
+				let out = "";
+				for (const raw of lines) {
+					const line = raw.trim();
 					// keep-alives keep the connection open while a model thinks or searches
 					if (line.startsWith(":")) { out += ": keep-alive\n\n"; continue; }
 					if (!line.startsWith("data:")) continue;
@@ -2150,6 +2168,16 @@ async function chat(req, env, ctx, user) {
 						if (out) await put(out);
 						await end();
 						break read;
+					}
+					// an OpenAI-style chunk without the bill goes on as it came, unparsed: parsing and re-writing every token
+					// took about 20 µs each, so a long answer used the whole CPU a request may use on Cloudflare's free plan
+					// (10 ms) and was stopped. Only its words are counted, by a quick scan of its "content"
+					if (!conv && !USAGE_IN.test(data)) {
+						const said = saidIn(data);
+						if (said && !firstAt) firstAt = now();
+						outChars += said;
+						out += "data: " + data + "\n\n";
+						continue;
 					}
 					let j;
 					try { j = JSON.parse(data); } catch { continue; }
@@ -3021,21 +3049,62 @@ async function toolDocs(req, env) {
 // whole (fandom's wikis about it, found by fandom's own search, and Wikipedia), as plain text
 const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 async function ytSearch(q, n) {
-	const r = await fetch("https://www.youtube.com/results?search_query=" + encodeURIComponent(q) + "&hl=en", { headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9", Cookie: "CONSENT=YES+1; SOCS=CAI" }, signal: AbortSignal.timeout(15000) }).catch(() => null);
-	if (!r || !r.ok) return [];
+	const page = await ytPage("https://www.youtube.com/results?search_query=" + encodeURIComponent(q) + "&hl=en");
+	if (!page) return [];
+	const { out, channels } = ytItems(page);
+	// (a creator's name: the channel YouTube puts first, when its name is in the search: its own videos and Shorts, taken
+	// in turn, so a creator of Shorts and one of long videos both come up with their real work)
+	const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+	const ch = channels[0], name = ch ? norm(ch.title) : "";
+	let own = [];
+	if (ch && ch.url && name.length >= 3 && norm(q).includes(name)) {
+		const tab = async (t) => { const d = await ytPage("https://www.youtube.com" + ch.url + "/" + t + "?hl=en"); return d ? ytItems(d).out : []; };
+		const [long, shorts] = await Promise.all([tab("videos"), tab("shorts")]);
+		// (a channel with no long videos shows its Shorts on the videos tab too: each once)
+		for (let i = 0; i < Math.max(long.length, shorts.length); i++) for (const v of [long[i], shorts[i]]) if (v && !own.some((x) => x.id === v.id)) own.push(v);
+		for (const v of own) v.channel = ch.title;
+	}
+	return [...own, ...out.filter((v) => !own.some((x) => x.id === v.id))].slice(0, Math.max(1, Math.min(20, Number(n) || 12)));
+}
+// a YouTube page's own data (ytInitialData), or null
+async function ytPage(url) {
+	const r = await fetch(url, { headers: { "User-Agent": BROWSER_UA, "Accept-Language": "en-US,en;q=0.9", Cookie: "CONSENT=YES+1; SOCS=CAI" }, signal: AbortSignal.timeout(15000) }).catch(() => null);
+	if (!r || !r.ok) return null;
 	const m = (await r.text()).match(/var ytInitialData = (\{[\s\S]*?\});<\/script>/);
-	let d = null;
-	try { d = m && JSON.parse(m[1]); } catch {}
-	if (!d) return [];
-	const out = [], txt = (x) => (x && (x.simpleText || (x.runs || []).map((y) => y.text).join(""))) || "";
+	try { return m ? JSON.parse(m[1]) : null; } catch { return null; }
+}
+// what's on a YouTube page: videos (old renderers and the newer lockups), Shorts (marked short: no length is given) and
+// channels
+function ytItems(d) {
+	const out = [], channels = [], seen = new Set(), txt = (x) => (x && (x.simpleText || x.content || (x.runs || []).map((y) => y.text).join(""))) || "";
 	const secs = (t) => String(t || "").split(":").reduce((a, x) => a * 60 + (Number(x) || 0), 0);
+	// ("1.3K views", "683 views", "1,234,567 views")
+	const views = (t) => { const m = String(t || "").replace(/,/g, "").match(/([\d.]+)\s*([KMB])?/i); return m ? Math.round(parseFloat(m[1]) * ({ K: 1e3, M: 1e6, B: 1e9 }[(m[2] || "").toUpperCase()] || 1)) || 0 : 0; };
+	const add = (v) => { if (v.id && !seen.has(v.id) && out.length < 60) { seen.add(v.id); out.push({ ...v, url: "https://www.youtube.com/watch?v=" + v.id }); } };
 	const walk = (o, depth) => {
-		if (!o || typeof o !== "object" || depth > 60 || out.length >= 40) return;
-		if (o.videoRenderer && o.videoRenderer.videoId) { const v = o.videoRenderer; out.push({ id: v.videoId, url: "https://www.youtube.com/watch?v=" + v.videoId, title: txt(v.title), channel: txt(v.ownerText), views: Number(txt(v.viewCountText).replace(/\D/g, "")) || 0, seconds: secs(txt(v.lengthText)) }); return; }
+		if (!o || typeof o !== "object" || depth > 60 || out.length >= 60) return;
+		if (o.videoRenderer && o.videoRenderer.videoId) { const v = o.videoRenderer; add({ id: v.videoId, title: txt(v.title), channel: txt(v.ownerText), views: Number(txt(v.viewCountText).replace(/\D/g, "")) || 0, seconds: secs(txt(v.lengthText)) }); return; }
+		if (o.shortsLockupViewModel) {
+			const v = o.shortsLockupViewModel, id = v.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId;
+			add({ id, title: txt(v.overlayMetadata?.primaryText), channel: "", views: views(txt(v.overlayMetadata?.secondaryText)), seconds: 0, short: true });
+			return;
+		}
+		if (o.lockupViewModel && /VIDEO/.test(String(o.lockupViewModel.contentType || ""))) {
+			const v = o.lockupViewModel, md = v.metadata?.lockupMetadataViewModel || {}, rows = md.metadata?.contentMetadataViewModel?.metadataRows || [];
+			// (in a search: a row with the channel, then views and when; on a channel's own page: one row, its views shown
+			// as "32M" beside a play icon)
+			const parts = rows.map((r) => (r.metadataParts || []).map((p) => ({ t: txt(p.text), icon: String(p.leadingIcon?.name || "") })));
+			const seen = parts.flat().find((p) => /view/i.test(p.t) || /PLAY_ARROW/.test(p.icon));
+			let len = "";
+			try { len = JSON.stringify(v.contentImage || {}).match(/"text":"(\d{1,2}(?::\d{2}){1,2})"/)?.[1] || ""; } catch {}
+			add({ id: v.contentId, title: txt(md.title), channel: parts.length > 1 ? (parts[0][0] || {}).t || "" : "", views: views(seen && seen.t), seconds: secs(len) });
+			return;
+		}
+		if (o.channelRenderer && o.channelRenderer.channelId) { const c = o.channelRenderer; channels.push({ title: txt(c.title), url: c.navigationEndpoint?.browseEndpoint?.canonicalBaseUrl || "/channel/" + c.channelId }); return; }
 		for (const k in o) walk(o[k], depth + 1);
 	};
 	walk(d, 0);
-	return out.slice(0, Math.max(1, Math.min(20, Number(n) || 12)));
+	return { out, channels };
 }
 async function wikiRead(q, n) {
 	const out = [], get = async (u) => { const r = await fetch(u, { headers: { "User-Agent": BROWSER_UA }, signal: AbortSignal.timeout(12000) }); return r.ok ? r.json() : null; };

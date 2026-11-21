@@ -5601,16 +5601,18 @@ async function runAgent(text, atts) {
 		return null;
 	};
 	try {
-		let shots = [];
+		let shots = [], dropped = 0;
 		for (let step = 0; step < (long ? 4000 : 200) && summary == null; step++) {
 			if (longTick(long, messages, step, log)) { summary = "Time's up: here's where it stands. " + (messages[messages.length - 1].content || ""); break; }
 			msg.status = (long ? longStatus(long, msg) + " · " : "") + (msg.data.log.length ? msg.data.log[msg.data.log.length - 1].label : "Reading the project");
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
-			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); }
+			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); dropped = 0; }
 			catch (e) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+				// (the connection dropped, not the model saying no: the same model again after a breath, keeping its cache)
+				if (!e.status && /fetch|network|load failed|connection/i.test(String(e.message || "")) && dropped++ < 2) { step--; await sleep(2000); continue; }
 				if (++ci < Math.min(cands.length, 3)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
 				throw e;
 			}
@@ -6918,7 +6920,7 @@ async function runAct(text, atts, resume) {
 	const long = resume ? msg.data.long || null : longStart(text);
 	if (long && !resume) { msg.data.long = long; messages[0].content += longLine(long); }
 	const actWork = async () => [msg.data.log.slice(-40).map((x) => "- " + x.label + (x.detail ? ": " + x.detail : "")).join("\n"), (msg.data.outFiles || []).length ? "Files saved: " + msg.data.outFiles.map((f) => f.path).join(", ") : "", (msg.data.downloads || []).length ? "Handed over: " + msg.data.downloads.map((d) => d.name).join(", ") : ""].filter(Boolean).join("\n\n");
-	let shots = [];
+	let shots = [], dropped = 0;
 	try {
 		for (; step < (long ? 4000 : 400) && summary == null; step++) {
 			if (longTick(long, messages, step, log)) { summary = "Time's up: here's where it stands. " + (messages[messages.length - 1].content || ""); break; }
@@ -6926,9 +6928,11 @@ async function runAct(text, atts, resume) {
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
-			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); }
+			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); dropped = 0; }
 			catch (e) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
+				// (the connection dropped, not the model saying no: the same model again after a breath, keeping its cache)
+				if (!e.status && /fetch|network|load failed|connection/i.test(String(e.message || "")) && dropped++ < 2) { step--; await sleep(2000); continue; }
 				if (++ci < Math.min(cands.length, 5)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
 				throw e;
 			}
@@ -8014,7 +8018,7 @@ async function watchVideo(url, question, msg) {
 	return String(await stream(w.id, [{ role: "user", content: [{ type: "file", file: { file_id: url, format: "video/mp4" } }, { type: "text", text: (question ? "First answer this about the video, precisely, from what you see and hear: " + question + "\n\nThen describe" : "Describe") + " exactly what's seen and heard, so someone who never watched it could recreate it: who's in it, what they do and say (their own words, catchphrases, and how they talk: energy, pace, humour), how it looks (style, colours, camera, editing, words on screen), and the sound. Only what you can see and hear; 400 words at most." }] }], () => {}, busy.signal, { max_tokens: 1600, temperature: 0, ...effortFor(w.id, "low") }, msg)).trim();
 }
 async function seeTool(name, args, log, msg) {
-	if (name === "find_videos") { log("Looked on YouTube", args.query); const j = await toolCall("/api/tools/videos", { query: args.query, n: 10 }, 20000); return (j.videos || []).map((v, i) => "[" + (i + 1) + "] " + v.title + " · " + v.channel + " · " + lenText(v.seconds) + " · " + Number(v.views).toLocaleString() + " views · " + v.url).join("\n") || "No videos found."; }
+	if (name === "find_videos") { log("Looked on YouTube", args.query); const j = await toolCall("/api/tools/videos", { query: args.query, n: 10 }, 20000); return (j.videos || []).map((v, i) => "[" + (i + 1) + "] " + v.title + " · " + (v.channel || "channel not shown") + " · " + (v.short ? "a Short" : lenText(v.seconds)) + " · " + Number(v.views).toLocaleString() + " views · " + v.url).join("\n") || "No videos found."; }
 	if (name === "read_wikis") { log("Read the wikis", args.query); const j = await toolCall("/api/tools/wikis", { query: args.query, n: 3 }, 30000); return (j.pages || []).map((p) => "## " + p.title + " (" + p.url + ")\n" + p.text).join("\n\n") || "No wiki pages found."; }
 	if (name === "watch_video") {
 		const url = String(args.url || "").trim();
@@ -8050,9 +8054,9 @@ async function studyRefs(plan, text, atts) {
 				try {
 					const vids = (await toolCall("/api/tools/videos", { query: ref.name + (ref.take && ref.take.length < 40 ? " " + ref.take : ""), n: 20 }, 20000)).videos || [];
 					const norm = (x) => String(x || "").toLowerCase().replace(/[^a-z0-9]/g, ""), nm = norm(ref.name), own = (v) => { const c = norm(v.channel); return !!c && !!nm && (c === nm || c.includes(nm) || nm.includes(c)); };
-					const fit = (v) => v.seconds >= 20 && v.seconds <= 15 * 60, about = (v) => new RegExp(ref.name.replace(/[.*+?^(){}$|[\]\\]/g, "\\$&"), "i").test(v.title);
-					const pick = [...vids.filter((v) => own(v) && fit(v)), ...vids.filter((v) => !own(v) && fit(v) && about(v)), ...vids.filter((v) => own(v) && !fit(v) && v.seconds <= 90 * 60)].filter((v, k, all) => all.findIndex((x) => x.id === v.id) === k).slice(0, 3);
-					if (pick.length) { links = pick.map((v) => v.url); bits.push("Their videos found on YouTube: " + pick.map((v) => "\"" + v.title + "\" (" + v.channel + ", " + lenText(v.seconds) + ")").join("; ")); }
+					const fit = (v) => !!v.short || (v.seconds >= 20 && v.seconds <= 15 * 60), about = (v) => new RegExp(ref.name.replace(/[.*+?^(){}$|[\]\\]/g, "\\$&"), "i").test(v.title);
+					const pick = [...vids.filter((v) => own(v) && fit(v)), ...vids.filter((v) => !own(v) && fit(v) && about(v)), ...vids.filter((v) => own(v) && !fit(v) && !v.short && v.seconds <= 90 * 60)].filter((v, k, all) => all.findIndex((x) => x.id === v.id) === k).slice(0, 3);
+					if (pick.length) { links = pick.map((v) => v.url); bits.push("Their videos found on YouTube: " + pick.map((v) => "\"" + v.title + "\" (" + v.channel + ", " + (v.short ? "a Short" : lenText(v.seconds)) + ")").join("; ")); }
 				} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 			}
 			const foundIt = !given.length && links.length > 0;
