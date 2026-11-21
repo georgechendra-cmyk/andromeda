@@ -3051,8 +3051,12 @@ const CODE_MODEL = "openai/gpt-5.4";
 // fit for it by the 54/46 and 1.8x rules first, then the owner's pick for code, then the best by score; each at the
 // thought it was picked at. Work climbs only when it's stuck or fails Celestin's own check
 function ladderOf(ranked) {
-	const top = bestFirst(ranked)[0], cheap = bestFirst(quarkFirst(ranked))[0], mid = codeFirst(ranked)[0], rungs = [];
-	for (const x of [cheap, mid, top]) if (x && !rungs.some((y) => y.m.id === x.m.id)) rungs.push(x);
+	const top = bestFirst(ranked)[0], q = bestFirst(quarkFirst(ranked)), cheap = q[0], mid = codeFirst(ranked)[0], rungs = [];
+	// (the cheap team before anything dearer: the pick, then the next cheapest near the best, from other labs, up to four
+	// times its price. Benchmark, Nov 21: the cheap pick solved every task it kept, and the money went on jumps to GPT-5.4)
+	const price = (x) => { try { return callCost(x); } catch { return Infinity; } }, p0 = cheap ? price(cheap) : 0;
+	const alts = q.slice(1).filter((x) => provider(x.m.id) !== provider(cheap.m.id) && price(x) <= p0 * 4).filter((x, k, all) => all.findIndex((y) => provider(y.m.id) === provider(x.m.id)) === k).slice(0, 2);
+	for (const x of [cheap, ...alts, mid, top]) if (x && !rungs.some((y) => y.m.id === x.m.id)) rungs.push(x);
 	for (const x of rungs) EFFORT.set(x.m.id, x.effort || "");
 	return rungs;
 }
@@ -5641,7 +5645,7 @@ async function runAgent(text, atts) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				// (the connection dropped, not the model saying no: the same model again after a breath, keeping its cache)
 				if (!e.status && /fetch|network|load failed|connection/i.test(String(e.message || "")) && dropped++ < 2) { step--; await sleep(2000); continue; }
-				if (++ci < Math.min(cands.length, 5)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
+				if (++ci < Math.min(cands.length, 5)) { log("Switched to " + shortName(cands[ci]), (e.status ? e.status + ": " : "") + String(e.message || e).slice(0, 100)); model = cands[ci]; for (const m of messages) if (m.role === "assistant") delete m.reasoning_details; step--; if (e.status === 429) await sleep(1500); continue; }
 				throw e;
 			}
 			const calls = (reply.tool_calls || []).map((c, k) => ({ ...c, id: c.id || "call_" + step + "_" + k }));
