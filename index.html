@@ -2605,6 +2605,9 @@ let REACH = readReach(store.get("reach", null));
 // how fast each really is here (the server's measure), the model that answered just before in this chat with the chat
 // cached, and this session's failures by model
 const DOWN = new Map(), SESSION_FAIL = {};
+// the models this server's gateway lists but that have never once answered here (its record of the last 14 days): never
+// picked, so the best that really works does the job (Nov 21: the best model for code failed every call through Flaz)
+let DEAD = new Set();
 // (how many are left out right now: more than five at once is the connection or the gateway, not them, and none is)
 const downNow = () => { let n = 0; const t = Date.now(); for (const until of DOWN.values()) if (until > t) n++; return n; };
 let SPEED = {}, HOT = null;
@@ -2622,6 +2625,7 @@ function readReach(r) {
 	return { only: re(r.only || "^$"), skip: re(r.skip), models: Array.isArray(r.models) ? new Set(r.models) : null };
 }
 function usable(m, task) {
+	if (DEAD.has(m.id)) return false;
 	if (DOWN.size && (DOWN.get(m.id) || 0) > Date.now() && downNow() <= 5) return false;
 	if (REACH) {
 		const byLab = REACH.only && REACH.only.test(m.id) && !(REACH.skip && REACH.skip.test(m.id));
@@ -3035,6 +3039,10 @@ const FEATURE_W = {
 };
 // The models for one of those features, best first (at most two from one lab near the top, so if a lab is down the next
 // in line is another); without the leaderboards, the labs known for that kind of work
+// what's always done by the very best model for it, never a cheaper one within 54/46: code work. The owner, Nov 21: "use
+// the best model for big code jobs" ... "i wouldnt even qualify the said task a big task" (GLM 5.3, chosen as nearly as
+// good, read Celestin's code for 45 minutes and changed nothing)
+const BEST_ONLY = new Set(["app", "sim"]);
 function bestFor(feature, cap) {
 	const f = FEATURE_W[feature];
 	// (in Auto nothing thinks at max: at most xhigh, judged on what it scores at xhigh; only Max goes higher)
@@ -3048,7 +3056,8 @@ function bestFor(feature, cap) {
 	// (the quick reader sorts every message, so the best of the fast ones, not the cheapest that's nearly as good)
 	// (every model is picked by the 54/46 and 1.8x rules for exactly this task, nothing else: the owner, Nov 7, "DeepSeek
 	// only if it's close to the best on that topic")
-	data = bestFirst(quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
+	// (code work is the exception, by the owner's word, Nov 21: the very best for it, not a cheaper one nearly as good)
+	data = bestFirst(BEST_ONLY.has(feature) ? data : quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -5545,8 +5554,8 @@ async function runAgent(text, atts) {
 	const messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
 	const tools = [...AGENT_TOOLS, ...BUILT_IN.filter((t) => /^(run_python|run_javascript|ask_expert)$/.test(t.function.name)), ...POWER_TOOLS, ...apps.tools];
 	// working through a real project with tools is its own measured skill (LMArena's agent arena), on top of the code;
-	// the cheapest a quark from the best (a long job is many steps)
-	const agentic = bestFirst(quarkFirst(arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 }).filter((x) => x.m.tools !== false))).map((x) => x.m);
+	// code work goes to the very best at it (the owner, Nov 21; see BEST_ONLY), never a cheaper one nearly as good
+	const agentic = bestFirst((arenaRank("code", { "agent:overall": 0.3, "agent_outcome:overall": 0.12, "agent_honest_tools:overall": 0.1, "agent_reliability:overall": 0.08, "agent_recovery:overall": 0.05, "text:coding": 0.2, "factuality:coding": 0.08, "text:industry_software_and_it_services": 0.07 }).filter((x) => x.m.tools !== false))).map((x) => x.m);
 	const cands = [...new Set([...agentic, ...teamFor("code", new Set())])].filter((m) => m.tools !== false);
 	let ci = 0, model = cands[0];
 	if (!model) throw new Error("No coding model is available right now.");
@@ -5613,7 +5622,7 @@ async function runAgent(text, atts) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				// (the connection dropped, not the model saying no: the same model again after a breath, keeping its cache)
 				if (!e.status && /fetch|network|load failed|connection/i.test(String(e.message || "")) && dropped++ < 2) { step--; await sleep(2000); continue; }
-				if (++ci < Math.min(cands.length, 3)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
+				if (++ci < Math.min(cands.length, 5)) { model = cands[ci]; step--; if (e.status === 429) await sleep(1500); continue; }
 				throw e;
 			}
 			const calls = (reply.tool_calls || []).map((c, k) => ({ ...c, id: c.id || "call_" + step + "_" + k }));
@@ -6792,7 +6801,7 @@ function longEstimate(way, lr) {
 		const rounds = lr.ms ? Math.min(60, Math.max(1, Math.round(lr.ms / LONG_ROUND_MS))) : DEEP_ROUNDS;
 		return { lo: Math.round(round * Math.max(1, Math.round(rounds / 3))), hi: Math.round(round * rounds), by: b };
 	}
-	const m = bestFirst(quarkFirst(arenaRank("code", { "agent:overall": 0.3, "text:coding": 0.7 })))[0];
+	const m = bestFirst(arenaRank("code", { "agent:overall": 0.3, "text:coding": 0.7 }))[0];
 	if (!m) return null;
 	const step = appCredits(m.m || m, "high", 1200, 25000), steps = Math.round((hours || 2) * AGENT_STEPS_HOUR);
 	return { lo: Math.round(step * steps * 0.4), hi: Math.round(step * steps), by: m.m || m };
@@ -6911,8 +6920,10 @@ async function runAct(text, atts, resume) {
 		messages = [{ role: "system", content: system }, ...prior, withText(last, text + (material ? "\n\nMaterial the user gave:\n" + material : ""))];
 	}
 	// working with tools is its own measured skill (LMArena's agent board), with what this request needs on top
-	// the cheapest a quark from the best: a long job is many steps, so this saves the most of all
-	const cands = bestFirst(quarkFirst(arenaRank("code", blendW({ "agent:overall": 0.25, "agent_outcome:overall": 0.15, "agent_honest_tools:overall": 0.12, "agent_reliability:overall": 0.1, "agent_recovery:overall": 0.08, "agent_steerability:overall": 0.1, "text:instruction_following": 0.1, "text:hard_prompts": 0.1 }, PROFILE && PROFILE.weights, 0.3)).filter((x) => x.m.tools !== false))).map((x) => x.m);
+	// the cheapest a quark from the best (a long job is many steps, so this saves the most of all), except for code: the very
+	// best at it (the owner, Nov 21; see BEST_ONLY)
+	const ranked = arenaRank("code", blendW({ "agent:overall": 0.25, "agent_outcome:overall": 0.15, "agent_honest_tools:overall": 0.12, "agent_reliability:overall": 0.1, "agent_recovery:overall": 0.08, "agent_steerability:overall": 0.1, "text:instruction_following": 0.1, "text:hard_prompts": 0.1 }, PROFILE && PROFILE.weights, 0.3)).filter((x) => x.m.tools !== false);
+	const cands = bestFirst(PROFILE && PROFILE.kind === "code" ? ranked : quarkFirst(ranked)).map((x) => x.m);
 	cands.splice(0, cands.length, ...noDearer(cands));
 	let ci = 0, model = cands[0] || best("code"), summary = null, step = resume && resume.state ? resume.state.step : 0;
 	const keep = () => vault.set("act:" + msg.data.id, { messages, step }).catch(() => {});
@@ -15263,6 +15274,7 @@ async function loadPricing() {
 	// the models failing right now for everyone (left out for a quarter of an hour, or until the next look), and how fast
 	// each really is here
 	if (pricing && Array.isArray(pricing.down)) for (const id of pricing.down) DOWN.set(id, Date.now() + 15 * 60e3);
+	if (pricing && Array.isArray(pricing.dead)) DEAD = new Set(pricing.dead);
 	if (pricing && pricing.speed && typeof pricing.speed === "object") SPEED = pricing.speed;
 	if (pricing && pricing.reach) {
 		store.set("reach", pricing.reach);

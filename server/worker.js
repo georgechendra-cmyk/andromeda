@@ -169,7 +169,7 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/pricing" && m === "GET") {
 		const c0 = await config(env);
 		// (the public is shown only what its gateways reach; the demo, with the owner key, everything)
-		return json({ ...publicConfig(c0), reach: await reachOf(env, ownerKeyOk(req, env) ? undefined : c0.publicGateways), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), speed: await speedList(env), cached: await cachedModels(env) });
+		return json({ ...publicConfig(c0), reach: await reachOf(env, ownerKeyOk(req, env) ? undefined : c0.publicGateways), google: env.GOOGLE_CLIENT_ID || "", emailCodes: mailOn(env), cantFinish: await cantFinishList(env), down: await downList(env), dead: await deadList(env), speed: await speedList(env), cached: await cachedModels(env) });
 	}
 	if (p === "/api/signup" && m === "POST") return signup(req, env);
 	if (p === "/api/login/verify" && m === "POST") return loginVerify(req, env);
@@ -1915,6 +1915,19 @@ async function downList(env) {
 	const map = await healthMap(env);
 	const down = Object.keys(map).filter((m) => map[m].n >= 3 && now() - map[m].at < HEALTH_FOR);
 	return down.length > 5 ? [] : down;
+}
+// The models the gateway lists but that have never once answered here: three tries at least in the last 14 days, none of
+// them read a word or cost anything (Nov 21: Claude Opus 4.6 and 4.7, Opus 5 and Fable failed every call through Flaz,
+// at once and unbilled, so the best model for code would have failed three times before anything worked). Left out until
+// their tries are 14 days old, then tried again by themselves. A model that answered even once isn't on it.
+let DEAD = { at: 0, list: [] };
+async function deadList(env) {
+	if (now() - DEAD.at < 10 * 60e3) return DEAD.list;
+	try {
+		const r = await env.DB.prepare("SELECT model, COUNT(*) AS n, SUM(CASE WHEN in_tok > 0 OR out_tok > 0 OR cost_usd > 0 THEN 1 ELSE 0 END) AS ok FROM usage WHERE created_at > ? AND model LIKE '%/%' AND model NOT LIKE 'web-search%' GROUP BY model").bind(now() - 14 * 86400e3).all();
+		DEAD = { at: now(), list: (r.results || []).filter((x) => x.n >= 3 && !x.ok).map((x) => x.model) };
+	} catch { DEAD = { at: now(), list: [] }; }
+	return DEAD.list;
 }
 // How fast each model really is here, from the last week's calls (three at least): until its first word, and words a second
 let SPEEDS = { at: 0, map: {} };
