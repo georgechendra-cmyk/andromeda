@@ -14227,7 +14227,7 @@ function motionKit() {
 	const M3 = (() => {
 		const T = () => W.THREE;
 		const col = (c) => new (T().Color)(c || "#cccccc");
-		const KIND = { ceramic: { roughness: 0.32, metalness: 0 }, plastic: { roughness: 0.42, metalness: 0 }, glossy: { roughness: 0.12, metalness: 0 }, matte: { roughness: 0.9, metalness: 0 }, metal: { roughness: 0.28, metalness: 1 }, brushed: { roughness: 0.5, metalness: 1 }, gold: { roughness: 0.25, metalness: 1 }, glass: { roughness: 0.04, metalness: 0, transparent: true, opacity: 0.28 }, wood: { roughness: 0.68, metalness: 0 }, paper: { roughness: 0.95, metalness: 0 }, fabric: { roughness: 1, metalness: 0 }, liquid: { roughness: 0.1, metalness: 0 }, rubber: { roughness: 0.85, metalness: 0 } };
+		const KIND = { ceramic: { roughness: 0.32, metalness: 0 }, plastic: { roughness: 0.42, metalness: 0 }, glossy: { roughness: 0.12, metalness: 0 }, matte: { roughness: 0.9, metalness: 0 }, metal: { roughness: 0.28, metalness: 1 }, brushed: { roughness: 0.5, metalness: 1 }, gold: { roughness: 0.25, metalness: 1 }, glass: { roughness: 0.04, metalness: 0, transparent: true, opacity: 0.28 }, wood: { roughness: 0.68, metalness: 0 }, paper: { roughness: 0.95, metalness: 0 }, fabric: { roughness: 1, metalness: 0 }, liquid: { roughness: 0.38, metalness: 0, envMapIntensity: 0.35 }, rubber: { roughness: 0.85, metalness: 0 } };
 		const mat = (color, kind = "plastic", extra = {}) => new (T().MeshStandardMaterial)({ color: col(color), ...(KIND[kind] || KIND.plastic), ...extra });
 		const shadowed = (m) => { m.castShadow = true; m.receiveShadow = true; m.traverse && m.traverse((x) => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } }); return m; };
 		// a lit studio: an endless floor melting into the ground colour, soft key light with a soft shadow, a fill from the
@@ -14303,7 +14303,7 @@ function motionKit() {
 			shape.moveTo(-sw / 2 + rr, -sh / 2); shape.lineTo(sw / 2 - rr, -sh / 2); shape.quadraticCurveTo(sw / 2, -sh / 2, sw / 2, -sh / 2 + rr); shape.lineTo(sw / 2, sh / 2 - rr); shape.quadraticCurveTo(sw / 2, sh / 2, sw / 2 - rr, sh / 2); shape.lineTo(-sw / 2 + rr, sh / 2); shape.quadraticCurveTo(-sw / 2, sh / 2, -sw / 2, sh / 2 - rr); shape.lineTo(-sw / 2, -sh / 2 + rr); shape.quadraticCurveTo(-sw / 2, -sh / 2, -sw / 2 + rr, -sh / 2);
 			const sg = new t3.ShapeGeometry(shape, 12), uv = sg.attributes.uv, ps = sg.attributes.position;
 			for (let i = 0; i < uv.count; i++) uv.setXY(i, ps.getX(i) / sw + 0.5, ps.getY(i) / sh + 0.5);
-			const glass = new t3.Mesh(sg, new t3.MeshStandardMaterial({ map: tex, roughness: 0.08, metalness: 0, emissive: col("#ffffff"), emissiveMap: tex, emissiveIntensity: 0.3 }));
+			const glass = new t3.Mesh(sg, new t3.MeshBasicMaterial({ map: tex, toneMapped: false }));
 			glass.position.z = 0.0043; g.add(glass);
 			g.update = (t) => { cx.setTransform(1, 0, 0, 1, 0, 0); MO.screen(cx, 0, 0, cv.width, cv.height, { screen, t, dark: o.dark }); tex.needsUpdate = true; };
 			g.update(0);
