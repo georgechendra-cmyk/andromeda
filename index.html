@@ -14376,8 +14376,11 @@ async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, b
 	// whole film's edit (Nov 22: twice at 125 s, paid, nothing fixed). A scene the fix breaks goes back to how it was
 	const fix = async (notes, why) => {
 		const saved = parts.slice();
-		const ask = (i) => sceneAsk(i) + "\n\nYour scene's code now:\n" + String(parts[i]).slice(0, 20000) + "\n\n" + (why || "A creative director watched the whole film and says") + ":\n- " + notes.join("\n- ") + "\n\nFix whatever concerns your scene (" + times[i].from.toFixed(1) + " to " + times[i].to.toFixed(1) + " s in the film), keeping everything that works; a note about the whole film (sizes, type, colour, invented facts, motion) applies to your scene too. Send SCENES[" + i + "].draw again, whole, or only the word UNCHANGED if nothing in the notes concerns it.";
+		const timesIn = (n) => [...String(n).matchAll(/(\d+(?:\.\d+)?)\s*(?:s\b|sec)/gi)].map((m) => Number(m[1])).filter((x) => x >= 0 && x <= total + 1);
+		const mine = (i) => notes.filter((n) => { const ts = timesIn(n); return !ts.length || ts.some((x) => x >= times[i].from - 0.3 && x <= times[i].to + 0.3); });
+		const ask = (i) => sceneAsk(i) + "\n\nYour scene's code now:\n" + String(parts[i]).slice(0, 20000) + "\n\n" + (why || "A creative director watched the whole film and says") + ":\n- " + mine(i).join("\n- ") + "\n\nFix whatever concerns your scene (" + times[i].from.toFixed(1) + " to " + times[i].to.toFixed(1) + " s in the film), keeping everything that works; a note about the whole film (sizes, type, colour, invented facts, motion) applies to your scene too. Send SCENES[" + i + "].draw again, whole, or only the word UNCHANGED if nothing in the notes concerns it.";
 		const next = await Promise.all(S.map(async (_, i) => {
+			if (!mine(i).length) return parts[i];
 			try {
 				const said = await say(lead, FILM_SCENE + "\n\n" + kit, ask(i));
 				const code = codeOf(said);
