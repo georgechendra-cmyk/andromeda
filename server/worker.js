@@ -4938,7 +4938,9 @@ async function mcpRegistry(req) {
 	const out = [];
 	for (const x of (j && j.servers) || []) {
 		const sv = x.server || {}, rm = (sv.remotes || []).find((t) => t.type === "streamable-http" && !(t.headers || []).some((h) => h.isRequired) && !/[{}]/.test(t.url || "") && mcpUrlOk(t.url || ""));
-		if (rm && !out.some((o) => o.url === rm.url)) out.push({ name: String(sv.title || String(sv.name || "").split("/").pop().replace(/[-_]+/g, " ")).slice(0, 60), id: sv.name, what: String(sv.description || "").slice(0, 160), url: rm.url, site: sv.websiteUrl || "" });
+		// (its own icon, when its maker published one: shown as its logo)
+		const ic = (Array.isArray(sv.icons) ? sv.icons : []).map((i) => String((i && i.src) || "")).find((s) => /^https:\/\/[^\s"'<>]+$/.test(s)) || "";
+		if (rm && !out.some((o) => o.url === rm.url)) out.push({ name: String(sv.title || String(sv.name || "").split("/").pop().replace(/[-_]+/g, " ")).slice(0, 60), id: sv.name, what: String(sv.description || "").slice(0, 160), url: rm.url, site: sv.websiteUrl || "", icon: ic.slice(0, 300) });
 	}
 	return json({ servers: out.slice(0, 40) });
 }
