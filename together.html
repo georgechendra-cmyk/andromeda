@@ -1170,6 +1170,19 @@ textarea#input { padding: 16px 20px 6px; }
 .mode-btn { display: inline-flex; align-items: center; gap: 4px; height: 34px; max-width: 40%; padding: 0 8px 0 11px; border-radius: 11px; font-size: 13.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 .mode-btn span { overflow: hidden; text-overflow: ellipsis; }
 .mode-btn svg { flex: none; }
+/* phones: words at an iPhone app's sizes, every control at least 44 points to tap, the welcome note's links big enough to
+   hit (Nov 23: measured 12-15px words, 36px buttons, 18px links on a 390-wide phone) */
+@media (max-width: 600px) {
+	body { font-size: 16.5px; }
+	.msg.user .bubble { font-size: 16.5px; padding: 11px 16px; }
+	.menu-btn { min-width: 44px; min-height: 44px; }
+	.mode-btn { height: 40px; font-size: 15px; }
+	.welcome p.lead { font-size: 15.5px; line-height: 1.55; }
+	.welcome p.lead a, .welcome p.lead b, .welcome p.lead button { display: inline-block; padding: 6px 0; }
+	.welcome p.w-other { font-size: 15px; line-height: 1.6; }
+	.welcome p.w-other a, .welcome p.w-other b, .welcome p.w-other button { display: inline-block; padding: 8px 0; }
+	.nav-i { min-height: 44px; font-size: 16px; }
+}
 .mode-btn:hover, .mode-btn[aria-expanded="true"] { background: color-mix(in srgb, var(--text) 7%, transparent); color: var(--text); }
 .mode-btn.set { color: var(--brand); }
 .send.talk { background: var(--ink); color: var(--onink); box-shadow: none; }
