@@ -13506,6 +13506,17 @@ function motionKit() {
 		set.__mo = true;
 		Object.defineProperty(C.prototype, "letterSpacing", { ...d, set });
 	}
+	// (a size below zero, a spring overshooting past its end, drawn as nothing rather than stopping the film: Nov 22, a scene
+	// threw "The radius provided (-137.893) is negative" part way through)
+	for (const C of [W.CanvasRenderingContext2D, W.OffscreenCanvasRenderingContext2D, W.Path2D]) {
+		const P = C && C.prototype;
+		if (!P || (P.arc && P.arc.__mo)) continue;
+		const pos = (v) => (Number.isFinite(v) ? Math.max(0, v) : 0);
+		if (P.arc) { const f = P.arc; P.arc = function (x, y, r, a0, a1, ccw) { return f.call(this, x, y, pos(r), a0, a1, ccw); }; P.arc.__mo = true; }
+		if (P.ellipse) { const f = P.ellipse; P.ellipse = function (x, y, rx, ry, rot, a0, a1, ccw) { return f.call(this, x, y, pos(rx), pos(ry), rot, a0, a1, ccw); }; }
+		if (P.roundRect) { const f = P.roundRect; P.roundRect = function (x, y, w, h, r) { return f.call(this, x, y, w, h, Array.isArray(r) ? r.map((v) => (typeof v === "number" ? pos(v) : v)) : typeof r === "number" ? pos(r) : r); }; }
+		if (P.arcTo) { const f = P.arcTo; P.arcTo = function (x1, y1, x2, y2, r) { return f.call(this, x1, y1, x2, y2, pos(r)); }; }
+	}
 	// what size the film's words are drawn at, for the measured check (a fraction of the frame's height, with the moment)
 	{
 		const C = W.CanvasRenderingContext2D;
@@ -14445,6 +14456,9 @@ async function filmSheet(html, total, W, H) {
 // every AI uses; prices, plans and statistics nobody gave. Each goes to its fixer, every round, with the critic's notes
 function filmTells(html, brief) {
 	const out = [], asked = String(brief || "").toLowerCase();
+	// (what was really given: the person's own words, and Celestin's real address in a film about it; never the plan or the
+	// sketch, which models wrote and can invent in)
+	const given = (((String(brief || "").match(/What the person asked for: ([\s\S]*?)\n(?:Its look|The film): /) || [, ""])[1]) + (/\bcelestin\b/.test(asked) ? " celestin.pages.dev" : "") + (LOOK && LOOK.facts ? " " + LOOK.facts : "")).toLowerCase();
 	// (what's drawn, not the coder's notes: a comment saying "a slow 2% push-in" is no number on screen)
 	const seen = String(html).replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:\\"'])\/\/[^\n]*/g, "$1");
 	// (rgb() and rgba() compared as the colour they are, so the brand's own isn't taken for the AI look)
@@ -14458,10 +14472,10 @@ function filmTells(html, brief) {
 	if (glows >= 3 && !/glow|neon/.test(asked)) out.push("Neon glows (shadowBlur in " + glows + " places): use soft, dark, directional shadows for depth instead, or none.");
 	const fams = [...new Set((seen.match(/\b\d+(?:\.\d+)?px\s+["']?([A-Z][\w ]{1,30}?)["']?(?=[,;"'`)]|$)/g) || []).map((f) => f.replace(/^\S+px\s+["']?/, "").replace(/["']$/, "").trim()))].filter((f) => TELL_FONTS.test(f) && !asked.includes(f.toLowerCase()) && !(LOOK && [LOOK.display, LOOK.body].includes(f)));
 	if (fams.length) out.push("The typeface " + fams.slice(0, 2).join(", ") + " is the one every AI video uses: use " + (LOOK ? "the decided typefaces (" + LOOK.display + ", " + LOOK.body + ")" : "the film's own typefaces") + ".");
-	const nums = [...new Set((seen.match(/(?:\$|US\$|€|£|Rp\.?\s?)\d[\d.,]*(?:\s?(?:k|jt|rb|m))?(?:\s?\/\s?(?:mo|month|bln|bulan|yr|year))?|\b\d[\d.,]*\+?\s*(?:leads|users|customers|clients|bookings|sales|downloads|reviews)\b|\b\d{1,3}(?:\.\d)?%/gi) || []).map((x) => x.trim()))].filter((x) => !asked.includes(x.toLowerCase().replace(/\s+/g, "")) && !asked.includes(x.toLowerCase()));
+	const nums = [...new Set((seen.match(/(?:\$|US\$|€|£|Rp\.?\s?)\d[\d.,]*(?:\s?(?:k|jt|rb|m))?(?:\s?\/\s?(?:mo|month|bln|bulan|yr|year))?|\b\d[\d.,]*\+?\s*(?:leads|users|customers|clients|bookings|sales|downloads|reviews)\b|\b\d{1,3}(?:\.\d)?%/gi) || []).map((x) => x.trim()))].filter((x) => !given.includes(x.toLowerCase().replace(/\s+/g, "")) && !given.includes(x.toLowerCase()));
 	if (nums.length) out.push("Numbers nobody gave (" + nums.slice(0, 4).join(", ") + "): never invent prices, plans, statistics or results. Remove them, or show only real ones from the brief.");
 	// (a web address in the film's words that nobody gave: "celestin.ai" for a site that isn't there, Nov 22)
-	const webs = [...new Set([...seen.matchAll(/["'\x60][^"'\x60\n]{0,80}?\b((?:www\.)?[a-z0-9][a-z0-9-]{1,40}\.(?:ai|com|io|app|co|net|org|id|dev|so|me|xyz|store|shop))\b/gi)].map((m) => m[1].toLowerCase()))].filter((d) => !/googleapis|gstatic|cdnjs|cloudflare|w3\.org|jsdelivr|unpkg|three/.test(d) && !asked.includes(d.replace(/^www\./, "")));
+	const webs = [...new Set([...seen.matchAll(/["'\x60][^"'\x60\n]{0,80}?\b((?:www\.)?[a-z0-9][a-z0-9-]{1,40}\.(?:ai|com|io|app|co|net|org|id|dev|so|me|xyz|store|shop))\b/gi)].map((m) => m[1].toLowerCase()))].filter((d) => !/googleapis|gstatic|cdnjs|cloudflare|w3\.org|jsdelivr|unpkg|three/.test(d) && !given.includes(d.replace(/^www\./, "")));
 	if (webs.length) out.push("Web addresses nobody gave (" + webs.slice(0, 3).join(", ") + "): never invent a site; remove them, or use only an address from the brief.");
 	return out;
 }
@@ -14496,6 +14510,13 @@ async function motionTells(html, total, W, H, brief) {
 		let k = 0;
 		while (k < lum.length && lum[k] < 18) k++;
 		if (k / rate >= 1.2) out.push("It opens on a near-black screen for " + at(k) + " s: open straight on the hook, on the film's own light ground.");
+		else {
+			// (or dim, far darker than the light film after it: Nov 22, 1.3 s of grey at about 25 of 255 before a light film)
+			const rest = lum.slice(Math.round(rate * 1.5)), restAvg = rest.length ? rest.reduce((a, v) => a + v, 0) / rest.length : 0;
+			let d = 0;
+			while (d < lum.length && lum[d] < 50) d++;
+			if (d / rate >= 0.8 && restAvg > 120) out.push("It opens dim for " + at(d) + " s (" + Math.round(lum[0]) + " of 255) before a light film: open on the film's own light ground with the hook already happening.");
+		}
 		const avg = lum.reduce((a, v) => a + v, 0) / lum.length;
 		if (avg < 40) out.push("It's dark from start to end (average brightness " + Math.round(avg) + " of 255) where the best product films are lit: light it like a real place in daylight or warm light (a sunlit street, a bright room, a lamp-lit café), with the brand's colour only on what matters.");
 	}
@@ -14913,7 +14934,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	let at = 0;
 	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
 	let brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
-		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type. " + CELESTIN_LOOK : "") +
+		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type; its address is celestin.pages.dev (never any other, and no made-up numbers or results about it). " + CELESTIN_LOOK : "") +
 		(plan.craftNote ? "\n\n" + String(plan.craftNote).slice(0, 6000) : "") +
 		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
 		"\nIts typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words (a device's screen may use Figtree or Hanken Grotesk, like a real app); never Inter, Roboto, Arial or a system font." +
