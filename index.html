@@ -3564,7 +3564,7 @@ const AI_TELLS = {
 	colour: "Colour: purple, violet or indigo, and blue-to-purple, blue-to-cyan or pink-to-purple gradients; aurora glows and blurred colour blobs behind content; neon on black; five or six saturated colours competing; rainbow or animated borders; pastels too pale to read; a different coloured bar down the side of every card; coloured dots that mean nothing. And the defaults AI falls back on once those are avoided: cream (about #F4F1EA) with a high-contrast serif and a terracotta accent (about #D97757); near-black with one acid-green or vermilion accent. Instead: the decided palette, one accent used only where it matters, colour that means something.",
 	layout: "Layout: the stock page (a centred hero with a pill badge above the headline, two equal buttons, a row of logos, three equal feature cards with icons, pricing, a closing call to action); a full-screen hero with a vague headline; everything centred and stacked; the same padding on every section; identical card sizes; four equal footer columns; floating decorative shapes; a rule between every section. Instead: open with the most characteristic thing about this subject, and a layout built for the content (varied sizes and spans, one clear first thing to look at, a rhythm that changes between sections).",
 	parts: "Components: cards around everything, and cards inside cards; one corner radius (12 to 16px) and one soft shadow on everything; glass (backdrop blur) panels; glowing buttons and cards; pulsing badges; emoji as icons or bullets; mixed icon styles; two primary buttons of equal weight; a generic spinner. Instead: cards only for things that act on their own, radius and depth by hierarchy, one icon set in one stroke, one primary action.",
-	motion: "Motion: the same fade-and-slide-up on every section; bounce easing; count-up numbers; things that pulse, float or spin forever; parallax everywhere; slow (600ms and more) routine transitions. Instead: motion only where something changes or needs attention, 150 to 300ms, eased out.",
+	motion: "Motion: the same fade-and-slide-up on every section; bounce easing; count-up numbers; things that pulse, float or spin forever; parallax everywhere; slow (600ms and more) routine transitions. Instead: one or two signature moments that belong to this subject and answer the person (scrolling, hovering, dragging), and motion elsewhere only where something changes or needs attention, 150 to 300ms, eased out.",
 	copy: "Words on it: unlock, elevate, empower, supercharge, seamless, revolutionise, transform, leverage, harness, streamline, cutting-edge, next-level, game-changer, world-class, robust, effortless, \"in today's fast-paced world\", \"take your X to the next level\", \"Get started\" on every button; invented numbers (10,000+ users, 99.9%, 10x); John or Jane Doe, Acme or TechCorp testimonials; lorem ipsum; a vague mission statement; a headline that sounds like a prompt; em dashes all through the copy. Instead: plain, specific words about what it is and does, buttons named for what they do, real facts or none.",
 	writing: "Writing: delve, tapestry, realm, landscape, testament, foster, intricate, meticulous, pivotal, crucial, navigate, embark, unleash, elevate, seamless; \"it's not just X, it's Y\" and \"not only... but also\"; everything in threes; \"Certainly!\", \"Great question\", \"I'd be happy to\", \"It's worth noting\", \"In conclusion\"; em dashes strung through sentences (a comma, a full stop or a colon instead); bold on random phrases; bullets where a sentence would do; emoji as bullets; arrows and maths symbols in plain text; hedging everything. Instead: the point first, in plain words, like a person who knows the subject.",
 	picture: "Pictures: plastic, poreless skin; perfect symmetry; a glossy, over-lit look with no real light source; everything centred; teal-and-orange or purple-pink neon by default; bokeh, sparkles and floating particles everywhere; warped hands, text, jewellery or logos; stock smiling office people and handshakes; flat corporate people with tiny heads and long limbs; isometric 3D blobs; a dreamy glow on everything. Instead: one real light with real shadows, texture, a little imperfection, a composition with a point of view.",
@@ -3583,7 +3583,7 @@ function tellOf(x) { const l = learnedTells(x); return AI_TELLS[x] ? AI_TELLS[x]
 const OFFICE_FONTS = { Georgia: "warm, classic, very readable serif", Cambria: "sturdy, formal serif", Garamond: "classic, literary, elegant serif", "Palatino Linotype": "elegant, humanist serif", "Book Antiqua": "old-style, bookish serif", "Baskerville Old Face": "refined, traditional serif for headings", "Bodoni MT": "high-contrast fashion and luxury serif", Constantia: "calm, refined serif", "Century Schoolbook": "friendly schoolbook serif", Rockwell: "sturdy, vintage slab serif", Calibri: "neutral, soft sans", Aptos: "modern, neutral sans", "Franklin Gothic Medium": "confident, news-like sans", "Gill Sans MT": "classic, friendly British sans", "Century Gothic": "geometric, airy, fashion sans", "Tw Cen MT": "condensed, technical sans", "Trebuchet MS": "friendly, informal sans", Corbel: "calm, modern sans", Candara: "soft, warm sans", Verdana: "wide, plain, very readable sans", "Arial Black": "heavy, loud headings", Impact: "condensed, shouting headings", "Lucida Handwriting": "flowing handwriting, for a word or two", Consolas: "code and figures, monospace" };
 const officeFont = (f, d) => Object.keys(OFFICE_FONTS).find((x) => x.toLowerCase() === String(f || "").trim().toLowerCase()) || d;
 const SKILLBOOK = {
-	design: ["building anything visual people use: sites, apps, games, dashboards, slides", "Design like a top product designer: a clear visual hierarchy, generous spacing on a consistent scale, one typeface family with two or three weights, a restrained palette with one accent, real content (never lorem ipsum), smooth 150-300ms transitions, hover, focus, empty and loading states, responsive down to 360px, accessible contrast and labels. It must look finished and premium, never like a template."],
+	design: ["building anything visual people use: sites, apps, games, dashboards, slides", "Design like a top product designer: a clear visual hierarchy, spacing on a consistent scale that frames the content (never empty half-screens), the subject itself shown big on every screen (drawn in SVG, CSS or canvas when there are no pictures), one signature moment of motion that belongs to it, one typeface family with two or three weights, a restrained palette with one accent, real content (never lorem ipsum), smooth 150-300ms transitions, hover, focus, empty and loading states, responsive down to 360px, accessible contrast and labels. It must look finished and premium, never like a template."],
 	color: ["choosing or using colour anywhere: palettes, themes, brands and logos, sites and apps, slides, posters, pictures and films", "Use colour like a senior designer and colourist. (1) Start from meaning and audience, not a favourite hue: what it should feel like, for whom, in which culture and industry. Colour feelings are broadly shared across cultures (a 30-nation study found strong agreement) but local meanings shift them: red is luck and celebration in China and Indonesia but urgency or danger in the West; white is purity in the West and mourning across much of East Asia; green is Islam, wealth and fertility in the Middle East but can hint at infidelity in China; yellow is sunny in Latin America and Africa, envy in Germany. (2) What colours commonly say: blue calm, trust and competence (finance, tech, health) but the most used brand colour, so it stands out least; green growth, health, nature, money; red energy, appetite, urgency, love or danger (food, sales, alerts); orange warm, friendly, playful; yellow optimism and attention (small doses: poor contrast on white); purple luxury, creativity, spirituality; pink tender or bold-playful; browns and earth tones warmth, craft, honesty; black authority, luxury, edge; white clean and spacious; gold or brass premium heritage; muted, greyed tones calm and grown-up; neon and high chroma youth, nightlife, energy. (3) Harmony picks the hues: monochromatic (one hue, many lightnesses: calm, elegant), analogous (neighbours: cohesive, natural), complementary (opposites: vivid, one must dominate), split-complementary (a hue and the two beside its opposite: contrast with less tension), triadic (three evenly spaced: playful, one dominant). Proportion makes it work: about 60% dominant (usually a neutral tinted toward the main hue), 30% secondary, 10% accent, and the accent only on what matters (the main action, the key word). (4) Lightness before hue: readability comes from lightness contrast (squint to check); text at least 4.5:1 against its background, 3:1 for large text and controls; never colour alone to carry meaning (about 1 in 12 men has a red-green deficiency): add a label, icon or shape. (5) Build palettes perceptually (OKLCH): a neutral scale that is the main hue at very low chroma (never dead grey), one accent scale with even lightness steps and steady chroma, and success, warning and error pulled slightly toward the palette; derive hover states and tints by mixing, not new hues. (6) Dark themes: near-black, not pure black; off-white text, not pure white; higher surfaces lighter, not shadowed; accents a little desaturated and lighter so they don't vibrate. (7) Mood lives in saturation and temperature: warm colours advance and energise, cool ones recede and calm; high chroma shouts (use little), muted reads expensive; a warm and cool contrast gives depth, but everywhere it becomes a cliché. (8) Films and pictures: plan colour per scene like a colour script, shifting with the story (cool and desaturated for loss or tension, warm and saturated for joy, one saturated colour to point the eye); light has a colour (golden hour, overcast, neon, tungsten) and everything in the scene takes it on. (9) Never the generic AI look: purple or violet-to-blue gradients, neon on black, rainbow gradients, everything saturated. Fewer colours, each chosen for a reason, always win."],
 	marketing: ["ads, landing pages, posts, emails, pitches, trailers, product copy: anything meant to make people want something", "Sell like the best brands: sell who the customer becomes and how it feels (an identity, a feeling, a belief they share, the problem finally gone), never a list of features. Lead with them and their moment, make the product the turn in their story, and use features only as proof. One clear promise, said in their own words; specific, true details over adjectives; a single next step. Never invent claims, numbers, testimonials or scarcity."],
 	data: ["analysing data, files, spreadsheets or statistics, and making charts", "Work like a data scientist: load the data with pandas and look at it first (shape, columns, types, missing values) before concluding anything; compute with code, never by eye; check results a second way; make clear charts (labelled axes with units, a title, readable fonts); state assumptions, caveats and the exact numbers."],
@@ -10005,6 +10005,100 @@ function layoutAudit(files) {
 	const same = (x) => x.replace(/^On a (phone|laptop) \(\d+px wide\) /, "");
 	return Promise.all([one(true), one(false)]).then(([p, d]) => [...p, ...d.filter((x) => !/no name a screen reader|pictures? do/.test(x) && !p.some((y) => same(y) === same(x)))]).catch(() => []);
 }
+// Runs inside the sealed page, as its own text: a website measured screen by screen down the page (Nov 22: the owner rated
+// a built café site 6/10, "too much empty space ... no visuals and no animations that stand out", while Celestin's designer
+// had only seen its first screen): how much of each screen holds anything, whether it shows a picture of the subject,
+// whether anything on the page moves or answers scrolling, and what's said twice in different sections
+function pageProbe(id) {
+	function send(d) { try { parent.postMessage({ andromedaPage: id, data: d }, "*"); } catch (e) {} }
+	addEventListener("load", function () { setTimeout(function () {
+		const out = [];
+		try {
+			const W = innerWidth, H = innerHeight, de = document.documentElement, total = Math.max(de.scrollHeight, document.body ? document.body.scrollHeight : 0);
+			if (total < H * 1.4 || !document.body) { send(out); return; }
+			const cell = 20, cols = Math.ceil(W / cell), rows = Math.ceil(total / cell), grid = new Uint8Array(cols * rows), pics = [], sy = scrollY;
+			let tx0 = W, tx1 = 0;
+			const mark = (r) => { if (r.width < 2 || r.height < 2) return; const x0 = Math.max(0, Math.floor(r.left / cell)), x1 = Math.min(cols - 1, Math.floor((r.right - 1) / cell)), y0 = Math.max(0, Math.floor((r.top + sy) / cell)), y1 = Math.min(rows - 1, Math.floor((r.bottom + sy - 1) / cell)); for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) grid[y * cols + x] = 1; };
+			const shown = (el) => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { const cs = getComputedStyle(e); if (cs.display === "none" || cs.visibility === "hidden") return false; } return true; };
+			const bg = getComputedStyle(document.body).backgroundColor;
+			// (words, where each line sits; whether it has faded in yet doesn't matter: it will as the person scrolls)
+			const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT), rg = document.createRange(), texts = [];
+			while (tw.nextNode()) {
+				const n = tw.currentNode, p = n.parentElement;
+				if (!n.nodeValue.trim() || !p || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/i.test(p.tagName) || !shown(p)) continue;
+				rg.selectNodeContents(n);
+				for (const r of rg.getClientRects()) { mark(r); if (r.width > 2) { tx0 = Math.min(tx0, r.left); tx1 = Math.max(tx1, r.right); } }
+				texts.push([n.nodeValue.replace(/\s+/g, " ").trim(), p]);
+			}
+			// (pictures, and surfaces that set something apart; a section's own full-width ground is neither)
+			for (const el of document.body.querySelectorAll("*")) {
+				const tag = String(el.tagName).toUpperCase();
+				if (el.closest("svg") && tag !== "SVG") continue;
+				const r = el.getBoundingClientRect();
+				if (r.width < 8 || r.height < 8) continue;
+				const cs = getComputedStyle(el);
+				if (cs.display === "none" || cs.visibility === "hidden") continue;
+				const bgi = cs.backgroundImage && cs.backgroundImage !== "none" ? cs.backgroundImage : "";
+				const pic = /^(IMG|SVG|CANVAS|VIDEO|PICTURE|IFRAME)$/.test(tag) || /url\(/.test(bgi) || (/gradient/.test(bgi) && r.width < W * 0.97 && r.width * r.height > 20000);
+				const surf = !pic && r.width < W * 0.97 && ((cs.backgroundColor !== "rgba(0, 0, 0, 0)" && cs.backgroundColor !== bg) || (parseFloat(cs.borderTopWidth) > 0 && parseFloat(cs.borderLeftWidth) > 0 && parseFloat(cs.borderRightWidth) > 0));
+				if (pic || surf) mark(r);
+				if (pic && r.width * r.height >= W * H * 0.05) pics.push([r.top + sy, r.bottom + sy]);
+			}
+			// each screen, top to bottom, inside the page's own margins (where its words run)
+			const c0 = Math.max(0, Math.floor(tx0 / cell)), c1 = Math.min(cols - 1, Math.ceil(tx1 / cell) - 1), bare = [], nopic = [];
+			const screens = Math.max(1, Math.round(total / H));
+			for (let b = 0; b < screens; b++) {
+				const y0 = Math.round((b * total) / screens), y1 = Math.round(((b + 1) * total) / screens), r0 = Math.floor(y0 / cell), r1 = Math.min(rows, Math.ceil(y1 / cell));
+				let on = 0, all = 0;
+				for (let y = r0; y < r1; y++) for (let x = c0; x <= c1; x++) { all++; on += grid[y * cols + x]; }
+				const fill = all ? on / all : 1, pic = pics.some(([a, z]) => Math.min(z, y1) - Math.max(a, y0) > Math.min(H * 0.25, (z - a) * 0.6));
+				if (!pic) nopic.push(b + 1);
+				if (fill < 0.6 && !pic) bare.push([b + 1, Math.round((1 - fill) * 100)]);
+			}
+			if (bare.length) out.push("Screen " + bare.map(([n, f]) => n + " (about " + f + "% of it empty)").join(" and screen ") + " of " + screens + " " + (bare.length > 1 ? "are" : "is") + " words and boxes only, with no picture of the subject: give it the subject itself, big (drawn in SVG, CSS or canvas when there are no pictures), beside its words, and close the empty column or gap.");
+			else if (nopic.length > screens / 2) out.push("Screens " + nopic.join(", ") + " of " + screens + " show no picture of the subject, only words and boxes: give each one the thing it's about, big, drawn properly.");
+			// (anything that moves or answers the person: animations, transitions running, or code that animates or follows scrolling)
+			const code = [].slice.call(document.scripts).map((x) => x.textContent || "").join("\n");
+			let frames = false;
+			try { for (const ss of document.styleSheets) { let rules = []; try { rules = ss.cssRules || []; } catch (e) {} for (const r of rules) if (r.type === 7 || /animation-timeline|view-timeline|scroll-timeline/.test(r.cssText || "")) { frames = true; break; } if (frames) break; } } catch (e) {}
+			const moves = frames || /requestAnimationFrame|IntersectionObserver|addEventListener\(\s*["'](scroll|pointermove|mousemove|wheel)|onscroll|\.animate\(|scrollY|pageYOffset/.test(code) || (document.getAnimations && document.getAnimations().length > 0);
+			if (!moves) out.push("Nothing on the page moves or answers the person apart from hover colours: give it a signature moment that belongs to the subject (a scene that transforms as you scroll, the thing turning, filling or assembling), plus quick transitions where things change.");
+			// (the same words in two different sections; menus, buttons, the header and footer don't count)
+			const where = (el) => { const s = el.closest("section, article, main > *, body > *"); return s || el; };
+			const seenAt = new Map();
+			for (const [t, p] of texts) {
+				if (t.length < 6 || t.length > 160 || p.closest("nav, footer, button, a, [role=button], label, option")) continue;
+				const hd = p.closest("header");
+				if (hd && hd.getBoundingClientRect().height < 160) continue;
+				const k = t.toLowerCase(), s = where(p);
+				if (!seenAt.has(k)) seenAt.set(k, new Set());
+				seenAt.get(k).add(s);
+			}
+			const twice = [...seenAt].filter(([k, set]) => set.size > 1).map(([k]) => k);
+			if (twice.length >= 3 || twice.some((k) => k.length >= 24)) out.push("The same things shown twice in different sections (" + twice.slice(0, 4).map((k) => "\"" + k.slice(0, 50) + "\"").join(", ") + "): show each once, where it means most, and give the space to something new.");
+		} catch (e) {}
+		send(out);
+	}, 1500); });
+}
+// what's wrong with a website screen by screen ([] for a page that doesn't scroll, or when it couldn't look)
+function pageAudit(files) {
+	return new Promise((res) => {
+		const page = appDoc(testable(files));
+		if (!page) { res([]); return; }
+		const id = Math.random().toString(36).slice(2), f = document.createElement("iframe");
+		f.setAttribute("sandbox", "allow-scripts");
+		f.setAttribute("aria-hidden", "true");
+		f.style.cssText = "position:fixed;left:0;top:0;width:1280px;height:800px;border:0;opacity:0;pointer-events:none;z-index:-1";
+		let out = [];
+		const done = () => { removeEventListener("message", on); clearTimeout(timer); f.remove(); res(out); };
+		const on = (e) => { const d = e.data; if (!d || d.andromedaPage !== id) return; out = Array.isArray(d.data) ? d.data.map(String) : []; done(); };
+		addEventListener("message", on);
+		const timer = setTimeout(done, 9000);
+		const head = SANDBOX_CSP + "<script>(" + pageProbe.toString() + ")(" + JSON.stringify(id) + ")<\/script>";
+		f.srcdoc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html>" + head + page;
+		document.body.appendChild(f);
+	});
+}
 // Runs inside the sealed page, as its own text: the biggest canvas, played and watched
 function playProbe(id) {
 	function send(d) { try { parent.postMessage({ andromedaPlay: id, data: d }, "*"); } catch (e) {} }
@@ -10143,24 +10237,29 @@ function snapApp(files, W = 1280, H = 800) {
 		f.setAttribute("sandbox", "allow-scripts");
 		f.setAttribute("aria-hidden", "true");
 		f.style.cssText = "position:fixed;left:0;top:0;width:" + W + "px;height:" + H + "px;border:0;opacity:0;pointer-events:none;z-index:-1";
-		const done = () => { removeEventListener("message", on); clearTimeout(timer); f.remove(); res(shots.filter((s) => s && s.length > 3000)); };
+		let down = 0;
+		const done = () => { removeEventListener("message", on); clearTimeout(timer); f.remove(); const out = shots.filter((s) => s && s.length > 3000); out.down = down; res(out); };
 		const on = (e) => {
 			const d = e.data;
 			if (!d || d.andromedaSnap !== id) return;
-			if (d.shot) shots.push(d.shot);
+			if (d.shot && d.shot.length > 3000) { shots.push(d.shot); if (d.at) down++; }
 			if (d.end) done();
 		};
 		addEventListener("message", on);
 		const timer = setTimeout(done, 25000);
 		const script = "<script>" + lib.replace(/<\/script/gi, "<\\/script") + "<\/script><script>(function(){var id=" + JSON.stringify(id) + ";function send(m){m.andromedaSnap=id;try{parent.postMessage(m,'*')}catch(e){}}" +
 			// (the body's background fills the whole screen, as a browser draws it)
-			"function snap(){var h=document.documentElement,b=document.body,hs=getComputedStyle(h),bs=b?getComputedStyle(b):null;var own=hs.backgroundImage!=='none'||!/^rgba\\(0, 0, 0, 0\\)$|^transparent$/.test(hs.backgroundColor);" +
-			"var st={minHeight:'" + H + "px'};if(!own&&bs)st.background=bs.background;" +
+			"function snap(off){var h=document.documentElement,b=document.body,hs=getComputedStyle(h),bs=b?getComputedStyle(b):null;var own=hs.backgroundImage!=='none'||!/^rgba\\(0, 0, 0, 0\\)$|^transparent$/.test(hs.backgroundColor);" +
+			"var st={minHeight:'" + H + "px'};if(off)st.marginTop=(-off)+'px';if(!own&&bs)st.background=bs.background;" +
 			"return htmlToImage.toJpeg(h,{quality:0.82,pixelRatio:0.75,width:" + W + ",height:" + H + ",backgroundColor:'#ffffff',style:st}).catch(function(){return ''})}" +
 			"function press(k){var o={key:k,code:k===' '?'Space':k,bubbles:true};try{document.dispatchEvent(new KeyboardEvent('keydown',o))}catch(e){}setTimeout(function(){try{document.dispatchEvent(new KeyboardEvent('keyup',o))}catch(e){}},90)}" +
-			"window.addEventListener('load',function(){setTimeout(function(){snap().then(function(a){send({shot:a});" +
+			// (a page that scrolls: three more pictures down it, each after scrolling there so what appears on scroll has appeared;
+			// an app or a game: its main button and keys pressed)
+			"function down(then){var de=document.documentElement,total=Math.max(de.scrollHeight,document.body?document.body.scrollHeight:0),offs=[];if(total>" + H + "*1.4){var n=Math.min(3,Math.ceil((total-" + H + ")/(" + H + "*0.95)));for(var j=1;j<=n;j++)offs.push(Math.round(j*(total-" + H + ")/n));}" +
+			"var i=0;(function next(){if(i>=offs.length){try{scrollTo(0,0)}catch(e){}setTimeout(function(){then(offs.length)},250);return}var y=offs[i++];try{scrollTo(0,y)}catch(e){}setTimeout(function(){snap(y).then(function(s){send({shot:s,at:y});next()})},750)})()}" +
+			"window.addEventListener('load',function(){setTimeout(function(){snap(0).then(function(a){send({shot:a});down(function(n){if(n){send({end:true});return}" +
 			"try{var b=document.querySelector('button:not([disabled]),[role=button],input[type=submit]');if(b)b.click()}catch(e){}" +
-			"var keys=[' ','ArrowRight','ArrowUp','ArrowRight','ArrowLeft'],k=0,iv=setInterval(function(){press(keys[k%keys.length]);if(++k>=10){clearInterval(iv);setTimeout(function(){snap().then(function(b){send({shot:b,end:true})})},500)}},150)})},1300)})})()<\/script>";
+			"var keys=[' ','ArrowRight','ArrowUp','ArrowRight','ArrowLeft'],k=0,iv=setInterval(function(){press(keys[k%keys.length]);if(++k>=10){clearInterval(iv);setTimeout(function(){snap(0).then(function(b){send({shot:b,end:true})})},500)}},150)})})},1300)})})()<\/script>";
 		const page = appDoc(testable(files)), head = SANDBOX_CSP + script;
 		f.srcdoc = /<head[^>]*>/i.test(page) ? page.replace(/<head[^>]*>/i, (x) => x + head) : "<!doctype html>" + head + page;
 		document.body.appendChild(f);
@@ -10306,11 +10405,12 @@ async function lookAtApp(files, request, msg) {
 	if (!eyes.length) return null;
 	const shots = await snapApp(files);
 	if (!shots.length) return null;
+	const seen = shots.down ? "its first screen, then " + shots.down + " more down the page as a person scrolls it" : shots.length > 1 ? "at the start, and after its main button and some keys were pressed automatically" : "as it opens";
 	let eye = null, out = null;
 	for (const e of eyes) {
 		eye = e;
-		try { out = await stream(eye.m.id, [{ role: "user", content: [{ type: "text", text: "Pictures of an app or game that was just built, running in a browser: " + (shots.length > 1 ? "at the start, and after its main button and some keys were pressed automatically" : "as it opens") + ".\nWhat was asked for: " + String(request).slice(0, 1500) +
-		"\n\nWould a top product designer or game studio ship it as it looks? Name only real problems a person would notice: text cut off, overlapping or hard to read; low contrast; a broken, cramped or unbalanced layout; things off the screen; a game or scene that isn't visible or doesn't react; something asked for that's missing; looking generic or amateur, or like typical AI-made design (any of the tells below); anything that falls short of what the best in the world make of this kind of thing (the bar below, when there is one): feeling empty or unfinished (calm space is fine), an art direction only half carried through (one part styled, the rest plain), a typeface, colour or motif that belongs to nothing else in it (a stencil, glitch or neon touch in an otherwise plain piece), missing what the best ones always have for what was asked; and the opposite: cluttered with panels, readouts, labels, options or decoration the job doesn't need, or the main thing (the ball, the player, the product, the key number) hidden, covered or cut off. (The pictures are renderings of the page, so small differences in blur or shadow don't count.)" + (CRAFT_NOTE ? "\n\nThe bar, researched for this kind of work (judge it against this, its checklist especially):\n" + CRAFT_NOTE.slice(0, 3500) : "") + "\n\n" + tellsFor("type", "colour", "layout", "parts", "copy", "padding") + "\n\nReply with ONLY JSON: {\"ship\": true or false, \"problems\": [\"what's wrong, and how to fix it\"]}" },
+		try { out = await stream(eye.m.id, [{ role: "user", content: [{ type: "text", text: "Pictures of a website, app or game that was just built, running in a browser: " + seen + ".\nWhat was asked for: " + String(request).slice(0, 1500) +
+		"\n\nWould a top product designer or game studio ship it as it looks? Name only real problems a person would notice: text cut off, overlapping or hard to read; low contrast; a broken, cramped or unbalanced layout; things off the screen; a game or scene that isn't visible or doesn't react; something asked for that's missing; looking generic or amateur, or like typical AI-made design (any of the tells below); anything that falls short of what the best in the world make of this kind of thing (the bar below, when there is one): feeling empty or unfinished (a screen of words with no picture of the subject, a column or half-screen left empty, the same things shown twice, a page where nothing moves or answers the person, an idea nobody would remember), an art direction only half carried through (one part styled, the rest plain), a typeface, colour or motif that belongs to nothing else in it (a stencil, glitch or neon touch in an otherwise plain piece), missing what the best ones always have for what was asked; and the opposite: cluttered with panels, readouts, labels, options or decoration the job doesn't need, or the main thing (the ball, the player, the product, the key number) hidden, covered or cut off. (The pictures are renderings of the page, so small differences in blur or shadow don't count.)" + (CRAFT_NOTE ? "\n\nThe bar, researched for this kind of work (judge it against this, its checklist especially):\n" + CRAFT_NOTE.slice(0, 3500) : "") + "\n\n" + tellsFor("type", "colour", "layout", "parts", "copy", "padding") + "\n\nReply with ONLY JSON: {\"ship\": true or false, \"problems\": [\"what's wrong, and how to fix it\"]}" },
 		...shots.map((url) => ({ type: "image_url", image_url: { url } }))] }], () => {}, busy.signal, { max_tokens: 1500, ...effortFor(eye.m.id, capEffort(eye.effort || "", "low", eye.m.id)) }, msg); break; }
 		catch (err) {
 			if (err.name === "AbortError" || err.status === 401 || err.status === 402) throw err;
@@ -10488,7 +10588,7 @@ async function reviewBoth(files, request, msg, rules, by, look) {
 		// (measured too, at a phone's size and a laptop's, while they look)
 		// (a reviewer that takes more than two and a half minutes is left behind: Nov 22, a tester took six and found nothing)
 		const within = (p, ms) => Promise.race([p, new Promise((ok) => setTimeout(() => ok(null), ms))]);
-		const [bugs0, problems0, sized] = await Promise.all([soft(within(findBugs(files, request, msg, by), 150e3)), look ? soft(within(lookAtApp(files, request, msg), 150e3)) : null, look ? layoutAudit(files) : []]);
+		const [bugs0, problems0, sized] = await Promise.all([soft(within(findBugs(files, request, msg, by), 150e3)), look ? soft(within(lookAtApp(files, request, msg), 150e3)) : null, look ? Promise.all([layoutAudit(files), pageAudit(files).catch(() => [])]).then(([a, b]) => [...a, ...b]) : []]);
 		if ((sized || []).length && !msg.used.some((u) => /^Size check/.test(u.desc))) msg.used.push({ name: "Celestin", desc: "Size check: measured it on a phone and a laptop; " + sized.length + (sized.length === 1 ? " thing" : " things") + " to fix" });
 		const tells = look ? aiTells(files, request) : [];
 		if (tells.length && !msg.used.some((u) => /^AI-look check/.test(u.desc))) msg.used.push({ name: "Celestin", desc: "AI-look check: found " + tells.length + " generic AI " + (tells.length === 1 ? "tell" : "tells") + " in the code, fixed with the rest" });
@@ -10918,13 +11018,14 @@ const withPics = (text, pics) => (pics && pics.length ? [{ type: "text", text },
 // Apple's design rules (from its Human Interface Guidelines and how apple.com is built): on for every website and app
 // unless the person says not to follow them; anything they ask for about the look wins over the rule it contradicts
 const NO_APPLE = /\b(no|not|don'?t|do not|without|skip|ignore|stop|never)\b[^.!?\n]{0,40}(\bapple[- ]?(like|style|ish|esque)\b|\bapple'?s?\b[^.!?\n]{0,12}\b(design|style|rules?|guidelines|look|hig|aesthetic)\b|\blike apple\b)|\bapple\b[^.!?\n]{0,20}\b(rules|design|guidelines|style)\b[^.!?\n]{0,15}\b(off|no)\b/i;
-const APPLE_RULES = "- Apple's design rules are the default here (the person's own words win: anything they ask for about the look replaces the rule it contradicts). For a website or an app, and a game's menus, HUD and settings (a game keeps its own art direction): " +
-	"clarity, deference and depth: the content is the hero and the interface recedes (thin bars, quiet controls), depth only to show what sits over what (a layer, a soft shadow, a sheet sliding up). " +
+const APPLE_RULES = "- Apple's design rules are the default here (the person's own words win: anything they ask for about the look replaces the rule it contradicts). " +
+	"A website is made the way apple.com's own pages are, never a quiet settings screen: the subject itself is the hero on every screen, shown big (the product, the dish, the place, the person's work): a picture they gave, or, when there's none, drawn properly in SVG, CSS or canvas as a detailed illustration of the real thing (its true shape, its parts and layers, its material, light and shadow: a sneaker's sole, stitching and laces; a ramen bowl's noodles, egg and steam), never an icon, an emoji or an empty box standing in for it. Every screen holds something to look at beside its words: no screen of words alone, no column left empty beside a heading, and nothing said or shown twice (each fact once, where it means most). One idea for the whole page, taken from the subject itself (its name, its moment, its craft, its place) and carried through every section, the way a bike shop's page might build its bike part by part as you scroll, or a florist's open a bouquet. Motion people remember, driven by the person: one or two signature moments that belong to that idea (a sticky scene that transforms as you scroll, the thing assembling, turning, pouring or filling, the light changing), things that answer hover and touch, and quick 200 to 400 ms transitions everywhere else, eased out; with prefers-reduced-motion, the same page without the motion. Layout full and rhythmic: each section one idea told by a visual and words together (side by side, layered, or the words over the picture), sections that change shape (a full-bleed picture, a split, a sticky scroll scene, a grid of the real items), space there to frame the subject, never empty half-screens. " +
+	"An app, and a game's menus, HUD and settings (a game keeps its own art direction): clarity, deference and depth: the content is the hero and the interface recedes (thin bars, quiet controls), depth only to show what sits over what (a layer, a soft shadow, a sheet sliding up). " +
 	"Typography does the work: the typefaces decided for this (given with the request; when none were given, ones chosen for this subject from evidence, never your usual picks) on a strict scale: big, bold, tightly tracked headlines (about -0.02em; 48 to 96px on a desktop hero), 17px body text at about 1.5 line height, few weights. Headlines short, plain and confident. " +
 	"Colour: the palette decided for this (given with the request): mostly its background and surfaces with its text colour, ONE accent kept for what can be pressed; the rest of the colour comes from the content (the product, photos, illustrations), not decoration. " +
-	"Layout: generous whitespace, one idea per section, a readable centred column (about 980px) with full-bleed moments for the hero, everything on an 8px grid with consistent margins. " +
+	"Layout: one idea per section, a readable column (about 980 to 1200px) with full-bleed moments, everything on an 8px grid with consistent margins. " +
 	"Controls: rounded or pill buttons with one corner radius across the app, at least 44px tall to tap, clear hover, pressed, disabled and keyboard-focus states; patterns people already know (tab bars, segmented controls, sheets, toggles). " +
-	"Motion: quick and physical (spring-like ease-out, 200 to 500 ms) and it shows where things come from and go; scroll reveals subtle (a fade and a 20px rise), never bouncing for show; prefers-reduced-motion respected. Translucency (backdrop blur) only for bars and sheets floating over content. " +
+	"Motion: quick and physical (spring-like ease-out, 200 to 500 ms) and it shows where things come from and go, never bouncing for show, never the same fade-up on every block; prefers-reduced-motion respected. Translucency (backdrop blur) only for bars and sheets floating over content. " +
 	"Accessible: text contrast at least 4.5:1, labels on icon buttons, readable at 200% zoom. Where the general design rule below says otherwise about type or colour, these win.\n";
 const designRules = (text) => (NO_APPLE.test(String(text || "")) ? "" : APPLE_RULES);
 async function runApp(text, atts, pick) {
@@ -10975,7 +11076,7 @@ async function buildApp(text, atts, pick) {
 		"- Complete and working on the first run: no placeholders, no TODOs, no lorem ipsum: real, specific words for this subject.\n" +
 		"- Never guess facts: a real business's or person's prices, hours, address, phone numbers, staff, reviews and numbers come only from what they gave or what was found for this; anything you had to make up to finish it is named in NOTES as a sample to replace.\n" +
 		designRules(text) +
-		"- Design it like a top product studio (Apple's restraint, Emil Kowalski's craft), never the generic AI look (listed below). Instead: the typefaces and palette decided for this request, exactly as given (when none were given: chosen from evidence about this subject, never your usual picks), on a real type scale, light or dark as the palette says; a layout built for the content (asymmetry where it helps, varied section rhythm, clear hierarchy, generous whitespace, edges that line up on an 8px grid); the details done properly (hover and pressed states without glows, visible keyboard focus, empty, loading and error states); motion with a purpose: 150 to 300 ms, ease-out, transform and opacity only, nothing looping for no reason, and prefers-reduced-motion respected. Responsive down to a phone; keyboard support where it makes sense. A game: one consistent art style and a clean, readable HUD.\n" +
+		"- Design it like a top product studio (Apple's restraint, Emil Kowalski's craft), never the generic AI look (listed below). Instead: the typefaces and palette decided for this request, exactly as given (when none were given: chosen from evidence about this subject, never your usual picks), on a real type scale, light or dark as the palette says; a layout built for the content (asymmetry where it helps, varied section rhythm, clear hierarchy, every screen holding the subject and its words, edges that line up on an 8px grid); the details done properly (hover and pressed states without glows, visible keyboard focus, empty, loading and error states); motion with a purpose: a signature moment or two that belongs to this subject and answers the person (scroll, hover, drag), quick 150 to 300 ms ease-out transitions elsewhere, transform and opacity, nothing looping for no reason, and prefers-reduced-motion respected. Responsive down to a phone; keyboard support where it makes sense. A game: one consistent art style and a clean, readable HUD.\n" +
 		"- " + tellsFor("type", "colour", "layout", "parts", "motion", "copy", "padding") + "\n" +
 		"- A game or simulation: play it through in your head before you finish. Every computer-controlled player or character acts in every state (one holding the ball passes, shoots or runs on; none just stands there), every timer and cooldown really runs out (never reset or counted back every frame), starting positions and rules follow the real thing (at a football kick-off each team is in its own half), and every control does what it says, with an effect the person can see or feel (none whose effect is cancelled out in the code, too small to notice, or only a label). Only the controls, options and on-screen readouts it needs: none added to look deep. The camera and HUD show what the person needs at every moment: the ball, the target and what they aim at are never hidden behind a character, the HUD or a panel (a view from behind a player sits high and to one side, so the ball is seen past them).\n" +
 		"- A game feels right: movement works with both WASD and the arrow keys unless asked otherwise; players and vehicles speed up and slow down (never full speed or a dead stop at once) and a ball rolls on with momentum and slows with friction; computer players think for themselves, each keeping its own position and job, reacting to the ball after a short delay and sometimes getting it wrong (difficulty changes how often), and never copying or mirroring the person's moves; it never restarts, resets or pauses by itself (only a goal, the clock or a key the person presses does that).\n" +
@@ -12262,7 +12363,7 @@ Write the plan so the result looks expensive and real:
 
 Return ONLY JSON:
 {"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none","type":{"title":"the Google Fonts family for titles and the end card","text":"the Google Fonts family for captions"}}`;
-const CELESTIN_LOOK = "Celestin's own look, for a film about it: its screens (the chat, the answer arriving) white or soft off-white (#ffffff, #f7f7f6) with near-black words (#0b0b0b), a quiet grey for what's secondary (#5f6063), and its indigo (#5141ee, or a gradient from #5b48ff to #2f6bff only on the mark or on what's chosen) kept to a few touches, words in Hanken Grotesk; the world around the screens a real place where someone uses it, warmly lit.";
+const CELESTIN_LOOK = "Celestin's own look, for a film about it: its screens (the chat, the answer arriving) white or soft off-white (#ffffff, #f7f7f6) with near-black words (#0b0b0b), a quiet grey for what's secondary (#5f6063), and its indigo (#5141ee, or a gradient from #5b48ff to #2f6bff only on the mark or on what's chosen) kept to a few touches, words in Hanken Grotesk; around the phone, a clean ground (a warm off-white, or near-black tinted toward the indigo) with one soft light, never a room, a desk or a café sitting behind it.";
 // how long they asked for, any length ("30s", "a 15-second ad", "20 minutes", "1.5 hours"); 3 hours at most, which is past anything
 // a browser can cut in one go anyway
 function lengthOf(t) {
@@ -12277,7 +12378,7 @@ async function direct(text, atts, msg, signal, drawn) {
 	const want = lengthOf(text);
 	const imgs = atts.filter((a) => a.kind === "image" && a.data);
 	const ask = "Plan this: " + text + "\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
-		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\". A product, app or brand film is one real moment where the product is used: when it happens in a place (a trip, a delivery, food, something you hold), filmed in a lit 3D world of the real place where it's used (three.js: the street, the café table, the station, the counter, built from simple shapes with soft sunlight or warm practical light, long soft shadows, a little haze, a gentle warm grade; the camera flies, walks or glides through it), with the product's screen inside that world (a phone in the scene, or its screen as a frosted card floating over the place) answering every touch; when it all happens on a screen, that screen recreated big and real on a clean cinematic ground (deep and dark with one glowing colour, or bright), one hero element at a time, things transforming (a price becoming what you saved, a flame counting up a streak, a box opening into the thing inside); words big enough to read on a phone, the brand's colour only on what matters, one idea per shot; never a dark neon look, never flat cards on an empty ground. Each shot is a moment, not a slide: one hero thing at a time, with something happening to it about every second (it arrives, is typed into, tapped, opens into the next screen, flies, turns into the next thing); never a list of features shown as a stack of cards or rows, never more than two cards on screen at once.\n\n" + STUDIED : "") +
+		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\". A product, app or brand film is one real moment where the product is used: when it happens in a place (a trip, a delivery, food, something you hold), filmed in a lit 3D world of the real place where it's used (three.js: the street, the café table, the station, the counter, built from simple shapes with soft sunlight or warm practical light, long soft shadows, a little haze, a gentle warm grade; the camera flies, walks or glides through it), with the product's screen inside that world (a phone in the scene, or its screen as a frosted card floating over the place) answering every touch, and the place never a backdrop: the camera travels through it and the story happens in it (the walk, the arrival, the pin landing on the door), and when nothing happens in it, leave it out and stay on the screen; when it all happens on a screen, that screen recreated big and real on a clean cinematic ground (deep and dark with one glowing colour, or bright), one hero element at a time, things transforming (a price becoming what you saved, a flame counting up a streak, a box opening into the thing inside); words big enough to read on a phone, the brand's colour only on what matters, one idea per shot; never a dark neon look, never flat cards on an empty ground. Each shot is a moment, not a slide: one hero thing at a time, with something happening to it about every second (it arrives, is typed into, tapped, opens into the next screen, flies, turns into the next thing); never a list of features shown as a stack of cards or rows, never more than two cards on screen at once.\n\n" + STUDIED : "") +
 		(/\bcelestin\b/i.test(text) ? "\n\n" + CELESTIN_LOOK : "") +
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
 		(sourceOf(atts, 1) ? "\n\nWhat they gave you about it (their page, notes or files): use the real names, products, prices, places and tone from it, never invent ones that contradict it.\n" + sourceOf(atts, 12000) : "") +
@@ -13582,13 +13683,17 @@ function motionKit() {
 	};
 	// typing: how much of s is typed by time t (a person's uneven rhythm, the same every time), and a caret that blinks
 	// only while idle
+	// (when each letter lands: the same schedule for the words, the caret and the keyboard's keys)
+	const typeTimes = (s, at, cps = 14) => { s = String(s); const r = rng(s.length * 7919 + 13), out = []; let clock = at; for (let n = 0; n < s.length; n++) { clock += (0.55 + 0.9 * r()) / cps + (s[n] === " " ? 0.04 : 0); out.push(clock); } return out; };
 	const typed = (s, t, at, cps = 14) => {
-		(W.__moTyped || (W.__moTyped = new Map())).set(at + "|" + s, { t: at, sfx: "type", text: String(s).slice(0, 300), cps });
-		const r = rng(s.length * 7919 + 13);
-		let clock = at, n = 0;
-		while (n < s.length) { clock += (0.55 + 0.9 * r()) / cps + (s[n] === " " ? 0.04 : 0); if (clock > t) break; n++; }
+		s = String(s);
+		(W.__moTyped || (W.__moTyped = new Map())).set(at + "|" + s, { t: at, sfx: "type", text: s.slice(0, 300), cps });
+		const T = typeTimes(s, at, cps);
+		let n = 0;
+		while (n < T.length && T[n] <= t) n++;
 		return s.slice(0, n);
 	};
+	const typing = (s, t, at, cps = 14) => { s = String(s); const T = typeTimes(s, at, cps), text = typed(s, t, at, cps), n = text.length; return { text, last: n ? T[n - 1] : -9, done: n >= s.length, end: T.length ? T[T.length - 1] : at }; };
 	const caret = (t, lastKeyAt = -9) => t - lastKeyAt < 0.5 || Math.floor((t - lastKeyAt) / 0.53) % 2 === 0;
 	const num = (from, to, k, dec = 0) => lerp(from, to, clamp(k)).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 	// odometer digits: each digit that changes rolls up from the old to the new one, right to left a little apart
@@ -13655,7 +13760,7 @@ function motionKit() {
 		rr(ctx, sx, sy, 393 * k, 852 * k, 55 * k); ctx.clip();
 		ctx.fillStyle = o.bg || (o.dark ? "#000" : "#fff"); ctx.fillRect(sx, sy, 393 * k, 852 * k);
 		ctx.translate(sx, sy); ctx.scale(k, k);
-		if (o.screen) o.screen(ctx, o.t);
+		if (o.screen) o.screen(ctx, o.t, 393, 852);
 		if (o.status !== false) statusBar(ctx, { dark: o.dark, time: o.time });
 		if (o.home !== false) { ctx.fillStyle = o.dark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.85)"; rr(ctx, 129.5, 852 - 13, 134, 5, 2.5); ctx.fill(); }
 		ctx.restore();
@@ -13814,14 +13919,303 @@ function motionKit() {
 		ctx.restore();
 		return at + Math.max(0, list.length - 1) / wps + 0.34;
 	};
-	W.MO = { ease, spring, p, stagger, lerp, mix, clamp, rng, cam, view, rr, card, glass, edge, icon, icons: Object.keys(ICONS), text, typed, caret, num, roll, arc, press, tap, phone, statusBar, map, route, pin, words, grain, vignette, kit };
+	// ---- the phone's own screens, in iOS points (393 wide), the way the real ones look and move, laid out by the kit so
+	// every word lands where a real one does: the home screen, an app opening out of its icon, the lock screen, a
+	// notification, the text box, the keyboard with each key popping as it's typed, a conversation that lays itself out and
+	// scrolls; for a computer, a browser window and a cursor (Nov 22: the owner's ad films had "a square and a chat
+	// lookalike", their words in the wrong spot, no keyboard, no home screen)
+	const lumOf = (c) => { const m = String(c).match(/rgba?\(([^)]+)\)/), v = m ? m[1].split(",").map(Number) : hex(c); return (v[0] * 0.299 + v[1] * 0.587 + v[2] * 0.114) / 255; };
+	const wrapLines = (ctx, s, maxW) => { const out = []; for (const para of String(s).split("\n")) { let line = ""; for (const wd of para.split(/\s+/).filter(Boolean)) { const tt = line ? line + " " + wd : wd; if (ctx.measureText(tt).width > maxW && line) { out.push(line); line = wd; } else line = tt; } out.push(line); } return out; };
+	const wallpaper = (ctx, w, h, wp) => {
+		if (typeof wp === "function") return wp(ctx, w, h);
+		const c = Array.isArray(wp) && wp.length ? wp : ["#e6d3bd", "#b9977c", "#6f5b52"];
+		const g = ctx.createLinearGradient(0, 0, w * 0.35, h);
+		c.forEach((x, i) => g.addColorStop(c.length > 1 ? i / (c.length - 1) : 0, x));
+		ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+	};
+	const appIcon = (ctx, a, cx, cy, s) => {
+		const col = a.color || "#8e8e93";
+		ctx.save();
+		ctx.shadowColor = "rgba(0,0,0,0.16)"; ctx.shadowBlur = s * 0.12 * scaleOf(ctx); ctx.shadowOffsetY = s * 0.03 * scaleOf(ctx);
+		rr(ctx, cx - s / 2, cy - s / 2, s, s, s * 0.225);
+		const g = ctx.createLinearGradient(0, cy - s / 2, 0, cy + s / 2); g.addColorStop(0, mix(col, "#ffffff", 0.14)); g.addColorStop(1, col);
+		ctx.fillStyle = g; ctx.fill();
+		ctx.restore();
+		if (a.draw) { ctx.save(); rr(ctx, cx - s / 2, cy - s / 2, s, s, s * 0.225); ctx.clip(); a.draw(ctx, cx, cy, s); ctx.restore(); }
+		else if (a.icon) icon(ctx, a.icon, cx, cy, s * 0.56, a.glyph || (lumOf(col) > 0.7 ? "#1c1c1e" : "#ffffff"), { weight: 2.3 });
+	};
+	const HOME_GRID = [["Calendar", "#ffffff", "calendar", "#ff3b30"], ["Photos", "#ffffff", "image", "#ff9500"], ["Camera", "#8e8e93", "camera"], ["Mail", "#1a8cff", "mail"], ["Notes", "#ffd60a", "edit", "#5b4a00"], ["Reminders", "#ffffff", "check", "#0a84ff"], ["Clock", "#1c1c1e", "clock"], ["Maps", "#4cd964", "map"], ["Weather", "#3a8dde", "sun"], ["Wallet", "#1c1c1e", "card"], ["Health", "#ffffff", "heart", "#ff2d55"], ["Settings", "#8e8e93", "settings"], ["Store", "#ff9f0a", "bag"], ["Files", "#1a8cff", "download"], ["Calculator", "#2c2c2e", "plus", "#ff9f0a"], ["Fitness", "#1c1c1e", "bolt", "#b4ff39"]];
+	const HOME_DOCK = [["Phone", "#34c759", "phone"], ["Safari", "#1a8cff", "globe"], ["Messages", "#34c759", "chat"], ["Music", "#fc3c44", "music"]];
+	// where an icon sits, in points: slots 0 to 23 the grid, four across; "d0" to "d3" the dock
+	const homeAt = (w, h, slot) => {
+		const u = w / 393, s = 62 * u;
+		if (typeof slot === "string" && slot[0] === "d") return { x: w / 2 + ((Number(slot.slice(1)) || 0) - 1.5) * 88 * u, y: h - 71 * u, s };
+		const i = Number(slot) || 0;
+		return { x: w / 2 + ((i % 4) - 1.5) * 90 * u, y: 103 * u + Math.floor(i / 4) * 102 * u, s };
+	};
+	const home = (ctx, w, h, t, o = {}) => {
+		const u = w / 393, apps = new Map(), slotOf = (v) => (typeof v === "string" && v[0] === "d" ? v : Number(v) || 0);
+		HOME_GRID.forEach((a, i) => apps.set(i, { name: a[0], color: a[1], icon: a[2], glyph: a[3] }));
+		HOME_DOCK.forEach((a, i) => apps.set("d" + i, { name: a[0], color: a[1], icon: a[2], glyph: a[3] }));
+		for (const a of o.apps || []) apps.set(slotOf(a.slot), a);
+		o = { ...o, hide: o.hide != null ? slotOf(o.hide) : undefined, press: o.press ? { ...o.press, slot: slotOf(o.press.slot) } : null };
+		ctx.save();
+		wallpaper(ctx, w, h, o.wallpaper);
+		rr(ctx, 12 * u, h - 117 * u, w - 24 * u, 92 * u, 36 * u); ctx.fillStyle = o.dark ? "rgba(28,28,32,0.42)" : "rgba(255,255,255,0.3)"; ctx.fill();
+		rr(ctx, w / 2 - 38 * u, h - 150 * u, 76 * u, 26 * u, 13 * u); ctx.fillStyle = "rgba(255,255,255,0.26)"; ctx.fill();
+		icon(ctx, "search", w / 2 - 20 * u, h - 137 * u, 12 * u, "#fff");
+		text(ctx, "Search", w / 2 - 11 * u, h - 132.6 * u, { size: 12.5 * u, weight: 500, color: "#fff" });
+		for (const [slot, a] of apps) {
+			const P = homeAt(w, h, slot), dock = typeof slot === "string";
+			if (!dock && P.y + P.s / 2 + 22 * u > h - 158 * u) continue;
+			if (o.hide === slot) continue;
+			const pressed = o.press && o.press.slot === slot, sc = pressed ? press(t, o.press.at, 0.1) : 1;
+			ctx.save(); ctx.translate(P.x, P.y); ctx.scale(sc, sc); ctx.translate(-P.x, -P.y);
+			appIcon(ctx, a, P.x, P.y, P.s);
+			if (pressed) { const d = clamp(1 - Math.abs(t - o.press.at - 0.06) / 0.22) * 0.28; if (d > 0) { rr(ctx, P.x - P.s / 2, P.y - P.s / 2, P.s, P.s, P.s * 0.225); ctx.fillStyle = "rgba(0,0,0," + d + ")"; ctx.fill(); } }
+			const badge = a.badge || (o.badges && o.badges[slot]);
+			if (badge) { const bx = P.x + P.s / 2 - 5 * u, by = P.y - P.s / 2 + 5 * u; ctx.fillStyle = "#ff3b30"; ctx.beginPath(); ctx.arc(bx, by, 11 * u, 0, 2 * PI); ctx.fill(); text(ctx, String(badge), bx, by + 5 * u, { size: 14 * u, weight: 600, color: "#fff", align: "center" }); }
+			ctx.restore();
+			if (!dock) { ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.35)"; ctx.shadowBlur = 4 * u * scaleOf(ctx); text(ctx, a.name || "", P.x, P.y + P.s / 2 + 15 * u, { size: 12 * u, weight: 500, color: "#fff", align: "center" }); ctx.restore(); }
+		}
+		ctx.restore();
+		return { at: (slot) => homeAt(w, h, slot) };
+	};
+	// an app opening out of its icon (from = home's at(slot)) as k goes 0 to 1: its screen, drawn at full size by
+	// draw(ctx, w, h), grows from the icon's square to the whole screen while the icon's face fades
+	const appOpen = (ctx, w, h, k, from, draw, o = {}) => {
+		const kk = clamp(k);
+		if (kk <= 0) return;
+		const A0 = ctx.globalAlpha, s0 = (from && from.s) || 62, fx = from ? from.x : w / 2, fy = from ? from.y : h / 2;
+		const x = lerp(fx - s0 / 2, 0, kk), y = lerp(fy - s0 / 2, 0, kk), ww = lerp(s0, w, kk), hh = lerp(s0, h, kk), r = lerp(s0 * 0.225, o.radius || 0, kk);
+		ctx.save();
+		if (kk < 1) { ctx.save(); ctx.shadowColor = "rgba(0,0,0," + 0.28 * (1 - kk) + ")"; ctx.shadowBlur = 30 * scaleOf(ctx); rr(ctx, x, y, ww, hh, r); ctx.fillStyle = o.bg || "#fff"; ctx.fill(); ctx.restore(); }
+		rr(ctx, x, y, ww, hh, r); ctx.clip();
+		ctx.fillStyle = o.bg || "#fff"; ctx.fillRect(x, y, ww, hh);
+		const sc = Math.max(ww / w, hh / h);
+		ctx.save();
+		ctx.globalAlpha = A0 * clamp((kk - 0.06) / 0.3);
+		ctx.translate(x + ww / 2, y + hh / 2); ctx.scale(sc, sc); ctx.translate(-w / 2, -h / 2);
+		if (draw) draw(ctx, w, h);
+		ctx.restore();
+		if (o.app && kk < 0.5) {
+			ctx.globalAlpha = A0 * clamp(1 - kk / 0.5);
+			ctx.fillStyle = o.app.color || "#8e8e93"; ctx.fillRect(x, y, ww, hh);
+			const m = Math.min(ww, hh);
+			if (o.app.draw) o.app.draw(ctx, x + ww / 2, y + hh / 2, m);
+			else if (o.app.icon) icon(ctx, o.app.icon, x + ww / 2, y + hh / 2, m * 0.56, o.app.glyph || (lumOf(o.app.color || "#8e8e93") > 0.7 ? "#1c1c1e" : "#ffffff"), { weight: 2.3 });
+		}
+		ctx.restore();
+	};
+	const lock = (ctx, w, h, t, o = {}) => {
+		const u = w / 393, ink = o.ink || "#ffffff";
+		ctx.save();
+		wallpaper(ctx, w, h, o.wallpaper);
+		text(ctx, o.date || "Sunday, 22 November", w / 2, 116 * u, { size: 21 * u, weight: 500, color: ink, align: "center", alpha: 0.92 });
+		text(ctx, o.time || "9:41", w / 2, 210 * u, { size: 104 * u, weight: 600, color: ink, align: "center", font: o.font || kit.display, track: -0.02 });
+		for (const [cx, nm] of [[66 * u, "bolt"], [w - 66 * u, "camera"]]) { ctx.beginPath(); ctx.arc(cx, h - 92 * u, 25 * u, 0, 2 * PI); ctx.fillStyle = "rgba(0,0,0,0.22)"; ctx.fill(); icon(ctx, nm, cx, h - 92 * u, 22 * u, ink); }
+		ctx.restore();
+	};
+	// a notification sliding down from the top at "at" (and away at o.until); returns its box, to open it into its app
+	const notify = (ctx, w, t, at, o = {}) => {
+		const k = p(t, at, 0.55, "snappy"), out = o.until != null ? p(t, o.until, 0.35, "inCubic") : 0;
+		if (k <= 0 || out >= 1) return null;
+		const u = w / 393, dk = !!o.dark, bx = 9 * u, bw = w - 18 * u, tx = bx + 62 * u, tw = bw - 76 * u;
+		ctx.save();
+		ctx.font = "400 " + 15 * u + "px " + kit.ui;
+		let body = o.body ? wrapLines(ctx, o.body, tw) : [];
+		if (body.length > 2) body = [body[0], body[1].replace(/\s*\S*$/, "") + "\u2026"];
+		const bh = (body.length ? 40 + body.length * 19 : 58) * u, top = o.y != null ? o.y : 56 * u, by = lerp(-bh - 12 * u, top, Math.min(1.04, k)) - out * (bh + 70 * u + top - 56 * u);
+		ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.2)"; ctx.shadowBlur = 24 * u * scaleOf(ctx); ctx.shadowOffsetY = 6 * u * scaleOf(ctx);
+		rr(ctx, bx, by, bw, bh, 24 * u); ctx.fillStyle = dk ? "rgba(44,44,46,0.95)" : "rgba(246,246,248,0.96)"; ctx.fill(); ctx.restore();
+		appIcon(ctx, { color: o.color || "#34c759", icon: o.icon || "chat", draw: o.draw, glyph: o.glyph }, bx + 33 * u, by + (body.length ? 33 : bh / 2), 38 * u);
+		const ink = dk ? "#fff" : "#000", soft = dk ? "#a1a1a6" : "#6d6d72";
+		text(ctx, o.title || o.app || "", tx, by + (body.length ? 28 : 34) * u, { size: 15 * u, weight: 600, color: ink });
+		text(ctx, o.time || "now", bx + bw - 14 * u, by + (body.length ? 28 : 34) * u, { size: 13 * u, color: soft, align: "right" });
+		body.forEach((l, i) => text(ctx, l, tx, by + (48 + i * 19) * u, { size: 15 * u, color: ink }));
+		ctx.restore();
+		return { x: bx, y: by, w: bw, h: bh };
+	};
+	// the text box (a capsule with its caret and send button); o.last: when the last key landed (MO.typing's last)
+	const field = (ctx, x, y, w, o = {}) => {
+		const h = o.h || 36, dk = !!o.dark, size = o.size || 17, s = String(o.text || ""), acc = o.color || "#0a84ff", font = o.font || kit.ui;
+		ctx.save();
+		rr(ctx, x, y, w, h, h / 2); ctx.fillStyle = o.bg || (dk ? "#1c1c1e" : "#ffffff"); ctx.fill();
+		ctx.lineWidth = 1; ctx.strokeStyle = dk ? "#3a3a3c" : "#c7c7cc"; ctx.stroke();
+		const sendW = o.send === false ? 0 : h - 6, room = w - 30 - sendW;
+		ctx.save(); rr(ctx, x, y, w - sendW - 2, h, h / 2); ctx.clip();
+		ctx.font = "400 " + size + "px " + font;
+		const tw = ctx.measureText(s).width, tx = x + 14 - Math.max(0, tw - room);
+		if (s) text(ctx, s, tx, y + h / 2 + size * 0.35, { size, color: dk ? "#fff" : "#000", font });
+		else if (o.placeholder) text(ctx, o.placeholder, x + 14, y + h / 2 + size * 0.35, { size, color: dk ? "#8e8e93" : "#a1a1a6", font });
+		if (o.t != null && o.caret !== false && caret(o.t, o.last != null ? o.last : -9)) { ctx.fillStyle = acc; ctx.fillRect(tx + tw + 1.5, y + h / 2 - size * 0.62, 2, size * 1.24); }
+		ctx.restore();
+		if (sendW) { const cx = x + w - h / 2, cy = y + h / 2; ctx.beginPath(); ctx.arc(cx, cy, sendW / 2, 0, 2 * PI); ctx.fillStyle = s ? acc : dk ? "#3a3a3c" : "#d9d9de"; ctx.fill(); icon(ctx, "arrowUp", cx, cy, sendW * 0.6, "#fff", { weight: 2.6 }); }
+		ctx.restore();
+		return { h, send: { x: x + w - h / 2, y: y + h / 2 } };
+	};
+	// the keyboard across the bottom of a w by h screen: o.text, o.at and o.cps the same as MO.typing's (each key pops up
+	// the moment its letter lands), o.k slides it up (0 to 1), o.ret the return key's word; returns {y} its top edge
+	const keyboard = (ctx, w, h, o = {}) => {
+		const u = w / 393, kh = 336 * u, sl = o.k == null ? 1 : clamp(o.k), y0 = h - kh * sl, dk = !!o.dark, t = o.t || 0;
+		if (sl <= 0) return { y: h, h: 0, keyAt: () => null };
+		const C = dk ? { bg: "#2b2b2d", key: "#6b6b6e", spec: "#454547", ink: "#ffffff", sh: "rgba(0,0,0,0.55)", soft: "#a1a1a6" } : { bg: "#d3d6dc", key: "#ffffff", spec: "#adb2bb", ink: "#000000", sh: "rgba(0,0,0,0.3)", soft: "#6e7178" };
+		const s = o.text != null ? String(o.text) : "", T = s ? typeTimes(s, o.at || 0, o.cps || 14) : [];
+		let n = 0;
+		while (n < T.length && T[n] <= t) n++;
+		const hot = n && t - T[n - 1] < 0.14 ? s[n - 1].toLowerCase() : null;
+		const gap = 6 * u, kw = (w - 6 * u - 9 * gap) / 10, kH = 42 * u, r = 5 * u, rowY = (i) => y0 + 52 * u + i * 54 * u, keyAt = {};
+		ctx.save();
+		ctx.fillStyle = C.bg; ctx.fillRect(0, y0, w, h - y0 + 2);
+		const key = (x, y, ww, label, spec, lit) => {
+			rr(ctx, x, y + 1 * u, ww, kH, r); ctx.fillStyle = C.sh; ctx.fill();
+			rr(ctx, x, y, ww, kH, r); ctx.fillStyle = lit ? (spec ? C.key : C.spec) : spec ? C.spec : C.key; ctx.fill();
+			if (label) text(ctx, label, x + ww / 2, y + kH / 2 + (label.length === 1 ? 8 : 5.5) * u, { size: (label.length === 1 ? 22.5 : 16) * u, color: C.ink, align: "center" });
+		};
+		["qwertyuiop", "asdfghjkl", "zxcvbnm"].forEach((row, ri) => { const x0 = (w - (row.length * kw + (row.length - 1) * gap)) / 2; [...row].forEach((ch, i) => (keyAt[ch] = [x0 + i * (kw + gap), rowY(ri), kw])); });
+		for (const ch in keyAt) { const [x, y, ww] = keyAt[ch]; key(x, y, ww, o.caps ? ch.toUpperCase() : ch, false, false); }
+		const sw = 42 * u, y2 = rowY(2), y3 = rowY(3), bw = kw * 2.6 + gap;
+		key(3 * u, y2, sw, "", true); icon(ctx, "arrowUp", 3 * u + sw / 2, y2 + kH / 2, 19 * u, C.ink, { weight: 1.7 });
+		key(w - 3 * u - sw, y2, sw, "", true);
+		{ const cx = w - 3 * u - sw / 2, cy = y2 + kH / 2, a = 9 * u; ctx.save(); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.6 * u; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(cx - a * 1.25, cy); ctx.lineTo(cx - a * 0.55, cy - a * 0.75); ctx.lineTo(cx + a * 1.1, cy - a * 0.75); ctx.lineTo(cx + a * 1.1, cy + a * 0.75); ctx.lineTo(cx - a * 0.55, cy + a * 0.75); ctx.closePath(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - a * 0.05, cy - a * 0.32); ctx.lineTo(cx + a * 0.6, cy + a * 0.32); ctx.moveTo(cx + a * 0.6, cy - a * 0.32); ctx.lineTo(cx - a * 0.05, cy + a * 0.32); ctx.stroke(); ctx.restore(); }
+		key(3 * u, y3, bw, "123", true);
+		key(w - 3 * u - bw, y3, bw, o.ret || "return", true);
+		key(3 * u + bw + gap, y3, w - 2 * (3 * u + bw + gap), "space", false, hot === " ");
+		// (under the keys: the emoji face and the microphone)
+		{ const cx = 30 * u, cy = y0 + 296 * u, a = 11 * u; ctx.save(); ctx.strokeStyle = C.soft; ctx.lineWidth = 1.7 * u; ctx.beginPath(); ctx.arc(cx, cy, a, 0, 2 * PI); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy + a * 0.1, a * 0.5, 0.15 * PI, 0.85 * PI); ctx.stroke(); ctx.fillStyle = C.soft; for (const dx of [-0.35, 0.35]) { ctx.beginPath(); ctx.arc(cx + dx * a, cy - a * 0.25, a * 0.11, 0, 2 * PI); ctx.fill(); } ctx.restore(); }
+		icon(ctx, "mic", w - 30 * u, y0 + 296 * u, 24 * u, C.soft);
+		// (the suggestions bar: the word being typed, in quotes, in the middle)
+		ctx.fillStyle = C.soft; ctx.globalAlpha *= 0.5; ctx.fillRect(w / 3, y0 + 13 * u, 1 * u, 20 * u); ctx.fillRect((2 * w) / 3, y0 + 13 * u, 1 * u, 20 * u); ctx.globalAlpha /= 0.5;
+		const word = s.slice(0, n).split(/\s/).pop();
+		if (word) text(ctx, "\u201c" + word + "\u201d", w / 2, y0 + 29 * u, { size: 16 * u, color: C.ink, align: "center" });
+		// (the key being typed pops up above itself)
+		if (hot && keyAt[hot]) {
+			const [x, y, ww] = keyAt[hot], px = x - 7 * u, pw = ww + 14 * u, py = y - 58 * u;
+			ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.28)"; ctx.shadowBlur = 7 * u * scaleOf(ctx); ctx.shadowOffsetY = 1 * u * scaleOf(ctx);
+			rr(ctx, px, py, pw, 56 * u, 9 * u); ctx.fillStyle = C.key; ctx.fill(); ctx.restore();
+			rr(ctx, x, py + 40 * u, ww, y + kH - (py + 40 * u), r); ctx.fillStyle = C.key; ctx.fill();
+			text(ctx, o.caps ? hot.toUpperCase() : hot, x + ww / 2, py + 41 * u, { size: 34 * u, weight: 300, color: C.ink, align: "center" });
+		}
+		ctx.restore();
+		return { y: y0, h: h - y0, keyAt: (ch) => { const k = keyAt[String(ch).toLowerCase()]; return k ? { x: k[0] + k[2] / 2, y: k[1] + kH / 2 } : null; } };
+	};
+	// a bubble's tail, at its bottom outer corner
+	const tail = (ctx, ex, by, right) => { const d = right ? 1 : -1; ctx.beginPath(); ctx.moveTo(ex - d * 10, by - 17); ctx.quadraticCurveTo(ex - d * 1, by - 4, ex + d * 5, by); ctx.quadraticCurveTo(ex - d * 6, by + 0.5, ex - d * 16, by - 6); ctx.closePath(); ctx.fill(); };
+	// A conversation in the box x, y, w, h (points), laid out and scrolled by itself: msgs [{from: "me" | "them", text, at,
+	// typing (seconds of the typing dots before it), stream (its words arriving as written, o.wps), card: {h, draw(ctx,
+	// x, y, w, h, t)}}]; o.style "assistant" sets the person's words in a grey bubble on the right and the answer as words
+	// across the screen (o.mark(ctx, x, y, size) drawing the assistant's logo beside it). Returns {at(i)}: each message's box
+	const chat = (ctx, x, y, w, h, t, msgs, o = {}) => {
+		const dk = !!o.dark, size = o.size || 17, lh = size * (o.lh || 1.32), font = o.font || kit.ui, asst = o.style === "assistant";
+		const meBg = o.meColor || (asst ? (dk ? "#2f2f31" : "#efeff1") : "#0a84ff"), meInk = o.meInk || (asst ? (dk ? "#ffffff" : "#0b0b0b") : "#ffffff");
+		const themBg = o.themColor || (dk ? "#262628" : "#e9e9eb"), themInk = o.themInk || (dk ? "#ffffff" : "#0b0b0b");
+		const padX = 13, padY = 8, gap = o.gap || 6, maxB = w * (o.maxW || 0.76), markW = asst && o.mark ? 34 : 0, typH = lh + padY * 2;
+		ctx.save();
+		ctx.font = "400 " + size + "px " + font;
+		const L = (msgs || []).map((m) => {
+			const me = m.from === "me", plain = asst && !me, inner = plain ? w - markW : maxB - padX * 2, lines = m.text ? wrapLines(ctx, m.text, inner) : [];
+			let shown = lines.map((l) => [l, 1]), vl = lines.length, doneAt = m.at;
+			if (m.stream && lines.length) {
+				const wps = m.wps || o.wps || 14;
+				let wi = 0;
+				shown = []; vl = 0;
+				for (const l of lines) { const ws = l.split(" ").filter(Boolean), t0 = m.at + wi / wps; if (t < t0) break; shown.push([ws.slice(0, clamp(Math.floor((t - t0) * wps) + 1, 1, Math.max(1, ws.length))).join(" "), 1]); vl += clamp((t - t0) / 0.18); wi += ws.length; }
+				doneAt = m.at + wi / wps;
+				if (shown.length < lines.length) doneAt = 1e9;
+			}
+			const cardK = m.card ? clamp((t - doneAt) / 0.3) : 0, cardH = m.card ? (m.card.h || 120) : 0;
+			const bw = plain ? inner : Math.min(maxB, Math.max(10, ...lines.map((l) => ctx.measureText(l).width)) + padX * 2);
+			const hh = vl * lh + (plain ? 0 : padY * 2) + (m.card ? (cardH + (lines.length ? 8 : 0)) * cardK : 0);
+			const k = p(t, m.at, 0.42, "snappy"), wait = !me && m.typing > 0 && t >= m.at - m.typing && t < m.at;
+			return { m, me, plain, shown, bw, hh, k, wait, cardK, cardH };
+		});
+		let total = o.top != null ? o.top : 8;
+		const tops = [];
+		L.forEach((q, i) => {
+			q.vis = q.wait ? clamp((t - (q.m.at - q.m.typing)) / 0.25) : t >= q.m.at ? clamp(q.k * 1.3) : 0;
+			tops.push(total);
+			total += ((q.wait ? typH : q.hh) + gap + (i && L[i - 1].me !== q.me ? 8 : 0)) * q.vis;
+		});
+		const off = Math.min(0, h - (o.bottom != null ? o.bottom : 10) - total), at = [];
+		ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+		L.forEach((q, i) => {
+			if (q.vis <= 0) return at.push(null);
+			const top = y + tops[i] + off + (i && L[i - 1].me !== q.me ? 8 * q.vis : 0);
+			if (q.wait) {
+				ctx.save(); ctx.globalAlpha *= q.vis;
+				const bx = x + markW, A = ctx.globalAlpha;
+				if (asst && o.mark) o.mark(ctx, x + 12, top + typH / 2, 22);
+				else { rr(ctx, bx, top, 66, typH, typH / 2); ctx.fillStyle = themBg; ctx.fill(); }
+				for (let d = 0; d < 3; d++) { const ph = (t * 2.4 - d * 0.2) % 1, b = Math.max(0, Math.sin(ph * PI * 2)); ctx.globalAlpha = A * (0.35 + 0.55 * b); ctx.fillStyle = dk ? "#d1d1d6" : "#8e8e93"; ctx.beginPath(); ctx.arc(bx + 20 + d * 13, top + typH / 2 - 3 * b, 4.2, 0, 2 * PI); ctx.fill(); }
+				ctx.restore();
+				return at.push({ x: bx, y: top, w: 66, h: typH });
+			}
+			const last = !L[i + 1] || L[i + 1].me !== q.me || L[i + 1].vis <= 0 || L[i + 1].wait;
+			const bx = q.plain ? x + markW : q.me ? x + w - q.bw : x, sc = 0.62 + 0.38 * clamp(q.k), ax = q.me ? bx + q.bw : bx, ay = top + q.hh;
+			ctx.save();
+			ctx.globalAlpha *= clamp(q.k * 2);
+			ctx.translate(ax, ay); ctx.scale(sc, sc); ctx.translate(-ax, -ay + (1 - clamp(q.k)) * 12);
+			if (!q.plain) { ctx.fillStyle = q.me ? meBg : themBg; rr(ctx, bx, top, q.bw, q.hh, Math.min(19, q.hh / 2)); ctx.fill(); if (last && !asst) tail(ctx, q.me ? bx + q.bw : bx, top + q.hh, q.me); }
+			else if (o.mark) o.mark(ctx, x + 12, top + lh / 2, 22);
+			const lx = q.plain ? bx : bx + padX, ink = q.me ? meInk : themInk;
+			let ly = top + (q.plain ? 0 : padY) + lh / 2 + size * 0.36;
+			for (const [l] of q.shown) { text(ctx, l, lx, ly, { size, color: ink, font }); ly += lh; }
+			if (q.m.card && q.cardK > 0) { ctx.save(); ctx.globalAlpha *= q.cardK; q.m.card.draw(ctx, lx, top + q.hh - q.cardH * q.cardK - (q.plain ? 0 : padY), q.plain ? q.bw : q.bw - padX * 2, q.cardH, t - q.m.at); ctx.restore(); }
+			ctx.restore();
+			at.push({ x: bx, y: top, w: q.bw, h: q.hh });
+		});
+		ctx.restore();
+		return { at: (i) => at[i] || null, bottom: y + total + off };
+	};
+	// a phone's screen filling a box with no phone around it (the frame itself as the screen): screen(ctx, t, w, h) in points
+	const screen = (ctx, x, y, w, h, o = {}) => {
+		const k = w / 393, hp = h / k;
+		ctx.save();
+		ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+		ctx.fillStyle = o.bg || (o.dark ? "#000" : "#fff"); ctx.fillRect(x, y, w, h);
+		ctx.translate(x, y); ctx.scale(k, k);
+		if (o.screen) o.screen(ctx, o.t, 393, hp);
+		if (o.status !== false) statusBar(ctx, { dark: o.dark, time: o.time });
+		if (o.home !== false) { ctx.fillStyle = o.dark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.85)"; rr(ctx, 129.5, hp - 13, 134, 5, 2.5); ctx.fill(); }
+		ctx.restore();
+		return { x, y, w, h, k, hp };
+	};
+	// a desktop browser window (its bar, the three lights, the address), the page drawn by o.screen(ctx, w, h) inside
+	const browser = (ctx, x, y, w, h, o = {}) => {
+		const bar = o.bar || Math.max(28, h * 0.055), r = o.r || Math.max(8, w * 0.012), dk = !!o.dark;
+		card(ctx, x, y, w, h, r, dk ? "#1e1e20" : "#ffffff", o.elev || 1.4);
+		ctx.save();
+		rr(ctx, x, y, w, h, r); ctx.clip();
+		ctx.fillStyle = dk ? "#2a2a2c" : "#f1f1f3"; ctx.fillRect(x, y, w, bar);
+		["#ff5f57", "#febc2e", "#28c840"].forEach((c, i) => { ctx.beginPath(); ctx.arc(x + bar * 0.6 + i * bar * 0.42, y + bar / 2, bar * 0.13, 0, 2 * PI); ctx.fillStyle = c; ctx.fill(); });
+		const uw = Math.min(w * 0.5, Math.max(160, w * 0.38)), ux = x + w / 2 - uw / 2;
+		rr(ctx, ux, y + bar * 0.2, uw, bar * 0.6, bar * 0.18); ctx.fillStyle = dk ? "#3a3a3c" : "#e4e4e7"; ctx.fill();
+		if (o.url) { icon(ctx, "lock", x + w / 2 - Math.min(uw * 0.42, String(o.url).length * bar * 0.11) - bar * 0.3, y + bar / 2, bar * 0.3, dk ? "#a1a1a6" : "#6d6d72"); text(ctx, String(o.url).slice(0, 60), x + w / 2, y + bar / 2 + bar * 0.13, { size: bar * 0.36, color: dk ? "#d1d1d6" : "#3a3a3c", align: "center" }); }
+		ctx.translate(x, y + bar);
+		ctx.beginPath(); ctx.rect(0, 0, w, h - bar); ctx.clip();
+		ctx.fillStyle = o.bg || (dk ? "#111113" : "#ffffff"); ctx.fillRect(0, 0, w, h - bar);
+		if (o.screen) o.screen(ctx, w, h - bar);
+		ctx.restore();
+		return { x, y: y + bar, w, h: h - bar };
+	};
+	// the pointer, its tip at x, y, clicking at o.at (it presses in, a ring spreads)
+	const cursor = (ctx, x, y, t, o = {}) => {
+		const s = (o.size || 22) / 22, pr = o.at != null ? press(t, o.at, 0.16) : 1;
+		ctx.save(); ctx.translate(x, y); ctx.scale(s * pr, s * pr);
+		ctx.shadowColor = "rgba(0,0,0,0.3)"; ctx.shadowBlur = 4 * scaleOf(ctx); ctx.shadowOffsetY = 1.5 * scaleOf(ctx);
+		ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 17); ctx.lineTo(4.2, 13.2); ctx.lineTo(7.2, 19.6); ctx.lineTo(10, 18.4); ctx.lineTo(7.1, 12.2); ctx.lineTo(12.6, 12.2); ctx.closePath();
+		ctx.fillStyle = o.color || "#111"; ctx.fill(); ctx.shadowColor = "transparent"; ctx.lineWidth = 1.4; ctx.strokeStyle = "#fff"; ctx.lineJoin = "round"; ctx.stroke();
+		ctx.restore();
+		if (o.at != null) { const d = t - o.at; if (d >= 0 && d < 0.5) { const k = d / 0.5; ctx.save(); ctx.globalAlpha *= (1 - k) * 0.5; ctx.strokeStyle = o.ring || "#0a84ff"; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(x, y, (6 + 22 * ease.outCubic(k)) * s, 0, 2 * PI); ctx.stroke(); ctx.restore(); } }
+	};
+	W.MO = { ease, spring, p, stagger, lerp, mix, clamp, rng, cam, view, rr, card, glass, edge, icon, icons: Object.keys(ICONS), text, typed, typing, caret, num, roll, arc, press, tap, phone, statusBar, map, route, pin, words, grain, vignette, kit, home, appOpen, appIcon, lock, notify, field, keyboard, chat, screen, browser, cursor };
 }
 // (put into every film program, before its own script, by sceneDoc)
 const MOTION_KIT_TAG = "<script>(" + motionKit + ")();<\/script>";
 // How the films people share are made, measured from every frame of 110 shorts (Miles Holden's product films, Ricks
 // Clips' told stories, Ifverse's "what if" stories; Nov 17): for the director, both animators and the critic
 const STUDIED = `How the films people share are actually made, measured frame by frame (every frame of 110 shorts from three channels known for each kind, Nov 2026). Make this film the way the best of its kind are made, taking how they're made, never their characters, names or stories:
-- A product, app or brand film (an ad, a launch, a feature): a story of about 15 seconds about one human need, told through the product's real screens, and set where it really happens: when that's a place (a trip, a delivery, food, something you hold), a lit 3D world of the real place where it's used (three.js: the street, the café table, the station, the counter, built from simple shapes with soft sunlight or warm practical light, long soft shadows, a little haze, a gentle warm grade; the camera flies, walks or glides through it), with the product's screen inside that world (a phone in the scene, or its screen as a frosted card floating over the place) answering every touch; when it all happens on a screen, that screen recreated big and real on a clean cinematic ground (deep and dark with one glowing colour, or bright), one hero element at a time, things transforming (a price becoming what you saved, a flame counting up a streak, a box opening into the thing inside). The shapes of real ones (never their content): a city seen from above, a place typed into the maps card, a walk down a lit alley with the directions card at the bottom, and the red pin dropping over the café on arrival; a suitcase gliding along an airport belt while its tracking card ticks through each step, then the plane lifting off at sunset; an object on a stand while the bid rolls up, a red 5-4-3 countdown, then "You won"; a cup steaming on a café table while the app catches the song, then the record turning; an order whose pieces land one by one, then the brand's mark. It opens on a familiar moment (a home screen, a lock screen, a notification), someone types or says the need in their own words ("something to cheer me up"), the results arrive, one is chosen, the payoff lands (delivered, booked, playing), and it closes on the brand: a short line arriving word by word on a plain ground or the brand's own colour, the name or logo landing last. Every step grows out of the one before: the app opens out of its icon, a notification expands into the screen it's about, the camera pushes into a picture and through it into the next scene, a picked item flies into the cart. Screens look like the real thing (status bar, real-looking content, prices with small raised cents, ratings, filter chips, a tab bar) and answer every tap: the button presses in, a counter rolls, a badge bounces. Type, as measured on them: clean UI grotesks everywhere (Figtree or Hanken Grotesk unless the brand's own is given), at the platform's real sizes (17-point body, 34-point large titles, small grey details like "You · Today"), titles semibold and tightly tracked, the closing line medium weight; emphasis by weight, by one italic word ("Play the Mood!"), or by setting the less important words softly out of focus; never a heavy condensed poster face. Colour, measured: a dark ground is near-black tinted toward the brand's hue (green-black, blue-black, warm brown-black), never pure black; a light ground is an off-white (warm paper #e6e4e1, cool #eceff6) or a soft sky, never pure white; words near-white (#f2f2f0), not #fff; the brand's one saturated colour does the pointing, on 3 to 20% of the frame. Light and depth: big soft low shadows under floating cards (MO.card), frosted glass over skies and pictures (MO.glass), a fine lit edge on dark cards (MO.edge) or the brand's colour as a soft light behind them, out-of-focus lights in the background, places and objects lit from one side with long soft shadows (a street at golden hour), and fast moves streaked (the renderer's motion blur does it). Pace: something new about every second, nothing still for more than a quarter of a second, camera moves of a quarter to half a second (about half of them springing a little past and settling), push-ins about twice as often as pull-outs. Calm and warm wins: one accent colour, warm light, generous space, never a poster of cards.
+- A product, app or brand film (an ad, a launch, a feature): a story of about 15 seconds about one human need, told through the product's real screens, and set where it really happens: when that's a place (a trip, a delivery, food, something you hold), a lit 3D world of the real place where it's used (three.js: the street, the café table, the station, the counter, built from simple shapes with soft sunlight or warm practical light, long soft shadows, a little haze, a gentle warm grade; the camera flies, walks or glides through it), with the product's screen inside that world (a phone in the scene, or its screen as a frosted card floating over the place) answering every touch, and the place never a backdrop: the camera travels through it and the story happens in it (the walk, the arrival, the pin landing on the door), and when nothing happens in it, leave it out and stay on the screen; when it all happens on a screen, that screen recreated big and real on a clean cinematic ground (deep and dark with one glowing colour, or bright), one hero element at a time, things transforming (a price becoming what you saved, a flame counting up a streak, a box opening into the thing inside). The shapes of real ones (never their content): a city seen from above, a place typed into the maps card, a walk down a lit alley with the directions card at the bottom, and the red pin dropping over the café on arrival; a suitcase gliding along an airport belt while its tracking card ticks through each step, then the plane lifting off at sunset; an object on a stand while the bid rolls up, a red 5-4-3 countdown, then "You won"; a cup steaming on a café table while the app catches the song, then the record turning; an order whose pieces land one by one, then the brand's mark. It opens on a familiar moment (a home screen, a lock screen, a notification), someone types or says the need in their own words ("something to cheer me up"), the results arrive, one is chosen, the payoff lands (delivered, booked, playing), and it closes on the brand: a short line arriving word by word on a plain ground or the brand's own colour, the name or logo landing last. Every step grows out of the one before: the app opens out of its icon, a notification expands into the screen it's about, the camera pushes into a picture and through it into the next scene, a picked item flies into the cart. Screens look like the real thing (status bar, real-looking content, prices with small raised cents, ratings, filter chips, a tab bar) and answer every tap: the button presses in, a counter rolls, a badge bounces. Type, as measured on them: clean UI grotesks everywhere (Figtree or Hanken Grotesk unless the brand's own is given), at the platform's real sizes (17-point body, 34-point large titles, small grey details like "You · Today"), titles semibold and tightly tracked, the closing line medium weight; emphasis by weight, by one italic word ("Play the Mood!"), or by setting the less important words softly out of focus; never a heavy condensed poster face. Colour, measured: a dark ground is near-black tinted toward the brand's hue (green-black, blue-black, warm brown-black), never pure black; a light ground is an off-white (warm paper #e6e4e1, cool #eceff6) or a soft sky, never pure white; words near-white (#f2f2f0), not #fff; the brand's one saturated colour does the pointing, on 3 to 20% of the frame. Light and depth: big soft low shadows under floating cards (MO.card), frosted glass over skies and pictures (MO.glass), a fine lit edge on dark cards (MO.edge) or the brand's colour as a soft light behind them, out-of-focus lights in the background, places and objects lit from one side with long soft shadows (a street at golden hour), and fast moves streaked (the renderer's motion blur does it). Pace: something new about every second, nothing still for more than a quarter of a second, camera moves of a quarter to half a second (about half of them springing a little past and settling), push-ins about twice as often as pull-outs. Calm and warm wins: one accent colour, warm light, generous space, never a poster of cards.
 - An AI product, or a team of AI agents doing work for someone (measured the same way on the most-shared agent-platform ads): a light grey studio ground with real screens floating on soft shadows; the story told by its caption, arriving word by word as if spoken (MO.words), the word that matters heavier, and a short punchline set white on a black label; each agent a small friendly character (a hat or a prop says what it does: a magnifier for research, a wand for marketing, headphones for support) joined by a thin line to the screen it's working on, the screen answering as it works (a reply typed, a post scheduled, an invoice sent); one beat where the old way stops and this one keeps going; the brand's mark landing last. The same camera as above (about 0.6 moves a second, zooms of about 7% over half a second, half of them springing past and settling), a new scene about every 8 seconds, and never still for long.
 - A story, an explainer or a "what if" (a true story, how or why something works, an idea taken to its extreme), by default: flat vector characters (round heads, white expressive eyes, coloured clothes that say who they are) in hazy, softly lit places with shafts of light, game-like overlays that make the idea visible (a number floating over each head, a counter pinned at the top that climbs as the story escalates, "DAY 1 · 6 MPH" on to "DAY 28", a red scan box), afterimages trailing anything fast, captions two words at a time in heavy capitals (white, the key word yellow), quick cuts (about every two seconds), slow push-ins (about 3% in 0.7 seconds, nine for every pull-out). It hooks with a question in the first two seconds, turns on something concrete with readable words on it, escalates, explains the real reason or pays the idea off, and its last frame flows straight back into its first so it loops. About 30 seconds; up to a minute for a true story that needs it.
 - Only when the person asks for 3D or for that look (a 2.5D story, a 3D world): a lit 3D world (sky, sun and shadows, ground, buildings, vehicles, weather; three.js) with flat 2D cartoon characters on planes that face the camera, big simple heads with line faces that act; the camera never stops (push-ins of about 10% in 0.6 seconds at every beat, three for every pull-out, low angles, through windscreens and doorways) and it cuts about every two and a half seconds; the telling appears one or two words at a time, centred about 70% down, in a heavy white face with a dark outline.`;
@@ -13829,7 +14223,14 @@ const MOTION_KIT_DOC = `Celestin's motion kit is already in your document as win
 - MO.p(t, at, dur, ease): the progress, 0 to 1, of something starting at "at" and taking dur seconds; ease is "outCubic" (the default), "inOutCubic", "outQuint", "outExpo", "inOutExpo", "inCubic", "outBack", "linear", or a spring: "snappy", "bouncy", "smooth" or "gentle" (it passes 1 and settles back; dur is its response). MO.stagger(t, at, i, gap = 0.06, dur = 0.45, ease = "snappy") for the i-th of a group; MO.spring(secondsSince, response, damping); MO.lerp, MO.clamp, MO.mix(hexA, hexB, k), MO.rng(seed).
 - The camera: const c = MO.cam(t, [{t, x, y, z, r, dur, ease}, ...]) holds on each key and moves to the next in that key's last dur seconds (default 0.5), arriving exactly at its t (x, y the point at the centre of the frame, z the zoom, r degrees); then ctx.save(); MO.view(ctx, c); draw the world; ctx.restore().
 - MO.rr(ctx, x, y, w, h, r): a rounded-rectangle path with continuous corners like Apple's (r at half the short side makes a capsule); MO.card(ctx, x, y, w, h, r, fill, elevation): a raised surface with soft real shadows; MO.glass(ctx, x, y, w, h, r, behind, {dark, blur, tint}): frosted glass, where behind(ctx) draws again what's behind it; MO.edge(ctx, x, y, w, h, r, alpha): a fine edge lit from above, for dark cards.
-- MO.phone(ctx, cx, cy, height, {screen: (ctx) => {...}, dark, bg, time, status, home, shadow}): a phone at its real proportions, centred at cx, cy. screen() draws in iOS points (393 wide, 852 tall), already clipped, under the status bar, the Dynamic Island and the home bar (status: false or home: false leaves them out). Returns the screen's {x, y, w, h, k}.
+- MO.phone(ctx, cx, cy, height, {screen: (ctx, t, w, h) => {...}, dark, bg, time, status, home, shadow}): a phone at its real proportions, centred at cx, cy. screen() draws in iOS points (w 393 wide, h 852 tall), already clipped, under the status bar, the Dynamic Island and the home bar (status: false or home: false leaves them out). Returns the screen's {x, y, w, h, k}. MO.screen(ctx, x, y, w, h, {screen, dark, time}): the same screen filling a box with no phone around it (the frame itself as the screen).
+- The phone's own screens, drawn inside screen() in its points (w, h), the way the real ones look, with every word placed where a real one goes (use them: never hand-place a message or draw your own keyboard):
+  MO.home(ctx, w, h, t, {wallpaper: [hex, hex] or (ctx, w, h) => {}, apps: [{slot, name, color, icon, draw(ctx, cx, cy, size)}], press: {slot, at}, hide: slot, badges: {slot: n}}): the home screen (slots 0 to 15 the grid, "d0" to "d3" the dock; put the film's app at a slot, its logo drawn by draw), returning {at(slot)} = {x, y, s}.
+  MO.appOpen(ctx, w, h, k, from, draw, {app, bg}): the app growing out of its icon (from = home's at(slot), app = the same {color, icon, draw}) as k goes 0 to 1 (MO.p(t, at, 0.5, "smooth")), draw(ctx, w, h) painting the app's screen at full size.
+  MO.lock(ctx, w, h, t, {time, date, wallpaper}): the lock screen. MO.notify(ctx, w, t, at, {title, body, color, icon, draw, until, time, y}): a notification sliding down at "at" (away at until), returning its box (to open it into its app); on the lock screen it sits under the clock (y: 250).
+  MO.typing(s, t, at, cps): {text, last, done, end}, s typed key by key by t. MO.field(ctx, x, y, w, {text, last, t, placeholder, color, dark}): the text box with its blinking caret and send button. MO.keyboard(ctx, w, h, {t, text, at, cps, k, dark, ret}): the keyboard, each key popping up the moment its letter lands (the same text, at and cps as MO.typing), k sliding it up from below; returns {y} its top (the field sits just above it).
+  MO.chat(ctx, x, y, w, h, t, msgs, {style, meColor, dark, mark, size, wps}): a conversation that lays itself out and scrolls as messages arrive: msgs [{from: "me" or "them", text, at, typing (seconds of the typing dots first), stream: true (the reply's words arriving as written), card: {h, draw(ctx, x, y, w, h, t)} (a picture, a list or a result inside the reply)}]; style "assistant" (an AI app) sets the person's words in a grey bubble and the answer as words across the screen, mark(ctx, x, y, size) drawing the assistant's logo beside it. Returns {at(i)}: each message's box (push the camera onto it).
+- For a computer: MO.browser(ctx, x, y, w, h, {url, screen(ctx, w, h), dark}): a browser window with the page inside; MO.cursor(ctx, x, y, t, {at}): the pointer, clicking at "at".
 - MO.icon(ctx, name, cx, cy, size, color): line icons in one weight: search, home, cart, bag, user, menu, heart, bell, check, chevronRight, chevronLeft, chevronDown, plus, minus, close, trash, play, pause, next, mic, camera, send, star, pin, clock, lock, share, card, chat, calendar, music, bolt, gift, filter, edit, image, phone, video, mail, map, settings, sun, moon, globe, arrowRight, arrowUp, download, refresh.
 - MO.text(ctx, s, x, y, {size, weight, font, color, align, base, track, maxW, lh, alpha}): words, wrapped to maxW; track is letter spacing in em (-0.02 for a tight title, 0.06 to 0.1 for small capitals, 0 otherwise), never pixels; set MO.kit.ui (and MO.kit.display) to your Google Fonts first.
 - MO.typed(s, t, at, charsPerSecond): the part of s typed by t, in a person's uneven rhythm (a key sounds for each letter as it appears, by itself: declare nothing for it); MO.caret(t, lastKeyAt): whether the caret shows.
@@ -13846,8 +14247,8 @@ const FILM_CRAFT = `Taste, camera and realism (what separates a film people shar
 - ${AI_TELLS.picture}
 - A camera, like a film: draw each scene into a world a virtual camera moves through (MO.cam and MO.view: one transform over the whole frame). As measured on the best channels, it holds while there's something to read, then moves decisively (a quarter to half a second, eased, or springing a little past and settling); it pushes in on what matters (push-ins outnumber pull-outs two to nine times over), pans and tracks with what moves, and pushes through an object into the next scene; a big transition takes about a second, accelerating into the cut. While the camera holds, the frame still lives (a cursor, a counter, a bubble, steam, light, a character breathing): nothing in the film stands completely still for more than a second or two. Depth: a foreground, the subject and a background moving at different speeds, the background softly out of focus (ctx.filter = "blur(...)") when the camera is close.
 - Real things at their real proportions, measured, never guessed: a phone is 9 wide by 19.5 tall (71.5 by 147.5 mm), its corners rounded by about 18% of its width, a thin even bezel (about 3% of its width), a pill-shaped camera cut-out at the top, a status bar (time, signal, battery) and a home bar at the bottom; a tablet is 3:4; a laptop screen 16:10 on a thin base; a watch face a rounded square. Never a chunky tablet for a phone.
-- A phone or a screen the way the best product films show one: the screen itself filling much of the frame, or a phone (MO.phone) standing upright and centred on a clean ground, with a soft shadow under it; never lying on a table, never at an angle you can't read, never in a hand unless the story needs one. Its screen in the platform's own manner (message bubbles with tails, names and timestamps, a typing indicator, the keyboard rising as someone types, a notification sliding down from the top), and the camera with it: push in to read what matters, follow the tap.
-- Lit like a real place and readable, the way the studied product films are: when it happens in a place, a lit 3D world of the real place where it's used (three.js: the street, the café table, the station, the counter, built from simple shapes with soft sunlight or warm practical light, long soft shadows, a little haze, a gentle warm grade; the camera flies, walks or glides through it), with the product's screen inside that world (a phone in the scene, or its screen as a frosted card floating over the place) answering every touch; when it all happens on a screen, that screen recreated big and real on a clean cinematic ground (deep and dark with one glowing colour, or bright), one hero element at a time, things transforming (a price becoming what you saved, a flame counting up a streak, a box opening into the thing inside); the brand's colour only on what matters; never a dark neon look, never glows, never flat cards on an empty ground. One idea per scene, said in a few big words: a title at least 7% of the frame's height, other words at least 3.5% (on a phone's screen, 17-point and up), never a dense dashboard of tiny text, never several cards stacked over what the scene is about. Every number and word sits fully inside the box it belongs to.
+- A phone or a screen the way the best product films show one: the screen itself filling much of the frame, or a phone (MO.phone) standing upright and centred on a clean ground (never a picture of a place sitting behind it), with a soft shadow under it, the SAME phone through the whole film while its screens change (MO.lock, MO.home, MO.appOpen, MO.keyboard, MO.chat); never lying on a table, never at an angle you can't read, never in a hand unless the story needs one. Its screen in the platform's own manner (message bubbles with tails, names and timestamps, a typing indicator, the keyboard rising as someone types, a notification sliding down from the top), and the camera with it: push in to read what matters, follow the tap.
+- Lit like a real place and readable, the way the studied product films are: when it happens in a place, a lit 3D world of the real place where it's used (three.js: the street, the café table, the station, the counter, built from simple shapes with soft sunlight or warm practical light, long soft shadows, a little haze, a gentle warm grade; the camera flies, walks or glides through it), with the product's screen inside that world (a phone in the scene, or its screen as a frosted card floating over the place) answering every touch, and the place never a backdrop: the camera travels through it and the story happens in it (the walk, the arrival, the pin landing on the door), and when nothing happens in it, leave it out and stay on the screen; when it all happens on a screen, that screen recreated big and real on a clean cinematic ground (deep and dark with one glowing colour, or bright), one hero element at a time, things transforming (a price becoming what you saved, a flame counting up a streak, a box opening into the thing inside); the brand's colour only on what matters; never a dark neon look, never glows, never flat cards on an empty ground. One idea per scene, said in a few big words: a title at least 7% of the frame's height, other words at least 3.5% (on a phone's screen, 17-point and up), never a dense dashboard of tiny text, never several cards stacked over what the scene is about. Every number and word sits fully inside the box it belongs to.
 - Colour like a colourist: about 60% a dominant (a neutral tinted toward the main hue), 30% a secondary, 10% an accent kept for what matters; lightness contrast before hue; the palette shifts with the story (cool and desaturated for tension or loss, warm and saturated for joy, one saturated colour to point the eye); light has a colour and everything in the scene takes it on; meanings checked for the audience (white is mourning across much of East Asia, red is luck in China and Indonesia).
 ${STUDIED}
 - When a brand's real logo is given, use exactly that shape; never draw a logo of your own for a real brand.
@@ -14192,7 +14593,7 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 	}
 	const sheet = await filmSheet(html, total, W, H), bar = await filmBar();
 	const text = "You're the creative director of a top motion-design studio. This is a contact sheet: 12 frames taken evenly through a " + total + "-second film (each one's time under it), made from this brief:\n\n" + brief +
-		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; any word garbled, spelt backwards, with its letters spread far apart or piled on one another, or a number outside the box it belongs in (read every word closely); a dark, crowded look where a light, roomy one belongs; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (" + tellOf("film") + " " + tellOf("picture") + " " + tellOf("colour") + " " + tellOf("type") + "); padding (" + tellOf("padding") + "); a real object at the wrong proportions (a phone drawn like a chunky tablet); a camera that never moves (no push-ins, pans or depth), or one that drifts all the time instead of holding and then moving decisively). The bar, measured from the films people share most: screens that look like the real product and answer every tap; each scene growing out of the last (out of an icon, through an object, a notification opening into its screen) rather than a plain cut or fade; something new about every second; nothing that would stop it passing for a film Apple posted. Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
+		"\n\nWatch it the way its audience would, on a phone, with no context. Would a top studio release it? Name its worst weaknesses, at most 4, the most important first: anything a viewer would notice (unclear what it's about or what happens; the product not shown early or clearly; frames that are empty, static, cluttered or unbalanced; words cut off, overlapping, too small or on screen too briefly; any word garbled, spelt backwards, with its letters spread far apart or piled on one another, or a number outside the box it belongs in (read every word closely); a dark, crowded look where a light, roomy one belongs; drawing that looks amateur; a style that changes between scenes; dull or abrupt transitions; a weak ending; a look that says AI made it (" + tellOf("film") + " " + tellOf("picture") + " " + tellOf("colour") + " " + tellOf("type") + "); padding (" + tellOf("padding") + "); a real object at the wrong proportions (a phone drawn like a chunky tablet); a phone that doesn't behave like one (typing with no keyboard, messages where no app puts them, no home or lock screen where the story starts on the phone); a picture of a place sitting behind the subject as a backdrop (a room, a café, a street, a sky) instead of the story happening in it; a slideshow of separate pictures (each scene a new layout faded into the next) instead of one continuous take where the same phone or place stays and changes; a camera that never moves (no push-ins, pans or depth), or one that drifts all the time instead of holding and then moving decisively). The bar, measured from the films people share most: screens that look like the real product and answer every tap; each scene growing out of the last (out of an icon, through an object, a notification opening into its screen) rather than a plain cut or fade; something new about every second; nothing that would stop it passing for a film Apple posted. Each concrete enough to fix in the code: what, when (the time), and how.\n\nReply with ONLY this JSON:\n{\"ship\": true only if it's ready to release as it is, \"fixes\": [\"...\"]}";
 	const r = await askFirst(critics.slice(0, 3), [{ role: "user", content: [{ type: "text", text: text + (bar ? "\n\nThe second picture is the bar: three style frames at the standard of the best product films (light ground, big confident words, room, one accent colour, real interface detail, soft shadows), made for a made-up app. Is this film as polished as they are? If not, say exactly what to change." : "") }, { type: "image_url", image_url: { url: sheet } }, ...(bar ? [{ type: "image_url", image_url: { url: bar } }] : [])] }], msg, undefined, "high");
 	const j = parseJSON(r.out) || {};
 	// (what the film's own code shows, first: the AI look and invented numbers are fixed whatever the critic thought)
@@ -14207,7 +14608,7 @@ async function critiqueFilm(html, brief, total, by, W, H, msg) {
 // sketches into advanced motion graphics with a single prompt"): imagination first, then the storyboard, drawn
 const SKETCHER = "You sketch short films the way Miles Holden does before Claude animates them: for every scene, a quick black-pen wireframe on white paper of exactly what that frame shows, plus a few hand-written motion notes. His sketches are the plan the animation makes real, and their magic is in the little interactions and in how each scene turns into the next.\n\n" +
 	"How his sketches look: a pill for a search bar with its words in it (\"Where to?\"), boxes for cards and rows, squiggles where small text goes, a phone outline when there's a phone, a button with its label, a check in a circle, the logo as a simple mark, a chart as a zigzag, a map route as a curve; only a few words written out (the big line, a label or two). They're sparse: often just three to six shapes in a frame. Beside them, two-to-four-word motion notes with arrows: \"pop!\", \"drag, cards flip\", \"tap, coin flies\", \"rows slide up\", \"whip up\", \"glow\", \"typed\", \"drops in\", \"light up\", \"live + pulse\", \"split\", \"zoom in\".\n\n" +
-	"The imagination is his: every scene has one interaction that delights (a card flips, a coin flies into a pot, a search types itself and the results drop in, a route draws itself, a logo pops with burst lines, a word wheel stops on the chosen word), and every scene grows out of the one before (an icon grows into the app, a notification opens into its screen, the camera pushes through one thing into the next, a shape becomes another); never a fade or a plain cut. A product film is a tiny story: a familiar moment, a need in a person's own words, the product answering it, the payoff, the brand's name and one line to end. Never a poster: a frame is one hero thing in a moment, not a layout of everything at once; at most two cards in a frame, never a stack of rows or a list of features (show what it does by something happening to one thing). It changes about every second: each scene's beats, one about every second, each a verb that changes a real part of the frame. Sketch the real place where it happens (the table, the street, the station, the belt) with the product's screen in it, as a phone or a floating card; or, when it all happens on a screen, that screen big with its one hero element. Only true things: no prices, numbers, results or names nobody gave.\n\n" +
+	"The imagination is his: every scene has one interaction that delights (a card flips, a coin flies into a pot, a search types itself and the results drop in, a route draws itself, a logo pops with burst lines, a word wheel stops on the chosen word), and every scene grows out of the one before (an icon grows into the app, a notification opens into its screen, the camera pushes through one thing into the next, a shape becomes another); never a fade or a plain cut. A product film is a tiny story: a familiar moment, a need in a person's own words, the product answering it, the payoff, the brand's name and one line to end. Never a poster: a frame is one hero thing in a moment, not a layout of everything at once; at most two cards in a frame, never a stack of rows or a list of features (show what it does by something happening to one thing). It changes about every second: each scene's beats, one about every second, each a verb that changes a real part of the frame. It is ONE continuous take: the same phone (or the same place) stays from the first scene to the last and each scene changes what's on it, never a new picture each scene. When it all happens on a phone, the phone fills the frame and its own real screens tell the story: the lock or home screen, the app opening out of its icon, the need typed on the keyboard, the answer arriving, the payoff, each growing out of the last. When it happens in a place, the camera travels through that place and something happens in it (you walk down the street while the directions card counts down, the pin drops on the café); a place that only sits behind a screen is a background: leave it out and stay on the screen. Only true things: no prices, numbers, results or names nobody gave.\n\n" +
 	"Sketch each scene of the shot list, on its times.\n\n" +
 	'Reply with ONLY JSON: {"idea": "the film\'s one idea, a sentence", "scenes": [{"from": 0, "to": 3.5, "line": "the big words on screen, six or fewer, or empty", "picture": "what\'s on screen and what happens, 25 to 45 words, concrete enough to build", "parts": [{"kind": "pill|box|card|button|phone|text|squiggle|circle|check|logo|chart|route|arrow|line", "label": "words in it, if any", "x": 50, "y": 30, "w": 70, "h": 8}], "notes": [{"text": "pop!", "x": 80, "y": 20, "to": [62, 28]}], "beats": [{"at": 0.4, "do": "search pill drops in"}, {"at": 1.2, "do": "types: Where to?"}], "into": "how it turns into the next scene", "camera": "hold, push in on…, follow…, pull back…"}]}. "at" is seconds from the start of the film. x and y are the centre, w and h the size, in percent of the frame; at most eight parts and three notes a scene; a note\'s "to" is the point its arrow points at.';
 async function sketchFilm(plan, brief, msg, signal) {
@@ -14335,10 +14736,79 @@ async function drawSketch(sk, aspect) {
 // design system, each scene of the sketch goes to its own animator at the same time, Celestin puts them together in a
 // frame it writes itself (the clock, which scene shows, a short crossfade), runs it, and a scene that breaks is redone by
 // the next model up. Each call is short: quicker, cheaper models can do a scene, and none outlasts a gateway's limit
-const FILM_LEAD = "You set up a short film that a team of animators will build scene by scene, all at the same time, so everything they share must be decided here, once.\n\nWrite ONLY JavaScript (no HTML, no markdown fences): a const D, the film's design system that every scene uses, and a function background(ctx, t) that paints the film's ground on every frame (gently alive: drifting light, grain, a slow gradient), never a flat empty colour. D holds: the palette as hex (ground, ink, soft ink, the accent and anything else the film needs), D.title and D.text (the Google Fonts families given), type sizes as fractions of H (D.big at least 0.07, D.body at least 0.035), margins, corner radii, the shadow, the motion timings, and small helpers every scene will draw the same way: the brand's logo as D.logo(ctx, x, y, size) when there is one, and, when the film shows a phone or a screen, D.device(ctx, t, screen): the film's ONE device, always the same size and place (MO.phone), with screen(ctx, w, h) painting what's on it, so it never changes between scenes. Size them the way the best product films do: the product's screen, phone or card fills the frame (at least 80% of its height in a tall film, 60% of its width in a wide one), never a small card in a big room, so every word on it reads on a phone. W, H and MO (the motion kit) already exist. Under 120 lines, no timers, no loading anything.";
-const FILM_SCENE = "You animate ONE scene of a short film while other animators make the other scenes at the same time, so yours must fit the shared design system exactly and hand over to the next scene the way the sketch says.\n\nWrite ONLY JavaScript (no HTML, no markdown fences), exactly: SCENES[N].draw = function (ctx, t, k) { ... }; with N your scene's number. t is the seconds since your scene began, k runs from 0 to 1 through it. The ground is already painted: draw everything of your scene, every frame, from t alone (no timers, no randomness except MO.rng). Use D (the design system, given) for every colour, font and size, and MO (the motion kit) for motion, the camera, the phone, the map, typing and captions. Show any phone or screen only through D.device, so it's identical in every scene; words on it with MO.text and its maxW so nothing spills past its edges. Make it an animation, not a poster: one hero thing, big, with a beat about every second (something arrives, is typed, tapped, flies, transforms, the camera pushes through), words big enough to read on a phone, never a stack of cards. The product fills the frame the way D sizes it. Only facts from the brief: no invented numbers, percentages, prices, dates, names, results or web addresses (an example screen shows the brief's own words or neutral ones). Under 160 lines.";
+const FILM_LEAD = "You set up a short film that a team of animators will build scene by scene, all at the same time. It plays as ONE continuous take, never a row of separate pictures: everything the scenes share is decided here, once, and Celestin's frame keeps it on screen between them.\n\nWrite ONLY JavaScript (no HTML, no markdown fences): a const D, the film's design system that every scene uses, and a function background(ctx, t) that paints the film's ground on every frame: a clean cinematic ground, gently alive (a soft light drifting, fine grain), near-black tinted toward the brand's hue or a warm or cool off-white. Never a picture behind the subject (a room, a café, a street, a sky, a pattern, shapes): when the story happens in a place, the scenes build that place and the camera travels through it; a place that only sits behind the subject is a background, and the best films have none. D holds: the palette as hex (ground, ink, soft ink, the accent and anything else the film needs), D.title and D.text (the Google Fonts families given), type sizes as fractions of H (D.big at least 0.07, D.body at least 0.035), margins, corner radii, the shadow, the motion timings, and small helpers every scene will draw the same way: the brand's logo as D.logo(ctx, x, y, size) when there is one, and D.device(ctx, t, screen), required whenever the film is about an app, a website or any software (its story is told on the product's own screens: a phone by default, MO.browser only for something used on a computer), left out only for a story with no screen in it: the film's ONE device, which Celestin's frame draws under every scene that shows a screen, so it never moves, changes or blinks between scenes; it calls screen(sctx, w, h) for what's on it (w and h in its points). A phone: MO.phone(ctx, W / 2, H / 2, height, {screen: (c, t, w, h) => screen(c, w, h), ...}) standing upright, as big as the frame allows (about 94% of H): centred in a tall film; in a wide film to one side (its centre about a third in from an edge) with the room beside it kept for each moment's idea in big words (D.big), never two empty sides or a small card in a big room; a computer: MO.browser filling about 90% of the width. The scenes' camera pushes in on it to read, so the screen fills the frame when it matters. W, H and MO (the motion kit) already exist. Under 120 lines, no timers, no loading anything.";
+const FILM_SCENE = "You animate ONE scene of a short film while other animators make the other scenes at the same time. The film plays as ONE continuous take: the shared device stays where it is between scenes and only what's on it changes, so start your scene exactly where the scene before ends (given) and leave it the way the next one begins.\n\nWrite ONLY JavaScript (no HTML, no markdown fences), with N your scene's number, any of these three:\n- SCENES[N].screen = function (ctx, t, k, w, h) { ... } (required whenever the design system has D.device: the story is told on it): what the film's device shows during your scene, in its points (w 393 wide, h tall), drawn by Celestin's frame inside the device. Tell it with the kit's real screens: MO.lock, MO.notify, MO.home and MO.appOpen (the app opening out of its icon), MO.field, MO.typing and MO.keyboard (the need typed key by key, each key popping), MO.chat (the conversation laying itself out, a reply streaming in), MO.map, MO.route, MO.pin.\n- SCENES[N].draw = function (ctx, t, k) { ... }: anything in the frame outside the device (in a wide film, your moment's idea in a few big words beside it, D.big, always; something flying out of the screen, the brand's last frame), in frame pixels. When the film has no device, everything is drawn here.\n- SCENES[N].cam = [{t, x, y, z, dur, ease}, ...]: your scene's camera keys (t in seconds from your scene's start, x and y the frame point at the centre, z the zoom): the frame joins every scene's keys into one camera over the whole film, so push in to read (until what matters fills the frame's width: z about 1.2 to 1.4 on a phone in a tall film, up to 2.5 in a wide one, onto the keyboard, the answer, the button that's tapped), follow what moves, pull back. Never call MO.view or MO.cam yourself.\nt is the seconds since your scene began, k runs from 0 to 1 through it. The ground is already painted: draw everything of your scene, every frame, from t alone (no timers, no randomness except MO.rng). Use D (the design system, given) for every colour, font and size. Words go where the real interface puts them (MO.chat, MO.field and MO.notify place them; never hand-place a message), and anything else with MO.text and its maxW so nothing spills. Make it an animation, not a poster: one hero thing, big, with a beat about every second (something arrives, is typed, tapped, flies, transforms, the camera pushes through), words big enough to read on a phone, never a stack of cards. The product fills the frame the way D sizes it. Only facts from the brief: no invented numbers, percentages, prices, dates, names, results or web addresses (an example screen shows the brief's own words or neutral ones). Under 160 lines.";
 const codeOf = (t) => { const m = String(t || "").match(/\x60\x60\x60(?:js|javascript)?\s*([\s\S]*?)\x60\x60\x60/i); return (m ? m[1] : String(t || "")).trim(); };
-async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, best) {
+// Celestin's frame for a team film: the film plays as ONE take. The lead's device (D.device) is drawn once under every
+// scene that shows a screen, so it never moves or blinks between scenes; each scene's screen() paints what's on it (the
+// next one dissolving in over the last); each scene's cam keys join into one camera move over the whole film; draw()
+// paints anything outside the device. A scene in the older form (draw only) still plays (Nov 22: the owner saw the films
+// play "in frames of the sketches", each scene a new picture faded into the next)
+const TEAM_FRAME = String.raw`const XF = 0.4;
+let CAMK = null;
+const camKeys = () => {
+	if (CAMK) return CAMK;
+	CAMK = [];
+	if (!SCENES.some((s) => Array.isArray(s.cam) && s.cam.length)) return CAMK;
+	SCENES.forEach((s) => { for (const k of Array.isArray(s.cam) && s.cam.length ? s.cam : [{ t: 0 }]) if (k && typeof k === "object") CAMK.push({ ...k, t: s.from + Math.max(0, Number(k.t) || 0) }); });
+	return CAMK;
+};
+const alphaOf = (i, t) => {
+	const s = SCENES[i], next = SCENES[i + 1];
+	if (t < s.from - XF / 2 || t > s.to + XF / 2) return 0;
+	let a = 1;
+	if (i > 0 && t < s.from + XF / 2) a = Math.min(1, (t - (s.from - XF / 2)) / XF);
+	if (next && t > s.to - XF / 2) a = Math.min(a, Math.max(0, (s.to + XF / 2 - t) / XF));
+	return Math.max(0, a);
+};
+window.seek = async (t) => {
+	await document.fonts.ready;
+	ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;
+	background(ctx, t);
+	const on = [];
+	for (let i = 0; i < SCENES.length; i++) {
+		const a = alphaOf(i, t);
+		if (a <= 0) continue;
+		if (SCENES[i].broken) throw new Error("scene " + (i + 1) + ": " + SCENES[i].broken.message);
+		on.push([i, a]);
+	}
+	const lt = (i) => Math.max(0, t - SCENES[i].from), lk = (i) => Math.min(1, Math.max(0, (t - SCENES[i].from) / (SCENES[i].to - SCENES[i].from)));
+	const run = (i, f) => { try { f(); } catch (e) { if (/^scene \d+:/.test(String(e && e.message))) throw e; throw new Error("scene " + (i + 1) + ": " + (e && e.message || e)); } };
+	ctx.save();
+	const K = camKeys();
+	if (K.length) MO.view(ctx, MO.cam(t, K));
+	const scr = on.filter(([i]) => typeof SCENES[i].screen === "function");
+	if (scr.length && typeof D !== "undefined" && D && typeof D.device === "function") {
+		const dev = Math.min(1, scr.reduce((n, [, a]) => n + a, 0));
+		ctx.save(); ctx.globalAlpha = dev;
+		run(scr[0][0], () => D.device(ctx, t, (sc, w, h) => {
+			const base = sc.globalAlpha;
+			scr.forEach(([i, a], j) => { sc.save(); sc.globalAlpha = base * (j ? a / dev : 1); run(i, () => SCENES[i].screen(sc, lt(i), lk(i), w || 393, h || 852)); sc.restore(); });
+		}));
+		ctx.restore();
+	}
+	for (const [i, a] of on) {
+		if (typeof SCENES[i].draw !== "function") continue;
+		ctx.save(); ctx.globalAlpha = a;
+		run(i, () => SCENES[i].draw(ctx, lt(i), lk(i)));
+		ctx.restore();
+	}
+	ctx.restore();
+};`;
+// the lead's design system: the first of the candidates that sends it back whole (one that can't answer right now hands it
+// to the next); null when none did
+async function filmLeadDesign(plan, brief, cands, msg, signal, best, onStatus) {
+	const compiles = (code) => { try { new Function(code); return true; } catch { return false; } };
+	for (const m of cands.slice(0, 3)) {
+		if (onStatus) onStatus(m);
+		try {
+			const d = codeOf(await stream(m.id, [{ role: "system", content: FILM_LEAD + "\n\n" + MOTION_KIT_DOC }, { role: "user", content: brief + "\n\nThe film's fonts: " + ((plan.type || {}).title || "Hanken Grotesk") + " for titles, " + ((plan.type || {}).text || "Hanken Grotesk") + " for other words.\n\nWrite D and background." }], () => {}, signal, best(m), msg));
+			if (/\bconst D\b/.test(d) && /function background/.test(d) && compiles(d)) return { lead: m, design: d };
+		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	return null;
+}
+async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, best, early) {
 	const sk = SKETCH_NOW && SKETCH_NOW.sk, total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
 	if (!sk || !Array.isArray(sk.scenes) || sk.scenes.length < 2) return null;
 	// (the scenes on the film's own clock, end to end)
@@ -14353,24 +14823,28 @@ async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, b
 	// (code that doesn't even compile, a reply cut off part way say: found before the film is put together)
 	const compiles = (code) => { try { new Function(code); return true; } catch { return false; } };
 	const kit = MOTION_KIT_DOC;
-	// (the lead: the first that sends the design system back whole; one that can't answer right now hands it to the next)
-	let lead = cands[0], design = "";
-	for (const m of cands.slice(0, 3)) {
-		onStatus("A team is making it: " + shortName(m) + " sets the look, " + S.length + " animators make the scenes at the same time");
+	// (the lead: started at the same time as the sketch when it could be; otherwise asked now)
+	const got = (early && (await early.catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }))) || (await filmLeadDesign(plan, brief, cands, msg, signal, best, (m) => onStatus("A team is making it: " + shortName(m) + " sets the look, " + S.length + " animators make the scenes at the same time")));
+	let lead = got ? got.lead : cands[0], design = got ? got.design : "";
+	// (a film whose sketch shows a screen is told on it: a design system without the device is asked for once more)
+	const onScreen = /\b(phones?|iphone|apps?|screens?|chat|keyboard|notification|typ(?:es|ed|ing)|website|browser|dashboard|tap(?:s|ped)?)\b/i.test(sk.scenes.map((x) => x.picture + " " + (x.parts || []).map((p) => p.kind + " " + p.label).join(" ")).join(" "));
+	if (design && onScreen && !/\bdevice\s*[:=(]/.test(design)) {
+		onStatus("The lead adds the film's phone, so every scene is told on it");
 		try {
-			const d = codeOf(await say(m, FILM_LEAD + "\n\n" + kit, brief + "\n\nThe film's fonts: " + ((plan.type || {}).title || "Hanken Grotesk") + " for titles, " + ((plan.type || {}).text || "Hanken Grotesk") + " for other words.\n\nWrite D and background."));
-			if (/\bconst D\b/.test(d) && /function background/.test(d) && compiles(d)) { lead = m; design = d; break; }
+			const ask = brief + "\n\nThe film's fonts: " + ((plan.type || {}).title || "Hanken Grotesk") + " for titles, " + ((plan.type || {}).text || "Hanken Grotesk") + " for other words.\n\nWrite D and background.";
+			const d = codeOf(await stream(lead.id, [{ role: "system", content: FILM_LEAD + "\n\n" + MOTION_KIT_DOC }, { role: "user", content: ask }, { role: "assistant", content: design }, { role: "user", content: "This film's story happens on a screen (the sketch shows it), so D needs D.device: the film's one phone (MO.phone; MO.browser only for something used on a computer) that every scene's screen is drawn on. Send D and background again, whole, with D.device." }], () => {}, signal, best(lead), msg));
+			if (/\bconst D\b/.test(d) && /function background/.test(d) && compiles(d) && /\bdevice\s*[:=(]/.test(d)) design = d;
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 	}
+	if (got && early) onStatus("A team is making it: " + shortName(lead) + " set the look while it was sketched, " + S.length + " animators make the scenes at the same time");
 	if (!design) throw new Error("The lead's design system didn't come back whole");
-	const sceneAsk = (i) => "The film: " + plan.title + ". " + String(sk.idea || "") + "\n\nThe design system every scene shares (use it exactly):\n" + design.slice(0, 12000) + "\n\nYour scene is number " + i + " of " + S.length + ", " + (times[i].to - times[i].from).toFixed(1) + " seconds long (" + times[i].from.toFixed(1) + " to " + times[i].to.toFixed(1) + " s in the film). The sketch of it: " + (S[i].line ? "big words \"" + S[i].line + "\" · " : "") + S[i].picture + (S[i].beats && S[i].beats.length ? " · beats (film time): " + S[i].beats.map((b) => b.at.toFixed(1) + " s " + b.do).join("; ") : "") + (S[i].camera ? " · camera: " + S[i].camera : "") + (S[i].into ? " · it turns into the next scene: " + S[i].into : "") + (i ? "\nThe scene before ends with: " + (S[i - 1].into || S[i - 1].picture) : "\nIt opens the film.") + (i + 1 < S.length ? "\nThe next scene: " + S[i + 1].picture : "\nIt ends the film: the brand's mark lands last.") + "\n\nWrite SCENES[" + i + "].draw.";
+	const sceneAsk = (i) => "The film: " + plan.title + ". " + String(sk.idea || "") + "\n\nThe design system every scene shares (use it exactly):\n" + design.slice(0, 12000) + "\n\nYour scene is number " + i + " of " + S.length + ", " + (times[i].to - times[i].from).toFixed(1) + " seconds long (" + times[i].from.toFixed(1) + " to " + times[i].to.toFixed(1) + " s in the film). The sketch of it: " + (S[i].line ? "big words \"" + S[i].line + "\" · " : "") + S[i].picture + (S[i].beats && S[i].beats.length ? " · beats (film time): " + S[i].beats.map((b) => b.at.toFixed(1) + " s " + b.do).join("; ") : "") + (S[i].camera ? " · camera: " + S[i].camera : "") + (S[i].into ? " · it turns into the next scene: " + S[i].into : "") + (i ? "\nThe scene before ends with: " + (S[i - 1].into || S[i - 1].picture) : "\nIt opens the film.") + (i + 1 < S.length ? "\nThe next scene: " + S[i + 1].picture : "\nIt ends the film: the brand's mark lands last.") + (/D\.device\s*[=(:]|device\s*[:(]/.test(design) ? "\n\nWrite SCENES[" + i + "].screen (what the device shows), with .draw and .cam as your scene needs them." : "\n\nThis film has no device: write SCENES[" + i + "].draw, with .cam as your scene needs it.");
 	const writeScene = async (i, m, err, code) => codeOf(await say(m, FILM_SCENE + "\n\n" + kit, sceneAsk(i) + (err ? "\n\nThis version failed when it ran:\n" + err + "\n\nThe code:\n" + String(code).slice(0, 20000) + "\n\nFind the cause and send it again, whole." : "")));
 	// (everyone at once)
 	const parts = await Promise.all(S.map((_, i) => writeScene(i, lead).catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return ""; })));
 	const fonts = [...new Set([(plan.type || {}).title, (plan.type || {}).text].filter(Boolean))].map((f) => "family=" + encodeURIComponent(f).replace(/%20/g, "+") + ":wght@400;500;600;700;800").join("&");
 	const build = () => "<!doctype html><html><head><meta charset=\"utf-8\">" + (fonts ? "<link href=\"https://fonts.googleapis.com/css2?" + fonts + "&display=swap\" rel=\"stylesheet\">" : "") + "<style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body><canvas id=\"c\"></canvas>\n<script>\nconst c = document.getElementById(\"c\"); c.width = W; c.height = H; const ctx = c.getContext(\"2d\");\nwindow.DURATION = " + total + ";\n" + design + "\nconst SCENES = " + JSON.stringify(times.map((x) => ({ from: x.from, to: x.to }))) + ";\n" +
-		parts.map((p, i) => "// scene " + (i + 1) + "\ntry {\n" + (p || "SCENES[" + i + "].draw = function () {};") + "\n} catch (e) { SCENES[" + i + "].broken = e; }").join("\n") +
-		"\nconst XF = 0.4;\nwindow.seek = async (t) => {\n\tawait document.fonts.ready;\n\tctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1;\n\tbackground(ctx, t);\n\tfor (let i = 0; i < SCENES.length; i++) {\n\t\tconst s = SCENES[i], next = SCENES[i + 1];\n\t\tif (t < s.from - XF / 2 || t > s.to + XF / 2) continue;\n\t\tif (s.broken) throw new Error(\"scene \" + (i + 1) + \": \" + s.broken.message);\n\t\tlet a = 1;\n\t\tif (i > 0 && t < s.from + XF / 2) a = Math.min(1, (t - (s.from - XF / 2)) / XF);\n\t\tif (next && t > s.to - XF / 2) a = Math.min(a, Math.max(0, (s.to + XF / 2 - t) / XF));\n\t\tctx.save(); ctx.globalAlpha = Math.max(0, a);\n\t\ttry { s.draw(ctx, Math.max(0, t - s.from), Math.min(1, Math.max(0, (t - s.from) / (s.to - s.from)))); } catch (e) { throw new Error(\"scene \" + (i + 1) + \": \" + (e && e.message || e)); }\n\t\tctx.restore();\n\t}\n};\n<\/script></body></html>";
+			parts.map((p, i) => "// scene " + (i + 1) + "\ntry {\n" + (p || "SCENES[" + i + "].draw = function () {};") + "\n} catch (e) { SCENES[" + i + "].broken = e; }").join("\n") + "\n" + TEAM_FRAME + "\n<\/script></body></html>";
 	// The team fixes its own film: the notes go to every scene's animator with that scene's code, all at the same time,
 	// each sending its scene back changed (or UNCHANGED). Short calls, so the gateway never cuts one off the way it cut the
 	// whole film's edit (Nov 22: twice at 125 s, paid, nothing fixed). A scene the fix breaks goes back to how it was
@@ -14384,7 +14858,7 @@ async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, b
 			try {
 				const said = await say(lead, FILM_SCENE + "\n\n" + kit, ask(i));
 				const code = codeOf(said);
-				return /^\s*UNCHANGED\b/i.test(String(said).trim()) || !/SCENES\s*\[\s*\d+\s*\]\s*\.draw/.test(code) || !compiles(code) ? parts[i] : code;
+				return /^\s*UNCHANGED\b/i.test(String(said).trim()) || !/SCENES\s*\[\s*\d+\s*\]\s*\.(draw|screen)/.test(code) || !compiles(code) ? parts[i] : code;
 			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return parts[i]; }
 		}));
 		if (next.every((p, i) => p === parts[i])) return null;
@@ -14473,6 +14947,9 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	let html = "", by = null, lastErr, team = null;
 	// (a new film: sketched first, imagination and storyboard, and the sketch shown while it's made)
 	SKETCH_NOW = null;
+	// (the team's lead sets the look from the director's plan while the sketch is drawn: it doesn't need the sketch)
+	const early = !prev ? filmLeadDesign(plan, brief, cands, msg, signal, best, null) : null;
+	if (early) early.catch(() => {});
 	if (!prev) {
 		try {
 			onStatus("Sketching it first: inventing the idea, then drawing the storyboard");
@@ -14487,7 +14964,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	// make it run, one animator makes it whole, as before)
 	if (!prev && SKETCH_NOW) {
 		try {
-			const t = await teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, best);
+			const t = await teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, best, early);
 			if (t) { html = t.html; by = t.by; team = t; if (msg && msg.used) msg.used.push({ name: shortName(t.by), desc: "Lead: set the look; " + t.team + " scenes animated at the same time" }); }
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; lastErr = e; }
 	}
