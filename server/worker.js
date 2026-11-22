@@ -1621,6 +1621,14 @@ function inTokensOf(b) {
 // whichever way it went. real: what the owner pays for it that way (the list price plus Cloudflare's 5% there,
 // OpenRouter's own figure there). A prompt read back from a cache is billed at the cached price; a lab's own web search
 // at about a cent a search.
+// What a reply really wrote, thinking included: the largest of completion_tokens, the total less the prompt, and the
+// details' text plus thinking. (Flaz streams Claude's usage with the thinking left out of completion_tokens but bills it:
+// measured Nov 22, a call said 2 tokens, its details 485 thinking + 4 text, and the key's spend rose by all 489)
+function outTokens(u) {
+	u = u || {};
+	const d = u.completion_tokens_details && typeof u.completion_tokens_details === "object" ? u.completion_tokens_details : {};
+	return Math.max(Number(u.completion_tokens) || 0, u.prompt_tokens ? (Number(u.total_tokens) || 0) - Number(u.prompt_tokens) : 0, (Number(d.text_tokens) || 0) + (Number(d.reasoning_tokens) || 0));
+}
 function priceOf(way, u, price, inTokens, outChars) {
 	u = u || {};
 	const own = Number(u.cost);
@@ -1640,7 +1648,7 @@ function priceOf(way, u, price, inTokens, outChars) {
 	// were said: a YouTube video Gemini watched through Flaz came back with prompt_tokens 0 and total_tokens 615,000 for
 	// 19 seconds, a count, not a bill (its own cost: $0.0007). Tested Nov 8. Taken as thinking, one short video cost a
 	// person 70 credits.) Each video watched: a cent at list price, for what watching it may really cost
-	const out = Math.max(u.completion_tokens || 0, u.prompt_tokens ? (u.total_tokens || 0) - u.prompt_tokens : 0) || Math.ceil((outChars || 0) / 4);
+	const out = outTokens(u) || Math.ceil((outChars || 0) / 4);
 	const list = (prompt - read - wrote) * price.pin + read * (price.pcr ?? (claude ? price.pin * 0.1 : price.pin)) + wrote * (price.pcw ?? (claude ? price.pin * 1.25 : price.pin)) + out * price.pout + (u.web_searches || 0) * 0.01 + (Number(u.videos) || 0) * 0.01;
 	return { list, real: list * (way.fee ?? 1) };
 }
@@ -1904,6 +1912,32 @@ async function modelFailed(env, model) {
 	for (const k of Object.keys(map)) if (now() - map[k].at >= HEALTH_FOR) delete map[k];
 	await saveHealth(env, map);
 }
+// (one model the gateway can't serve right now while the key works: out for a quarter hour at once, not after three tries)
+async function modelDown(env, model) {
+	const map = await healthMap(env);
+	map[model] = { n: 3, at: now() };
+	await saveHealth(env, map);
+}
+// Does the gateway's key itself still work? One tiny call to its cheapest-looking model, remembered for two minutes. A
+// 402 for one model can be the gateway's own supplier for that model running dry (Sonnet 5.5 through Flaz, Nov 22) while
+// the owner's wallet and every other model are fine
+const KEY_OK = new Map();
+async function keyWorks(w) {
+	const hit = KEY_OK.get(w.gw);
+	if (hit && Date.now() - hit.at < 120e3) return hit.ok;
+	let ok = false;
+	try {
+		const c = GWS.get(w.url.replace(/\/chat\/completions$/, "")) || { ids: [] };
+		const probe = (c.ids || []).find((x) => /nano/i.test(x)) || (c.ids || []).find((x) => /mini|haiku|flash-lite/i.test(x));
+		if (probe) {
+			const res = await fetch(w.url, { method: "POST", headers: { ...w.headers, "Content-Type": "application/json" }, body: JSON.stringify({ model: probe, messages: [{ role: "user", content: "Say OK" }], max_tokens: 16 }), signal: AbortSignal.timeout(15000) });
+			ok = res.ok;
+			await res.text().catch(() => "");
+		}
+	} catch {}
+	KEY_OK.set(w.gw, { at: Date.now(), ok });
+	return ok;
+}
 async function modelOk(env, model) {
 	const map = await healthMap(env);
 	if (!map[model]) return;
@@ -1924,7 +1958,7 @@ let DEAD = { at: 0, list: [] };
 async function deadList(env) {
 	if (now() - DEAD.at < 10 * 60e3) return DEAD.list;
 	try {
-		const r = await env.DB.prepare("SELECT model, COUNT(*) AS n, SUM(CASE WHEN in_tok > 0 OR out_tok > 0 OR cost_usd > 0 THEN 1 ELSE 0 END) AS ok FROM usage WHERE created_at > ? AND model LIKE '%/%' AND model NOT LIKE 'web-search%' GROUP BY model").bind(now() - 14 * 86400e3).all();
+		const r = await env.DB.prepare("SELECT model, COUNT(*) AS n, SUM(CASE WHEN in_tok > 0 OR out_tok > 0 OR charged_mc > 0 THEN 1 ELSE 0 END) AS ok FROM usage WHERE created_at > ? AND model LIKE '%/%' AND model NOT LIKE 'web-search%' GROUP BY model").bind(now() - 14 * 86400e3).all();
 		DEAD = { at: now(), list: (r.results || []).filter((x) => x.n >= 3 && !x.ok).map((x) => x.model) };
 	} catch { DEAD = { at: now(), list: [] }; }
 	return DEAD.list;
@@ -2012,10 +2046,13 @@ async function chat(req, env, ctx, user) {
 	if (!held) throw outOfCredits(user, c);
 
 	let settled = false;
-	const settle = async (way, usage, outChars) => {
+	// (owed: what a call that was cut off after a long silence most likely cost the owner anyway. The gateway bills the
+	// thinking it did; the person isn't charged for an answer they never got, but the log says what it really cost, so the
+	// owner's numbers match the gateway's wallet. Found Nov 22: the log said $0 for calls that emptied it)
+	const settle = async (way, usage, outChars, owed = 0) => {
 		if (settled) return null;
 		settled = true;
-		const { list, real } = way ? priceOf(way, videos ? { ...(usage || {}), videos } : usage, price, inTokens, outChars) : { list: 0, real: 0 };
+		const { list, real } = way ? priceOf(way, videos ? { ...(usage || {}), videos } : usage, price, inTokens, outChars) : { list: 0, real: owed > 0 ? owed : 0 };
 		// the real cost, even past the reserve (the input estimate can run low, e.g. images): the owner never absorbs it.
 		// The output was capped to what the balance covers, so any overshoot is small, and a balance below zero only
 		// blocks the next request until credits are bought.
@@ -2025,7 +2062,7 @@ async function chat(req, env, ctx, user) {
 		await env.DB.batch([
 			giveBack(env, user.id, held, charged),
 			// (what it read, how much of that came from the cache, and what it wrote: whether the gateway passes the cache on)
-			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at, in_tok, cached_tok, out_tok, ms, first_ms, write_tok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now(), Number(usage && usage.prompt_tokens) || 0, Number(usage && (usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens)) || 0, Number(usage && usage.completion_tokens) || 0, now() - started, firstAt ? firstAt - started : 0, Number(usage && (usage.prompt_tokens_details?.cache_write_tokens || usage.cache_creation_input_tokens || usage.prompt_tokens_details?.cache_creation_input_tokens)) || 0),
+			env.DB.prepare("INSERT INTO usage (user_id, model, cost_usd, charged_mc, created_at, in_tok, cached_tok, out_tok, ms, first_ms, write_tok) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(user.id, b.model, real, charged, now(), Number(usage && usage.prompt_tokens) || 0, Number(usage && (usage.prompt_tokens_details?.cached_tokens || usage.cache_read_input_tokens)) || 0, outTokens(usage), now() - started, firstAt ? firstAt - started : 0, Number(usage && (usage.prompt_tokens_details?.cache_write_tokens || usage.cache_creation_input_tokens || usage.prompt_tokens_details?.cache_creation_input_tokens)) || 0),
 			...freeSpend(env, held, charged, real),
 		]);
 		return charged;
@@ -2049,7 +2086,7 @@ async function chat(req, env, ctx, user) {
 		return openaiBody(req, w, name, maxOut, user.id, web);
 	};
 
-	let r = null, way = null, last = null;
+	let r = null, way = null, last = null, dry = false;
 	ask: for (const w of ways) {
 		// (each gateway remembers its own spelling)
 		const known = NAMES.get(w.kind + (w.gw || "") + " " + b.model);
@@ -2092,7 +2129,11 @@ async function chat(req, env, ctx, user) {
 					}
 					break;
 				}
-				if (w.kind === "gw" && [401, 402, 403].includes(res.status) && /\bkey\b|auth|balance|saldo|budget|credit|quota|insufficient|payment|unauthori[sz]ed/i.test(last.message || "")) GW_DOWN.set(w.gw, Date.now());
+				if (w.kind === "gw" && [401, 402, 403].includes(res.status) && /\bkey\b|auth|balance|saldo|budget|credit|quota|insufficient|payment|unauthori[sz]ed/i.test(last.message || "")) {
+					// (this model only, when the key still answers: the next way, and the gateway stays first for every other model)
+					if (res.status === 402 && (await keyWorks(w))) dry = true;
+					else GW_DOWN.set(w.gw, Date.now());
+				}
 				// (full right now, "at capacity": the other gateway first for the next two minutes)
 				else if (w.kind === "gw" && res.status === 503 && /overload|capacity/i.test(last.message || "")) GW_DOWN.set(w.gw, Date.now() - 480e3);
 				const bad = res.status === 400 || res.status === 404;
@@ -2104,15 +2145,18 @@ async function chat(req, env, ctx, user) {
 		}
 	}
 	if (!r) {
-		if (now() - started >= 80e3) await tooSlow(env, b.model, effort);
-		await settle(null);
+		const waited = now() - started;
+		if (waited >= 80e3) await tooSlow(env, b.model, effort);
+		// (silent that long, it was thinking the whole time: about 120 words a second, never more than it was allowed to write)
+		await settle(null, null, 0, waited >= 80e3 ? inTokens * (price.pin || 0) + Math.min(maxOut, ((waited - 5e3) / 1000) * 120) * (price.pout || 0) : 0);
 		// the owner's provider account refusing (no balance, a bad key) isn't the person's credits running out
 		const status = !last ? 502 : [401, 402, 403].includes(last.status) ? 503 : last.status;
 		// the gateway turning down Celestin's own key: no model will answer, so nobody is told to pick another. The owner
 		// is told the gateway's own words and what to do (and emailed); everyone else, that it's being fixed
-		const keyRefused = !!last && [401, 402, 403].includes(last.status) && /\bkey\b|auth|balance|budget|credit|quota|insufficient funds|payment|unauthori[sz]ed/i.test(last.message || "");
+		const keyRefused = !dry && !!last && [401, 402, 403].includes(last.status) && /\bkey\b|auth|balance|budget|credit|quota|insufficient funds|payment|unauthori[sz]ed/i.test(last.message || "");
 		// (the model itself failing, not the key or a crowd: counted, and three in a quarter hour leave it out for a while)
-		if (!keyRefused && !(last && last.status === 429)) await modelFailed(env, b.model);
+		if (dry) await modelDown(env, b.model);
+		else if (!keyRefused && !(last && last.status === 429)) await modelFailed(env, b.model);
 		if (keyRefused) await alertOwner(env, "gateway", "Your AI gateway turned down Celestin's key, so nobody can get answers right now. What it said: " + last.message + "\n\nWhat to do: open your gateway's dashboard (Flaz), go to the API keys, and unblock the key Celestin uses (or make a new key and send it to Claude). Check the wallet balance, and any budget cap on the key.");
 		const message = !last ? "Couldn't reach the AI provider. Try again."
 			: keyRefused ? (isOwner(user.id) ? "Your AI gateway turned down Celestin's key, so no model can answer: \"" + String(last.message).slice(0, 200) + "\". Open the gateway's dashboard (Flaz) → API keys, and unblock it or make a new one. Check the balance and any budget cap too." : "Celestin can't reach its AI models right now. It's being fixed: please try again in a little while.")
