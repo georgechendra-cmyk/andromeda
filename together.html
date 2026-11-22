@@ -14219,6 +14219,115 @@ function motionKit() {
 		ctx.restore();
 		if (o.at != null) { const d = t - o.at; if (d >= 0 && d < 0.5) { const k = d / 0.5; ctx.save(); ctx.globalAlpha *= (1 - k) * 0.5; ctx.strokeStyle = o.ring || "#0a84ff"; ctx.lineWidth = 2 * s; ctx.beginPath(); ctx.arc(x, y, (6 + 22 * ease.outCubic(k)) * s, 0, 2 * PI); ctx.stroke(); ctx.restore(); } }
 	};
+	// ---- MO3D: real-looking 3D for films (Nov 22 night; the owner: the gap to Miles Holden is the visuals: real, lit,
+	// recognisable things, never flat shapes on a colour). A studio that makes anything built from simple shapes look
+	// rendered: filmic tone, soft shadows, reflections from a lit room, real materials; a phone whose screen is the kit's
+	// own interface; UI cards and words floating in the light; a camera gliding through without stop-start. Needs three.js
+	// r128 loaded (W.THREE); everything is built once and moved from t on every frame
+	const M3 = (() => {
+		const T = () => W.THREE;
+		const col = (c) => new (T().Color)(c || "#cccccc");
+		const KIND = { ceramic: { roughness: 0.32, metalness: 0 }, plastic: { roughness: 0.42, metalness: 0 }, glossy: { roughness: 0.12, metalness: 0 }, matte: { roughness: 0.9, metalness: 0 }, metal: { roughness: 0.28, metalness: 1 }, brushed: { roughness: 0.5, metalness: 1 }, gold: { roughness: 0.25, metalness: 1 }, glass: { roughness: 0.04, metalness: 0, transparent: true, opacity: 0.28 }, wood: { roughness: 0.68, metalness: 0 }, paper: { roughness: 0.95, metalness: 0 }, fabric: { roughness: 1, metalness: 0 }, liquid: { roughness: 0.1, metalness: 0 }, rubber: { roughness: 0.85, metalness: 0 } };
+		const mat = (color, kind = "plastic", extra = {}) => new (T().MeshStandardMaterial)({ color: col(color), ...(KIND[kind] || KIND.plastic), ...extra });
+		const shadowed = (m) => { m.castShadow = true; m.receiveShadow = true; m.traverse && m.traverse((x) => { if (x.isMesh) { x.castShadow = true; x.receiveShadow = true; } }); return m; };
+		// a lit studio: an endless floor melting into the ground colour, soft key light with a soft shadow, a fill from the
+		// sky, a rim from behind, and reflections from a lit room (o: {ground, light: "warm" | "cool" | "golden" | "night",
+		// fov, exposure})
+		const studio = (canvas, o = {}) => {
+			const t3 = T(), r = new t3.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+			r.setPixelRatio(1); r.setSize(canvas.width, canvas.height, false);
+			r.outputEncoding = t3.sRGBEncoding; r.toneMapping = t3.ACESFilmicToneMapping; r.toneMappingExposure = o.exposure || 0.82;
+			r.shadowMap.enabled = true; r.shadowMap.type = t3.VSMShadowMap;
+			const scene = new t3.Scene(), ground = o.ground || "#e9e4dc", light = o.light || "warm";
+			scene.background = col(ground); scene.fog = new t3.Fog(col(ground), (o.size || 1.2) * 1.6, (o.size || 1.2) * 6);
+			// (reflections: a soft room with bright panels, turned into the light every surface reflects)
+			const pm = new t3.PMREMGenerator(r), room = new t3.Scene();
+			room.background = col(light === "night" ? "#14161c" : "#6f6a63");
+			for (const [x, y, z, w, h, k] of [[0, 6, 0, 8, 0.2, 2.2], [-6, 2, 2, 0.2, 4, 1.1], [6, 3, -2, 0.2, 3, 0.5], [0, 2, -6, 6, 3, 0.35]]) { const m = new t3.Mesh(new t3.BoxGeometry(w || 0.2, h || 0.2, x ? 6 : 0.2), new t3.MeshBasicMaterial({ color: new t3.Color(k, k * 0.97, k * 0.92) })); m.position.set(x, y, z); room.add(m); }
+			scene.environment = pm.fromScene(room, 0.04).texture;
+			const tint = { warm: "#ffe3c4", cool: "#dfe9ff", golden: "#ffc68a", night: "#9fb4ff" }[light] || "#ffffff";
+			const key = new t3.DirectionalLight(col(tint), light === "night" ? 1.2 : 2.4);
+			key.position.set(3.5, 6, 3); key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.radius = 3.5; key.shadow.bias = -0.0002;
+			// (the shadow's reach fits the scene's size: o.size metres across, a tabletop by default)
+			const sz = o.size || 1.2, sc = key.shadow.camera; sc.left = -sz; sc.right = sz; sc.top = sz; sc.bottom = -sz; sc.near = 0.5; sc.far = 20;
+			scene.add(key, new t3.HemisphereLight(col("#ffffff"), col(ground), light === "night" ? 0.18 : 0.32));
+			const rim = new t3.DirectionalLight(col("#ffffff"), light === "night" ? 1.4 : 0.9); rim.position.set(-4, 3, -5); scene.add(rim);
+			const floor = new t3.Mesh(new t3.PlaneGeometry(80, 80), mat(col(ground).multiplyScalar(0.82).getStyle(), "matte")); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+			const camera = new t3.PerspectiveCamera(o.fov || 30, canvas.width / canvas.height, 0.02, 200);
+			camera.position.set(0, 1.6, 6); camera.lookAt(0, 0.6, 0);
+			return { THREE: t3, renderer: r, scene, camera, key, floor, render: () => r.render(scene, camera), add: (...m) => { m.forEach((x) => scene.add(shadowed(x))); return m[0]; } };
+		};
+		// shapes: a box with rounded edges, a turned shape (a cup, a bottle, a bowl, a vase) from its profile, a cylinder
+		const rbox = (w, h, d, r = 0.05, color = "#ddd", kind = "plastic") => {
+			const t3 = T(), rr = Math.min(r, w / 2, h / 2), s = new t3.Shape(), x = -w / 2, y = -h / 2;
+			s.moveTo(x + rr, y); s.lineTo(x + w - rr, y); s.quadraticCurveTo(x + w, y, x + w, y + rr); s.lineTo(x + w, y + h - rr); s.quadraticCurveTo(x + w, y + h, x + w - rr, y + h); s.lineTo(x + rr, y + h); s.quadraticCurveTo(x, y + h, x, y + h - rr); s.lineTo(x, y + rr); s.quadraticCurveTo(x, y, x + rr, y);
+			const bev = Math.min(rr, d / 2) * 0.9, g = new t3.ExtrudeGeometry(s, { depth: Math.max(0.0001, d - 2 * bev), bevelEnabled: true, bevelThickness: bev, bevelSize: bev * 0.9, bevelSegments: 5, curveSegments: 10 });
+			g.translate(0, 0, -(d - 2 * bev) / 2);
+			return shadowed(new t3.Mesh(g, typeof color === "object" ? color : mat(color, kind)));
+		};
+		const turned = (profile, color = "#fff", kind = "ceramic", seg = 64) => { const t3 = T(); return shadowed(new t3.Mesh(new t3.LatheGeometry(profile.map(([rr, y]) => new t3.Vector2(rr, y)), seg), typeof color === "object" ? color : mat(color, kind, { side: t3.DoubleSide }))); };
+		const cyl = (r, h, color = "#ddd", kind = "plastic", seg = 48) => { const t3 = T(), m = new t3.Mesh(new t3.CylinderGeometry(r, r, h, seg), mat(color, kind)); m.position.y = h / 2; return shadowed(m); };
+		// a cup with its drink (o: {color, drink, h, r, handle}), its base on y = 0
+		const cup = (o = {}) => {
+			const t3 = T(), g = new t3.Group(), h = o.h || 0.11, r = o.r || 0.045;
+			const prof = [[0, 0], [r * 0.72, 0], [r * 0.78, 0.006], [r * 0.86, h * 0.35], [r, h], [r * 0.94, h], [r * 0.8, h * 0.36], [r * 0.66, 0.012], [0, 0.012]];
+			g.add(turned(prof, o.color || "#f4f1ec", o.kind || "ceramic"));
+			const drink = new t3.Mesh(new t3.CircleGeometry(r * 0.88, 48), mat(o.drink || "#6b4226", "liquid", { side: t3.DoubleSide })); drink.rotation.x = -Math.PI / 2; drink.position.y = h * 0.8; drink.renderOrder = 2; g.add(drink);
+			if (o.handle !== false) { const hd = new t3.Mesh(new t3.TorusGeometry(h * 0.26, h * 0.055, 16, 40, Math.PI * 1.25), mat(o.color || "#f4f1ec", o.kind || "ceramic")); hd.position.set(r * 0.98, h * 0.56, 0); hd.rotation.z = -Math.PI * 0.62; g.add(hd); }
+			return shadowed(g);
+		};
+		// a flat thing drawn by canvas (a UI card, a sign, a label, a poster) floating in the light: draw(ctx, w, h, t) in
+		// pixels; o: {w, h (metres), px (pixels per metre), r (corner, metres), glow}. Returns the mesh; .update(t) redraws it
+		const card = (draw, o = {}) => {
+			const t3 = T(), w = o.w || 0.4, h = o.h || 0.24, px = o.px || 1400, cv = document.createElement("canvas");
+			cv.width = Math.round(w * px); cv.height = Math.round(h * px);
+			const cx = cv.getContext("2d"), tex = new t3.CanvasTexture(cv); tex.encoding = t3.sRGBEncoding; tex.anisotropy = 8;
+			const r = o.r != null ? o.r : Math.min(w, h) * 0.12;
+			const m = rbox(w, h, o.d || 0.012, r, new t3.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0 }));
+			m.material = [new t3.MeshStandardMaterial({ map: tex, roughness: 0.5 }), new t3.MeshStandardMaterial({ color: col(o.edge || "#f2f2f2"), roughness: 0.6 })];
+			// (the extruded face takes the picture; its sides the edge colour)
+			const uv = m.geometry.attributes.uv, pos = m.geometry.attributes.position;
+			for (let i = 0; i < uv.count; i++) uv.setXY(i, pos.getX(i) / w + 0.5, pos.getY(i) / h + 0.5);
+			m.update = (t) => { cx.setTransform(1, 0, 0, 1, 0, 0); cx.clearRect(0, 0, cv.width, cv.height); cx.fillStyle = o.bg || "#ffffff"; cx.fillRect(0, 0, cv.width, cv.height); draw(cx, cv.width, cv.height, t); tex.needsUpdate = true; };
+			m.update(0);
+			return m;
+		};
+		// a phone standing in the scene, its screen the kit's own interface: screen(ctx, t, w, h) in points, as MO.screen.
+		// height in metres (a real one is 0.1475); .update(t) redraws the screen
+		const phone = (screen, o = {}) => {
+			const t3 = T(), H = o.height || 0.1475, Wd = H * 0.485, g = new t3.Group();
+			const body = rbox(Wd, H, 0.0083, Wd * 0.18, o.frame || "#2b2b2f", "brushed"); g.add(body);
+			const cv = document.createElement("canvas"); cv.width = 786; cv.height = 1704;
+			const cx = cv.getContext("2d"), tex = new t3.CanvasTexture(cv); tex.encoding = t3.sRGBEncoding; tex.anisotropy = 8;
+			const sw = Wd * 0.93, sh = H * 0.955, shape = new t3.Shape(), rr = sw * 0.16;
+			shape.moveTo(-sw / 2 + rr, -sh / 2); shape.lineTo(sw / 2 - rr, -sh / 2); shape.quadraticCurveTo(sw / 2, -sh / 2, sw / 2, -sh / 2 + rr); shape.lineTo(sw / 2, sh / 2 - rr); shape.quadraticCurveTo(sw / 2, sh / 2, sw / 2 - rr, sh / 2); shape.lineTo(-sw / 2 + rr, sh / 2); shape.quadraticCurveTo(-sw / 2, sh / 2, -sw / 2, sh / 2 - rr); shape.lineTo(-sw / 2, -sh / 2 + rr); shape.quadraticCurveTo(-sw / 2, -sh / 2, -sw / 2 + rr, -sh / 2);
+			const sg = new t3.ShapeGeometry(shape, 12), uv = sg.attributes.uv, ps = sg.attributes.position;
+			for (let i = 0; i < uv.count; i++) uv.setXY(i, ps.getX(i) / sw + 0.5, ps.getY(i) / sh + 0.5);
+			const glass = new t3.Mesh(sg, new t3.MeshStandardMaterial({ map: tex, roughness: 0.08, metalness: 0, emissive: col("#ffffff"), emissiveMap: tex, emissiveIntensity: 0.3 }));
+			glass.position.z = 0.0043; g.add(glass);
+			g.update = (t) => { cx.setTransform(1, 0, 0, 1, 0, 0); MO.screen(cx, 0, 0, cv.width, cv.height, { screen, t, dark: o.dark }); tex.needsUpdate = true; };
+			g.update(0);
+			return shadowed(g);
+		};
+		// a camera gliding through keys [{t, at: [x, y, z], look: [x, y, z], fov}], passing each at its time on one smooth
+		// curve (never stopping at a key unless two keys sit in the same place), eased at the very start and end
+		const glide = (camera, t, keys) => {
+			const t3 = T(), K = keys.slice().sort((a, b) => a.t - b.t);
+			if (!K.length) return;
+			const tt = Math.max(K[0].t, Math.min(K[K.length - 1].t, t));
+			let i = 0;
+			while (i + 1 < K.length - 1 && tt >= K[i + 1].t) i++;
+			const a = K[Math.max(0, i - 1)], b = K[i], c = K[Math.min(K.length - 1, i + 1)], d = K[Math.min(K.length - 1, i + 2)];
+			const u = c.t > b.t ? (tt - b.t) / (c.t - b.t) : 0;
+			const cr = (p0, p1, p2, p3) => { const u2 = u * u, u3 = u2 * u; return 0.5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3); };
+			const P = [0, 1, 2].map((j) => cr(a.at[j], b.at[j], c.at[j], d.at[j])), L = [0, 1, 2].map((j) => cr((a.look || a.at)[j], (b.look || [0, 0, 0])[j], (c.look || [0, 0, 0])[j], (d.look || c.look || [0, 0, 0])[j]));
+			camera.position.set(P[0], P[1], P[2]); camera.lookAt(L[0], L[1], L[2]);
+			const fov = cr(a.fov || 30, b.fov || 30, c.fov || 30, d.fov || 30);
+			if (Math.abs(camera.fov - fov) > 1e-3) { camera.fov = fov; camera.updateProjectionMatrix(); }
+		};
+		return { studio, mat, rbox, turned, cyl, cup, card, phone, glide, shadowed, kinds: Object.keys(KIND) };
+	})();
+	W.MO3D = M3;
 	W.MO = { ease, spring, p, stagger, lerp, mix, clamp, rng, cam, view, rr, card, glass, edge, icon, icons: Object.keys(ICONS), text, typed, typing, caret, num, roll, arc, press, tap, phone, statusBar, map, route, pin, words, grain, vignette, kit, home, appOpen, appIcon, lock, notify, field, keyboard, chat, screen, browser, cursor };
 }
 // (put into every film program, before its own script, by sceneDoc)
@@ -14250,6 +14359,7 @@ const MOTION_KIT_DOC = `Celestin's motion kit is already in your document as win
 - MO.map(ctx, x, y, w, h, {seed, dark, scale, labels: [{text, u, v}], water}): a maps-app view (streets, main roads, a river, parks), returning {at(u, v)} for points on it; MO.route(ctx, [[x, y], ...], k, {color, width, t}): the route drawing itself as k goes 0 to 1 (ease it with MO.p), with the moving dot and its pulse at the head, returning the head's [x, y] (follow it with the camera); MO.pin(ctx, x, y, size, k, {color, icon}): a pin dropping in and settling. A delivery, a ride, a walk, a trip: a dot moving along a real-looking map, inside MO.phone's screen or full frame.
 - MO.words(ctx, s, x, y, t, at, {size, wps, key: [...], color, keyColor, maxW, align}): a caption arriving word by word as it's said (wps words a second from at), its key words heavier and in their own colour, the way the most-shared shorts caption; returns when the last word lands.
 - MO.grain(ctx, W, H, t, amount): film grain; MO.vignette(ctx, W, H, amount).
+- Real-looking 3D (window.MO3D, when the film loads three.js r128): S = MO3D.studio(canvas, {ground, light: "warm"|"cool"|"golden"|"night", fov, size}) gives a lit studio that makes simple shapes look rendered (filmic tone, soft shadows, reflections, an endless floor): S.scene, S.camera, S.add(mesh), S.render(). Things: MO3D.rbox(w, h, d, r, color, kind), MO3D.turned([[radius, y], ...], color, kind) for anything turned (a cup, a bottle, a bowl, a vase), MO3D.cyl, MO3D.cup({color, drink}), with kinds ceramic, plastic, glossy, matte, metal, brushed, gold, glass, wood, paper, fabric, liquid, rubber (sizes in metres, real ones); MO3D.phone(screen, {height}): a real phone whose screen is the kit's own interface (screen(ctx, t, w, h) in points, as MO.screen; call .update(t) each frame); MO3D.card(draw, {w, h, px, r}): a UI card, a sign or a label floating in the light (draw(ctx, w, h, t) in pixels; .update(t)); MO3D.glide(S.camera, t, [{t, at: [x, y, z], look: [x, y, z], fov}]): the camera gliding through its keys on one smooth curve. Build the scene once, move it from t on every frame, then S.render().
 Motion blur is added for you when the film is rendered, the way a camera's shutter makes it, on anything that moves fast: never imitate it with ctx.filter blur on moving things.`;
 // What separates a film people share from one they scroll past as "AI-made": both animators follow it
 const FILM_CRAFT = `Taste, camera and realism (what separates a film people share from one they scroll past as "AI-made"):
