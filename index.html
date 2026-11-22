@@ -14808,6 +14808,9 @@ async function filmLeadDesign(plan, brief, cands, msg, signal, best, onStatus) {
 	}
 	return null;
 }
+// the animators measured to keep their thinking short at low effort on a film scene (a lead that doesn't hands its
+// scenes to the best-ranked of these; none reachable: the lead does them)
+const HOLDS_LOW = new Set(["google/gemini-4-argon"]);
 async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, best, early) {
 	const sk = SKETCH_NOW && SKETCH_NOW.sk, total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
 	if (!sk || !Array.isArray(sk.scenes) || sk.scenes.length < 2) return null;
@@ -14839,9 +14842,18 @@ async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, b
 	if (got && early) onStatus("A team is making it: " + shortName(lead) + " set the look while it was sketched, " + S.length + " animators make the scenes at the same time");
 	if (!design) throw new Error("The lead's design system didn't come back whole");
 	const sceneAsk = (i) => "The film: " + plan.title + ". " + String(sk.idea || "") + "\n\nThe design system every scene shares (use it exactly):\n" + design.slice(0, 12000) + "\n\nYour scene is number " + i + " of " + S.length + ", " + (times[i].to - times[i].from).toFixed(1) + " seconds long (" + times[i].from.toFixed(1) + " to " + times[i].to.toFixed(1) + " s in the film). The sketch of it: " + (S[i].line ? "big words \"" + S[i].line + "\" · " : "") + S[i].picture + (S[i].beats && S[i].beats.length ? " · beats (film time): " + S[i].beats.map((b) => b.at.toFixed(1) + " s " + b.do).join("; ") : "") + (S[i].camera ? " · camera: " + S[i].camera : "") + (S[i].into ? " · it turns into the next scene: " + S[i].into : "") + (i ? "\nThe scene before ends with: " + (S[i - 1].into || S[i - 1].picture) : "\nIt opens the film.") + (i + 1 < S.length ? "\nThe next scene: " + S[i + 1].picture : "\nIt ends the film: the brand's mark lands last.") + (/D\.device\s*[=(:]|device\s*[:(]/.test(design) ? "\n\nWrite SCENES[" + i + "].screen (what the device shows), with .draw and .cam as your scene needs them." : "\n\nThis film has no device: write SCENES[" + i + "].draw, with .cam as your scene needs it.");
-	const writeScene = async (i, m, err, code) => codeOf(await say(m, FILM_SCENE + "\n\n" + kit, sceneAsk(i) + (err ? "\n\nThis version failed when it ran:\n" + err + "\n\nThe code:\n" + String(code).slice(0, 20000) + "\n\nFind the cause and send it again, whole." : "")));
+	// (the scenes' animator: the best-ranked one after the lead whose thinking can be held low, at low thinking; Claude
+	// through a gateway thinks thousands of tokens a call whatever it's asked, so it leads and remakes, and the scenes go to
+	// the next. The owner's choice, Nov 22: "Sonnet leads, Argon animates")
+	// (measured on the same scene-sized task through Flaz, Nov 22: Gemini 4 Argon at low wrote 1,414 tokens in 17 s; Gemini
+	// 3.1 Pro Preview at low wrote 18,777 in 120 s and was cut; every Claude thought 1 to 15 thousand whatever it was asked)
+	const holdsLow = (m) => HOLDS_LOW.has(m.id);
+	const worker = holdsLow(lead) ? lead : cands.find((m) => m.id !== lead.id && holdsLow(m)) || lead;
+	const sayAs = (m, sys, text) => (m.id === worker.id && worker.id !== lead.id ? stream(m.id, [{ role: "system", content: sys }, { role: "user", content: text }], () => {}, signal, { ...best(m), ...effortFor(m.id, "low") }, msg) : say(m, sys, text));
+	const writeScene = async (i, m, err, code) => codeOf(await sayAs(m, FILM_SCENE + "\n\n" + kit, sceneAsk(i) + (err ? "\n\nThis version failed when it ran:\n" + err + "\n\nThe code:\n" + String(code).slice(0, 20000) + "\n\nFind the cause and send it again, whole." : "")));
 	// (everyone at once)
-	const parts = await Promise.all(S.map((_, i) => writeScene(i, lead).catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return ""; })));
+	if (worker.id !== lead.id) onStatus(shortName(lead) + " set the look; " + S.length + " scenes are animated by " + shortName(worker) + " at the same time");
+	const parts = await Promise.all(S.map((_, i) => writeScene(i, worker).catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return ""; })));
 	const fonts = [...new Set([(plan.type || {}).title, (plan.type || {}).text].filter(Boolean))].map((f) => "family=" + encodeURIComponent(f).replace(/%20/g, "+") + ":wght@400;500;600;700;800").join("&");
 	const build = () => "<!doctype html><html><head><meta charset=\"utf-8\">" + (fonts ? "<link href=\"https://fonts.googleapis.com/css2?" + fonts + "&display=swap\" rel=\"stylesheet\">" : "") + "<style>html,body{margin:0;background:#000}canvas{display:block}</style></head><body><canvas id=\"c\"></canvas>\n<script>\nconst c = document.getElementById(\"c\"); c.width = W; c.height = H; const ctx = c.getContext(\"2d\");\nwindow.DURATION = " + total + ";\n" + design + "\nconst SCENES = " + JSON.stringify(times.map((x) => ({ from: x.from, to: x.to }))) + ";\n" +
 			parts.map((p, i) => "// scene " + (i + 1) + "\ntry {\n" + (p || "SCENES[" + i + "].draw = function () {};") + "\n} catch (e) { SCENES[" + i + "].broken = e; }").join("\n") + "\n" + TEAM_FRAME + "\n<\/script></body></html>";
@@ -14856,7 +14868,7 @@ async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, b
 		const next = await Promise.all(S.map(async (_, i) => {
 			if (!mine(i).length) return parts[i];
 			try {
-				const said = await say(lead, FILM_SCENE + "\n\n" + kit, ask(i));
+				const said = await sayAs(worker, FILM_SCENE + "\n\n" + kit, ask(i));
 				const code = codeOf(said);
 				return /^\s*UNCHANGED\b/i.test(String(said).trim()) || !/SCENES\s*\[\s*\d+\s*\]\s*\.(draw|screen)/.test(code) || !compiles(code) ? parts[i] : code;
 			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return parts[i]; }
@@ -14887,7 +14899,7 @@ async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, b
 			// (one remake a scene: one that breaks again is left out, the film's ground showing there, not paid for again)
 			if (redone.has(i)) { parts[i] = "SCENES[" + i + "].draw = function () {};"; onStatus("Scene " + (i + 1) + " still broke: left out"); continue; }
 			redone.add(i);
-			const up = cands.find((m) => m.id !== lead.id) || lead;
+			const up = worker.id !== lead.id ? lead : cands.find((m) => m.id !== lead.id) || lead;
 			onStatus("Scene " + (i + 1) + " broke: " + shortName(up) + " makes it again");
 			const again = await writeScene(i, up, String(e.message || e).slice(0, 600), parts[i]).catch(() => null);
 			if (!again) throw e;
