@@ -13370,9 +13370,10 @@ async function shutter(sh, t, b) {
 	const d = madOf(prev, g);
 	// (still, or a cut: as it is)
 	if (d < 1.5 || d > 40) return b;
-	// (at most 5 passes: past that the eye can't tell, and every pass is a whole frame drawn again; the owner, Nov 23: no one waits 20 minutes)
+	// (gentle motion: as it is, at 60 a second the eye can't tell; the owner, Nov 23: no one waits 20 minutes. Faster: 3 to 11
+	// moments, more the faster it moves; Nov 23, capped at 5 a whip showed five copies of every letter instead of a streak)
 	if (d < 2.5) return b;
-	const n = d < 7 ? 3 : 5, span = SHUTTER / sh.fps;
+	const n = d < 5 ? 3 : d < 9 ? 5 : d < 15 ? 7 : 11, span = SHUTTER / sh.fps;
 	const acc = sh.acc || (sh.acc = document.createElement("canvas"));
 	if (acc.width !== b.width || acc.height !== b.height) { acc.width = b.width; acc.height = b.height; }
 	const x = acc.getContext("2d");
