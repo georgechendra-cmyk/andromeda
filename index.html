@@ -3084,7 +3084,7 @@ function codeFirst(ranked) {
 // the owner's own head-to-head verdicts on exactly one kind of work (Nov 23: one ad brief, made the same way by each model,
 // scored by them): direct evidence on that work, so for that role their 54/46 rule is applied to these scores too. A model
 // they scored outside 54/46 of their best goes right behind it; everything they didn't score keeps the leaderboards' order
-const OWNER_VERDICTS = { animation: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6 }, director: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6, "google/gemini-4-argon": 3 }, directorFromImage: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6, "google/gemini-4-argon": 3 } };
+const OWNER_VERDICTS = { animation: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6, "google/gemini-4-argon": 3 }, drawn: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6, "google/gemini-4-argon": 3 }, director: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6, "google/gemini-4-argon": 3 }, directorFromImage: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6, "google/gemini-4-argon": 3 } };
 function ownerVerdict(feature, data) {
 	const v = OWNER_VERDICTS[feature];
 	if (!v) return data;
