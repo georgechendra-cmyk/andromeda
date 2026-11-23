@@ -13809,6 +13809,7 @@ function motionKit() {
 			}
 			done = k >= 1; caretX = x + pre[s.length] * k;
 		} else {
+			(W.__moTyped || (W.__moTyped = new Map())).set(at + "|" + s, { t: at, sfx: "type", text: s.slice(0, 300), cps: o.cps || 18 });
 			const T = typeTimes(s, at, o.cps || 18);
 			let n = 0; while (n < T.length && T[n] <= t) n++;
 			for (let i = 0; i < s.length; i++) {
@@ -14206,8 +14207,11 @@ function motionKit() {
 		const s = o.text != null ? String(o.text) : "", T = s ? typeTimes(s, o.at || 0, o.cps || 18) : [];
 		let n = 0;
 		while (n < T.length && T[n] <= t) n++;
-		// (a key's pop-up eases in as it's pressed and fades as the finger lifts, over about five frames, not on/off)
-		const dtk = n ? t - T[n - 1] : 9, hot = n && dtk < 0.2 ? s[n - 1].toLowerCase() : null, hotA = hot ? clamp(dtk / 0.025) * (1 - clamp((dtk - 0.09) / 0.11)) : 0;
+		// (each pressed key: its pop-up rises in over 2 frames, stays while the finger is down, about a tenth of a second,
+		// and fades over 5 as it lifts; at typing speed the last one is still fading as the next rises, as on a real phone)
+		const press = [];
+		for (let j = Math.max(0, n - 4); j < n; j++) { const d = t - T[j]; if (d >= 0 && d < 0.24) press.push({ ch: s[j].toLowerCase(), a: ease.outCubic(clamp(d / 0.035)) * (1 - ease.inOutCubic(clamp((d - 0.12) / 0.11))), d }); }
+		const hot = press.length ? press[press.length - 1].ch : null;
 		const gap = 6 * u, kw = (w - 6 * u - 9 * gap) / 10, kH = 42 * u, r = 5 * u, rowY = (i) => y0 + 52 * u + i * 54 * u, keyAt = {};
 		ctx.save();
 		ctx.fillStyle = C.bg; ctx.fillRect(0, y0, w, h - y0 + 2);
@@ -14224,7 +14228,7 @@ function motionKit() {
 		{ const cx = w - 3 * u - sw / 2, cy = y2 + kH / 2, a = 9 * u; ctx.save(); ctx.strokeStyle = C.ink; ctx.lineWidth = 1.6 * u; ctx.lineJoin = "round"; ctx.beginPath(); ctx.moveTo(cx - a * 1.25, cy); ctx.lineTo(cx - a * 0.55, cy - a * 0.75); ctx.lineTo(cx + a * 1.1, cy - a * 0.75); ctx.lineTo(cx + a * 1.1, cy + a * 0.75); ctx.lineTo(cx - a * 0.55, cy + a * 0.75); ctx.closePath(); ctx.stroke(); ctx.beginPath(); ctx.moveTo(cx - a * 0.05, cy - a * 0.32); ctx.lineTo(cx + a * 0.6, cy + a * 0.32); ctx.moveTo(cx + a * 0.6, cy - a * 0.32); ctx.lineTo(cx - a * 0.05, cy + a * 0.32); ctx.stroke(); ctx.restore(); }
 		key(3 * u, y3, bw, "123", true);
 		key(w - 3 * u - bw, y3, bw, o.ret || "return", true);
-		key(3 * u + bw + gap, y3, w - 2 * (3 * u + bw + gap), "space", false, hot === " ");
+		key(3 * u + bw + gap, y3, w - 2 * (3 * u + bw + gap), "space", false, press.some((q) => q.ch === " " && q.a > 0.3));
 		// (under the keys: the emoji face and the microphone)
 		{ const cx = 30 * u, cy = y0 + 296 * u, a = 11 * u; ctx.save(); ctx.strokeStyle = C.soft; ctx.lineWidth = 1.7 * u; ctx.beginPath(); ctx.arc(cx, cy, a, 0, 2 * PI); ctx.stroke(); ctx.beginPath(); ctx.arc(cx, cy + a * 0.1, a * 0.5, 0.15 * PI, 0.85 * PI); ctx.stroke(); ctx.fillStyle = C.soft; for (const dx of [-0.35, 0.35]) { ctx.beginPath(); ctx.arc(cx + dx * a, cy - a * 0.25, a * 0.11, 0, 2 * PI); ctx.fill(); } ctx.restore(); }
 		icon(ctx, "mic", w - 30 * u, y0 + 296 * u, 24 * u, C.soft);
@@ -14233,13 +14237,15 @@ function motionKit() {
 		const word = s.slice(0, n).split(/\s/).pop();
 		if (word) text(ctx, "\u201c" + word + "\u201d", w / 2, y0 + 29 * u, { size: 16 * u, color: C.ink, align: "center" });
 		// (the key being typed pops up above itself)
-		if (hot && keyAt[hot] && hotA > 0.01) {
-			const [x, y, ww] = keyAt[hot], px = x - 7 * u, pw = ww + 14 * u, py = y - 58 * u + (1 - hotA) * 6 * u;
-			ctx.globalAlpha *= hotA;
+		for (const q of press) {
+			if (!keyAt[q.ch] || q.a < 0.01) continue;
+			const [x, y, ww] = keyAt[q.ch], px = x - 7 * u, pw = ww + 14 * u, py = y - 58 * u + (1 - q.a) * 7 * u;
+			ctx.save(); ctx.globalAlpha *= q.a;
 			ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.28)"; ctx.shadowBlur = 7 * u * scaleOf(ctx); ctx.shadowOffsetY = 1 * u * scaleOf(ctx);
 			rr(ctx, px, py, pw, 56 * u, 9 * u); ctx.fillStyle = C.key; ctx.fill(); ctx.restore();
 			rr(ctx, x, py + 40 * u, ww, y + kH - (py + 40 * u), r); ctx.fillStyle = C.key; ctx.fill();
-			text(ctx, o.caps ? hot.toUpperCase() : hot, x + ww / 2, py + 41 * u, { size: 34 * u, weight: 300, color: C.ink, align: "center" });
+			text(ctx, o.caps ? q.ch.toUpperCase() : q.ch, x + ww / 2, py + 41 * u, { size: 34 * u, weight: 300, color: C.ink, align: "center" });
+			ctx.restore();
 		}
 		ctx.restore();
 		return { y: y0, h: h - y0, keyAt: (ch) => { const k = keyAt[String(ch).toLowerCase()]; return k ? { x: k[0] + k[2] / 2, y: k[1] + kH / 2 } : null; } };
@@ -15456,7 +15462,7 @@ function sfxBuffer(ctx, kind, seed, cue) {
 	const put = (i, v, pan = 0) => { if (i < 0 || i >= len) return; L[i] += v * (1 - Math.max(0, pan)); R[i] += v * (1 + Math.min(0, pan)); };
 	const tick = (at, gain, tone) => { for (let i = 0; i < sr * 0.03; i++) { const e = Math.exp(-i / (sr * 0.0035)); put(Math.round(at * sr) + i, (rnd() * 0.6 + Math.sin(2 * Math.PI * tone * i / sr) * 0.5) * e * gain); } };
 	if (kind === "click") tick(0, 0.9, 2400);
-	else if (kind === "type" && keys && keys.length) for (const at of keys) tick(at, 0.5 + 0.25 * Math.abs(rnd()), 1700 + 700 * Math.abs(rnd()));
+	else if (kind === "type" && keys && keys.length) { const tock = (at, gain, tone) => { let lp = 0; for (let i = 0; i < sr * 0.016; i++) { const e = Math.exp(-i / (sr * 0.0022)); lp += (rnd() - lp) * 0.35; put(Math.round(at * sr) + i, (lp * 0.55 + Math.sin(2 * Math.PI * tone * i / sr) * 0.45) * e * gain, 0.08); } }; for (const at of keys) tock(at, 0.32 + 0.1 * Math.abs(rnd()), 950 + 350 * Math.abs(rnd())); }
 	else if (kind === "type") { let at = 0; for (let k = 0; k < 5; k++) { tick(at, 0.55 + 0.2 * Math.abs(rnd()), 1800 + 600 * Math.abs(rnd())); at += 0.07 + 0.05 * Math.abs(rnd()); } }
 	else if (kind === "pop") { let ph = 0; for (let i = 0; i < len; i++) { const f = 900 * Math.exp(-i / (sr * 0.03)) + 260; ph += 2 * Math.PI * f / sr; put(i, Math.sin(ph) * Math.exp(-i / (sr * 0.025)) * 0.8); } }
 	else if (kind === "notify") { for (const [f, at] of [[880, 0], [1320, 0.12]]) for (let i = 0; i < sr * 0.35; i++) { const e = Math.exp(-i / (sr * 0.09)); put(Math.round(at * sr) + i, (Math.sin(2 * Math.PI * f * i / sr) + 0.3 * Math.sin(4 * Math.PI * f * i / sr)) * e * 0.45); } }
