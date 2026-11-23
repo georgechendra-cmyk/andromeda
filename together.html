@@ -13068,6 +13068,34 @@ async function produce(msg, only, signal) {
 		d.stage = "cutting";
 		paint();
 		d.final = await vault.put(await cut(plan.oneTake && d.take ? takeView(d) : d, (p) => { d.progress = p; paint(); }));
+		// 6. watched before it's handed over, with its sound, by the model best at watching: what a viewer would notice is
+		// fixed once, and the film cut again (the owner asked for this months before it was built, Nov 23)
+		if (plan.oneTake && d.take && !d.watched && plan.scenes.some((x) => x.motion === "drawn")) {
+			d.watched = true;
+			try {
+				d.takeStatus = "Watching it the way a viewer will";
+				paint();
+				const seen = await watchFilm(d, signal);
+				if (seen) {
+					d.watch = { visuals: seen.visuals, creativity: seen.creativity, clear: seen.clear, problems: seen.problems.length };
+					note(shortName(seen.by), "Watched the finished film with its sound: visuals " + (seen.visuals ?? "?") + ", creativity " + (seen.creativity ?? "?") + (seen.problems.length ? ", " + seen.problems.length + " thing" + (seen.problems.length > 1 ? "s" : "") + " to fix" : ""));
+					if (seen.problems.length) {
+						const change = "Watched the finished film with its sound; fix what a viewer would notice, keep everything else as it is: " + seen.problems.map((p) => (p.at != null ? p.at + " s: " : "") + p.what + (p.fix ? " (fix: " + p.fix + ")" : "")).join(" | ");
+						d.takeStatus = "Fixing what the watch found";
+						paint();
+						const prev = await (await vault.get(d.take)).text();
+						const r = await animateFilm(plan, animators, msg, signal, FW, FH, prev, change, !!d.deep, (st) => { d.takeStatus = st; paint(); });
+						if (r && r.html) {
+							d.take = await vault.put(new Blob([r.html], { type: "text/html" }));
+							d.stage = "cutting";
+							paint();
+							d.final = await vault.put(await cut(takeView(d), (p) => { d.progress = p; paint(); }));
+						}
+					}
+				}
+			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			delete d.takeStatus;
+		}
 		// for YouTube: its thumbnail, from the shot the director chose, with its words on it (no model needed)
 		if (plan.youtube && plan.youtube.thumbnail.text) { try { d.thumb = await vault.put(await makeThumb(await vault.get(d.final), plan)); } catch {} }
 		d.stage = "done";
@@ -13123,7 +13151,7 @@ const XF = 0.35, END = 2.8;
 async function cut(d, onProgress) {
 	const plan = d.plan;
 	const [W, H] = plan.aspect === "9:16" ? [1080, 1920] : plan.aspect === "1:1" ? [1080, 1080] : [1920, 1080];
-	const scale = d.tier === "draft" ? 2 / 3 : 1;
+	const scale = d.tier === "draft" ? 2 / 3 : d.tier === "watch" ? 1 / 3 : 1;
 	const cw = Math.round(W * scale / 2) * 2, ch = Math.round(H * scale / 2) * 2;
 	// the shots that exist, their real lengths, and the voice lines' lengths
 	const shots = [];
@@ -13344,7 +13372,7 @@ async function cut(d, onProgress) {
 		if (endCard && t >= endAt) endFrame(t - endAt);
 	};
 	try {
-		const film = await encodeFilm({ canvas, total, mix, shots, frameAt, onProgress });
+		const film = await encodeFilm({ canvas, total, mix, shots, frameAt, onProgress, watch: d.tier === "watch" });
 		if (film) return film;
 	} catch (e) {
 		if (e.name === "AbortError") throw e;
@@ -13486,13 +13514,13 @@ async function shutter(sh, t, b) {
 	if (b.close) b.close();
 	return acc;
 }
-async function encodeFilm({ canvas, total, mix, shots, frameAt, onProgress }) {
+async function encodeFilm({ canvas, total, mix, shots, frameAt, onProgress, watch }) {
 	if (typeof VideoEncoder === "undefined" || typeof VideoFrame === "undefined") return null;
 	const cw = canvas.width, ch = canvas.height;
 	// drawn motion is 60 frames a second (the owner, Nov 23: Miles Holden's newest shorts, the Amazon and Duolingo ones, are
 	// 60 and that's much of why his typing and moves look smooth; drawn on the device's graphics card, a 30-second film's
 	// file takes well under a minute, and the film plays live meanwhile); filmed footage stays at its own 30
-	const fps = shots.some((s) => s.v) ? 30 : 60;
+	const fps = watch ? 12 : shots.some((s) => s.v) ? 30 : 60;
 	// (drawn shots know the frame rate, for their shutter)
 	for (const s of shots) if (s.drawn) s.fps = fps;
 	let vcfg = null;
@@ -13504,7 +13532,7 @@ async function encodeFilm({ canvas, total, mix, shots, frameAt, onProgress }) {
 	let acfg = null;
 	if (typeof AudioEncoder !== "undefined") {
 		for (const [codec, kind] of [["mp4a.40.2", "aac"], ["opus", "opus"]]) {
-			const c = { codec, sampleRate: mix.sampleRate, numberOfChannels: 2, bitrate: 192000 };
+			const c = { codec, sampleRate: mix.sampleRate, numberOfChannels: 2, bitrate: watch ? 64000 : 192000 };
 			try { if ((await AudioEncoder.isConfigSupported(c)).supported) { acfg = { c, kind }; break; } } catch {}
 		}
 	}
@@ -14860,6 +14888,19 @@ function segmentOf(html, at, secs) {
 	return k >= 0 ? html.slice(0, k) + tail + html.slice(k) : html + tail;
 }
 // what the editor cuts: a film made in one take is one shot, its own titles and ending in it
+// a film watched the way its viewer will see it: a small copy (a third of the size, 12 frames a second, with its sound) to
+// the model best at watching; what it finds, worst first, each with when and how to fix it
+async function watchFilm(d, signal) {
+	const w = videoWatcher();
+	if (!w) return null;
+	const blob = await cut({ ...takeView(d), tier: "watch" }, () => {});
+	if (!blob || blob.size > 6e6) return null;
+	const data = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.readAsDataURL(blob); });
+	const ask = "You're the creative director of a top motion-design studio, watching this film with its sound before it goes out. The bar is 9 out of 10: smooth, beautiful, creative, clear, the level of the best product shorts people share. Watch all of it, frame by frame where it matters. Reply with ONLY JSON: {\"visuals\": 1 to 10, \"creativity\": 1 to 10, \"clear\": true or false (would a stranger understand what it shows and sells), \"problems\": [{\"at\": seconds, \"what\": \"exactly what's wrong: a frozen picture, a sound glitch or a sound out of time, words cut off, too small or overlapping, a jump or something popping in, an empty, ugly or confusing frame, a boring stretch, anything made up\", \"fix\": \"what to change\"}]}, the worst first, at most 6; nothing that's already good.";
+	const out = String(await stream(w.id, [{ role: "user", content: [{ type: "file", file: { file_data: data.replace(/^data:[^;,]*/, "data:video/mp4"), format: "video/mp4" } }, { type: "text", text: ask }] }], null, signal, { max_tokens: 6000 }));
+	const j = parseJSON(out) || {};
+	return { by: w, visuals: j.visuals, creativity: j.creativity, clear: j.clear, problems: (Array.isArray(j.problems) ? j.problems : []).filter((p) => p && p.what).slice(0, 6) };
+}
 function takeView(d) {
 	const p = d.plan, secs = p.scenes.reduce((n, x) => n + x.seconds, 0);
 	return { ...d, plan: { ...p, parts: p.scenes.map((x) => ({ seconds: x.seconds, move: x.move })), end: { ...p.end, title: "", sub: "" }, scenes: [{ ...p.scenes[0], motion: "drawn", seconds: secs, caption: "", vo: "" }] }, scenes: [{ drawn: true, code: d.take }] };
