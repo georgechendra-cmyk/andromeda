@@ -13755,6 +13755,48 @@ function motionKit() {
 	};
 	const typing = (s, t, at, cps = 14) => { s = String(s); const T = typeTimes(s, at, cps), text = typed(s, t, at, cps), n = text.length; return { text, last: n ? T[n - 1] : -9, done: n >= s.length, end: T.length ? T[T.length - 1] : at }; };
 	const caret = (t, lastKeyAt = -9) => t - lastKeyAt < 0.5 || Math.floor((t - lastKeyAt) / 0.53) % 2 === 0;
+	// Typing that moves every frame, never letters popping on and off (measured against Miles Holden's typing, Nov 23:
+	// his words come in through a soft reveal, a sentence in about 0.5 s, the edge of the reveal about 5 letters wide; a
+	// letter popping on whole, a few frames apart, reads as stutter). Two ways:
+	// o.mode "keys" (on a phone keyboard): each letter lands with the keyboard, fading in and rising into place over
+	// o.fade (0.1 s); the caret glides to each new letter instead of jumping, and blinks softly only when idle.
+	// o.mode "reveal" (text appearing, no keyboard): the whole line comes in through a soft left-to-right edge over o.dur.
+	// Letters are placed by measuring the text up to them, so kerning never shifts a word. Returns {w, x: caret x, done}.
+	const typeDraw = (ctx, s, x, y, t, at, o = {}) => {
+		s = String(s);
+		const size = o.size || 17, font = o.font || kit.ui, weight = o.weight || 400, fade = o.fade || 0.1, mode = o.mode || "keys";
+		ctx.save();
+		ctx.font = weight + " " + size + "px " + font; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+		if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
+		const pre = [0]; for (let i = 1; i <= s.length; i++) pre.push(ctx.measureText(s.slice(0, i)).width);
+		const col = o.color || "#111", base = ctx.globalAlpha;
+		let caretX = x, done = false;
+		if (mode === "reveal") {
+			const dur = o.dur || Math.max(0.35, s.length * 0.028), edge = (o.edge || 5) * size * 0.55, k = ease.outCubic(clamp((t - at) / dur)), rx = -edge + k * (pre[s.length] + edge * 2);
+			for (let i = 0; i < s.length; i++) {
+				const a = clamp((rx - pre[i]) / edge); if (a <= 0) break;
+				ctx.globalAlpha = base * a; ctx.fillStyle = col; ctx.fillText(s[i], x + pre[i] + (1 - a) * size * 0.12, y);
+			}
+			done = k >= 1; caretX = x + pre[s.length] * k;
+		} else {
+			const T = typeTimes(s, at, o.cps || 14);
+			let n = 0; while (n < T.length && T[n] <= t) n++;
+			for (let i = 0; i < s.length; i++) {
+				const a = ease.outCubic(clamp((t - T[i]) / fade)); if (a <= 0) break;
+				ctx.globalAlpha = base * a; ctx.fillStyle = col; ctx.fillText(s[i], x + pre[i], y + (1 - a) * size * 0.16);
+			}
+			// (the caret moves on ahead of each letter as its key lands, in two frames, and the letter fades in behind it)
+			const from = n ? pre[n - 1] : 0, to = pre[n], g = n ? ease.outCubic(clamp((t - T[n - 1]) / 0.045)) : 0;
+			caretX = x + (n ? from + (to - from) * g : 0); done = n >= s.length;
+			if (o.caret !== false && t >= at - 0.4) {
+				const idle = t - (n ? T[n - 1] : at), blink = idle < 0.5 ? 1 : 0.5 + 0.5 * Math.cos(((idle - 0.5) / 1.06) * 2 * PI);
+				ctx.globalAlpha = base * clamp(blink * 1.6 - 0.3); ctx.fillStyle = o.caretColor || "#0a84ff";
+				ctx.fillRect(caretX + 1.5, y - size * 0.86, Math.max(1.6, size * 0.1), size * 1.12);
+			}
+		}
+		ctx.restore();
+		return { w: pre[s.length], x: caretX, done };
+	};
 	const num = (from, to, k, dec = 0) => lerp(from, to, clamp(k)).toLocaleString("en-US", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 	// odometer digits: each digit that changes rolls up from the old to the new one, right to left a little apart
 	const roll = (ctx, to, x, y, k, o = {}) => {
@@ -14105,6 +14147,17 @@ function motionKit() {
 		const sendW = o.send === false ? 0 : h - 6, room = w - 30 - sendW;
 		ctx.save(); rr(ctx, x, y, w - sendW - 2, h, h / 2); ctx.clip();
 		ctx.font = "400 " + size + "px " + font;
+		// (o.full with o.at and o.cps: the words typed smoothly, letter by letter as the keyboard types them)
+		if (o.full != null && o.t != null) {
+			const T = typeTimes(o.full, o.at || 0, o.cps || 14); let n = 0; while (n < T.length && T[n] <= o.t) n++;
+			const tw2 = ctx.measureText(String(o.full).slice(0, n)).width, tx2 = x + 14 - Math.max(0, tw2 - room);
+			if (!n && o.placeholder) text(ctx, o.placeholder, x + 14, y + h / 2 + size * 0.35, { size, color: dk ? "#8e8e93" : "#a1a1a6", font });
+			typeDraw(ctx, o.full, tx2, y + h / 2 + size * 0.35, o.t, o.at || 0, { size, font, cps: o.cps, color: dk ? "#fff" : "#000", caretColor: acc, caret: o.caret });
+			ctx.restore();
+			if (sendW) { const cx = x + w - h / 2, cy = y + h / 2; ctx.beginPath(); ctx.arc(cx, cy, sendW / 2, 0, 2 * PI); ctx.fillStyle = n ? acc : dk ? "#3a3a3c" : "#d9d9de"; ctx.fill(); icon(ctx, "arrowUp", cx, cy, sendW * 0.6, "#fff", { weight: 2.6 }); }
+			ctx.restore();
+			return { h, send: { x: x + w - h / 2, y: y + h / 2 } };
+		}
 		const tw = ctx.measureText(s).width, tx = x + 14 - Math.max(0, tw - room);
 		if (s) text(ctx, s, tx, y + h / 2 + size * 0.35, { size, color: dk ? "#fff" : "#000", font });
 		else if (o.placeholder) text(ctx, o.placeholder, x + 14, y + h / 2 + size * 0.35, { size, color: dk ? "#8e8e93" : "#a1a1a6", font });
@@ -14123,7 +14176,8 @@ function motionKit() {
 		const s = o.text != null ? String(o.text) : "", T = s ? typeTimes(s, o.at || 0, o.cps || 14) : [];
 		let n = 0;
 		while (n < T.length && T[n] <= t) n++;
-		const hot = n && t - T[n - 1] < 0.14 ? s[n - 1].toLowerCase() : null;
+		// (a key's pop-up eases in as it's pressed and fades as the finger lifts, over about five frames, not on/off)
+		const dtk = n ? t - T[n - 1] : 9, hot = n && dtk < 0.2 ? s[n - 1].toLowerCase() : null, hotA = hot ? clamp(dtk / 0.025) * (1 - clamp((dtk - 0.09) / 0.11)) : 0;
 		const gap = 6 * u, kw = (w - 6 * u - 9 * gap) / 10, kH = 42 * u, r = 5 * u, rowY = (i) => y0 + 52 * u + i * 54 * u, keyAt = {};
 		ctx.save();
 		ctx.fillStyle = C.bg; ctx.fillRect(0, y0, w, h - y0 + 2);
@@ -14149,8 +14203,9 @@ function motionKit() {
 		const word = s.slice(0, n).split(/\s/).pop();
 		if (word) text(ctx, "\u201c" + word + "\u201d", w / 2, y0 + 29 * u, { size: 16 * u, color: C.ink, align: "center" });
 		// (the key being typed pops up above itself)
-		if (hot && keyAt[hot]) {
-			const [x, y, ww] = keyAt[hot], px = x - 7 * u, pw = ww + 14 * u, py = y - 58 * u;
+		if (hot && keyAt[hot] && hotA > 0.01) {
+			const [x, y, ww] = keyAt[hot], px = x - 7 * u, pw = ww + 14 * u, py = y - 58 * u + (1 - hotA) * 6 * u;
+			ctx.globalAlpha *= hotA;
 			ctx.save(); ctx.shadowColor = "rgba(0,0,0,0.28)"; ctx.shadowBlur = 7 * u * scaleOf(ctx); ctx.shadowOffsetY = 1 * u * scaleOf(ctx);
 			rr(ctx, px, py, pw, 56 * u, 9 * u); ctx.fillStyle = C.key; ctx.fill(); ctx.restore();
 			rr(ctx, x, py + 40 * u, ww, y + kH - (py + 40 * u), r); ctx.fillStyle = C.key; ctx.fill();
@@ -14421,7 +14476,7 @@ function motionKit() {
 		return { studio, place, places: Object.keys(PLACES), mat, rbox, turned, cyl, cup, card, phone, glide, shadowed, kinds: Object.keys(KIND) };
 	})();
 	W.MO3D = M3;
-	W.MO = { ease, spring, p, stagger, lerp, mix, clamp, rng, cam, view, rr, card, glass, edge, icon, icons: Object.keys(ICONS), text, typed, typing, caret, num, roll, arc, press, tap, phone, statusBar, map, route, pin, words, grain, vignette, kit, home, appOpen, appIcon, lock, notify, field, keyboard, chat, screen, browser, cursor };
+	W.MO = { ease, spring, p, stagger, lerp, mix, clamp, rng, cam, view, rr, card, glass, edge, icon, icons: Object.keys(ICONS), text, typed, typing, caret, typeDraw, num, roll, arc, press, tap, phone, statusBar, map, route, pin, words, grain, vignette, kit, home, appOpen, appIcon, lock, notify, field, keyboard, chat, screen, browser, cursor };
 }
 // (put into every film program, before its own script, by sceneDoc)
 const MOTION_KIT_TAG = "<script>(" + motionKit + ")();<\/script>";
@@ -14442,7 +14497,7 @@ const MOTION_KIT_DOC = `Celestin's motion kit is already in your document as win
   MO.home(ctx, w, h, t, {wallpaper: [hex, hex] or (ctx, w, h) => {}, apps: [{slot, name, color, icon, draw(ctx, cx, cy, size)}], press: {slot, at}, hide: slot, badges: {slot: n}}): the home screen (slots 0 to 15 the grid, "d0" to "d3" the dock; put the film's app at a slot, its logo drawn by draw), returning {at(slot)} = {x, y, s}.
   MO.appOpen(ctx, w, h, k, from, draw, {app, bg}): the app growing out of its icon (from = home's at(slot), app = the same {color, icon, draw}) as k goes 0 to 1 (MO.p(t, at, 0.5, "smooth")), draw(ctx, w, h) painting the app's screen at full size.
   MO.lock(ctx, w, h, t, {time, date, wallpaper}): the lock screen. MO.notify(ctx, w, t, at, {title, body, color, icon, draw, until, time, y}): a notification sliding down at "at" (away at until), returning its box (to open it into its app); on the lock screen it sits under the clock (y: 250).
-  MO.typing(s, t, at, cps): {text, last, done, end}, s typed key by key by t. MO.field(ctx, x, y, w, {text, last, t, placeholder, color, dark}): the text box with its blinking caret and send button. MO.keyboard(ctx, w, h, {t, text, at, cps, k, dark, ret}): the keyboard, each key popping up the moment its letter lands (the same text, at and cps as MO.typing), k sliding it up from below; returns {y} its top (the field sits just above it).
+  MO.typing(s, t, at, cps): {text, last, done, end}, s typed key by key by t. MO.typeDraw(ctx, s, x, y, t, at, {size, font, weight, color, cps, mode, dur, caret, caretColor}): ALWAYS draw typing with this, never MO.typing's text all at once: mode "keys" (with a keyboard) lands each letter in a 0.1 s fade and rise as its key is pressed and glides the caret; mode "reveal" (no keyboard, the way the best product films type) brings the line in through a soft left-to-right edge over dur (about 0.5 s for a short sentence). MO.field takes {full, at, cps, t} to type into the box the same smooth way. MO.field(ctx, x, y, w, {text, last, t, placeholder, color, dark}): the text box with its blinking caret and send button. MO.keyboard(ctx, w, h, {t, text, at, cps, k, dark, ret}): the keyboard, each key popping up the moment its letter lands (the same text, at and cps as MO.typing), k sliding it up from below; returns {y} its top (the field sits just above it).
   MO.chat(ctx, x, y, w, h, t, msgs, {style, meColor, dark, mark, size, wps}): a conversation that lays itself out and scrolls as messages arrive: msgs [{from: "me" or "them", text, at, typing (seconds of the typing dots first), stream: true (the reply's words arriving as written), card: {h, draw(ctx, x, y, w, h, t)} (a picture, a list or a result inside the reply)}]; style "assistant" (an AI app) sets the person's words in a grey bubble and the answer as words across the screen, mark(ctx, x, y, size) drawing the assistant's logo beside it. Returns {at(i)}: each message's box (push the camera onto it).
 - For a computer: MO.browser(ctx, x, y, w, h, {url, screen(ctx, w, h), dark}): a browser window with the page inside; MO.cursor(ctx, x, y, t, {at}): the pointer, clicking at "at".
 - MO.icon(ctx, name, cx, cy, size, color): line icons in one weight: search, home, cart, bag, user, menu, heart, bell, check, chevronRight, chevronLeft, chevronDown, plus, minus, close, trash, play, pause, next, mic, camera, send, star, pin, clock, lock, share, card, chat, calendar, music, bolt, gift, filter, edit, image, phone, video, mail, map, settings, sun, moon, globe, arrowRight, arrowUp, download, refresh.
