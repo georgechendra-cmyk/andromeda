@@ -2252,6 +2252,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 		<nav class="sb-nav" aria-label="Celestin">
 			<button class="nav-i new" id="newChat" data-tip="New chat · Ctrl K" aria-label="New chat"><span class="ic"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span><span class="lbl">New chat</span><kbd>Ctrl K</kbd></button>
 			<button class="nav-i tg-only" id="tgNeedsNav" style="--c:#ff3b30" data-tip="Needs you: everything waiting for your decision" aria-label="Needs you"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="lbl">Needs you</span><span class="nb" id="tgNeedsNb"></span></button>
+			<button class="nav-i tg-only" id="tgMeetNav" style="--c:#0d0d0e" data-tip="Meet your team: talk it through out loud, and they do the action items" aria-label="Meet your team"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg><span class="lbl">Meet</span></button>
 			<button class="nav-i tg-only" id="tgAgentNav" style="--c:#5e5ce6" data-tip="Agents: any job, done by itself day and night" aria-label="Agents"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 8V5M9 13h.01M15 13h.01M9.5 17h5"/><circle cx="12" cy="4" r="1"/></svg><span class="lbl">Agents</span><span class="nb" id="tgAgentNb"></span></button>
 			<button class="nav-i tg-only" id="tgDeskNav" style="--c:#30b0c7" data-tip="Front desk: your receptionist on a link" aria-label="Front desk"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg><span class="lbl">Front desk</span><span class="nb" id="tgDeskNb"></span></button>
 			<button class="nav-i tg-only" id="tgMarketNav" style="--c:#ff9500" data-tip="Marketing: posts at the right moment" aria-label="Marketing"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l5 4V6L7 10z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/></svg><span class="lbl">Marketing</span><span class="nb" id="tgMarketNb"></span></button>
@@ -12473,7 +12474,7 @@ Return ONLY JSON:
 {"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none","type":{"title":"the Google Fonts family for titles and the end card","text":"the Google Fonts family for captions"}}`;
 const CELESTIN_LOOK = `Celestin itself (it's you: the true facts, its real look and its real screens, for anything you make about it; never invent other numbers, results or features):
 What it is: Celestin (celestin.pages.dev) is one AI app that gives each part of a job (the code, the design, the testing, the writing) to whichever AI model is best at that part right now, from GPT, Claude, Gemini, Grok, DeepSeek, Kimi, Qwen, Llama and more, and they work as one: the job is split, each part done by its best model, then put together, checked and fixed. It chats, writes, teaches, and makes websites, apps, games, documents, pictures, music and videos. It tests what it builds by playing it through, measures it on a phone and a laptop, and polishes it before you see it. A real run: asked "Make a website for my coffee shop", it built a working site in 5 minutes 42 seconds and polished 6 things first (the business is the placeholder "Your Café"). Free to try.
-Celestin Together (celestin.pages.dev/together.html): "Your AI team. Working for your business, day and night." Six AI teammates in one chat (a Lead, a Researcher, a Builder, a Writer and more), each the model measured best at its job: the Lead gives each part to the right teammate and they work at the same time, then check it. A front desk that never sleeps (answers your customers on a link you share, takes bookings, passes the rest to you); marketing at the right moment (writes your posts and puts them out when your audience is there, on X, Bluesky, Telegram and Discord); warm messages that bring regulars back; it answers your business phone and texts, and sends your email, keeps your calendar and sheets (when you connect them); it keeps working while the app is closed. What no other AI team has: undo, even after it's out. Nothing leaves without a second AI from another company checking it and ten minutes to stop it, and any post it made can still be taken back afterwards, from where it went. You pay only for the work: no subscription, free to start.
+Celestin Together (celestin.pages.dev/together.html): "Your AI team. Working for your business, day and night." Six AI teammates in one chat (a Lead, a Researcher, a Builder, a Writer and more), each the model measured best at its job: the Lead gives each part to the right teammate and they work at the same time, then check it. A front desk that never sleeps (answers your customers on a link you share, takes bookings, passes the rest to you); marketing at the right moment (writes your posts and puts them out when your audience is there, on X, Bluesky, Telegram and Discord); warm messages that bring regulars back; it answers your business phone and texts, and sends your email, keeps your calendar and sheets (when you connect them); it uses websites with you on your computer, signing in from a password vault there that no AI ever sees; you can meet your team out loud (it keeps the notes, and when you end the meeting it does the action items); it keeps working while the app is closed. What no other AI team has: undo, even after it's out. Nothing leaves without a second AI from another company checking it and ten minutes to stop it, and any post it made can still be taken back afterwards, from where it went. You pay only for the work: no subscription, free to start.
 Its look: black and white. The app is a soft white (#f7f7f9) with near-black controls and words (#0d0d0e) and quiet grey for what's secondary, set in Geist; its mark is a black open C with a dot (Together's has two dots). An ad about it stays black and white, one accent at most and never purple: the colour in the film is what Celestin made.
 Its real screens (use them, never redraw its interface yourself): const im = await MO.self(name) in seek, before drawing (null if it didn't load: then leave it out). Names:
 - Laptop, 1440 by 900 points, each image 2880 by 1800 (2 pixels a point): "desk-empty" (the greeting "Good evening. What are we making today?" and the message box empty: the box from 394,405 to 1110,540, its round button at 1080,510 radius 19 is the voice button); "desk-typed" (the same with "Make a website for my coffee shop" typed: the words start at x 416 with their baseline at y 471, 16 points of Geist, colour #151517; the button is now the black SEND button with a white up arrow); "desk-working", "desk-testing", "desk-polish" (after sending: the words in a grey bubble at the top right, 852,90 to 1123,133, at 15 points, its words from x 870, baseline 117; a status line at the left from 350,212: "Writing the code…", "Testing it…", "Polishing how it looks…"; the empty message box at the bottom); "desk-done" (the answer, a result card "Your Café · App · 2 files" from 86,296 to 555,366, and the site it made open in a preview on the right, 752,12 to 1427,887); "desk-site" (that site's whole page, 2880 by 7024: scroll down it for its menu).
@@ -17420,7 +17421,8 @@ if (TOGETHER_APP) {
 	$(".brand-link").title = "Celestin Together's home page";
 	$("#tgDeskNav").onclick = () => { openSidebar(false); openDesks(); };
 	$("#tgAgentNav").onclick = () => { openSidebar(false); openAgents(); };
-	$("#tgNeedsNav").onclick = () => { openSidebar(false); openNeeds(); };
+	if ($("#tgMeetNav")) $("#tgMeetNav").onclick = () => { openSidebar(false); openMeeting(); };
+$("#tgNeedsNav").onclick = () => { openSidebar(false); openNeeds(); };
 	$("#tgConnNav").onclick = () => { openSidebar(false); openPlugins(); };
 	$("#tgMarketNav").onclick = () => { openSidebar(false); openJob("marketing"); };
 	$("#tgBackNav").onclick = () => { openSidebar(false); openJob("winback"); };
@@ -19077,6 +19079,93 @@ async function syncNeeds() {
 	railBadges();
 	if ($("#ndBox")) drawNeeds();
 	else if ($(".tgw") && before !== NEEDS.items.length) renderTogetherWelcome();
+}
+// ---- Meet your team: a meeting with your AI team, out loud. You talk (or type); the Lead answers out loud, short, like a
+// person in the room; the board keeps the notes, what's decided and the action items, each with the teammate who'll do it;
+// ending it hands the action items to the team, which does them (better than a meeting bot that only writes them down)
+const MEET = { lines: [], board: { notes: [], decisions: [], actions: [] }, rec: null, busy: false, hands: false };
+function openMeeting() {
+	if (!creditsMode() || !account) { openAccount(); return; }
+	MEET.lines = []; MEET.board = { notes: [], decisions: [], actions: [] }; MEET.busy = false; MEET.hands = false;
+	openModal('<h2>Meet your team</h2><p class="sub">Talk it through out loud, or type. Your Lead answers, the board keeps the notes, and when you end the meeting your team does the action items.</p>' +
+		'<div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:14px" id="mtWrap"><div><div id="mtLog" style="height:300px;overflow:auto;padding:10px;border:1px solid var(--line, #e3e3e8);border-radius:12px"></div>' +
+		'<div class="row" style="gap:8px;margin-top:8px"><button class="btn dark" id="mtMic">Talk</button><input class="inp" id="mtText" placeholder="Or type here and press Enter" style="flex:1;min-width:0"></div></div>' +
+		'<div id="mtBoard" style="height:340px;overflow:auto;padding:12px;border-radius:12px;background:var(--soft, #f2f2f4)"></div></div>' +
+		'<div class="row" style="justify-content:flex-end;gap:8px;margin-top:12px;flex-wrap:wrap"><button class="btn" id="mtCopy">Copy the notes</button><button class="btn dark" id="mtEnd">End, and do the action items</button></div>', "wide");
+	if (innerWidth < 700 && $("#mtWrap")) $("#mtWrap").style.gridTemplateColumns = "1fr";
+	drawMeeting();
+	$("#mtMic").onclick = () => { if (MEET.rec) { MEET.hands = false; MEET.rec.stop(); } else { MEET.hands = true; meetListen(); } };
+	$("#mtText").onkeydown = (e) => { if (e.key === "Enter" && e.target.value.trim()) { const v = e.target.value.trim(); e.target.value = ""; meetTurn(v); } };
+	$("#mtEnd").onclick = () => meetEnd();
+	$("#mtCopy").onclick = () => navigator.clipboard.writeText(meetNotes()).then(() => toast("Copied"), () => toast("Couldn't copy"));
+}
+function drawMeeting() {
+	const log = $("#mtLog"), board = $("#mtBoard");
+	if (!log || !board) return;
+	log.innerHTML = MEET.lines.map((l) => '<div style="margin:0 0 10px' + (l.who === "you" ? ";text-align:right" : "") + '"><div class="help">' + (l.who === "you" ? "You" : "Lead") + '</div><div>' + esc(l.text) + "</div></div>").join("") || '<p class="help">Say what you want done, the way you would to a person: "we need more bookings on weekdays".</p>';
+	log.scrollTop = log.scrollHeight;
+	const b = MEET.board, part = (t, xs) => '<div style="margin:0 0 14px"><b>' + t + "</b>" + (xs.length ? '<ul style="margin:6px 0 0;padding-left:18px">' + xs.map((x) => "<li>" + esc(x) + "</li>").join("") + "</ul>" : '<div class="help">Nothing yet.</div>') + "</div>";
+	board.innerHTML = part("Notes", b.notes) + part("Decided", b.decisions) + part("Action items", b.actions.map((a) => a.what + (a.who ? " (" + a.who + ")" : "")));
+}
+const meetNotes = () => { const b = MEET.board; return ["Notes:", ...b.notes.map((x) => "- " + x), "", "Decided:", ...b.decisions.map((x) => "- " + x), "", "Action items:", ...b.actions.map((a) => "- " + a.what + (a.who ? " (" + a.who + ")" : ""))].join("\n"); };
+const meetSay = (t) => new Promise((done) => {
+	try {
+		speechSynthesis.cancel();
+		const u = new SpeechSynthesisUtterance(t), v = speechSynthesis.getVoices().filter((x) => /^en/i.test(x.lang)), pick = v.find((x) => /natural|neural|google|aria|jenny|samantha/i.test(x.name)) || v[0];
+		if (pick) u.voice = pick;
+		u.rate = 1.04; u.onend = done; u.onerror = done;
+		speechSynthesis.speak(u);
+		setTimeout(done, Math.min(60000, 4000 + t.length * 90));
+	} catch { done(); }
+});
+function meetListen() {
+	if (!SR) { MEET.hands = false; toast("Talking needs Chrome or Edge: type instead"); return; }
+	if (MEET.rec || !$("#mtLog")) return;
+	const r = new SR();
+	r.lang = navigator.language || "en-US"; r.interimResults = true; r.continuous = false;
+	let final = "";
+	MEET.rec = r;
+	if ($("#mtMic")) $("#mtMic").textContent = "Listening · tap to stop";
+	r.onresult = (e) => { let interim = ""; for (const res of e.results) (res.isFinal ? (final = res[0].transcript) : (interim += res[0].transcript)); if ($("#mtText")) $("#mtText").value = final || interim; };
+	r.onerror = () => {};
+	r.onend = async () => {
+		MEET.rec = null;
+		if ($("#mtMic")) $("#mtMic").textContent = "Talk";
+		const v = final.trim();
+		if ($("#mtText")) $("#mtText").value = "";
+		if (v && $("#mtLog")) await meetTurn(v);
+		if (MEET.hands && $("#mtLog")) meetListen();
+	};
+	r.start();
+}
+async function meetTurn(text) {
+	if (MEET.busy) return;
+	MEET.busy = true;
+	MEET.lines.push({ who: "you", text });
+	drawMeeting();
+	const lead = (bestFor("planner", "low") || [])[0];
+	const prompt = "You're the Lead of the user's AI team (Celestin Together), in a meeting with them, out loud. Your teammates: a Researcher, a Builder (sites, apps, games), a Designer, a Writer, a Marketer (posts on their accounts at the right time), the Front desk (answers their customers, takes bookings), and a Checker; with their accounts connected the team also sends email, keeps their calendar and sheets, answers and makes calls and texts, and uses websites on their computer. Talk like a sharp colleague in the room: one to three short spoken sentences, no lists, no markdown; ask one question only when you really need the answer to act. Then, on the very last line, the meeting board as JSON, all of it so far, kept short: {\"notes\": [\"...\"], \"decisions\": [\"...\"], \"actions\": [{\"what\": \"a concrete thing to do, ready to do\", \"who\": \"Researcher|Builder|Designer|Writer|Marketer|Front desk|Checker\"}]}. Never promise anything the team can't do, and never move money.";
+	const msgs = [sys(prompt), { role: "user", content: "The board so far: " + JSON.stringify(MEET.board) + "\n\nThe meeting so far:\n" + MEET.lines.slice(-24).map((l) => (l.who === "you" ? "Them: " : "You: ") + l.text).join("\n") }];
+	let out = "";
+	try { out = String(lead ? await stream(lead.id, msgs) : ""); } catch (e) { toast(e.message || String(e)); }
+	const nl = out.lastIndexOf("\n{"), at = nl >= 0 ? nl + 1 : out.trim().startsWith("{") ? out.indexOf("{") : -1;
+	let said = (at > 0 ? out.slice(0, at) : out).replace(new RegExp(String.fromCharCode(96) + "{3}(json)?", "g"), "").trim();
+	try { const j = JSON.parse(out.slice(at, out.lastIndexOf("}") + 1)); MEET.board = { notes: (j.notes || []).map(String).slice(0, 20), decisions: (j.decisions || []).map(String).slice(0, 20), actions: (j.actions || []).filter((a) => a && a.what).map((a) => ({ what: String(a.what), who: String(a.who || "") })).slice(0, 20) }; } catch {}
+	if (!said) said = out ? "Got it." : "I couldn't answer just now: say that again?";
+	MEET.lines.push({ who: "lead", text: said });
+	drawMeeting();
+	MEET.busy = false;
+	if ($("#mtLog")) await meetSay(said);
+}
+function meetEnd() {
+	speechSynthesis.cancel();
+	MEET.hands = false;
+	if (MEET.rec) MEET.rec.stop();
+	const b = MEET.board;
+	if (!b.actions.length) { navigator.clipboard.writeText(meetNotes()).catch(() => {}); closeModal(); toast("No action items: the notes are copied"); return; }
+	const ask = "From our meeting just now, do these:\n" + b.actions.map((a) => "- " + a.what + (a.who ? " (" + a.who + ")" : "")).join("\n") + (b.decisions.length ? "\n\nWhat we decided:\n" + b.decisions.map((x) => "- " + x).join("\n") : "") + (b.notes.length ? "\n\nNotes:\n" + b.notes.map((x) => "- " + x).join("\n") : "");
+	closeModal();
+	send(ask);
 }
 function openNeeds() {
 	if (!creditsMode() || !account) { openAccount(); return; }
