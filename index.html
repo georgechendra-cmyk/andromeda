@@ -13690,6 +13690,16 @@ function motionKit() {
 	// what size the film's words are drawn at, for the measured check (a fraction of the frame's height, with the moment)
 	{
 		const C = W.CanvasRenderingContext2D;
+		// (a whole line drawn a letter at a time, as the smooth typing does: recorded as the line, so the checks see it)
+		W.__moRec = (ctx, txt, x, y, w) => {
+			try {
+				if (W.__moSeekT == null || !ctx.canvas || ctx.canvas.id !== "c" || String(txt).trim().length < 2 || ctx.globalAlpha <= 0.3) return;
+				const fs = Number((String(ctx.font).match(/(\d+(?:\.\d+)?)px/) || [])[1]) || 0, m = ctx.getTransform(), list = W.__moTexts || (W.__moTexts = []);
+				const y0 = y - fs * 0.8, y1 = y0 + fs, P = [[x, y0], [x + w, y0], [x, y1], [x + w, y1]].map(([px, py]) => [m.a * px + m.c * py + m.e, m.b * px + m.d * py + m.f]);
+				const cw = ctx.canvas.width || 1, ch = ctx.canvas.height || 1;
+				if (list.length < 9000) list.push([W.__moSeekT, (fs * Math.hypot(m.c, m.d)) / ch, Math.min(...P.map((p) => p[0])) / cw, Math.min(...P.map((p) => p[1])) / ch, Math.max(...P.map((p) => p[0])) / cw, Math.max(...P.map((p) => p[1])) / ch, String(txt).slice(0, 40)]);
+			} catch {}
+		};
 		if (C && !C.prototype.fillText.__mo) {
 			const ft = C.prototype.fillText;
 			const wrapped = function (txt, x, y, mw) {
@@ -13890,6 +13900,7 @@ function motionKit() {
 		ctx.font = weight + " " + size + "px " + font; ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
 		if ("letterSpacing" in ctx) ctx.letterSpacing = "0px";
 		const pre = [0]; for (let i = 1; i <= s.length; i++) pre.push(ctx.measureText(s.slice(0, i)).width);
+		if (t >= at && W.__moRec) W.__moRec(ctx, s, x, y, pre[s.length]);
 		const col = o.color || "#111", base = ctx.globalAlpha;
 		let caretX = x, done = false;
 		if (mode === "reveal") {
@@ -14896,13 +14907,20 @@ function filmTells(html, brief) {
 	if (cols.length >= 2 && !/purple|violet|indigo|lavender|lilac|ungu/.test(asked)) out.push("It uses purple, violet or indigo (" + cols.slice(0, 4).join(", ") + "), the most recognisable AI look: change every one to the film's own palette.");
 	const glows = (seen.match(/shadowBlur\s*=\s*(?:[1-9]\d+|\d+\s*\*)/g) || []).length;
 	if (glows >= 3 && !/glow|neon/.test(asked)) out.push("Neon glows (shadowBlur in " + glows + " places): use soft, dark, directional shadows for depth instead, or none.");
-	const fams = [...new Set((seen.match(/\b\d+(?:\.\d+)?px\s+["']?([A-Z][\w ]{1,30}?)["']?(?=[,;"'`)]|$)/g) || []).map((f) => f.replace(/^\S+px\s+["']?/, "").replace(/["']$/, "").trim()))].filter((f) => TELL_FONTS.test(f) && !asked.includes(f.toLowerCase()) && !(LOOK && [LOOK.display, LOOK.body].includes(f)));
+	const fams = [...new Set((seen.match(/\b\d+(?:\.\d+)?px\s+["']?([A-Z][\w ]{1,30}?)["']?(?=[,;"'`)]|$)/g) || []).map((f) => f.replace(/^\S+px\s+["']?/, "").replace(/["']$/, "").trim()))].filter((f) => TELL_FONTS.test(f) && !asked.includes(f.toLowerCase()) && !(LOOK && [LOOK.display, LOOK.body].includes(f)) && !(/\bcelestin\b/.test(asked) && /^Geist/i.test(f)));
 	if (fams.length) out.push("The typeface " + fams.slice(0, 2).join(", ") + " is the one every AI video uses: use " + (LOOK ? "the decided typefaces (" + LOOK.display + ", " + LOOK.body + ")" : "the film's own typefaces") + ".");
 	const nums = [...new Set((seen.match(/(?:\$|US\$|€|£|Rp\.?\s?)\d[\d.,]*(?:\s?(?:k|jt|rb|m))?(?:\s?\/\s?(?:mo|month|bln|bulan|yr|year))?|\b\d[\d.,]*\+?\s*(?:leads|users|customers|clients|bookings|sales|downloads|reviews)\b|\b\d{1,3}(?:\.\d)?%/gi) || []).map((x) => x.trim()))].filter((x) => !given.includes(x.toLowerCase().replace(/\s+/g, "")) && !given.includes(x.toLowerCase()));
 	if (nums.length) out.push("Numbers nobody gave (" + nums.slice(0, 4).join(", ") + "): never invent prices, plans, statistics or results. Remove them, or show only real ones from the brief.");
 	// (a web address in the film's words that nobody gave: "celestin.ai" for a site that isn't there, Nov 22)
 	const webs = [...new Set([...seen.matchAll(/["'\x60][^"'\x60\n]{0,80}?\b((?:www\.)?[a-z0-9][a-z0-9-]{1,40}\.(?:ai|com|io|app|co|net|org|id|dev|so|me|xyz|store|shop))\b/gi)].map((m) => m[1].toLowerCase()))].filter((d) => !/googleapis|gstatic|cdnjs|cloudflare|w3\.org|jsdelivr|unpkg|three/.test(d) && !given.includes(d.replace(/^www\./, "")));
 	if (webs.length) out.push("Web addresses nobody gave (" + webs.slice(0, 3).join(", ") + "): never invent a site; remove them, or use only an address from the brief.");
+	// (a film about Celestin itself: its real screens, never a redrawn interface, and its black-and-white look; Nov 23, the
+	// owner's first real run drew its own navy and cyan version of the app)
+	if (/\bcelestin\b/.test(asked)) {
+		if (!/MO\.self\(/.test(seen)) out.push("It draws its own version of Celestin's app. Show its real screens instead: await MO.self(\"desk-empty\"), \"desk-typed\", \"desk-working\", \"desk-done\", \"desk-site\" (or the phone ones), placed and typed over exactly as the brief says, and never redraw its interface.");
+		const vivid = [...new Set((seen.match(COLOUR_IN) || []).map((c) => c.toLowerCase()))].filter((c) => { const h = hslOf(c); return h && h.s > 0.4 && h.l > 0.15 && h.l < 0.85; });
+		if (vivid.length >= 3) out.push("Celestin's ads are black and white (" + vivid.slice(0, 4).join(", ") + " are colours it doesn't have): a soft white ground (#f7f7f9), near-black (#0d0d0e) and greys, with one accent at most; the colour in the film is what Celestin made, on its real screens.");
+	}
 	return out;
 }
 // What the film's own frames show, measured rather than judged (the way the studied films were measured): a stretch where
@@ -14961,6 +14979,18 @@ async function motionTells(html, total, W, H, brief) {
 			out.push("It plays like a poster, not an animation: for " + Math.round(share * 100) + "% of it, less than 6% of the picture changes in a second (in the films people share it's under 20%, and 15 to 30% of the frame changes every second)" + (runs.length ? "; stillest from " + runs.slice(0, 3).map((r) => r[0].toFixed(1) + " to " + Math.min(total, r[1]).toFixed(1) + " s").join(", ") : "") + ". A layout revealed and then held is a poster: give every second a beat that changes a real part of the frame (the next thing arrives, a card flips or opens into its screen, something is typed, tapped or flies, the camera pushes through one thing into the next), with one hero thing at a time and at most two cards on screen, never a stack.");
 		}
 	}
+		// (a frozen picture: 1.2 s or more where almost nothing changes, outside the last 2.5 s; Nov 23, a real ad opened on its
+		// title held still for 4.5 s, and the poster check, which looks at the whole film, let it through)
+		{
+			const still = [];
+			let s0 = -1;
+			for (let i = 1; i < moved.length; i++) {
+				const q = moved[i] < 0.004 && i / rate < total - 2.5 && !flat[i];
+				if (q && s0 < 0) s0 = i - 1;
+				if ((!q || i === moved.length - 1) && s0 >= 0) { const e = q ? i : i - 1; if ((e - s0) / rate >= 1.2) still.push([s0 / rate, e / rate]); s0 = -1; }
+			}
+			if (still.length) out.push("It freezes: nothing moves from " + still.slice(0, 3).map((r) => r[0].toFixed(1) + " to " + r[1].toFixed(1) + " s").join(", ") + ". Every moment of a film moves: the next thing arriving, a word being typed, the camera drifting or pushing in, light passing. Make each of those stretches move, in the film's own timeline (seek(t)), never with the real clock.");
+		}
 	// (words: in each three seconds that has any, its biggest should read at a glance on a phone)
 	const small = [];
 	for (let a0 = 0; a0 < total - 0.5; a0 += 3) {
@@ -15376,7 +15406,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 	const total = plan.scenes.reduce((n, x) => n + x.seconds, 0);
 	let at = 0;
 	const timeline = plan.scenes.map((x, k) => { const a = at; at += x.seconds; return (k + 1) + ". " + a.toFixed(1) + "s to " + at.toFixed(1) + "s: " + (x.draw || x.shot) + (x.caption ? " (words on screen: \"" + x.caption + "\")" : ""); }).join("\n");
-	let brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + plan.look +
+	let brief = "The film: " + plan.title + (plan.ask ? "\nWhat the person asked for: " + String(plan.ask).slice(0, 2000) : "") + "\nIts look: " + (/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "Celestin's own, black and white: a soft white ground (#f7f7f9), near-black words and controls (#0d0d0e), greys for what's secondary, Geist; one accent at most, never purple, cyan or neon; the colour comes from what Celestin made, on its real screens" : plan.look) +
 		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type; its address is celestin.pages.dev (never any other, and no made-up numbers or results about it). " + CELESTIN_LOOK : "") +
 		(plan.craftNote ? "\n\n" + String(plan.craftNote).slice(0, 6000) : "") +
 		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
