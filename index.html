@@ -2193,7 +2193,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<p class="sub2">The access the best assistants have, all switched on from the start.</p>
 			<div class="feats">
 				<div><b>Runs code</b><span>Python and JavaScript right in your browser: your spreadsheets, charts and calculations, checked.</span></div>
-				<div><b>Your computer, with permission</b><span>Through a small connector: commands, files, builds and tests, asking before anything changes.</span></div>
+				<div><b>Your computer, with permission</b><span>Through a small connector: any website in its own browser window (signing in from a password vault on your computer that no AI ever sees), commands, files, builds and tests, asking before anything changes.</span></div>
 				<div><b>Your apps</b><span>Blender, Figma, a browser, your files: anything with an MCP server.</span></div>
 				<div><b>Projects</b><span>Chats that share instructions and files, so it always has the background.</span></div>
 				<div><b>Memory</b><span>Remembers what matters about you and your work. You can see and delete all of it.</span></div>
@@ -6107,7 +6107,7 @@ function drawPlugins() {
 	const row = (p) => plgRow("mcp:" + p[0], p[1], p[2], !!mine(p[3]));
 	const pick = (k) => PLUGINS.filter((p) => p[4] === k && !mine(p[3]) && hit(p[1], p[2])).map(row);
 	const accts = accounts.filter(([k, x]) => !connOf(k) && hit(x.name, x.what)).map(([k, x]) => plgRow("acct:" + k, x.name, TOGETHER_APP ? x.what : "Post here when you ask: you see each post first", false, x.c));
-	const local = hit("On this computer Blender Figma Unity files Claude Desktop") ? [plgRow("local", "On this computer", "Blender, Unity, your files and the apps Claude Desktop has", APPS.servers.some((x) => x.local))] : [];
+	const local = [...(hit("On this computer Blender Figma Unity files Claude Desktop") ? [plgRow("local", "On this computer", "Blender, Unity, your files and the apps Claude Desktop has", APPS.servers.some((x) => x.local))] : []), ...(hit("Passwords logins sign in websites browser vault") ? ['<button class="btn" id="plgVault" style="justify-self:start" title="Your logins, kept encrypted on your computer: when your team signs in to a site, your computer types it in itself, so no AI ever sees it">Passwords · kept on your computer</button>'] : [])];
 	// (searching: the open MCP registry too, 20,000+ servers published by their makers)
 	if (q.length >= 2 && PLG.reg.q !== q) { PLG.reg = { q, list: null }; clearTimeout(PLG.regT); PLG.regT = setTimeout(async () => { let list = []; try { list = (await api("/api/mcp/registry?q=" + encodeURIComponent(q))).servers || []; } catch {} if (PLG.reg.q === q) { PLG.reg.list = list; drawPlugins(); } }, 350); }
 	const known = new Set([...PLUGINS.map((p) => p[3]), ...PLG.apps.map((a) => a.url)]);
@@ -6122,6 +6122,15 @@ function drawPlugins() {
 }
 // Connect all: every app not connected yet, one after another. Each sign-in opens on its own tap (a browser lets a page
 // open one sign-in window per tap), so after each one the next is a button away: Connect, Skip, or Stop
+// the password vault lives on the user's computer, in the connector: its own page there, opened with the pairing code
+document.addEventListener("click", (e) => {
+	const v = e.target && e.target.closest && e.target.closest("#plgVault");
+	if (!v) return;
+	e.preventDefault();
+	const conf = appsConf();
+	if (!conf.code) { toast("Start the connector on your computer and pair it first (Connect apps): your passwords stay on that computer"); return; }
+	window.open(CONNECTOR + "/vault?code=" + encodeURIComponent(conf.code), "_blank", "noopener");
+});
 function plgAllStart() {
 	if (!creditsMode() || !account) { openAccount(); return; }
 	const list = PLUGINS.filter((p) => !PLG.apps.some((a) => a.url === p[3])).map((p) => p[0]);
@@ -6838,7 +6847,7 @@ const planTool = (args, msg, log) => {
 	return "The plan is updated and shown to the user (" + steps.filter((x) => x.status === "done").length + " of " + steps.length + " done).";
 };
 // what changes something on the computer: asked about first (reading, listing, searching and looking are not)
-const CHANGES = /^(run_command|start_command|stop_job|write_file|edit_file|open)$/;
+const CHANGES = /^(run_command|start_command|stop_job|write_file|edit_file|open|browse_click|browse_type|browse_login)$/;
 const ASKS = new Map(), SHARE_FILE = new WeakMap();
 // A post on the person's own account: only when they asked for one, after they've seen it word for word and pressed Post;
 // then out through the server's guard (never a password, a key, a card or an ID number). With a video from this chat,
@@ -7083,7 +7092,7 @@ async function runAct(text, atts, resume) {
 			+ (servers.some((s) => s.name !== "computer") ? " You also have the user's connected apps: " + servers.filter((s) => s.name !== "computer").map((s) => s.name).join(", ") + "." : "");
 		const files = codeFiles();
 		const idx = arenaIndex(), skills = idx ? Object.keys(SKILLS).filter((k) => idx[k]) : [];
-		const system = "You are Celestin, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user."
+		const system = "You are Celestin, an expert engineer and assistant doing real work with tools, step by step, until the job is completely done." + where + " You can always run Python and JavaScript right here, search the web, read pages and docs, and remember lasting facts about the user." + (servers.some((x) => x.name === "computer") ? " On the user's computer you can also use any website in Celestin's own browser window there (browse_open, browse_read, browse_click, browse_type, browse_login, browse_look), the way a person would: sign in only with browse_login (their logins are in a password vault on their computer, typed in by the computer itself; never ask anyone for a password), let them type any code a site sends them in that window, never get past a CAPTCHA for them, and never buy, pay or move money: hand that step to them." : "")
 			+ " Nobody wrote a recipe for what you're asked: you work out what it takes and do it, using everything Celestin has. You can hand any piece to the AI model measured best at exactly it (ask_expert), have Celestin's makers make videos, pictures, music, voiceovers, documents, apps and study sets (make), edit the user's own videos, audio and pictures with ffmpeg like a professional editor (edit_media), with original music composed for them (compose_music), and hand over files, even a whole project, as a download (save_file, then deliver_files). When they ask for a post, you post it on their own X, Bluesky, Telegram or Discord (post): they see it and press Post first."
 			+ (files.length ? " The files the user attached are in Python's current folder: " + files.map((f) => f.name).join(", ") + " (every word of each; what's in your messages may be excerpts of a long one, so for work on all of it, read it there and hand pieces to experts)." : "")
 			+ (mediaLine() ? " " + mediaLine() : "")

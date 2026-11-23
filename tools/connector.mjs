@@ -16,14 +16,14 @@
 import http from "node:http";
 import { spawn } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createCipheriv, createDecipheriv } from "node:crypto";
 import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve, extname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.ANDROMEDA_CONNECTOR_PORT || 8765);
-const ORIGINS = [/^https:\/\/georgechendra-cmyk\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/, /^null$/, ...(process.env.ANDROMEDA_ORIGINS || "").split(",").filter(Boolean).map((o) => new RegExp("^" + o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"))];
+const ORIGINS = [/^https:\/\/([a-z0-9-]+\.)?celestin\.pages\.dev$/, /^https:\/\/georgechendra-cmyk\.github\.io$/, /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/, /^null$/, ...(process.env.ANDROMEDA_ORIGINS || "").split(",").filter(Boolean).map((o) => new RegExp("^" + o.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "$"))];
 
 // the pairing code: made once, kept beside this file
 const codeFile = join(here, ".connector-code");
@@ -97,6 +97,8 @@ http.createServer(async (req, res) => {
 	const send = (status, obj, extra = {}) => { res.writeHead(status, { "Content-Type": "application/json", ...cors, ...extra }); res.end(obj == null ? "" : JSON.stringify(obj)); };
 	if (req.method === "OPTIONS") { res.writeHead(allowed ? 204 : 403, cors); return res.end(); }
 	if (!allowed) return send(403, { error: "Only Celestin can use this connector." });
+	const u0 = new URL(req.url, "http://x");
+	if (u0.pathname === "/vault" || u0.pathname.startsWith("/vault/")) return vaultRoute(req, res, u0);
 	if ((req.headers.authorization || "") !== "Bearer " + CODE) return send(401, { error: "Wrong pairing code. Copy it from the connector's window." });
 	const url = new URL(req.url, "http://x");
 	const all = servers();
@@ -156,6 +158,12 @@ const COMPUTER = [
 	["search_files", "Search the files under a folder for a regular expression (like grep). Returns the matching lines with where they are.", { path: S("the folder (or one file)"), regex: S("the regular expression"), pattern: S("only files matching this glob, like *.ts") }, ["path", "regex"]],
 	["open", "Open a file, folder or web link in its usual app on the user's computer.", { target: S("the path or link") }, ["target"]],
 	["screenshot", "See the user's whole screen right now.", {}, []],
+	["browse_open", "Open a website in Celestin's own browser window on the user's computer (they can see it; sites they've signed in to there stay signed in). Returns the page's words and its links, buttons and fields, numbered.", { url: S("the address") }, ["url"]],
+	["browse_read", "Read the open page again (after it changed), with its controls numbered.", {}, []],
+	["browse_click", "Click a link or button on the open page by its number (from browse_open or browse_read). Returns the page after.", { n: N("its number"), what: S("what it is, in a few words, as the user will see it when asked (like: the Post button)") }, ["n", "what"]],
+	["browse_type", "Type into a field on the open page by its number, replacing what's in it (enter: true presses Enter after). Never a password: use browse_login.", { n: N("the field's number"), text: S("what to type"), what: S("what the field is, in a few words (like: the search box)"), enter: { type: "boolean", description: "press Enter after" } }, ["n", "text", "what"]],
+	["browse_login", "Sign in on the open page with the login the user saved for this site in their password vault on their computer: the computer types it in itself, so you never see it, and only on the exact site it was saved for. If none is saved, ask them to add it under Plugins, then Passwords. Never ask the user for a password.", { site: S("the site, as the user will see it when asked (like: instagram.com)") }, ["site"]],
+	["browse_look", "See the open page as a picture.", {}, []],
 ];
 const JOBS = new Map();
 let jobN = 0;
@@ -180,7 +188,165 @@ function walk(root, fn, limit = 20000) {
 	go(root);
 }
 const text = (t) => [{ type: "text", text: t }];
+
+// ------------------------------------------------------------------ the password vault: on this computer only
+// Logins are kept here encrypted (AES-256-GCM; its key in a file only this computer's user reads) and never leave this
+// computer: Celestin's server, its web page and every AI model never see one. browse_login types a login into Celestin's
+// browser window itself, only on the site it was saved for (a look-alike site gets nothing), and Celestin asks first.
+const VDIR = join(HOME, ".celestin"), VKEY = join(VDIR, "vault.key"), VFILE = join(VDIR, "vault.json");
+function vaultKey() { mkdirSync(VDIR, { recursive: true }); if (!existsSync(VKEY)) writeFileSync(VKEY, randomBytes(32).toString("base64"), { mode: 0o600 }); return Buffer.from(readFileSync(VKEY, "utf8").trim(), "base64"); }
+const vaultAll = () => ((readJson(VFILE) || {}).logins || []);
+function vaultSave(list) { mkdirSync(VDIR, { recursive: true }); writeFileSync(VFILE, JSON.stringify({ logins: list }, null, 1), { mode: 0o600 }); }
+function seal(t) { const iv = randomBytes(12), c = createCipheriv("aes-256-gcm", vaultKey(), iv), d = Buffer.concat([c.update(String(t), "utf8"), c.final()]); return { iv: iv.toString("base64"), tag: c.getAuthTag().toString("base64"), d: d.toString("base64") }; }
+function unseal(x) { const c = createDecipheriv("aes-256-gcm", vaultKey(), Buffer.from(x.iv, "base64")); c.setAuthTag(Buffer.from(x.tag, "base64")); return Buffer.concat([c.update(Buffer.from(x.d, "base64")), c.final()]).toString("utf8"); }
+const hostOf = (u) => { try { return new URL(/^https?:\/\//i.test(u) ? u : "https://" + String(u).trim()).hostname.toLowerCase().replace(/^www\./, ""); } catch { return ""; } };
+// a saved login fits a page only on its own site or that site's own subdomains (accounts.example.com for example.com)
+const fits = (saved, host) => { const h = String(host || "").toLowerCase().replace(/^www\./, ""); return !!saved && (h === saved || h.endsWith("." + saved)); };
+const escH = (t) => String(t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function vaultPage(note) {
+	const rows = vaultAll().map((x, i) => '<tr><td><b>' + escH(x.site) + '</b></td><td>' + escH(x.user) + '</td><td style="text-align:right"><form method="post" action="/vault/remove"><input type="hidden" name="code" value="' + CODE + '"><input type="hidden" name="i" value="' + i + '"><button class="q">Remove</button></form></td></tr>').join("");
+	return '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Passwords · Celestin</title><style>body{font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif;max-width:620px;margin:48px auto;padding:0 16px;color:#0d0d0e;background:#f7f7f9}h1{font-size:24px;margin:0 0 6px}p.n{color:#5f6063;margin:0 0 18px}table{width:100%;border-collapse:collapse;margin:8px 0 26px;background:#fff;border-radius:12px}td{padding:10px 12px;border-bottom:1px solid #ececf0}label{display:block;font-weight:600;font-size:14px}input{font:inherit;padding:10px 12px;border:1px solid #d6d6dc;border-radius:10px;width:100%;box-sizing:border-box;margin:5px 0 14px;background:#fff}button{font:inherit;font-weight:600;padding:10px 18px;border:0;border-radius:999px;background:#0d0d0e;color:#fff;cursor:pointer}button.q{background:#ececf0;color:#0d0d0e;padding:6px 12px;font-weight:500}.ok{background:#fff;border-radius:10px;padding:10px 12px;margin:0 0 14px}</style></head><body>' +
+		'<h1>Passwords</h1><p class="n">Kept encrypted on this computer, and only here. Celestin\'s server, its web page and every AI never see them. When your team needs to sign in, this computer types the login into Celestin\'s browser window itself, only on the site it was saved for, and Celestin asks you each time first.</p>' +
+		(note ? '<div class="ok">' + escH(note) + '</div>' : '') + '<table>' + (rows || '<tr><td class="n" style="color:#5f6063">No logins saved yet.</td></tr>') + '</table>' +
+		'<h2 style="font-size:17px">Add a login</h2><form method="post" action="/vault/add" autocomplete="off"><input type="hidden" name="code" value="' + CODE + '"><label>Website<input name="site" placeholder="instagram.com" required></label><label>Username or email<input name="user" required></label><label>Password<input name="pass" type="password" autocomplete="new-password" required></label><button>Save on this computer</button></form></body></html>';
+}
+async function vaultRoute(req, res, u) {
+	const html = (status, body) => { res.writeHead(status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'" }); res.end(body); };
+	let form = {};
+	if (req.method === "POST") { let b = ""; for await (const c of req) { b += c; if (b.length > 1e5) break; } form = Object.fromEntries(new URLSearchParams(b)); }
+	const code = req.method === "POST" ? form.code : u.searchParams.get("code");
+	if (code !== CODE) return html(401, "<p style='font:15px system-ui;margin:40px'>Open Passwords from Celestin (Plugins, then Passwords), with this computer's connector running.</p>");
+	if (u.pathname === "/vault/add" && req.method === "POST") {
+		const site = hostOf(form.site || "");
+		if (!site || !form.user || !form.pass) return html(400, vaultPage("Fill in the website, the username and the password."));
+		const list = vaultAll().filter((x) => !(x.site === site && x.user === form.user));
+		list.push({ site, user: String(form.user).slice(0, 200), secret: seal(String(form.pass)), at: Date.now() });
+		vaultSave(list);
+		return html(200, vaultPage("Saved for " + site + ", on this computer only."));
+	}
+	if (u.pathname === "/vault/remove" && req.method === "POST") { const list = vaultAll(), x = list[Number(form.i)]; if (x) { list.splice(Number(form.i), 1); vaultSave(list); } return html(200, vaultPage(x ? "Removed " + x.site + "." : "")); }
+	return html(200, vaultPage(""));
+}
+
+// ------------------------------------------------------------------ websites, in a browser window on this computer
+// Celestin's own browser window (Edge or Chrome, with its own profile in ~/.celestin/browser, so a site signed in to stays
+// signed in): open a page, read it with its controls numbered, click, type, sign in from the vault, look at it. It's
+// visible on the screen, so the user sees what their team does and types any code a site sends them themselves.
+const BROWSERS = WIN ? [join(process.env["ProgramFiles(x86)"] || "C:/Program Files (x86)", "Microsoft/Edge/Application/msedge.exe"), join(process.env.ProgramFiles || "C:/Program Files", "Microsoft/Edge/Application/msedge.exe"), join(process.env.ProgramFiles || "C:/Program Files", "Google/Chrome/Application/chrome.exe"), join(process.env["ProgramFiles(x86)"] || "C:/Program Files (x86)", "Google/Chrome/Application/chrome.exe"), join(process.env.LOCALAPPDATA || HOME, "Google/Chrome/Application/chrome.exe")]
+	: process.platform === "darwin" ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"] : ["/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/microsoft-edge"];
+let BR = null;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function br() {
+	if (BR && BR.ws.readyState === 1) return BR;
+	if (typeof WebSocket === "undefined") throw new Error("Using websites needs Node 22 or newer on this computer: update it from nodejs.org, then start the connector again.");
+	const exe = BROWSERS.find((p) => p && existsSync(p));
+	if (!exe) throw new Error("No Edge or Chrome was found on this computer.");
+	const port = 9500 + Math.floor(Math.random() * 400), prof = join(HOME, ".celestin", "browser");
+	mkdirSync(prof, { recursive: true });
+	const proc = spawn(exe, ["--remote-debugging-port=" + port, "--remote-allow-origins=http://127.0.0.1:" + port, "--user-data-dir=" + prof, "--no-first-run", "--no-default-browser-check", "--window-size=1280,900", ...(process.env.CELESTIN_HEADLESS ? ["--headless=new"] : []), "about:blank"], { stdio: "ignore" });
+	let pages = [];
+	for (let i = 0; i < 80; i++) { try { pages = await (await fetch("http://127.0.0.1:" + port + "/json")).json(); if (pages.some((p) => p.type === "page")) break; } catch {} await sleep(250); }
+	const page = pages.find((p) => p.type === "page");
+	if (!page) throw new Error("The browser didn't start.");
+	const ws = new WebSocket(page.webSocketDebuggerUrl);
+	await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = () => no(new Error("Couldn't reach the browser window.")); });
+	const wait = new Map();
+	let n = 0;
+	ws.onmessage = (ev) => { const m = JSON.parse(ev.data); if (m.id && wait.has(m.id)) { wait.get(m.id)(m); wait.delete(m.id); } };
+	const send = (method, params = {}) => new Promise((ok) => { const i = ++n; wait.set(i, ok); ws.send(JSON.stringify({ id: i, method, params })); setTimeout(() => { if (wait.delete(i)) ok({ error: { message: method + " took too long" } }); }, 30000); });
+	await send("Page.enable");
+	await send("Runtime.enable");
+	BR = { proc, ws, send };
+	proc.on("exit", () => { BR = null; });
+	ws.onclose = () => { BR = null; };
+	return BR;
+}
+async function inPage(expr) {
+	const b = await br(), r = await b.send("Runtime.evaluate", { expression: expr, returnByValue: true, awaitPromise: true });
+	if (r.error) throw new Error(r.error.message);
+	const x = r.result || {};
+	if (x.exceptionDetails) throw new Error("The page said: " + String((x.exceptionDetails.exception && x.exceptionDetails.exception.description) || x.exceptionDetails.text || "error").slice(0, 200));
+	return x.result && x.result.value;
+}
+// the page in words, and every control on it numbered (never a password field's contents)
+const SNAP = "(() => { const out = []; let n = 0; const vis = (e) => { const b = e.getBoundingClientRect(), s = getComputedStyle(e); return b.width > 2 && b.height > 2 && s.visibility !== 'hidden' && s.display !== 'none'; };" +
+	" for (const e of document.querySelectorAll('[data-celestin-n]')) e.removeAttribute('data-celestin-n');" +
+	" for (const e of document.querySelectorAll('a[href], button, input, textarea, select, [role=button], [role=link], [role=tab], [role=menuitem], [contenteditable=true]')) { if (e.type === 'hidden' || !vis(e)) continue; n++; e.setAttribute('data-celestin-n', n);" +
+	" const pw = e.type === 'password', label = String(e.getAttribute('aria-label') || e.placeholder || (e.tagName === 'INPUT' || e.tagName === 'TEXTAREA' ? '' : e.innerText) || e.name || e.title || '').trim().replace(/\\s+/g, ' ').slice(0, 80), val = !pw && (e.tagName === 'INPUT' || e.tagName === 'TEXTAREA') && e.value ? ' = \"' + String(e.value).slice(0, 60) + '\"' : '';" +
+	" out.push(n + '. ' + (e.tagName === 'A' ? 'link' : e.tagName === 'INPUT' ? (pw ? 'password field (use browse_login)' : (e.type || 'text') + ' field') : e.tagName === 'TEXTAREA' ? 'text box' : e.tagName === 'SELECT' ? 'choice' : 'button') + (label ? ': ' + label : '') + val); if (n >= 160) break; }" +
+	" return { url: location.href, title: document.title, text: (document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').slice(0, 9000), items: out }; })()";
+async function settle() { for (let i = 0; i < 40; i++) { const st = await inPage("document.readyState").catch(() => ""); if (st === "complete") break; await sleep(250); } await sleep(600); }
+async function snapshot(lead) { await settle(); const p = await inPage(SNAP); return text((lead ? lead + "\n\n" : "") + "Page: " + p.title + " (" + p.url + ")\n\n" + p.text + "\n\nWhat's on it to use (by number):\n" + (p.items.join("\n") || "(nothing)")); }
+async function clickAt(x, y) { const b = await br(); for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await b.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 }); }
+async function pressEnter() { const b = await br(); await b.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }); await b.send("Input.dispatchKeyEvent", { type: "char", text: "\r", key: "Enter" }); await b.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }); }
+// a control by its number: scrolled into view, its middle (and whether it's a password field)
+async function controlAt(n) {
+	const r = await inPage("(() => { const e = document.querySelector('[data-celestin-n=\"" + Number(n) + "\"]'); if (!e) return null; e.scrollIntoView({ block: 'center', inline: 'center' }); const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, pw: e.type === 'password' }; })()");
+	if (!r) throw new Error("There's no number " + n + " on the page now: read it again with browse_read.");
+	return r;
+}
+// focus a field (found by an expression) by clicking it, its contents selected so typing replaces them
+async function focusField(expr) {
+	const r = await inPage("(() => { const e = " + expr + "; if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()");
+	if (!r) return false;
+	await clickAt(r.x, r.y);
+	await inPage("(() => { const a = document.activeElement; if (a && a.select) a.select(); return 1; })()");
+	return true;
+}
+const VIS = "((e) => { const b = e.getBoundingClientRect(); return b.width > 2 && b.height > 2 && !e.disabled; })";
+const USER_SEL = "input[type=email], input[autocomplete=username], input[name*=user i], input[name*=email i], input[name*=login i], input[id*=user i], input[id*=email i], input[type=text], input:not([type])";
+async function browse(name, a) {
+	if (name === "browse_open") {
+		let url = String(a.url || "").trim();
+		if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+		const b = await br();
+		await b.send("Page.navigate", { url });
+		return snapshot("");
+	}
+	if (name === "browse_read") return snapshot("");
+	if (name === "browse_click") { const c = await controlAt(a.n); await clickAt(c.x, c.y); await sleep(1200); return snapshot("Clicked " + a.n + "."); }
+	if (name === "browse_type") {
+		const c = await controlAt(a.n);
+		if (c.pw) throw new Error("That's a password field: use browse_login, so the password is typed by this computer and never passes through you.");
+		await clickAt(c.x, c.y);
+		await inPage("(() => { const a = document.activeElement; if (a && a.select) a.select(); return 1; })()");
+		const b = await br();
+		await b.send("Input.insertText", { text: String(a.text ?? "") });
+		if (a.enter) { await pressEnter(); await sleep(1500); }
+		return snapshot("Typed into " + a.n + ".");
+	}
+	if (name === "browse_look") { const b = await br(), r = await b.send("Page.captureScreenshot", { format: "jpeg", quality: 70 }); if (!r.result) throw new Error("Couldn't see the page."); return [{ type: "image", data: r.result.data, mimeType: "image/jpeg" }]; }
+	if (name === "browse_login") {
+		await settle();
+		const loc = await inPage("({ host: location.hostname, proto: location.protocol })");
+		if (loc.proto !== "https:" && !/^(localhost|127.0.0.1)$/.test(loc.host)) throw new Error("Logins are only filled on secure (https) pages.");
+		const saved = vaultAll().filter((x) => fits(x.site, loc.host));
+		if (!saved.length) return text("No login is saved for " + loc.host + ". Ask the user to add it under Plugins, then Passwords (it stays on their computer), and try again.");
+		const x = saved[0];
+		const userField = "(() => { const vis = " + VIS + "; const pw = [...document.querySelectorAll('input[type=password]')].find(vis); const scope = (pw && pw.form) || document; const c = [...scope.querySelectorAll(" + JSON.stringify(USER_SEL) + ")].filter(vis).filter((e) => !pw || (e.compareDocumentPosition(pw) & Node.DOCUMENT_POSITION_FOLLOWING)); return c.length ? c[c.length - 1] : null; })()";
+		const pwField = "[...document.querySelectorAll('input[type=password]')].find(" + VIS + ")";
+		const b = await br();
+		let hasPw = await inPage("!!(" + pwField + ")");
+		// the username (pages that ask for it on its own first: then Enter, and the password on the next page)
+		if (await focusField(userField)) await b.send("Input.insertText", { text: x.user });
+		if (!hasPw) {
+			await pressEnter(); await sleep(2500); await settle();
+			hasPw = await inPage("!!(" + pwField + ")");
+			if (!hasPw) return snapshot("Filled the username saved for " + x.site + ". The page hasn't asked for the password yet: a code or a choice may be on screen, which the user can do in the browser window.");
+		}
+		// still the site it was saved for, and the password field is what has the focus: only then is it typed
+		if (!fits(x.site, await inPage("location.hostname"))) throw new Error("The page is no longer on " + x.site + ": nothing was filled.");
+		if (!(await focusField(pwField)) || !(await inPage("(document.activeElement && document.activeElement.type) === 'password'"))) throw new Error("Couldn't put the cursor in the password field, so nothing was typed.");
+		await b.send("Input.insertText", { text: unseal(x.secret) });
+		await pressEnter();
+		await sleep(2500);
+		return snapshot("Signed in to " + x.site + " with the login saved on this computer (typed by the computer itself: it never reached you). If the site asks for a code, the user types it in the browser window.");
+	}
+	return null;
+}
+
 async function useComputer(name, a) {
+	if (/^browse_/.test(name)) { const r = await browse(name, a); if (r) return r; }
 	if (name === "run_command" || name === "start_command") {
 		const child = shell(String(a.command || ""), a.cwd);
 		if (name === "start_command") {
