@@ -12994,6 +12994,33 @@ async function produce(msg, only, signal) {
 		save();
 	}
 }
+// A film playing live from its code (no file needed yet): one hidden scene per film, drawn in real time into whichever
+// canvas on the page asks for it, at whatever pace the device keeps; closed when its video file is ready
+const LIVE = new Map();
+async function liveFilm(key, W, H, dur) {
+	if (LIVE.has(key)) return LIVE.get(key);
+	const L = { sc: null, t0: performance.now(), busy: false, dur };
+	LIVE.set(key, L);
+	const blob = await vault.get(key);
+	if (!blob) { LIVE.delete(key); return null; }
+	L.sc = openScene(await blob.text(), W, H);
+	if (!liveFilm.on) {
+		liveFilm.on = true;
+		const tick = async () => {
+			for (const [k, x] of LIVE) {
+				const cv = document.querySelector('canvas[data-live="' + CSS.escape(k) + '"]');
+				if (!cv || !x.sc || x.busy) continue;
+				x.busy = true;
+				try { const b = await x.sc.frame(((performance.now() - x.t0) / 1000) % x.dur); cv.getContext("2d").drawImage(b, 0, 0, cv.width, cv.height); if (b.close) b.close(); } catch {}
+				x.busy = false;
+			}
+			if (LIVE.size) requestAnimationFrame(tick); else liveFilm.on = false;
+		};
+		requestAnimationFrame(tick);
+	}
+	return L;
+}
+function liveStop(key) { const L = LIVE.get(key); if (L && L.sc && L.sc.close) L.sc.close(); LIVE.delete(key); }
 function statusOf(d) {
 	if (d.stage === "cutting") return "Editing: " + Math.round((d.progress || 0) * 100) + "%";
 	if (d.takeStatus) return d.takeStatus;
@@ -13343,7 +13370,9 @@ async function shutter(sh, t, b) {
 	const d = madOf(prev, g);
 	// (still, or a cut: as it is)
 	if (d < 1.5 || d > 40) return b;
-	const n = d < 4 ? 3 : d < 8 ? 5 : d < 14 ? 7 : d < 22 ? 9 : 11, span = SHUTTER / sh.fps;
+	// (at most 5 passes: past that the eye can't tell, and every pass is a whole frame drawn again; the owner, Nov 23: no one waits 20 minutes)
+	if (d < 2.5) return b;
+	const n = d < 7 ? 3 : 5, span = SHUTTER / sh.fps;
 	const acc = sh.acc || (sh.acc = document.createElement("canvas"));
 	if (acc.width !== b.width || acc.height !== b.height) { acc.width = b.width; acc.height = b.height; }
 	const x = acc.getContext("2d");
@@ -15893,7 +15922,9 @@ async function renderStudio(m, i, box) {
 	const frames = await Promise.all(d.scenes.map((s) => (s.frame ? vault.url(s.frame) : s.poster ? vault.url(s.poster) : null)));
 	const vertical = plan.aspect === "9:16";
 	const thumb = d.thumb ? await vault.url(d.thumb) : null, sketchUrl = d.sketch ? await vault.url(d.sketch) : null;
-	box.innerHTML = (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"' + (thumb || frames[0] ? ' poster="' + (thumb || frames[0]) + '"' : "") + '></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button>' + (thumb ? '<button class="btn" data-tdl>Download thumbnail</button>' : "") + (plan.youtube ? '<button class="btn" data-ytcopy>Copy title, description and tags</button>' : "") + '<button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' +
+	// (the film plays here, live, as soon as it's made: its file, for downloading and sharing, is finished alongside)
+	const live = !fin && d.take && (d.stage === "cutting" || d.stage === "done");
+	box.innerHTML = (live ? '<div class="live-film"><canvas data-live="' + esc(d.take) + '" width="' + (vertical ? 405 : 720) + '" height="' + (vertical ? 720 : 405) + '" style="display:block;width:min(100%,' + (vertical ? 360 : 640) + 'px);border-radius:14px;background:#000"></canvas><div class="help">Playing live. Its video file, with sound, for downloading and sharing: ' + Math.round((d.progress || 0) * 100) + '%</div></div>' : '') + (fin ? '<video class="player' + (vertical ? " tall" : "") + '" controls playsinline src="' + fin + '"' + (thumb || frames[0] ? ' poster="' + (thumb || frames[0]) + '"' : "") + '></video><div class="row" style="margin:8px 0 12px;gap:8px;flex-wrap:wrap"><button class="btn dark" data-vdl>Download</button>' + (thumb ? '<button class="btn" data-tdl>Download thumbnail</button>' : "") + (plan.youtube ? '<button class="btn" data-ytcopy>Copy title, description and tags</button>' : "") + '<button class="btn" data-recut>Re-cut</button><button class="btn" data-words>Edit words</button></div>' +
 		(thumb ? '<img class="yt-thumb" src="' + thumb + '" alt="Thumbnail" style="display:block;width:min(100%,360px);border-radius:12px;margin:0 0 12px">' : "") + (plan.youtube ? kitHtml(plan.youtube, null) : "") :
 		d.stage === "planned" ? '<div class="row" style="margin:6px 0 12px"><button class="btn dark" data-make>Make it</button></div>' : "") +
 		(d.drawnOnly ? "" : '<details class="shots-fold"><summary class="help">The ' + d.scenes.length + " shots" + (fin ? ", to redo one" : "") + '</summary><div class="shots' + (vertical ? " tall" : "") + '">' + d.scenes.map((s, n) => '<figure class="shot ' + (s.state || "") + '">' + (frames[n] ? '<img src="' + frames[n] + '" alt="">' : '<div class="ph"></div>') +
@@ -15901,6 +15932,8 @@ async function renderStudio(m, i, box) {
 			(fin || s.state === "failed" ? '<button class="mini" data-redo="' + n + '">Redo</button>' : "") + "</figcaption></figure>").join("") + "</div></details>") +
 		(d.music && d.music.state ? '<div class="help" style="margin-top:8px">Sound: ' + ({ composing: "composing the music and sound effects…", done: "music and sound effects ✓", failed: "couldn't be made this time" }[d.music.state] || esc(d.music.state)) + "</div>" : "");
 	if (sketchUrl) box.insertAdjacentHTML("beforeend", '<details class="sketch-fold"' + (fin ? "" : " open") + '><summary class="help">The sketch it was made from</summary><img src="' + sketchUrl + '" alt="The storyboard, sketched by hand" style="display:block;width:100%;max-width:720px;border-radius:12px;margin-top:8px;border:1px solid var(--line)"></details>');
+	if (live) liveFilm(d.take, vertical ? 405 : 720, vertical ? 720 : 405, plan.scenes.reduce((n, x) => n + (x.seconds || 0), 0) || 10).catch(() => {});
+	else if (d.take && LIVE.has(d.take)) liveStop(d.take);
 	const dl = $("[data-vdl]", box);
 	if (dl) dl.onclick = async () => { const b = await vault.get(d.final); saveBlob(b, plan.title.replace(/[^\w -]+/g, "").slice(0, 40) + "." + (b.type.includes("mp4") ? "mp4" : "webm")); };
 	const tdl = $("[data-tdl]", box);
