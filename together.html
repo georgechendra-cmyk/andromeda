@@ -5714,7 +5714,7 @@ async function runAgent(text, atts) {
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
-			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); dropped = 0; }
+			try { reply = await agentCall(model.id, heardInto(messages, msg), busy.signal, msg, tools); dropped = 0; }
 			catch (e) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				// (the connection dropped, not the model saying no: the same model again after a breath, keeping its cache)
@@ -6758,7 +6758,7 @@ async function runHelpers(tasks, model, tools, exec, msg, log) {
 		const messages = [{ role: "system", content: "You're a helper on Celestin's team. Look into exactly what you're asked with your tools (you can read and look things up; you never change anything), then reply with what you found: precise and complete (paths, line numbers, names, versions, exact facts and sources), and nothing else." }, { role: "user", content: task }];
 		try {
 			for (let step = 0; step < 24; step++) {
-				const reply = await agentCall(model.id, messages, busy.signal, msg, tools);
+				const reply = await agentCall(model.id, heardInto(messages, msg), busy.signal, msg, tools);
 				const calls = (reply.tool_calls || []).map((c, n) => ({ ...c, id: c.id || "h" + k + "_" + step + "_" + n }));
 				messages.push({ role: "assistant", content: reply.content || "", ...(calls.length ? { tool_calls: calls } : {}) });
 				if (!calls.length) return "Helper " + (k + 1) + " (" + task.slice(0, 80) + "):\n" + (reply.content || "(nothing found)");
@@ -7130,7 +7130,7 @@ async function runAct(text, atts, resume) {
 			msg.model = shortName(model);
 			updateLast();
 			let reply;
-			try { reply = await agentCall(model.id, messages, busy.signal, msg, tools); dropped = 0; }
+			try { reply = await agentCall(model.id, heardInto(messages, msg), busy.signal, msg, tools); dropped = 0; }
 			catch (e) {
 				if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e;
 				// (the connection dropped, not the model saying no: the same model again after a breath, keeping its cache)
@@ -7758,6 +7758,25 @@ function drawQueue() {
 	box.hidden = !mine.length;
 	box.innerHTML = mine.map((q) => '<div class="limit-bar"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4v7a4 4 0 0 0 4 4h12M15 10l5 5-5 5"/></svg><em>Next</em><span>' + esc(q.text || q.atts.map((a) => a.name).join(", ")) + '</span><button class="lb-x" data-unqueue="' + QUEUE.indexOf(q) + '" aria-label="Don\'t send this" title="Don\'t send this">×</button></div>').join("");
 	box.querySelectorAll("[data-unqueue]").forEach((b) => { b.onclick = () => { QUEUE.splice(Number(b.dataset.unqueue), 1); drawQueue(); setBusy(!!busy); }; });
+}
+// what's typed while a job works in steps is read at its next step, not after it's done: taken out of the queue, shown in
+// the chat where it was said (just above the work still going), and given to the model as the newest thing the person said
+function heard(msg) {
+	if (!current || !msg || !current.msgs.includes(msg)) return "";
+	const mine = QUEUE.filter((q) => q.cid === current.id && q.text && !(q.atts || []).length);
+	if (!mine.length) return "";
+	QUEUE = QUEUE.filter((q) => !mine.includes(q));
+	drawQueue();
+	const text = mine.map((q) => q.text).join("\n\n");
+	current.msgs.splice(current.msgs.indexOf(msg), 0, { role: "user", text, heard: true });
+	try { render(); } catch {}
+	toast("Read it: working it in now");
+	return text;
+}
+function heardInto(messages, msg) {
+	const note = heard(msg);
+	if (note) messages.push({ role: "user", content: "(Said by the person just now, while you work: read it and take it into account straight away. It may change what you're doing, add to it, or be a question to answer as you go:)\n" + note });
+	return messages;
 }
 function drainQueue() {
 	if (busy || !current) return;
