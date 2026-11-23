@@ -2396,6 +2396,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<li><span class="tav" style="--c:#30b0c7" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18h16M6 18v-2a6 6 0 0 1 12 0v2M12 7V5M10 5h4"/></svg></span><div><b>A front desk that never sleeps</b><span>Answers your customers on a link you share, takes bookings, passes the rest to you.</span></div></li>
 			<li><span class="tav" style="--c:#ff9f0a" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4a1 1 0 0 0 1 1h2l5 4V5L7 9H5a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span><div><b>Marketing at the right moment</b><span>Writes your posts and puts them out when your audience and your topic are hot.</span></div></li>
 			<li><span class="tav" style="--c:#30d158" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.3-5.7L4 8.6"/><path d="M4 4v4.6h4.6"/></svg></span><div><b>Customers who come back</b><span>Warm, personal messages that bring regulars back to rebook.</span></div></li>
+			<li><span class="tav" style="--c:#0d0d0e" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></span><div><b>Undo, even after it's out</b><span>Nothing leaves without a second AI's check and ten minutes to stop it, and any post it made can still be taken back after.</span></div></li>
 		</ul>
 		<p class="atg-foot">Every teammate is the AI model measured best at its job, right now. You pay only for the work: no subscription.</p>
 	</aside>
@@ -3079,6 +3080,21 @@ function codeFirst(ranked) {
 	const pick = bestFirst(quarkFirst(mine))[0];
 	return [pick, ...bestFirst(ranked.filter((x) => x.m.id !== CODE_MODEL))];
 }
+// the owner's own head-to-head verdicts on exactly one kind of work (Nov 23: one ad brief, made the same way by each model,
+// scored by them): direct evidence on that work, so for that role their 54/46 rule is applied to these scores too. A model
+// they scored outside 54/46 of their best goes right behind it; everything they didn't score keeps the leaderboards' order
+const OWNER_VERDICTS = { animation: { "anthropic/claude-opus-5.5": 8, "anthropic/claude-sonnet-5.5": 6 } };
+function ownerVerdict(feature, data) {
+	const v = OWNER_VERDICTS[feature];
+	if (!v) return data;
+	const id = (x) => ((x && x.m) || x || {}).id, top = Math.max(...Object.values(v)), best = Object.keys(v).find((k) => v[k] === top);
+	const bi = data.findIndex((x) => id(x) === best);
+	if (bi < 0) return data;
+	const behind = (x) => v[id(x)] != null && v[id(x)] / (v[id(x)] + top) < 0.46;
+	const moved = data.filter((x, i) => i < bi && behind(x)), out = data.filter((x, i) => !(i < bi && behind(x)));
+	out.splice(out.findIndex((x) => id(x) === best) + 1, 0, ...moved);
+	return out;
+}
 function bestFor(feature, cap) {
 	const f = FEATURE_W[feature];
 	// (in Auto nothing thinks at max: at most xhigh, judged on what it scores at xhigh; only Max goes higher)
@@ -3093,7 +3109,10 @@ function bestFor(feature, cap) {
 	// (every model is picked by the 54/46 and 1.8x rules for exactly this task, nothing else: the owner, Nov 7, "DeepSeek
 	// only if it's close to the best on that topic")
 	// (code work is the exception, by the owner's word, Nov 21: the very best for it, not a cheaper one nearly as good)
-	data = BEST_ONLY.has(feature) ? codeFirst(data) : bestFirst(quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
+	// (a role the owner measured themselves gets the very best by that evidence, never a cheaper one nearly as good: Nov 23,
+	// "give the best ai at doing that part")
+	data = BEST_ONLY.has(feature) ? codeFirst(data) : OWNER_VERDICTS[feature] ? data : bestFirst(quarkFirst(data, undefined, undefined, (x, c) => callCost(x, c, f.out || 800, f.in)));
+	data = ownerVerdict(feature, data);
 	return data.length ? (f.fast ? data.map((x) => x.m) : pinFirst(diversify(data), f.task)) : f.fast ? [flagship("google", "quick", true) || flagship("openai", "quick", true) || flagship("anthropic", "quick", true)].filter(Boolean) : rank(f.task);
 }
 // Per skill: each model in the catalog that's rated on it
@@ -12445,7 +12464,7 @@ Return ONLY JSON:
 {"title":"...","kind":"ad|social|film|music video|explainer|animation","aspect":"16:9|9:16|1:1","look":"the style bible, 60-120 words","scenes":[{"seconds":6,"motion":"still|video|drawn","move":"push in","shot":"...","frame":"...","draw":"only for drawn shots","vo":"...","caption":"...","sound":"what the shot sounds like"}],"voice":{"who":"one of: ${Object.keys(VOICES).join(", ")}","style":"how to read it"},"music":{"prompt":"genre, mood, instruments, tempo in BPM, how it builds and ends; instrumental, no vocals","level":0.5},"end":{"title":"brand or title for the end card, or empty","sub":"call to action or tagline, or empty","color":"#hex brand colour"},"captions":"bold|minimal|none","type":{"title":"the Google Fonts family for titles and the end card","text":"the Google Fonts family for captions"}}`;
 const CELESTIN_LOOK = `Celestin itself (it's you: the true facts, its real look and its real screens, for anything you make about it; never invent other numbers, results or features):
 What it is: Celestin (celestin.pages.dev) is one AI app that gives each part of a job (the code, the design, the testing, the writing) to whichever AI model is best at that part right now, from GPT, Claude, Gemini, Grok, DeepSeek, Kimi, Qwen, Llama and more, and they work as one: the job is split, each part done by its best model, then put together, checked and fixed. It chats, writes, teaches, and makes websites, apps, games, documents, pictures, music and videos. It tests what it builds by playing it through, measures it on a phone and a laptop, and polishes it before you see it. A real run: asked "Make a website for my coffee shop", it built a working site in 5 minutes 42 seconds and polished 6 things first (the business is the placeholder "Your Café"). Free to try.
-Celestin Together (celestin.pages.dev/together.html): "Your AI team. Working for your business, day and night." Six AI teammates in one chat (a Lead, a Researcher, a Builder, a Writer and more), each the model measured best at its job: the Lead gives each part to the right teammate and they work at the same time, then check it. A front desk that never sleeps (answers your customers on a link you share, takes bookings, passes the rest to you); marketing at the right moment (writes your posts and puts them out when your audience is there, on X, Bluesky, Telegram and Discord); warm messages that bring regulars back; it keeps working while the app is closed, and asks you before anything goes out, with ten minutes to stop it. You pay only for the work: no subscription, free to start.
+Celestin Together (celestin.pages.dev/together.html): "Your AI team. Working for your business, day and night." Six AI teammates in one chat (a Lead, a Researcher, a Builder, a Writer and more), each the model measured best at its job: the Lead gives each part to the right teammate and they work at the same time, then check it. A front desk that never sleeps (answers your customers on a link you share, takes bookings, passes the rest to you); marketing at the right moment (writes your posts and puts them out when your audience is there, on X, Bluesky, Telegram and Discord); warm messages that bring regulars back; it answers your business phone and texts, and sends your email, keeps your calendar and sheets (when you connect them); it keeps working while the app is closed. What no other AI team has: undo, even after it's out. Nothing leaves without a second AI from another company checking it and ten minutes to stop it, and any post it made can still be taken back afterwards, from where it went. You pay only for the work: no subscription, free to start.
 Its look: black and white. The app is a soft white (#f7f7f9) with near-black controls and words (#0d0d0e) and quiet grey for what's secondary, set in Geist; its mark is a black open C with a dot (Together's has two dots). An ad about it stays black and white, one accent at most and never purple: the colour in the film is what Celestin made.
 Its real screens (use them, never redraw its interface yourself): const im = await MO.self(name) in seek, before drawing (null if it didn't load: then leave it out). Names:
 - Laptop, 1440 by 900 points, each image 2880 by 1800 (2 pixels a point): "desk-empty" (the greeting "Good evening. What are we making today?" and the message box empty: the box from 394,405 to 1110,540, its round button at 1080,510 radius 19 is the voice button); "desk-typed" (the same with "Make a website for my coffee shop" typed: the words start at x 416 with their baseline at y 471, 16 points of Geist, colour #151517; the button is now the black SEND button with a white up arrow); "desk-working", "desk-testing", "desk-polish" (after sending: the words in a grey bubble at the top right, 852,90 to 1123,133, at 15 points, its words from x 870, baseline 117; a status line at the left from 350,212: "Writing the code…", "Testing it…", "Polishing how it looks…"; the empty message box at the bottom); "desk-done" (the answer, a result card "Your Café · App · 2 files" from 86,296 to 555,366, and the site it made open in a preview on the right, 752,12 to 1427,887); "desk-site" (that site's whole page, 2880 by 7024: scroll down it for its menu).
@@ -19045,6 +19064,7 @@ async function syncNeeds() {
 	syncCheck();
 	const before = NEEDS.items.length;
 	try { NEEDS = { items: [], yesterday: {}, ...(await api("/api/needs")) }; } catch { return; }
+	try { NEEDS.sent = (await api("/api/outbox/sent")).sent || []; } catch { NEEDS.sent = []; }
 	railBadges();
 	if ($("#ndBox")) drawNeeds();
 	else if ($(".tgw") && before !== NEEDS.items.length) renderTogetherWelcome();
@@ -19106,9 +19126,17 @@ function drawNeeds() {
 	if (!box) return;
 	const y = NEEDS.yesterday || {}, done = [y.chats && y.chats + " chats answered", y.booked && y.booked + " booked", y.mailed && y.mailed + " emails sent", y.posted && y.posted + " posted", y.calls && y.calls + " calls"].filter(Boolean);
 	const top = '<div class="row" id="ndPush" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px"></div>' + (done.length ? '<div class="nd-y">Yesterday your team: ' + done.map(esc).join(" · ") + "</div>" : "") + (NEEDS.items.some((x) => x.type === "out") ? '<div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn" id="ndStopAll">Stop everything going out</button></div>' : "");
-	if (!NEEDS.items.length) { box.innerHTML = top + '<div class="nd-none">Nothing needs you right now. Your team has it.</div>'; drawPush(); return; }
-	box.innerHTML = top + NEEDS.items.map((it, k) => '<div class="nd-it" data-ndk="' + k + '">' + needRow(it) + "</div>").join("");
+	// what went out, any of it taken back with one more click: undo, even after it's out
+	const sent = NEEDS.sent || [], where = { x: "X", bluesky: "Bluesky", telegram: "Telegram", discord: "Discord" };
+	const sentHtml = sent.length ? '<h3 style="margin:18px 0 4px">Sent by your team</h3><p class="help" style="margin:0 0 8px">The last week. Take any post back and it\'s gone from where it went, not just from here.</p>' + sent.map((x, k) => '<div class="nd-it nd-sent" data-ndsk="' + k + '"><div class="nd-h"><b>' + esc(x.kind === "post" ? "Posted on " + (where[x.to] || x.to) : x.kind === "email" ? "Emailed " + (x.to || "a reply") + (x.subject ? " · " + x.subject : "") : "Done in " + x.to) + '</b><span class="help">' + esc(x.from || "") + " · " + esc(new Date(x.at).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })) + '</span></div><div style="white-space:pre-wrap">' + esc(x.text) + '</div><div class="row" style="gap:8px;flex-wrap:wrap;margin-top:8px">' + (x.url ? '<a class="btn" href="' + esc(x.url) + '" target="_blank" rel="noopener">See it</a>' : "") + (x.undo ? '<button class="btn" data-ndundo>Undo</button>' : x.kind === "email" ? '<span class="help">An email can\'t be unsent by anyone: ask your team for a short correction if it needs one.</span>' : "") + "</div></div>").join("") : "";
+	if (!NEEDS.items.length) box.innerHTML = top + '<div class="nd-none">Nothing needs you right now. Your team has it.</div>' + sentHtml;
+	else box.innerHTML = top + NEEDS.items.map((it, k) => '<div class="nd-it" data-ndk="' + k + '">' + needRow(it) + "</div>").join("") + sentHtml;
 	drawPush();
+	$(".nd-sent").forEach((el) => {
+		const x = sent[+el.dataset.ndsk], b = el.querySelector("[data-ndundo]");
+		if (b) b.onclick = () => twice(b, async () => { b.disabled = true; try { await api("/api/outbox/" + x.id + "/undo", { method: "POST", body: "{}" }); toast("Taken back from " + (where[x.to] || x.to)); NEEDS.sent = sent.filter((y) => y !== x); drawNeeds(); } catch (e) { b.disabled = false; toast(e.message || String(e)); } }, "take it back");
+	});
+	if (!NEEDS.items.length) return;
 	const gone = (it) => { NEEDS.items = NEEDS.items.filter((x) => x !== it); railBadges(); drawNeeds(); };
 	if ($("#ndStopAll")) $("#ndStopAll").onclick = async () => { try { const j = await api("/api/outbox/stop", { method: "POST", body: "{}" }); toast((j.stopped || 0) + " stopped: each waits for you"); syncNeeds(); } catch (e) { toast(e.message || String(e)); } };
 	const act = async (it, path, bodyObj, okText) => { try { await api(path, { method: "POST", body: JSON.stringify(bodyObj || {}) }); if (okText) toast(okText); gone(it); } catch (e) { toast(e.message || String(e)); } };

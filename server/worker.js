@@ -225,6 +225,8 @@ async function route(req, env, ctx, url) {
 	if ((fd = p.match(/^\/api\/agents\/log\/([a-f0-9]{24})\/(send|discard)$/)) && m === "POST") return agentApprove(req, env, user, fd[1], fd[2]);
 	if ((fd = p.match(/^\/api\/outbox\/([a-f0-9]{24})\/(send|stop|discard)$/)) && m === "POST") return outboxAct(req, env, user, fd[1], fd[2]);
 	if (p === "/api/outbox/stop" && m === "POST") return outboxStopAll(env, user);
+	if (p === "/api/outbox/sent" && m === "GET") return outboxSent(env, user);
+	if ((fd = p.match(/^\/api\/outbox\/([a-f0-9]{24})\/undo$/)) && m === "POST") return outboxUndo(env, user, fd[1]);
 	if (p === "/api/post" && m === "POST") return postNow(req, env, user);
 	if (p === "/api/post/video" && m === "POST") return postVideo(req, env, user);
 	if ((fd = p.match(/^\/api\/post\/video\/x\/(start|part|finish)$/)) && m === "POST") return postVideoX(req, env, user, fd[1]);
@@ -3916,18 +3918,50 @@ async function connPost(env, userId, kind, text) {
 	if (!row) throw fail(404, "No " + kind + " account is connected.");
 	const c = await unseal(env, row.secret);
 	const t = plainText(text);
-	if (kind === "telegram") { const m = await tgCall(c.token, "sendMessage", { chat_id: c.chat, text: t.slice(0, 4000) }); const meta = JSON.parse(row.meta || "{}"); return { url: /^@/.test(meta.chat || "") ? "https://t.me/" + meta.chat.slice(1) + "/" + m.message_id : null }; }
-	if (kind === "discord") { const r = await fetch(c.hook + "?wait=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: t.slice(0, 1900), allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(15000) }); if (!r.ok) throw fail(400, "Discord said " + r.status); return { url: null }; }
+	if (kind === "telegram") { const m = await tgCall(c.token, "sendMessage", { chat_id: c.chat, text: t.slice(0, 4000) }); const meta = JSON.parse(row.meta || "{}"); return { url: /^@/.test(meta.chat || "") ? "https://t.me/" + meta.chat.slice(1) + "/" + m.message_id : null, undo: { mid: m && m.message_id } }; }
+	if (kind === "discord") { const r = await fetch(c.hook + "?wait=true", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: t.slice(0, 1900), allowed_mentions: { parse: [] } }), signal: AbortSignal.timeout(15000) }); if (!r.ok) throw fail(400, "Discord said " + r.status); const dj = await r.json().catch(() => ({})); return { url: null, undo: dj.id ? { mid: dj.id } : null }; }
 	if (kind === "bluesky") {
 		const ses = await bskySession(c), body = t.slice(0, 300), facets = [];
 		for (const m of body.matchAll(/https?:\/\/[^\s)]+/g)) { const start = enc.encode(body.slice(0, m.index)).length; facets.push({ index: { byteStart: start, byteEnd: start + enc.encode(m[0]).length }, features: [{ $type: "app.bsky.richtext.facet#link", uri: m[0] }] }); }
 		const r = await fetch("https://bsky.social/xrpc/com.atproto.repo.createRecord", { method: "POST", headers: { Authorization: "Bearer " + ses.accessJwt, "Content-Type": "application/json" }, body: JSON.stringify({ repo: ses.did, collection: "app.bsky.feed.post", record: { $type: "app.bsky.feed.post", text: body, createdAt: new Date().toISOString(), ...(facets.length ? { facets } : {}) } }), signal: AbortSignal.timeout(15000) });
 		const j = await r.json().catch(() => ({}));
 		if (!j.uri) throw fail(400, "Bluesky said: " + (j.message || r.status));
-		return { url: "https://bsky.app/profile/" + (ses.handle || c.handle) + "/post/" + j.uri.split("/").pop() };
+		return { url: "https://bsky.app/profile/" + (ses.handle || c.handle) + "/post/" + j.uri.split("/").pop(), undo: { uri: j.uri } };
 	}
-	if (kind === "x") { const j = await xFetch(c, "POST", "https://api.x.com/2/tweets", { text: t.slice(0, 280) }); return { url: "https://x.com/i/web/status/" + (j.data && j.data.id) }; }
+	if (kind === "x") { const j = await xFetch(c, "POST", "https://api.x.com/2/tweets", { text: t.slice(0, 280) }); return { url: "https://x.com/i/web/status/" + (j.data && j.data.id), undo: j.data && j.data.id ? { mid: j.data.id } : null }; }
 	throw fail(400, "Unknown account.");
+}
+// taking back what was sent, on the platform itself (the owner's: undo even after it's out)
+async function connUndo(env, userId, kind, u) {
+	const row = await env.DB.prepare("SELECT * FROM conns WHERE user_id = ? AND kind = ?").bind(userId, kind).first();
+	if (!row) throw fail(404, "That account isn't connected any more, so it can't be taken back from here.");
+	const c = await unseal(env, row.secret);
+	if (kind === "telegram") { await tgCall(c.token, "deleteMessage", { chat_id: c.chat, message_id: u.mid }); return; }
+	if (kind === "discord") { const r = await fetch(c.hook + "/messages/" + encodeURIComponent(u.mid), { method: "DELETE", signal: AbortSignal.timeout(15000) }); if (!r.ok && r.status !== 404) throw fail(400, "Discord said " + r.status); return; }
+	if (kind === "bluesky") {
+		const ses = await bskySession(c);
+		const r = await fetch("https://bsky.social/xrpc/com.atproto.repo.deleteRecord", { method: "POST", headers: { Authorization: "Bearer " + ses.accessJwt, "Content-Type": "application/json" }, body: JSON.stringify({ repo: ses.did, collection: "app.bsky.feed.post", rkey: String(u.uri || "").split("/").pop() }), signal: AbortSignal.timeout(15000) });
+		if (!r.ok) { const j = await r.json().catch(() => ({})); throw fail(400, "Bluesky said: " + (j.message || r.status)); }
+		return;
+	}
+	if (kind === "x") { await xFetch(c, "DELETE", "https://api.x.com/2/tweets/" + encodeURIComponent(u.mid)); return; }
+	throw fail(400, "That can't be taken back from here.");
+}
+async function outboxUndo(env, user, oid) {
+	const r = await env.DB.prepare("SELECT * FROM outbox WHERE id = ? AND user_id = ? AND status = 'sent'").bind(oid, user.id).first();
+	if (!r) throw fail(404, "That's already been taken back, or it never went out.");
+	let p = {}, src = {};
+	try { p = JSON.parse(r.payload || "{}"); src = JSON.parse(r.src || "{}"); } catch {}
+	if (r.kind === "email") throw fail(400, "No one can unsend an email once it's delivered. Ask your team to send a short correction instead.");
+	if (r.kind !== "post" || !p.undo) throw fail(400, "This one can't be taken back from here" + (p.url ? ": undo it at " + p.url : "") + ".");
+	await connUndo(env, user.id, p.to, p.undo);
+	await env.DB.prepare("UPDATE outbox SET status = 'undone', why = 'Taken back by you' WHERE id = ?").bind(oid).run();
+	if (src.type === "agent") await env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at) VALUES (?, ?, ?, 'action', ?, ?)").bind(id(), src.id, user.id, "Took back its post on " + p.to + " (you asked)", now()).run();
+	return json({ ok: true });
+}
+async function outboxSent(env, user) {
+	const rows = (await env.DB.prepare("SELECT id, kind, payload, src, send_at FROM outbox WHERE user_id = ? AND status = 'sent' AND send_at > ? ORDER BY send_at DESC LIMIT 40").bind(user.id, now() - 7 * 864e5).all().catch(() => ({ results: [] }))).results || [];
+	return json({ sent: rows.map((r) => { let p = {}, src = {}; try { p = JSON.parse(r.payload || "{}"); src = JSON.parse(r.src || "{}"); } catch {} return { id: r.id, kind: r.kind, to: p.to || "", subject: p.subject || "", text: String(p.text || p.body || (p.tool ? String(p.tool).replace(/_/g, " ") : "")).slice(0, 600), url: p.url || "", from: src.name || "", at: r.send_at, undo: r.kind === "post" && !!p.undo }; }) });
 }
 async function connsOf(env, user) {
 	const rows = (await env.DB.prepare("SELECT kind, name, meta, created_at FROM conns WHERE user_id = ?").bind(user.id).all()).results || [];
@@ -5322,9 +5356,9 @@ async function outSend(env, r, byOwner) {
 	let p = {}, src = {};
 	try { p = JSON.parse(r.payload || "{}"); src = JSON.parse(r.src || "{}"); } catch {}
 	try {
-		let url = "";
+		let url = "", undo = null;
 		if (r.kind === "email") await emailSend(env, r.user_id, p);
-		else if (r.kind === "post") url = ((await connPost(env, r.user_id, p.to, p.text)) || {}).url || "";
+		else if (r.kind === "post") { const res = (await connPost(env, r.user_id, p.to, p.text)) || {}; url = res.url || ""; undo = res.undo || null; }
 		else if (r.kind === "tool") {
 			const app = await env.DB.prepare("SELECT * FROM mcps WHERE id = ? AND user_id = ?").bind(p.app, r.user_id).first();
 			if (!app) throw new Error(p.to + " isn't connected any more");
@@ -5333,7 +5367,7 @@ async function outSend(env, r, byOwner) {
 			url = ((res && res.content) || []).filter((x) => x.type === "text").map((x) => x.text).join("\n").slice(0, 400);
 		}
 		else throw new Error("unknown kind");
-		await env.DB.prepare("UPDATE outbox SET status = 'sent', send_at = ? WHERE id = ?").bind(now(), r.id).run();
+		await env.DB.prepare("UPDATE outbox SET status = 'sent', send_at = ?, payload = ? WHERE id = ?").bind(now(), JSON.stringify({ ...p, url: url && url !== true ? String(url).slice(0, 400) : "", undo }), r.id).run();
 		const said = (r.kind === "tool" ? "Did " + String(p.tool).replace(/_/g, " ") + " in " + p.to + (url ? ": " + url : "") : r.kind === "post" ? "Posted to " + p.to + (url ? " (" + url + ")" : "") : "Emailed " + (p.to || "a reply in the thread") + (p.subject ? ": " + p.subject : "")) + (byOwner ? " (you sent it)" : " (by itself, after passing every check)");
 		if (src.type === "agent") await env.DB.prepare("INSERT INTO agent_log (id, agent_id, user_id, kind, text, created_at) VALUES (?, ?, ?, 'action', ?, ?)").bind(id(), src.id, r.user_id, said + "\n\n" + String(p.body || p.text || "").slice(0, 3000), now()).run();
 		if (src.type === "job" && src.item) await env.DB.prepare("UPDATE team_job_items SET status = 'done', text = ?, why = ? WHERE id = ? AND user_id = ?").bind(String(p.body || p.text || ""), (src.why ? src.why + " · " : "") + said, src.item, r.user_id).run();
