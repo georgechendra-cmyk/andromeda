@@ -10606,7 +10606,7 @@ async function watchVideos(atts, request) {
 // gradients, gradient text, glass, glow, emoji as icons, stock AI wording, invented numbers, em dashes, the stock three
 // cards and pill badge, one radius on everything, fade-ups everywhere, endless pulsing, and the fallback palettes. Anything
 // they asked for, the decided look and their brand's own are never counted. What's found is fixed with the review's fix
-const TELL_FONTS = /^(inter|roboto|arial|helvetica( neue)?|open sans|lato|poppins|montserrat|space grotesk|dm sans|manrope|plus jakarta sans|outfit|sora|geist|instrument sans|instrument serif|playfair display)$/i;
+const TELL_FONTS = /^(inter|inter tight|roboto|arial|helvetica( neue)?|open sans|lato|poppins|montserrat|space grotesk|space mono|dm sans|manrope|plus jakarta sans|outfit|sora|geist|instrument sans|instrument serif|playfair display|syne|unbounded|clash display|satoshi|cabinet grotesk|general sans|orbitron|exo 2|rajdhani|michroma|krona one|lexend( \w+)?|urbanist|figtree|bricolage grotesque|archivo( black| expanded)?|chakra petch|audiowide|oxanium|syncopate|tektur)$/i;
 const TELL_WORDS = /\b(unlock(s|ing)?|elevate[sd]?|empower(s|ing)?|supercharge[sd]?|seamless(ly)?|revolutioni[sz]e[sd]?|leverage[sd]?|harness(es|ing)?|streamline[sd]?|cutting[- ]edge|next[- ]level|game[- ]changer|world[- ]class|effortless(ly)?|state[- ]of[- ]the[- ]art|fast[- ]paced world|delve|tapestry|lorem ipsum|john doe|jane doe|acme|techcorp)\b/gi;
 function hslOf(c) {
 	c = String(c || "").trim().toLowerCase();
@@ -15152,7 +15152,9 @@ function filmTells(html, brief) {
 	if (/\bcelestin\b/.test(asked)) ours.push("#5141ee", "#5b48ff", "#2f6bff", "#9a8fff");
 	const cols = [...new Set((seen.match(COLOUR_IN) || []).map((c) => c.toLowerCase()))].filter((c) => { const h = hslOf(c); const x = asHex(c); return h && h.s > 0.35 && h.l > 0.12 && h.l < 0.9 && h.h >= 245 && h.h <= 300 && !(x && ours.some((o) => rgbDist(o, x) < 24)); });
 	if (cols.length >= 2 && !/purple|violet|indigo|lavender|lilac|ungu/.test(asked)) out.push("It uses purple, violet or indigo (" + cols.slice(0, 4).join(", ") + "), the most recognisable AI look: change every one to the film's own palette.");
-	const glows = (seen.match(/shadowBlur\s*=\s*(?:[1-9]\d+|\d+\s*\*)/g) || []).length;
+	// (a glow is a shadow in a light or vivid colour; a dark drop shadow under something is depth, not the AI look)
+	const glowCols = [...seen.matchAll(/shadowColor\s*=\s*["'\x60]([^"'\x60]+)["'\x60]/g)].map((m) => m[1]).filter((c) => { const x = asHex(c) || hexOf(c); const h = x && hslOf(x); return h && (h.l > 0.55 || (h.s > 0.45 && h.l > 0.3)); });
+	const glows = glowCols.length ? (seen.match(/shadowBlur\s*=\s*(?:[1-9]\d+|\d+\s*\*)/g) || []).length : 0;
 	if (glows >= 3 && !/glow|neon/.test(asked)) out.push("Neon glows (shadowBlur in " + glows + " places): use soft, dark, directional shadows for depth instead, or none.");
 	const fams = [...new Set((seen.match(/\b\d+(?:\.\d+)?px\s+["']?([A-Z][\w ]{1,30}?)["']?(?=[,;"'`)]|$)/g) || []).map((f) => f.replace(/^\S+px\s+["']?/, "").replace(/["']$/, "").trim()))].filter((f) => TELL_FONTS.test(f) && !asked.includes(f.toLowerCase()) && !(LOOK && [LOOK.display, LOOK.body].includes(f)) && !(/\bcelestin\b/.test(asked) && /^Geist/i.test(f)));
 	if (fams.length) out.push("The typeface " + fams.slice(0, 2).join(", ") + " is the one every AI video uses: use " + (LOOK ? "the decided typefaces (" + LOOK.display + ", " + LOOK.body + ")" : "the film's own typefaces") + ".");
@@ -15167,6 +15169,9 @@ function filmTells(html, brief) {
 		if (!/MO\.self\(/.test(seen)) out.push("It draws its own version of Celestin's app. Show its real screens instead: await MO.self(\"desk-empty\"), \"desk-typed\", \"desk-working\", \"desk-done\", \"desk-site\" (or the phone ones), placed and typed over exactly as the brief says, and never redraw its interface.");
 		const vivid = [...new Set((seen.match(COLOUR_IN) || []).map((c) => c.toLowerCase()))].filter((c) => { const h = hslOf(c); return h && h.s > 0.4 && h.l > 0.15 && h.l < 0.85; });
 		if (vivid.length >= 3) out.push("Celestin's ads are black and white (" + vivid.slice(0, 4).join(", ") + " are colours it doesn't have): a soft white ground (#f7f7f9), near-black (#0d0d0e) and greys, with one accent at most; the colour in the film is what Celestin made, on its real screens.");
+		// (its own typeface, as on its real screens: any other face in a film about it is the AI look, Nov 28)
+		const faces = [...new Set([...(seen.match(/\b\d+(?:\.\d+)?px\s+["']?([A-Z][\w ]{1,30}?)["']?(?=[,;"'\x60)]|$)/g) || []), ...(seen.match(/family=([A-Z][\w+]{1,30})/g) || []).map((x) => x.replace(/^family=/, "").replace(/\+/g, " ")), ...(seen.match(/MO\.kit\.(?:ui|display)\s*=\s*["']([^"']+)["']/g) || []).map((x) => x.replace(/^.*=\s*["']/, "").replace(/["']$/, ""))].map((f) => f.replace(/^\S+px\s+["']?/, "").replace(/["']$/, "").trim()))].filter((f) => f && !/^(geist|geist mono|instrument serif|sans-serif|serif|monospace|system-ui)$/i.test(f) && !given.includes(f.toLowerCase()));
+		if (faces.length) out.push("Celestin's ads are set in its own typeface, Geist (as on its real screens), with Instrument Serif italic for one accent word at most: " + faces.slice(0, 3).join(", ") + " is not Celestin's. Use \"Geist\" everywhere (MO.kit.ui = MO.kit.display = \"Geist\").");
 	}
 	return out;
 }
@@ -15657,7 +15662,7 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 		(/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "\n\nCelestin's real logo, to use exactly (never draw one of your own): in a 32 by 32 box, an open C, the path \"M22.7 8.1A10.4 10.4 0 1 0 22.7 23.9\" stroked 3.4 wide with round caps and no fill, and a dot (a circle at 26.5, 5.3, radius 2.5) at its upper right; Celestin Together's mark has a second dot at 26.5, 26.7. Draw it in one colour, the film's own ink, with new Path2D(that path) scaled to size. The name is \"Celestin\" (or \"Celestin Together\"), set in the film's title type; its address is celestin.pages.dev (never any other, and no made-up numbers or results about it). " + CELESTIN_LOOK : "") +
 		(plan.craftNote ? "\n\n" + String(plan.craftNote).slice(0, 6000) : "") +
 		(plan.ref ? "\n\nThe reference it must look like, studied from the real thing. Match how it's made (2D, 3D, or 2D characters in a 3D world), how its characters are built, its world, camera, editing and captions, closely: it's their reference. Never copy its actual characters, names or content.\n" + String(plan.ref).slice(0, 5000) : "") +
-		"\nIts typefaces (Google Fonts): " + ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words (a device's screen may use Figtree or Hanken Grotesk, like a real app); never Inter, Roboto, Arial or a system font." +
+		"\nIts typefaces (Google Fonts): " + (/\bcelestin\b/i.test(String(plan.ask || "") + " " + plan.title) ? "Geist (Celestin's own typeface) for titles and every other word, Instrument Serif italic for one accent word at most, Geist Mono for anything technical" : ((plan.type || {}).title || "") + " for titles, " + ((plan.type || {}).text || "") + " for other words (a device's screen may use Figtree or Hanken Grotesk, like a real app); never Inter, Roboto, Arial or a system font.") +
 		"\nAspect " + plan.aspect + ", " + total + " seconds in all.\n\nThe shot list (one continuous film: design the transitions between them):\n" + timeline +
 		(plan.end.title || plan.end.sub ? "\n\nIt ends on: " + [plan.end.title, plan.end.sub].filter(Boolean).join(" / ") : "");
 	// (the animator at the thought it earned its rank at, read again right before each call)
@@ -15796,6 +15801,17 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 				await runs(again);
 				const left2 = serious(await motionTells(again, total, W, H, brief).catch(() => left));
 				if (left2.length < left.length) { html = again; by = up; if (t2) team = t2; }
+			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+		}
+	}
+	// (the code checks once more, on what's about to ship: a fix that missed goes back once, alone)
+	if (!(signal && signal.aborted)) {
+		const still = filmTells(html, brief);
+		if (still.length) {
+			try {
+				onStatus("A last check still finds " + still.length + " thing" + (still.length > 1 ? "s" : "") + " to fix: fixing " + (still.length > 1 ? "them" : "it"));
+				const next = team ? await team.fix(still, "The code check of the finished film still finds") : await edit(by, "The code check of the finished film still finds:\n- " + still.join("\n- ") + "\nFix exactly these, keeping everything else as it is.", html);
+				if (next) { await runs(next); if (filmTells(next, brief).length < still.length) { html = next; rounds++; } }
 			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 		}
 	}
