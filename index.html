@@ -2401,6 +2401,7 @@ html[data-app="together"] .auth-main { align-self: center; }
 			<button class="icon" id="artReload" title="Start it again" aria-label="Start it again"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>
 			<button class="icon" id="artCopy" title="Copy the code" aria-label="Copy the code"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 8V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-3"/><rect x="3" y="8" width="13" height="13" rx="2"/></svg></button>
 			<button class="icon" id="artDl" title="Download" aria-label="Download"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg></button>
+			<button class="icon" id="artInst" title="Install as app" aria-label="Install as app" hidden><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="4.5"/><path d="M12 8v7M8.8 12l3.2 3.2 3.2-3.2"/></svg></button>
 			<button class="icon" id="artPub" title="Put it online" aria-label="Put it online" hidden><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></button>
 			<button class="icon" id="art3d" title="Download the 3D model" aria-label="Download the 3D model" hidden><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9Z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></button>
 			<button class="icon" id="artTab" title="Open in a new tab" aria-label="Open in a new tab"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/></svg></button>
@@ -6123,7 +6124,7 @@ function plgLogoWire(box) {
 	});
 }
 const plgRow = (key, name, what, on, c, x) => '<div class="plg-row">' + plgIcon(key, name, c, x) + '<div class="plg-tx"><b>' + esc(name) + "</b><span>" + esc(what) + '</span></div><button class="plg-plus' + (on ? " on" : "") + '" data-plg="' + esc(key) + '" aria-label="' + esc((on ? "Manage " : "Connect ") + name) + '"' + (PLG.busy === key ? " disabled" : "") + ">" + (on ? "✓" : "+") + "</button></div>";
-async function syncPlugins() { if (!creditsMode() || !account) { PLG.apps = []; return; } try { PLG.apps = (await api("/api/mcp")).apps || []; } catch { PLG.apps = []; } }
+async function syncPlugins() { if (!creditsMode() || !account) { PLG.apps = []; return; } try { PLG.apps = (await api("/api/mcp")).apps || []; PLG.at = Date.now(); } catch { PLG.apps = []; } }
 function openPlugins(tab) {
 	if (tab) PLG.tab = tab;
 	openModal('<div class="plg-top"><div class="plg-tabs" role="tablist"><button data-plgtab="plugins" role="tab">Plugins</button><button data-plgtab="skills" role="tab">Skills</button></div><div class="row" style="gap:8px"><button class="btn" id="plgAll">Connect all</button><button class="btn dark" id="plgAdd">Add</button></div></div><label class="plg-search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="plgQ" placeholder="Search" autocomplete="off"></label><div id="plgBody"></div>', "wide");
@@ -11271,12 +11272,19 @@ function cutShort(p, cut) {
 // Every app Celestin builds has a backend (see the server's "a backend for every app"): celestin.js, a file of the app, so
 // it goes with it when it's downloaded or published. window.celestin.add(collection, record) keeps a record for the owner
 // (public-… collections are shared), .list(collection) reads a public one, .notify(text) tells the owner at once
-const celestinJs = (key) => "// Celestin: this app's backend. add(name, record) keeps a record for the app's owner; collections named public-...\n// are shared, list(name) reads one; notify(text) tells the owner at once.\nwindow.celestin=(function(){var S=" + JSON.stringify(SERVER + "/api/app/" + key + "/") + ";function go(p,b){return fetch(S+p,b?{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(b)}:{}).then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok)throw new Error((j.error&&j.error.message)||'It could not be saved. Please try again.');return j})})}return{add:function(c,d){return go(encodeURIComponent(c),{data:d}).then(function(j){return j.id})},list:function(c){return go(encodeURIComponent(c)).then(function(j){return j.rows||[]})},notify:function(t){return go('notify',{text:String(t)}).then(function(){return true})}}})();\n";
+const celestinJs = (key) => "// Celestin: this app's backend. add(name, record) keeps a record for the app's owner; collections named public-...\n// are shared, list(name) reads one; notify(text) tells the owner at once.\nwindow.celestin=(function(){var S=" + JSON.stringify(SERVER + "/api/app/" + key + "/") + ";function go(p,b){return fetch(S+p,b?{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(b)}:{}).then(function(r){return r.json().catch(function(){return {}}).then(function(j){if(!r.ok)throw new Error((j.error&&j.error.message)||'It could not be saved. Please try again.');return j})})}function ask(m){return new Promise(function(ok,no){if(window.parent===window)return no(new Error('Connected apps work when this app is installed from Celestin, or in its preview there.'));var id=Math.random().toString(36).slice(2);m.id=id;function h(e){var d=e.data||{};if(d.celestinReply!==id)return;removeEventListener('message',h);if(d.error)no(new Error(d.error));else ok(d.result)}addEventListener('message',h);window.parent.postMessage(m,'*');setTimeout(function(){removeEventListener('message',h);no(new Error('No answer from Celestin.'))},120000)})}return{add:function(c,d){return go(encodeURIComponent(c),{data:d}).then(function(j){return j.id})},list:function(c){return go(encodeURIComponent(c)).then(function(j){return j.rows||[]})},notify:function(t){return go('notify',{text:String(t)}).then(function(){return true})},tools:function(){return ask({celestin:'tools'})},tool:function(a,n,x){return ask({celestin:'tool',app:a,tool:n,args:x||{}})}}})();\n";
 // (in tests, a stand-in that keeps nothing: pressing every button never sends the owner test bookings)
-const CELESTIN_TEST = "window.celestin={add:function(){return new Promise(function(r){setTimeout(function(){r('test')},30)})},list:function(){return Promise.resolve([])},notify:function(){return Promise.resolve(true)}};";
+const CELESTIN_TEST = "window.celestin={add:function(){return new Promise(function(r){setTimeout(function(){r('test')},30)})},list:function(){return Promise.resolve([])},notify:function(){return Promise.resolve(true)},tools:function(){return Promise.resolve([])},tool:function(){return Promise.resolve(null)}};";
 // what a hacker tries first on an app made by AI, closed in every build (Nov 24)
 const SECURITY_RULE = "- Safe from what a hacker tries first: no secret key, token or password anywhere in the files (everyone can read them in the browser; anything that needs one goes through celestin.notify or the owner); no admin page, admin mode or password check in the page's own code (anyone can open it or read the password: what only the owner may see stays in Celestin, where records reach them); every word a visitor gives (a name, a message, a review, a search) shown with textContent or escaped, never through innerHTML, and never run as code (no eval, no new Function, no javascript: links); quantities whole numbers of at least 1 and at most a sensible limit, prices only the owner's own (never read from the page or a link), totals summed from those, and an order stated as a request the owner confirms (the page can't take money itself); no discount or coupon codes in the files (anyone can read them: the owner applies them when confirming); an upload accepts only the file types it needs (accept=\"image/*\") and checks the file really is one before using it; one visitor never sees another's details; never accounts faked with passwords in the page or stored with records (no password is ever kept: what only the owner sees stays in Celestin); personal details (emails, phone numbers, addresses) never go into a public-… collection; every form field checked before it's sent (its type, a sensible maxlength on every text field, a real email or phone shape) and the send button disabled while it sends, so one click is one submission; links a visitor gives only http or https, and every link that opens a new tab has rel=\"noopener noreferrer\"; every library from https at an exact pinned version (never \"latest\" or no version), and only the libraries it really uses; nothing left from building it: no debug panel, test data, console.log of anyone's details, commented-out code with notes, .env, config, backup or source-map files.\n";
 const BACKEND_RULE = "- It has a real backend, already on the page: window.celestin (from celestin.js, part of the project: keep that file and its script tag exactly as they are). Anything that must outlive the visit or reach the owner uses it, never localStorage: await celestin.add('bookings', {name, phone, time}) keeps a record for the app's owner (they see each one in Celestin at once; visitors never see each other's); a collection named public-… ('public-scores', 'public-guestbook') is shared by everyone using the app: await celestin.list('public-scores') returns its records, newest first, each with _id and _at; await celestin.notify('New order: 2 kopi susu') tells the owner right away. After saving, show a clear confirmation; if it fails, say so kindly and keep what they typed. Use it wherever the app needs it, and only there.\n";
+// (their connected apps, for an app made for their own use: a dashboard of their orders, a tracker fed by their sheet)
+function appToolsRule() {
+	const apps = (PLG.apps || []).filter((x) => (x.tools || []).length);
+	if (!apps.length) return "";
+	return "- Their connected apps can be used live, only in an app for their own use (a dashboard, a tracker, a tool for their own work), never in one for the public or customers: await celestin.tools() lists them as [{app, tools: [{name, description, reads}]}]; await celestin.tool('App name', 'tool_name', {args}) runs one and returns what it returns (MCP content). A tool that only reads answers at once; one that changes something asks them first; money never moves. Show a clear message if it fails (outside Celestin it can't reach them). Connected now: " +
+		apps.slice(0, 8).map((x) => x.name + " (" + (x.tools || []).filter((t) => !MONEY_TOOL_RE.test(t.name)).slice(0, 12).map((t) => t.name + (toolReads(t) ? "" : "*")).join(", ") + ")").join("; ").slice(0, 900) + " (* changes something).\n";
+}
 const testable = (files) => (files && files["celestin.js"] != null ? { ...files, "celestin.js": CELESTIN_TEST } : files);
 // (its script tag, first in the head, when the builder left it out)
 const withBackendTag = (h) => (!h || /src=["']?\.?\/?celestin\.js/i.test(h) ? h : /<head[^>]*>/i.test(h) ? h.replace(/<head[^>]*>/i, (x) => x + '\n<script src="celestin.js"><\/script>') : '<script src="celestin.js"><\/script>\n' + h);
@@ -11357,6 +11365,8 @@ async function runApp(text, atts, pick) {
 	try { return await buildApp(text, atts, pick); } finally { LONG_RUN = false; }
 }
 async function buildApp(text, atts, pick) {
+	// (which of their apps are connected, so an app for their own use can use them live)
+	if (creditsMode() && account && !PLG.at) await syncPlugins();
 	// a build is written whole by the best builder at the thought it's run at: not started on a balance that would cut it
 	// off half-written (what this build will cost, worked out from that builder and how much an app writes)
 	// The whole job is priced before anything is spent: the build, and about half again for a round of fixes and the
@@ -11406,7 +11416,7 @@ async function buildApp(text, atts, pick) {
 		"- A game feels right: movement works with both WASD and the arrow keys unless asked otherwise; players and vehicles speed up and slow down (never full speed or a dead stop at once) and a ball rolls on with momentum and slows with friction; computer players think for themselves, each keeping its own position and job, reacting to the ball after a short delay and sometimes getting it wrong (difficulty changes how often), and never copying or mirroring the person's moves; it never restarts, resets or pauses by itself (only a goal, the clock or a key the person presses does that).\n" +
 		(MODEL3D_RE.test(text) ? "- It's a 3D model they'll use elsewhere (to sell, print or put in a game): they download what's on screen as .glb, .stl or .obj, so build it as a real object: real-world size in metres, its parts as separate meshes with clear names, MeshStandardMaterial with real colours, roughness and metalness, smooth enough geometry (enough segments), and nothing else in the scene that would end up in the file (no ground, grid, helpers or text); show it on a turntable with good studio lighting.\n" : "") +
 		"- Use index.html as the entry. For anything non-trivial split into index.html, style.css and script.js (link them with relative paths).\n" +
-		(appKey ? BACKEND_RULE : "- Don't store anything the app can't lose (no localStorage needed).\n") + SECURITY_RULE +
+		(appKey ? BACKEND_RULE + appToolsRule() : "- Don't store anything the app can't lose (no localStorage needed).\n") + SECURITY_RULE +
 		"OUTPUT FORMAT, exactly, nothing before or after:\n=== FILE: index.html ===\n(full file)\n=== FILE: style.css ===\n(full file)\n=== NOTES ===\n(2-4 short plain sentences: what you built or changed and how to use it)\n" +
 		"Write each file COMPLETE. No markdown fences around files.\n" +
 		"Changing a project that already exists: the change format you're given instead (only what changes).";
@@ -18152,6 +18162,7 @@ function drawArt() {
 	$("#artReload").hidden = $("#artFull").hidden = isDoc || building || a.view !== "preview";
 	$("#art3d").hidden = !isThreeApp(a) || a.view !== "preview";
 	$("#artPub").hidden = a.kind !== "app" || building;
+	$("#artInst").hidden = a.kind !== "app" || building;
 	if (isDoc) { $("#artViews").hidden = true; drawCanvas(); return; }
 	const body = $("#artBody");
 	if (a.view === "preview") {
@@ -18270,6 +18281,74 @@ function openPublished(url, repo, fresh) {
 	$("#pubCopy").onclick = () => navigator.clipboard.writeText(url).then(() => toast("Link copied"), () => {});
 }
 $("#artPub").onclick = () => publishSite();
+$("#artInst").onclick = () => installApp();
+// ---- Install as app (the owner, Nov 28): Celestin hosts it, the browser installs it into a window of its own with its
+// icon, it works offline, and the owner's own copy can use their connected apps. The same address every time it's
+// installed again, with the newest version
+function appColor(html) {
+	const h = String(html || ""), pick = h.match(/--(?:accent|brand|primary|main)[\w-]*\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})\b/i) || h.match(/(?:body|:root|html)\s*\{[^}]*background(?:-color)?\s*:\s*(#[0-9a-f]{6}|#[0-9a-f]{3})\b/i);
+	let c = pick ? pick[1] : "#111111";
+	if (c.length === 4) c = "#" + c.slice(1).split("").map((x) => x + x).join("");
+	return c.toLowerCase();
+}
+function appIcon(title, color) {
+	const cv = document.createElement("canvas"); cv.width = cv.height = 512;
+	const g = cv.getContext("2d"), n = parseInt(color.slice(1), 16), lum = 0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+	g.fillStyle = color; g.beginPath(); g.roundRect(0, 0, 512, 512, 112); g.fill();
+	g.fillStyle = lum > 150 ? "#111111" : "#ffffff"; g.font = "600 270px system-ui, -apple-system, Segoe UI, sans-serif"; g.textAlign = "center"; g.textBaseline = "middle";
+	g.fillText((String(title || "A").trim()[0] || "A").toUpperCase(), 256, 276);
+	return cv.toDataURL("image/png");
+}
+async function installApp() {
+	if (!ART || ART.kind !== "app") return;
+	if (!creditsMode() || !account) { openAccount(); return; }
+	const a = ART, map = Object.fromEntries((a.files || []).filter((f) => f && f.name).map((f) => [normPath(f.name), String(f.text || "")]));
+	const html = map["index.html"] != null ? appDoc(map) : String(a.page || a.doc || "");
+	if (!html.trim()) { toast("There's nothing to install yet"); return; }
+	const leak = securityTells(Object.keys(map).length ? map : { "index.html": html }).find((x) => /secret key/.test(x));
+	if (leak) { toast("Not installed: " + leak.replace(/^SECURITY: /, "")); return; }
+	// (a window opened by the click itself, so it isn't blocked, then sent to the app once it's ready)
+	const w = window.open("about:blank", "_blank");
+	const btn = $("#artInst"); btn.disabled = true;
+	try {
+		const all = store.get("installs", null) || {}, k = (a.cid || "") + ":" + (a.title || ""), had = all[k], color = appColor(html);
+		const j = await api("/api/installs", { method: "POST", body: JSON.stringify({ id: had && had.id, title: a.title || "My app", html, icon: appIcon(a.title, color), color }) });
+		const key = j.key || (had && had.id === j.id ? had.key : "");
+		all[k] = { id: j.id, key, at: Date.now() }; store.set("installs", all);
+		const url = SERVER + "/i/" + j.id + "/" + (key ? "#k=" + key : "");
+		if (w) { w.opener = null; w.location.href = url; } else window.open(url, "_blank", "noopener");
+		toast(/iPhone|iPad/.test(navigator.userAgent) ? "Opened: tap Share, then Add to Home Screen, to keep it as an app" : "Opened on its own page: press Install there (or the install icon in the address bar) to keep it as an app");
+	} catch (e) { if (w) w.close(); toast(e.message || String(e)); }
+	finally { btn.disabled = false; }
+}
+// the preview here gives a built app the owner's connected apps too, the same way their installed copy does: reading at
+// once, a change only when they allow it, never money. Only Celestin's own sandboxed previews are answered
+const MONEY_TOOL_RE = /transfer|payout|withdraw|send_?money|disburse|move_?funds/i;
+const toolReads = (t) => !!(t && t.annotations && t.annotations.readOnlyHint === true);
+function allowTool(what) {
+	return new Promise((done) => {
+		openModal('<h2>Let this app do that?</h2><p class="sub">' + esc(what) + '</p><div class="row" style="justify-content:flex-end;gap:8px"><button class="btn" id="atNo">Don\'t</button><button class="btn dark" id="atYes">Allow</button></div>');
+		$("#atNo").onclick = () => { closeModal(); done(false); };
+		$("#atYes").onclick = () => { closeModal(); done(true); };
+	});
+}
+addEventListener("message", async (e) => {
+	const d = e.data || {};
+	if (d.celestin !== "tool" && d.celestin !== "tools") return;
+	const fr = [...document.querySelectorAll("iframe")].find((f) => f.contentWindow === e.source);
+	if (!fr || !fr.hasAttribute("sandbox") || /allow-same-origin/.test(fr.getAttribute("sandbox") || "")) return;
+	const reply = (result, error) => { try { e.source.postMessage({ celestinReply: d.id, result, error }, "*"); } catch {} };
+	if (!creditsMode() || !account) { reply(null, "Sign in to Celestin to use your connected apps."); return; }
+	try {
+		if (!PLG.at) await syncPlugins();
+		if (d.celestin === "tools") { reply(PLG.apps.map((x) => ({ app: x.name, tools: (x.tools || []).filter((t) => !MONEY_TOOL_RE.test(t.name)).slice(0, 60).map((t) => ({ name: t.name, description: String(t.description || "").slice(0, 200), reads: toolReads(t) })) }))); return; }
+		const app = PLG.apps.find((x) => x.name.toLowerCase() === String(d.app || "").toLowerCase()), t = app && (app.tools || []).find((x) => x.name === String(d.tool || ""));
+		if (!app || !t) { reply(null, "No such connected app or tool: " + d.app + " · " + d.tool); return; }
+		if (MONEY_TOOL_RE.test(t.name)) { reply(null, "Celestin never moves money between accounts, pays out or withdraws."); return; }
+		if (!toolReads(t) && !(await allowTool(app.name + ": " + t.name.replace(/_/g, " ") + (d.args && Object.keys(d.args).length ? " (" + JSON.stringify(d.args).slice(0, 200) + ")" : "")))) { reply(null, "You said no to that."); return; }
+		reply((await api("/api/mcp/" + app.id + "/call", { method: "POST", body: JSON.stringify({ name: t.name, args: d.args || {} }) })).result);
+	} catch (err) { reply(null, err.message || String(err)); }
+});
 // wider or narrower: drag its edge (remembered)
 $("#artDrag").addEventListener("pointerdown", (e) => {
 	e.preventDefault();

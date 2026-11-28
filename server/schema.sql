@@ -223,3 +223,7 @@ CREATE INDEX IF NOT EXISTS app_rows_app ON app_rows(app, coll, created_at);
 -- the devices each person turned alerts on for (Web Push)
 CREATE TABLE IF NOT EXISTS push_subs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS push_subs_user ON push_subs(user_id);
+
+-- apps installed from Celestin, served at /i/<id>/ (the owner's own copy holds a key to their connected apps; only its hash is kept)
+CREATE TABLE IF NOT EXISTS installs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, html TEXT NOT NULL, icon TEXT, color TEXT, key_hash TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS installs_user ON installs (user_id);

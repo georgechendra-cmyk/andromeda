@@ -166,6 +166,7 @@ async function route(req, env, ctx, url) {
 	const p = url.pathname.replace(/\/+$/, "");
 	const m = req.method;
 	await columns(env);
+	{ const ip = url.pathname.match(/^\/i\/([a-f0-9]{24})(?:\/(app|manifest\.webmanifest|icon\.png|sw\.js|tools|tool))?\/?$/); if (ip) return installServe(req, env, ip[1], ip[2] || "", m); }
 	if (p === "/api/pricing" && m === "GET") {
 		const c0 = await config(env);
 		// (the public is shown only what its gateways reach; the demo, with the owner key, everything)
@@ -234,6 +235,8 @@ async function route(req, env, ctx, url) {
 	if (p === "/api/mcp" && m === "GET") return mcpList(env, user);
 	if (p === "/api/mcp/registry" && m === "GET") return mcpRegistry(req);
 	if (p === "/api/apps" && m === "POST") return appRegister(req, env, user);
+	if (p === "/api/installs" && m === "POST") return installSave(req, env, user);
+	if ((fd = p.match(/^\/api\/installs\/([a-f0-9]{24})$/)) && m === "DELETE") { await env.DB.prepare("DELETE FROM installs WHERE id = ? AND user_id = ?").bind(fd[1], user.id).run(); return json({ ok: true }); }
 	if (p === "/api/push/key" && m === "GET") return json({ key: (await vapidKeys(env)).pub });
 	if (p === "/api/push/subscribe" && m === "POST") return pushSubscribe(req, env, user);
 	if (p === "/api/push/subscribe" && m === "DELETE") return pushUnsubscribe(req, env, user);
@@ -714,6 +717,8 @@ function columns(env) {
 			// (two requests at once: the other one added it)
 			try { await env.DB.prepare("ALTER TABLE users ADD COLUMN " + k + " " + t).run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; }
 		}
+		await env.DB.prepare("CREATE TABLE IF NOT EXISTS installs (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, title TEXT NOT NULL, html TEXT NOT NULL, icon TEXT, color TEXT, key_hash TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)").run();
+		await env.DB.prepare("CREATE INDEX IF NOT EXISTS installs_user ON installs (user_id)").run();
 		const jcols = new Set(((await env.DB.prepare("PRAGMA table_info(jobs)").all()).results || []).map((r) => r.name));
 		if (jcols.size && !jcols.has("owner")) { try { await env.DB.prepare("ALTER TABLE jobs ADD COLUMN owner INTEGER NOT NULL DEFAULT 0").run(); } catch (e) { if (!/duplicate column/i.test(String(e && e.message))) throw e; } }
 		// (a scheduled task kept by a Celestin Together teammate says which)
@@ -5269,6 +5274,73 @@ async function pushNeeds(env) {
 // shared ones anyone using it can read (collections named public-…: scores, a guestbook, live counts), and a way to tell
 // the owner at once. Anyone using the app can write, so each address writes at most APP_IP_MIN a minute
 const APP_ROWS_MAX = 5000, APP_ROW_BYTES = 8000, APP_IP_MIN = 20, APP_NOTIFY_DAY = 30;
+// ------------------------------------------------------------------ apps you install (see "a backend for every app")
+const INSTALL_HTML_MAX = 1500000, INSTALL_MAX = 200, MONEY_TOOL = /transfer|payout|withdraw|send_?money|disburse|move_?funds/i;
+async function installSave(req, env, user) {
+	const b = await body(req), t = now();
+	const title = String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 60) || "My app", html = String(b.html || "");
+	if (!html.trim()) throw fail(400, "There's nothing to install yet.");
+	if (html.length > INSTALL_HTML_MAX) throw fail(413, "This app is too big to install (1.5 MB at most).");
+	const icon = /^data:image\/png;base64,[A-Za-z0-9+/=]{100,280000}$/.test(String(b.icon || "")) ? String(b.icon) : "";
+	const color = /^#[0-9a-f]{6}$/i.test(String(b.color || "")) ? String(b.color) : "#111111";
+	if (b.id) {
+		const r = await env.DB.prepare("UPDATE installs SET title = ?, html = ?, icon = COALESCE(NULLIF(?, ''), icon), color = ?, updated_at = ? WHERE id = ? AND user_id = ?").bind(title, html, icon, color, t, String(b.id), user.id).run();
+		if (r.meta && r.meta.changes) return json({ id: String(b.id) });
+	}
+	const n = await env.DB.prepare("SELECT COUNT(*) AS n FROM installs WHERE user_id = ?").bind(user.id).first();
+	if (n && n.n >= INSTALL_MAX) throw fail(429, INSTALL_MAX + " apps are installed already: take one down first.");
+	const iid = id(), key = id() + id();
+	await env.DB.prepare("INSERT INTO installs (id, user_id, title, html, icon, color, key_hash, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)").bind(iid, user.id, title, html, icon, color, await sha256hex("install:" + key), t, t).run();
+	return json({ id: iid, key });
+}
+const installEsc = (x) => String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const INSTALL_SANDBOX = "allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-downloads";
+async function installServe(req, env, iid, part, m) {
+	const row = await env.DB.prepare("SELECT * FROM installs WHERE id = ?").bind(iid).first();
+	if (!row) return new Response("This app isn't here any more.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
+	const base = "/i/" + iid + "/", short = row.title.length > 12 ? row.title.split(" ")[0].slice(0, 12) : row.title;
+	if (part === "app" && m === "GET") return new Response(row.html, { headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "sandbox " + INSTALL_SANDBOX, "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin" } });
+	if (part === "manifest.webmanifest") return new Response(JSON.stringify({ id: base, name: row.title, short_name: short, start_url: base, scope: base, display: "standalone", background_color: row.color || "#111111", theme_color: row.color || "#111111", icons: [{ src: base + "icon.png", sizes: "512x512", type: "image/png", purpose: "any" }, { src: base + "icon.png", sizes: "192x192", type: "image/png", purpose: "any" }] }), { headers: { "Content-Type": "application/manifest+json", "Cache-Control": "no-cache" } });
+	if (part === "icon.png") {
+		const d = String(row.icon || "").replace(/^data:image\/png;base64,/, "");
+		if (!d) return new Response('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="' + installEsc(row.color || "#111") + '"/></svg>', { headers: { "Content-Type": "image/svg+xml" } });
+		return new Response(Uint8Array.from(atob(d), (c) => c.charCodeAt(0)), { headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=3600" } });
+	}
+	if (part === "sw.js") return new Response("const C=" + JSON.stringify("i-" + iid) + ",B=" + JSON.stringify(base) + ";self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',(e)=>e.waitUntil(clients.claim()));self.addEventListener('fetch',(e)=>{const u=new URL(e.request.url);if(e.request.method!=='GET'||u.origin!==location.origin||!u.pathname.startsWith(B)||/\\/tools?$/.test(u.pathname))return;e.respondWith(fetch(e.request).then((r)=>{if(r.ok){const c=r.clone();caches.open(C).then((x)=>x.put(e.request,c))}return r}).catch(()=>caches.match(e.request)))});", { headers: { "Content-Type": "text/javascript", "Cache-Control": "no-cache", "Service-Worker-Allowed": base } });
+	// the bridge to their connected apps: their own copy only (its key)
+	if ((part === "tools" || part === "tool") && m === "POST") {
+		const b = await body(req);
+		if (!b.key || (await sha256hex("install:" + String(b.key))) !== row.key_hash) throw fail(403, "Connected apps only work in your own copy, installed from Celestin.");
+		const apps = (((await env.DB.prepare("SELECT * FROM mcps WHERE user_id = ? ORDER BY created_at LIMIT 20").bind(row.user_id).all()).results) || []).map((r) => ({ row: r, ...mcpOut(r) }));
+		const reads = (tl) => !!(tl.annotations && tl.annotations.readOnlyHint === true);
+		if (part === "tools") return json({ result: apps.map((a) => ({ app: a.name, tools: a.tools.filter((tl) => !MONEY_TOOL.test(tl.name)).slice(0, 60).map((tl) => ({ name: tl.name, description: String(tl.description || "").slice(0, 200), reads: reads(tl) })) })) });
+		const app = apps.find((a) => a.name.toLowerCase() === String(b.app || "").toLowerCase()), tl = app && app.tools.find((x) => x.name === String(b.tool || ""));
+		if (!app || !tl) throw fail(404, "No such connected app or tool: " + String(b.app || "") + " · " + String(b.tool || ""));
+		if (MONEY_TOOL.test(tl.name)) throw fail(403, "Celestin never moves money between accounts, pays out or withdraws.");
+		const args = b.args && typeof b.args === "object" ? b.args : {};
+		if (!reads(tl) && !b.ok && !(await prefsOf(env, row.user_id)).auto) return json({ ask: app.name + ": " + tl.name.replace(/_/g, " ") + (Object.keys(args).length ? " (" + JSON.stringify(args).slice(0, 160) + ")" : "") });
+		return json({ result: await mcpCallRow(env, app.row, tl.name, args) });
+	}
+	if (part || m !== "GET") return new Response("Not here.", { status: 404 });
+	// the shell: the app in its sandbox, the install prompt, the offline copy and the bridge
+	const page = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>' + installEsc(row.title) + '</title><link rel="manifest" href="' + base + 'manifest.webmanifest"><link rel="icon" href="' + base + 'icon.png"><link rel="apple-touch-icon" href="' + base + 'icon.png"><meta name="theme-color" content="' + installEsc(row.color || "#111111") + '"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="' + installEsc(short) + '">' +
+		'<style>html,body{margin:0;height:100%;background:#fff}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}#bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:none;align-items:center;gap:8px;padding:7px 7px 7px 16px;border-radius:999px;background:rgba(22,22,24,.94);color:#fff;font:500 13.5px/1.3 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 10px 34px rgba(0,0,0,.28);z-index:2;max-width:calc(100% - 32px)}#bar.on{display:flex}#bar span{min-width:0}#bar button{font:inherit;border:0;border-radius:999px;padding:7px 14px;cursor:pointer;white-space:nowrap}#by{background:#fff;color:#111}#bn{background:transparent;color:#aaa}</style></head><body>' +
+		'<iframe id="f" src="' + base + 'app" sandbox="' + INSTALL_SANDBOX + '" allow="clipboard-write; fullscreen" title="' + installEsc(row.title) + '"></iframe><div id="bar" role="status"><span id="bt"></span><button id="by"></button><button id="bn"></button></div>' +
+		"<script>(function(){var ID=" + JSON.stringify(iid) + ",B=" + JSON.stringify(base) + ",K='ik:'+ID,f=document.getElementById('f'),bar=document.getElementById('bar'),q=[];" +
+		"var h=location.hash.match(/k=([a-f0-9]{48})/);if(h){try{localStorage.setItem(K,h[1])}catch(e){}history.replaceState(null,'',location.pathname+location.search)}var key='';try{key=localStorage.getItem(K)||''}catch(e){}" +
+		"if('serviceWorker' in navigator)navigator.serviceWorker.register(B+'sw.js',{scope:B}).catch(function(){});" +
+		"function next(){if(bar.classList.contains('on')||!q.length)return;var x=q.shift();document.getElementById('bt').textContent=x.t;var y=document.getElementById('by'),n=document.getElementById('bn');y.textContent=x.y;n.textContent=x.n;y.onclick=function(){bar.classList.remove('on');x.ok&&x.ok();next()};n.onclick=function(){bar.classList.remove('on');x.no&&x.no();next()};bar.classList.add('on')}" +
+		"function ask(t,y,n,ok,no){q.push({t:t,y:y,n:n,ok:ok,no:no});next()}" +
+		"var dp=null;addEventListener('beforeinstallprompt',function(e){e.preventDefault();dp=e;ask('Keep it as an app on this device','Install','Not now',function(){dp&&dp.prompt();dp=null})});" +
+		"function post(p,b){return fetch(B+p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error((j.error&&j.error.message)||'It did not work.');return j})})}" +
+		"function reply(d,r,err){f.contentWindow.postMessage({celestinReply:d.id,result:r,error:err},'*')}" +
+		"addEventListener('message',function(e){if(e.source!==f.contentWindow)return;var d=e.data||{};if(d.celestin!=='tool'&&d.celestin!=='tools')return;" +
+		"if(!key){reply(d,null,'Connected apps only work in your own copy, installed from Celestin.');return}" +
+		"if(d.celestin==='tools'){post('tools',{key:key}).then(function(j){reply(d,j.result)},function(x){reply(d,null,x.message)});return}" +
+		"var b={key:key,app:d.app,tool:d.tool,args:d.args||{}};post('tool',b).then(function(j){if(!j.ask){reply(d,j.result);return}ask('Let this app '+j.ask+'?','Allow','Don\u2019t',function(){b.ok=true;post('tool',b).then(function(k){reply(d,k.result)},function(x){reply(d,null,x.message)})},function(){reply(d,null,'You said no to that.')})},function(x){reply(d,null,x.message)})});" +
+		"})();<\/script></body></html>";
+	return new Response(page, { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache", "X-Frame-Options": "DENY", "Content-Security-Policy": "frame-ancestors 'none'", "Referrer-Policy": "no-referrer" } });
+}
 async function appRegister(req, env, user) {
 	const b = await body(req), title = String(b.title || "").replace(/\s+/g, " ").trim().slice(0, 80) || "My app";
 	const k = await env.DB.prepare("SELECT COUNT(*) AS n FROM app_keys WHERE user_id = ?").bind(user.id).first();
