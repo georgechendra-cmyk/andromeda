@@ -5945,6 +5945,8 @@ async function runAgent(text, atts) {
 				if (out == null) out = await runTool(c.function?.name, args, run, msg);
 				messages.push({ role: "tool", tool_call_id: c.id, content: String(out).slice(0, 40000) });
 				if (c.function?.name === "finish") summary = String(args.summary || "Done.");
+				if (/^(edit_file|write_file|delete_file)$/.test(c.function?.name || "")) run.reviewed = false;
+				if (c.function?.name === "review") run.reviewed = true;
 			}
 			if (pics.length) shots = pics.slice(-3);
 			if (pics.length && (model.input || []).includes("image")) messages.push({ role: "user", content: [{ type: "text", text: "What the tools showed:" }, ...pics.slice(-3).map((url) => ({ type: "image_url", image_url: { url } }))] });
@@ -5976,6 +5978,24 @@ async function runAgent(text, atts) {
 				log("Handed to " + shortName(model), climb.split("\n")[0].slice(0, 120));
 				summary = null; sinceEdit = 0; onRung = 0;
 				continue;
+			}
+			// (a big change it's finishing without a review: one from another company's model first, once)
+			if (summary != null && run.before.size && !run.reviewed && !run.autoReviewed) {
+				let n = 0;
+				for (const [p, was] of run.before) { const now = projectHas(p) ? await pRead(p).catch(() => "") : ""; const df = lineDiff(String(was || ""), String(now || "")); n += df.add + df.del; if (n > 30) break; }
+				if (n > 30) {
+					run.autoReviewed = true;
+					const work = await changes();
+					const r = work ? await reviewWork("the changes for: " + String(text || "").slice(0, 300), work, "code", model.id, msg).catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }) : null;
+					if (r && r.text) {
+						const who = shortName(r.model);
+						log("Reviewed by " + who, "before finishing");
+						if (!msg.used.some((u) => u.name === who)) msg.used.push({ name: who, desc: "Reviewer: checked every change for real problems before it was finished" });
+						messages.push({ role: "user", content: "(Celestin: before you finish, " + who + " from another company reviewed every change:\n" + String(r.text).slice(0, 6000) + "\nFix what's real (check it first: a reviewer can be wrong), check again, then finish.)" });
+						summary = null; sinceEdit = 0;
+						continue;
+					}
+				}
 			}
 			// it said it's finished: in a long run, reviewed first, and carried on with what the reviewer found
 			if (summary != null && (await longGoOn(long, messages, summary, changes, shots, model, msg, log))) summary = null;
@@ -16063,10 +16083,11 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 				// long call is what the gateway cuts off)
 				const t2 = team ? await teamFilm(plan, brief, [up, ...cands.filter((m) => m.id !== up.id)], msg, signal, W, H, onStatus, runs, best).catch((e) => { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }) : null;
 				if (team && !t2) throw new Error("no team remake");
-				const again = t2 ? t2.html : await write(up, brief + "\n\nMake the film.");
+				// (an engine film: a targeted fix of exactly what's left, by the same writer, not a whole new film)
+				const again = t2 ? t2.html : ENG ? await edit(by, "The measured check of the film still finds:\n- " + left.join("\n- ") + "\nFix exactly these, keeping everything else as it is.", html) : await write(up, brief + "\n\nMake the film.");
 				await runs(again);
 				const left2 = serious(await motionTells(again, total, W, H, brief).catch(() => left));
-				if (left2.length < left.length) { html = again; by = up; if (t2) team = t2; }
+				if (left2.length < left.length) { html = again; if (!ENG) by = up; if (t2) team = t2; }
 			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 		}
 	}
