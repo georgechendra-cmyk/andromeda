@@ -3111,9 +3111,16 @@ function ladderOf(ranked) {
 	// other labs, so a model that's stuck hands over to a different mind, never to a cheaper one)
 	const rungs = [], labs = new Set(), cap = speed() === "max" ? "" : "high";
 	if (cap) { const under = ranked.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) ranked = under; }
+	// (the best's own sibling first, when the rule finds it level at about half the price: Nov 28, the owner)
+	{
+		const top = bestFirst(ranked)[0], price = (x) => { try { return callCost(x); } catch { return Infinity; } };
+		// (the owner's own 54/46 and 1.8x rule, among the best's own maker's models)
+		const pick = top && quarkFirst(ranked.filter((x) => provider(x.m.id) === provider(top.m.id)), cap || undefined)[0];
+		if (pick && pick.m.id !== top.m.id && price(pick) <= price(top) * 0.6) { rungs.push(pick); labs.add(provider(pick.m.id)); }
+	}
 	for (const x of codeFirst(ranked)) {
 		if (rungs.length >= 4) break;
-		if (!x || rungs.some((y) => y.m.id === x.m.id) || (rungs.length >= 2 && labs.has(provider(x.m.id)))) continue;
+		if (!x || rungs.some((y) => y.m.id === x.m.id) || (rungs.length >= 2 && labs.has(provider(x.m.id)) && !(rungs.length === 1 || x === codeFirst(ranked)[0]))) continue;
 		rungs.push(x); labs.add(provider(x.m.id));
 	}
 	for (const x of rungs) EFFORT.set(x.m.id, x.effort || "");
@@ -5976,7 +5983,7 @@ async function runAgent(text, atts) {
 			// again), the reasoning stays
 			lightenOld(messages);
 			let size = messages.reduce((t, m) => t + JSON.stringify(m.content || "").length, 0);
-			for (let k = 1; k < messages.length - 8 && size > 360000; k++) {
+			for (let k = 1, over = size > 360000; over && k < messages.length - 8 && size > 260000; k++) {
 				const m = messages[k];
 				if (m.role === "tool" && m.content.length > 2000) { size -= m.content.length; m.content = "(an older result, dropped to save room: run the tool again if you need it)"; }
 			}
@@ -7133,7 +7140,13 @@ function approve(msg, what, detail, o = {}) {
 // it needs the rest (the way Anthropic clears old tool results). Found Nov 7: nothing was trimmed until the job passed
 // 300,000 characters, so a 30-step job re-read about a million tokens, most of them old outputs
 const KEEP_TOOLS = 6, OLD_TOOL_CHARS = 700, LIGHT_NOTE = "was cleared to keep the job light";
+// (in a batch: only once four more whole results than "keep" have piled up, so the start of the job stays the same, and
+// cached, between batches; Nov 28)
+const LIGHT_SLACK = 4;
 function lightenOld(messages, keep = KEEP_TOOLS) {
+	let whole = 0;
+	for (const m of messages) if (m.role === "tool" && typeof m.content === "string" && m.content.length > OLD_TOOL_CHARS * 2 && !m.content.includes(LIGHT_NOTE)) whole++;
+	if (whole <= keep + LIGHT_SLACK) return;
 	let seen = 0;
 	for (let k = messages.length - 1; k >= 0; k--) {
 		const m = messages[k];
@@ -7436,7 +7449,7 @@ async function runAct(text, atts, resume) {
 			// oldest steps are summed up
 			lightenOld(messages);
 			let size = messages.reduce((t, m) => t + JSON.stringify(m.content || "").length, 0);
-			for (let k = 1; k < messages.length - 6 && size > 300000; k++) {
+			for (let k = 1, over = size > 300000; over && k < messages.length - 6 && size > 210000; k++) {
 				const m = messages[k];
 				if (m.role === "user" && Array.isArray(m.content) && m.content.some((p) => p.type === "image_url")) { size -= JSON.stringify(m.content).length; m.content = "(an older picture, dropped to make room)"; }
 			}
