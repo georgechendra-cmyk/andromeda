@@ -13479,7 +13479,8 @@ async function produce(msg, only, signal) {
 		note("Celestin editor", "Edit: cut it together with captions, transitions, ducked music and an end card, in your browser");
 		d.stage = "cutting";
 		paint();
-		d.final = await vault.put(await cut(plan.oneTake && d.take ? takeView(d) : d, (p) => { d.progress = p; paint(); }));
+		const willWatch = plan.oneTake && d.take && !d.watched && plan.scenes.some((x) => x.motion === "drawn");
+		if (!willWatch) d.final = await vault.put(await cut(plan.oneTake && d.take ? takeView(d) : d, (p) => { d.progress = p; paint(); }));
 		// 6. watched before it's handed over, with its sound, by the model best at watching: what a viewer would notice is
 		// fixed once, and the film cut again (the owner asked for this months before it was built, Nov 23)
 		if (plan.oneTake && d.take && !d.watched && plan.scenes.some((x) => x.motion === "drawn")) {
@@ -13499,12 +13500,11 @@ async function produce(msg, only, signal) {
 						try {
 							const r2 = await animateFilm({ ...plan, full: true }, animators, msg, signal, FW, FH, null, null, !!d.deep, (st) => { d.takeStatus = st; paint(); });
 							if (r2 && r2.html) {
-								const was = { take: d.take, final: d.final };
+								const was = { take: d.take };
 								d.take = await vault.put(new Blob([r2.html], { type: "text/html" }));
-								d.final = await vault.put(await cut(takeView(d), (p) => { d.progress = p; paint(); }));
 								const seen2 = await watchFilm(d, signal).catch(() => null);
 								if (seen2 && (Number(seen2.visuals) || 0) + (Number(seen2.creativity) || 0) >= (Number(seen.visuals) || 0) + (Number(seen.creativity) || 0)) { note(shortName(seen2.by), "Watched the full-way film too: visuals " + (seen2.visuals ?? "?") + ", creativity " + (seen2.creativity ?? "?") + " (kept)"); seen.problems = seen2.problems; d.watch = { visuals: seen2.visuals, creativity: seen2.creativity, clear: seen2.clear, problems: seen2.problems.length }; }
-								else { d.take = was.take; d.final = was.final; }
+								else d.take = was.take;
 							}
 						} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 					}
@@ -13517,13 +13517,14 @@ async function produce(msg, only, signal) {
 						const r = await animateFilm(plan, animators, msg, signal, FW, FH, prev, change, !!d.deep, (st) => { d.takeStatus = st; paint(); });
 						if (r && r.html) {
 							d.take = await vault.put(new Blob([r.html], { type: "text/html" }));
-							d.stage = "cutting";
-							paint();
-							d.final = await vault.put(await cut(takeView(d), (p) => { d.progress = p; paint(); }));
 						}
 					}
 				}
 			} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+			// (and cut in full once, from the film as it finally is)
+			d.stage = "cutting";
+			paint();
+			d.final = await vault.put(await cut(takeView(d), (p) => { d.progress = p; paint(); }));
 			delete d.takeStatus;
 		}
 		// for YouTube: its thumbnail, from the shot the director chose, with its words on it (no model needed)
