@@ -4665,7 +4665,7 @@ function md(text, live) {
 		const pv = live ? "" : pvKind(lang, code.textContent);
 		if (pv) wrap.dataset.pv = pv;
 		// Python and JavaScript can run right here (in a sandboxed worker), their output and charts under them
-		const runnable = !live && !pv && capOn("code") && /^(python3?|py|js|javascript|mjs)$/i.test(lang);
+		const runnable = !live && !pv && capOn("code") && /^(python3?|py|js|javascript|mjs|ts|typescript)$/i.test(lang);
 		wrap.innerHTML = '<div class="code-h"><span>' + esc(diagram ? "diagram" : lang || "code") + '</span><span class="sp"></span>' + (runnable ? '<button data-run title="Run it right here, in this browser">Run</button>' : "") +
 			(pv ? '<button data-pv>Preview</button><button data-pvside title="Open it beside the chat, bigger">Beside</button><button data-pvfull hidden>Full screen</button><button data-pvtab title="Open the preview in a new tab">Open ↗</button>' : "") +
 			(diagram ? '<button data-mmcode hidden>Code</button><button data-mmsvg hidden>Download</button>' : "") + '<button data-copy>Copy</button></div>';
@@ -18908,7 +18908,11 @@ document.addEventListener("click", async (e) => {
 			try { files = codeFiles(); } catch {}
 			const r = await runPython(code, files);
 			box.innerHTML = '<div class="co-h">Output</div><pre>' + esc(r.text) + "</pre>" + (r.figs || []).map((f) => '<img src="data:image/png;base64,' + f + '" alt="A chart the code drew">').join("");
-		} else box.innerHTML = '<div class="co-h">Output</div><pre>' + esc(await runJs(code)) + "</pre>";
+		} else {
+			const ts = /^(ts|typescript)$/i.test(wrap.dataset.lang || "");
+			const js = ts ? (await loadBabel()).transform(code, { filename: "code.ts", presets: [["typescript", { allExtensions: true }]], babelrc: false, configFile: false }).code : code;
+			box.innerHTML = '<div class="co-h">Output</div><pre>' + esc(await runJs(js)) + "</pre>";
+		}
 	} catch (err) { box.innerHTML = '<div class="co-h">Output</div><pre class="bad">' + esc(err.message || String(err)) + "</pre>"; }
 	b.disabled = false;
 	b.textContent = "Run again";
@@ -20251,13 +20255,24 @@ function showWhatsNew(force) {
 // The first Python or JavaScript block in a piece that can run on its own here (nothing waiting for input, opening a
 // window or a server, or needing a page, files or the network) is run in the sandbox. An error means it doesn't work;
 // running too long only means it's long-running, not that it's wrong.
-const RUN_PY = /^(python3?|py)$/i, RUN_JS = /^(javascript|js|mjs)$/i;
+const RUN_PY = /^(python3?|py)$/i, RUN_JS = /^(javascript|js|mjs)$/i, RUN_TS = /^(typescript|ts)$/i;
 const NOT_HERE = /\binput\s*\(|tkinter|pygame|turtle|flask|fastapi|django|streamlit|app\.run\(|uvicorn|socket|requests\.|urllib|aiohttp|while\s+True|document\.|window\.|require\(|^\s*import\s[^\n]*\sfrom\s+['"]|^\s*export\s|process\.|setInterval|addEventListener|readline|subprocess|os\.system|open\(|fetch\(/m;
 let PY_LINE = Promise.resolve();
 async function testCode(text) {
 	if (!capOn("code")) return null;
-	const blocks = [...String(text || "").matchAll(/```([\w+-]*)\n([\s\S]*?)```/g)].map(([, l, c]) => [l, c]).filter(([l, c]) => (RUN_PY.test(l) || RUN_JS.test(l)) && c.length < 20000 && !NOT_HERE.test(c));
-	if (!blocks.length) return null;
+	const all = [...String(text || "").matchAll(/```([\w+-]*)\n([\s\S]*?)```/g)].map(([, l, c]) => [l, c]);
+	const blocks = all.filter(([l, c]) => (RUN_PY.test(l) || RUN_JS.test(l) || RUN_TS.test(l)) && c.length < 20000 && !NOT_HERE.test(c));
+	if (!blocks.length) {
+		// (what can't run here is parsed: a whole file or component, never a snippet with "..." in it)
+		const whole = all.filter(([l, c]) => /^(jsx?|tsx?|javascript|typescript|mjs|react)$/i.test(l) && c.split("\n").length >= 4 && c.length < 60000 && !/^\s*(\/\/\s*)?(\.\.\.|…)|\/\*\s*\.\.\.\s*\*\/|\{\s*\.\.\.\s*\}/m.test(c));
+		for (const [l, c] of whole.slice(0, 3)) {
+			const ext = /^tsx$/i.test(l) || (/^(ts|typescript)$/i.test(l) && /<[A-Z][\w.]*[\s/>]/.test(c)) ? "tsx" : /^(ts|typescript)$/i.test(l) ? "ts" : /^(jsx|react)$/i.test(l) ? "jsx" : "js";
+			let err = null;
+			try { err = await parseError("answer." + ext, c); } catch { return null; }
+			if (err) return { failed: true, error: "Error: SyntaxError (it was parsed, not run, since it needs more than this browser): " + err, output: err };
+		}
+		return null;
+	}
 	const [lang, code] = blocks[0];
 	let r;
 	if (RUN_PY.test(lang)) {
@@ -20265,6 +20280,12 @@ async function testCode(text) {
 		const job = PY_LINE.then(() => runPython(code, [], 90000));
 		PY_LINE = job.catch(() => {});
 		r = (await job).text;
+	} else if (RUN_TS.test(lang)) {
+		// (its types taken off, then run as JavaScript; a parser that won't load: not tested, never a made-up failure)
+		let js = null;
+		try { js = (await loadBabel()).transform(code, { filename: "answer.ts", presets: [["typescript", { allExtensions: true }]], babelrc: false, configFile: false }).code; }
+		catch (e) { if (!window.Babel) return null; const m = String((e && e.message) || e).split("\n")[0].replace(/^[^:]*\.ts:\s*/, ""); return { failed: true, error: "Error: " + m, output: m }; }
+		r = await runJs(js, 10000);
 	} else r = await runJs(code, 10000);
 	const failed = /(^|\n)Error: /.test(r) && !/ran longer than|couldn't start here/.test(r);
 	return { failed, error: failed ? r.slice(-2500) : "", output: r };
