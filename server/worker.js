@@ -60,14 +60,14 @@ const DEFAULT_CONFIG = {
 	// more. Packs (the only thing sold since Nov 7) sell a credit at 2.2x down to 2.0x, and never expire.
 	// Nonstop coding is about 60 credits an hour (CODE_HOUR in the site, measured Nov 4 with the owner's price rule; it was
 	// 140 before): every plan codes nonstop in any 5 hours; Nova about 35 hours a month, Pulsar about 183, Quasar about 386.
-	// (no subscriptions: the owner, Nov 7, "remove subscriptions, just do the packs". The plans as they were are kept in
-	// retiredPlans; moving them back into plans puts them on sale again)
-	plans: [],
-	retiredPlans: [
+	// (Nov 7 the owner took the plans off sale; Nov 28, "subscription yes": back on sale, paid a month at a time, with a
+	// reminder before each month ends; see planReminders)
+	plans: [
 		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 2100, team: 150, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 11000, team: 700, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
 		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, team: 1500, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
 	],
+	retiredPlans: [],
 	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
 	// Round local prices, not exchange-rate conversions; a credit costs more this way than in a plan
 	packs: [
@@ -158,6 +158,7 @@ export default {
 			.then(() => tgHooks(env)).catch(() => {})
 			.then(() => warmFeeds(env)).catch(() => {})
 			.then(() => runBriefs(env)).catch(() => {})
+			.then(() => planReminders(env)).catch(() => {})
 			.then(() => env.DB.batch([env.DB.prepare("DELETE FROM uploads WHERE created_at < ?").bind(now() - UPLOAD_LIFE), env.DB.prepare("DELETE FROM email_codes WHERE expires_at < ?").bind(now() - 86400e3), env.DB.prepare("DELETE FROM config WHERE k LIKE 'browser:%' AND k < ?").bind(browserDay())])).catch(() => {}));
 	},
 };
@@ -4206,6 +4207,21 @@ async function needsOf(env, uid) {
 	return { items, yesterday: { chats: n(chats), booked: n(booked), mailed: n(mailed), posted: n(posted), calls: n(calls) } };
 }
 // the morning brief: at 8 where they are, once a day, on Telegram, only when something needs them
+// A plan's month ends: three days before, and on its last day, they're told by email and on their devices, with how to
+// keep it (another month, paid the same way). Each reminder once per month of the plan (config "planrem:<user>:<until>")
+async function planReminders(env) {
+	const t = now(), c = await config(env);
+	const rows = (await env.DB.prepare("SELECT id, email, plan, plan_until FROM users WHERE plan IS NOT NULL AND plan_until > ? AND plan_until < ? LIMIT 200").bind(t, t + 3.2 * 864e5).all().catch(() => ({ results: [] }))).results || [];
+	for (const u of rows) {
+		const last = u.plan_until - t < 1.1 * 864e5, k = "planrem:" + u.id + ":" + u.plan_until + (last ? ":last" : "");
+		if (await env.DB.prepare("SELECT 1 FROM config WHERE k = ?").bind(k).first()) continue;
+		await env.DB.prepare("INSERT INTO config (k, v) VALUES (?, ?) ON CONFLICT(k) DO NOTHING").bind(k, String(t)).run();
+		const plan = (c.plans || []).find((p) => p.id === u.plan), name = plan ? plan.name : "Your plan", when = new Date(u.plan_until).toISOString().slice(0, 10);
+		const site = env.SITE_URL || "https://celestin.pages.dev", text = name + " " + (last ? "ends tomorrow" : "ends in 3 days") + " (" + when + "). To keep it, pay for another month in Celestin: Account, then Get more. What you haven't used this month doesn't carry over; a month paid early starts when this one ends.";
+		try { if (mailOn(env) && u.email) await sendMail(env, u.email, "Celestin: " + name + " " + (last ? "ends tomorrow" : "ends in 3 days"), text + "\n\n" + site + "/#app"); } catch {}
+		try { await pushTo(env, u.id, { title: "Celestin", body: text, url: site + "/#app", tag: "plan" }); } catch {}
+	}
+}
 async function runBriefs(env) {
 	const t = now(), users = (await env.DB.prepare("SELECT DISTINCT user_id FROM conns WHERE kind = 'telegram' LIMIT 300").all().catch(() => ({ results: [] }))).results || [];
 	for (const { user_id } of users) {

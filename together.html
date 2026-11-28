@@ -13460,7 +13460,7 @@ async function produce(msg, only, signal) {
 					d.watch = { visuals: seen.visuals, creativity: seen.creativity, clear: seen.clear, problems: seen.problems.length };
 					// (an engine film under the bar: made the full way once, and whichever the watcher rates higher is kept)
 					const engineTake = /FILM\.play\s*\(/.test(await (await vault.get(d.take)).text());
-					if (engineTake && !d.fullTried && (Number(seen.visuals) || 0) + (Number(seen.creativity) || 0) < 15) {
+					if (engineTake && !d.fullTried && (Number(seen.visuals) || 0) + (Number(seen.creativity) || 0) < 18) {
 						d.fullTried = true;
 						d.takeStatus = "Under the bar (" + (seen.visuals ?? "?") + " and " + (seen.creativity ?? "?") + " of 10): making it again the full way";
 						paint();
@@ -15483,6 +15483,14 @@ async function motionTells(html, total, W, H, brief) {
 		for (const b of [...beats.filter((x) => x <= end), end]) { if (b - last >= 3.6 && last < end) gaps.push([last, Math.min(b, end)]); last = Math.max(last, b); }
 		if (total >= 8 && gaps.length) out.push("Nothing new happens from " + gaps.slice(0, 3).map((r) => r[0].toFixed(1) + " to " + r[1].toFixed(1) + " s").join(", ") + ": a viewer gets what a shot gives in two seconds, then swipes away. Give each of those stretches a new beat every 2 to 3 seconds (a reveal, the hero transforming, a move into a new space, the next word), each a little bigger than the last.");
 		if (total >= 8 && !beats.some((x) => x <= 1.5) && !(jumps.length && jumps[0] <= 1.5)) out.push("Nothing happens in the first 1.5 s: open on the hook, the most striking image already moving or a question they need answered, never a slow fade, a logo or a title card.");
+	}
+	// (the words they asked it to show, in quotes: on its frames, or sent back)
+	{
+		const said = [...String(asked || "").matchAll(/\b(?:say|says|saying|show|shows|showing|reads?|end(?:s|ing)? (?:with|on)|close[sd]? (?:with|on)|tagline|title|caption|words?|typ(?:e|es|ed|ing))\s*:?\s*(?:the words\s*)?["\u201c]([^"\u201d]{2,60})["\u201d]/gi)].map((m) => m[1].trim());
+		const norm = (x) => String(x).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+		const shown = norm(texts.map((x) => (x.length >= 7 ? x[6] : "")).join(" "));
+		const missing = [...new Set(said)].filter((w) => norm(w) && !shown.includes(norm(w)));
+		if (missing.length) out.push("It never shows " + missing.slice(0, 3).map((w) => "\"" + w + "\"").join(", ") + ", which they asked for, word for word: put it on screen, big enough to read, where they asked (the end, the box it's typed in).");
 	}
 	// (words: in each three seconds that has any, its biggest should read at a glance on a phone)
 	const small = [];
@@ -17646,13 +17654,13 @@ function money(amount, cur) {
 const LEGAL_LINKS = '<a href="terms.html" target="_blank" rel="noopener">Terms</a> · <a href="terms.html#usage" target="_blank" rel="noopener">Usage Policy</a> · <a href="privacy.html" target="_blank" rel="noopener">Privacy</a>';
 const DEFAULT_PRICING = {
 	creditUsd: 0.01, open: false, free: { credits: 100, hours: 5, every: 5, week: 150, team: 40 }, currencies: ["USD", "IDR", "EUR", "GBP", "SGD", "AUD"], qris: {}, checkout: { provider: "card checkout", links: {} },
-	// (no subscriptions since Nov 7: Free and credit packs; the server's config decides, so plans can come back)
-	plans: [],
-	retiredPlans: [
+	// (plans back on sale Nov 28, paid a month at a time; the server's config decides)
+	plans: [
 		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 2100, team: 150, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
 		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 11000, team: 700, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 } },
 		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, team: 1500, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 } },
 	],
+	retiredPlans: [],
 	packs: [
 		{ id: "plus", name: "Comet", credits: 1040, bonus: 0, prices: { USD: 10, IDR: 159000, EUR: 10, GBP: 8, SGD: 13, AUD: 15 } },
 		{ id: "pro", name: "Meteor", credits: 2150, bonus: 0, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 } },
