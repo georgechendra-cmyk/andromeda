@@ -2760,8 +2760,9 @@ function rank(task, cap, seen) {
 	// (seen: this request's tags and Celestin's own record on them, which moves a model where it has real evidence)
 	let list = arenaRank(task);
 	if (seen && seen.record && seen.tags) list = learned(list, seen.tags, seen.record, list);
-	const data = bestFirst(quarkFirst(list, cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800)));
-	if (data.length >= 2) return pinFirst(diversify(data), task);
+	// (code: the best first, Nov 28, the owner: "start coding on the best model")
+	const data = task === "code" ? bestFirst(list.filter((x) => !cap || !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap))) : bestFirst(quarkFirst(list, cap, null, (x, c) => callCost(x, c, OUT_BY[task] || 800)));
+	if (data.length >= 2) return pinFirst(task === "code" ? data.map((x) => x.m) : diversify(data), task);
 	const out = [];
 	const add = (m) => { if (m && !out.some((x) => x.id === m.id)) out.push(m); };
 	for (const lab of SPEC && SPEC.task === task ? SPEC.labs : LABS[task] || LABS.quick) add(flagship(lab, task, false));
@@ -3106,20 +3107,24 @@ const CODE_MODEL = "openai/gpt-5.4";
 // fit for it by the 54/46 and 1.8x rules first, then the owner's pick for code, then the best by score; each at the
 // thought it was picked at. Work climbs only when it's stuck or fails Celestin's own check
 function ladderOf(ranked) {
-	const top = bestFirst(ranked)[0], q = bestFirst(quarkFirst(ranked)), cheap = q[0], mid = codeFirst(ranked)[0], rungs = [];
-	// (the cheap team before anything dearer: the pick, then the next cheapest near the best, from other labs, up to four
-	// times its price. Benchmark, Nov 21: the cheap pick solved every task it kept, and the money went on jumps to GPT-5.4)
-	const price = (x) => { try { return callCost(x); } catch { return Infinity; } }, p0 = cheap ? price(cheap) : 0;
-	const alts = q.slice(1).filter((x) => provider(x.m.id) !== provider(cheap.m.id) && price(x) <= p0 * 4).filter((x, k, all) => all.findIndex((y) => provider(y.m.id) === provider(x.m.id)) === k).slice(0, 2);
-	for (const x of [cheap, ...alts, mid, top]) if (x && !rungs.some((y) => y.m.id === x.m.id)) rungs.push(x);
+	// (Nov 28, the owner: "start coding on the best model". The best first, then their pick for code, then the best of
+	// other labs, so a model that's stuck hands over to a different mind, never to a cheaper one)
+	const rungs = [], labs = new Set(), cap = speed() === "max" ? "" : "high";
+	if (cap) { const under = ranked.filter((x) => !x.effort || LEVELS.indexOf(x.effort) <= LEVELS.indexOf(cap)); if (under.length) ranked = under; }
+	for (const x of codeFirst(ranked)) {
+		if (rungs.length >= 4) break;
+		if (!x || rungs.some((y) => y.m.id === x.m.id) || (rungs.length >= 2 && labs.has(provider(x.m.id)))) continue;
+		rungs.push(x); labs.add(provider(x.m.id));
+	}
 	for (const x of rungs) EFFORT.set(x.m.id, x.effort || "");
 	return rungs;
 }
 function codeFirst(ranked) {
-	const mine = ranked.filter((x) => x.m.id === CODE_MODEL);
-	if (!mine.length) return bestFirst(ranked);
+	// (the owner, Nov 28: "start coding on the best model": the best by score first, their earlier pick for code next)
+	const best = bestFirst(ranked), mine = ranked.filter((x) => x.m.id === CODE_MODEL);
+	if (!mine.length || !best.length || best[0].m.id === CODE_MODEL) return best;
 	const pick = bestFirst(quarkFirst(mine))[0];
-	return [pick, ...bestFirst(ranked.filter((x) => x.m.id !== CODE_MODEL))];
+	return [best[0], pick, ...best.slice(1).filter((x) => x.m.id !== CODE_MODEL)];
 }
 // the owner's own head-to-head verdicts on exactly one kind of work (Nov 23: one ad brief, made the same way by each model,
 // scored by them): direct evidence on that work, so for that role their 54/46 rule is applied to these scores too. A model
@@ -12868,7 +12873,7 @@ function lengthOf(t) {
 async function direct(text, atts, msg, signal, drawn) {
 	const want = lengthOf(text);
 	const imgs = atts.filter((a) => a.kind === "image" && a.data);
-	const ask = "Plan this: " + text + "\n\nFirst find the film's ONE visual idea, the thing a viewer remembers: a hero object or metaphor (a selection box that can't pick one, a dot that carries the job, a sun the camera dives into) that is on screen from the first second and keeps becoming the next thing, scene after scene (it morphs, the camera dives through it, an iris opens out of it), until the last frame. Every scene's draw says what it grows out of and what it becomes; never a title card, a row of cards, a diagram or a slide.\nKeep them watching: the first second is the hook, the most striking image already moving or a question they need answered, never a logo, a title card or a fade from black; then something new every 2 to 3 seconds (a reveal, the hero transforming, a move into a new space, the next word), each beat a little bigger than the last; set up one thing early that pays off at the end (a promise, a question, a counter, a mystery object), and end on that payoff and one image worth remembering.\nFor an ad: what it is and why it beats the usual way, clear within the first seconds and shown, not claimed (one concrete proof a viewer can see); real energy in the pace and the words; and, where it suits the brand, one light touch of wit. Never forced, never at the cost of the idea above.\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
+	const ask = "Plan this: " + text + "\n\nFirst find the film's ONE visual idea, the thing a viewer remembers: a hero object or metaphor (a selection box that can't pick one, a dot that carries the job, a sun the camera dives into) that is on screen from the first second and keeps becoming the next thing, scene after scene (it morphs, the camera dives through it, an iris opens out of it), until the last frame. Every scene's draw says what it grows out of and what it becomes; never a title card, a row of cards, a diagram or a slide.\nKeep them watching: the first second is the hook, the most striking image already moving or a question they need answered, never a logo, a title card or a fade from black; then something new every 2 to 3 seconds (a reveal, the hero transforming, a move into a new space, the next word), each beat a little bigger than the last, and the biggest ones marked by a bold change of the whole frame (the ground switching to a new colour, the scale flipping, the camera diving inside something); set up one thing early that pays off at the end (a promise, a question, a counter, a mystery object), and end on that payoff and one image worth remembering.\nFor an ad: what it is and why it beats the usual way, clear within the first seconds and shown, not claimed (one concrete proof a viewer can see); real energy in the pace and the words; and, where it suits the brand, one light touch of wit. Never forced, never at the cost of the idea above.\n\n" + (want ? "Total length: about " + want + " seconds." : "Pick the right length, short is better: an ad 15-20 s, a social video 10-15 s vertical, a film 30-45 s.") +
 		(drawn ? "\n\nOn this server every shot is drawn in code: give every shot \"motion\": \"drawn\" and a full \"draw\" brief (make each one a striking piece of motion design, not a slide). One program animates a whole shot, so a drawn shot carries several beats of its own (an idea that builds, a reveal, a turn, a title landing): plan one shot for every 6 to 8 seconds (a 30-second film is 4 or 5 shots), each with its beats in order in its draw brief, never a shot per sentence. There is no voice: leave \"vo\" empty and put every word the viewer must get on screen, in the draw brief or the caption. The music and the sound effects are composed in code to your cut, so write the music prompt (genre, mood, tempo, how it builds and lands) and each shot's \"sound\". A product, app or brand film is one real moment where the product is used: when it happens in a place (a trip, a delivery, food, something you hold), filmed in a lit 3D world of the real place where it's used (three.js: the street, the café table, the station, the counter, built from simple shapes with soft sunlight or warm practical light, long soft shadows, a little haze, a gentle warm grade; the camera flies, walks or glides through it), with the product's screen inside that world (a phone in the scene, or its screen as a frosted card floating over the place) answering every touch, and the place never a backdrop: the camera travels through it and the story happens in it (the walk, the arrival, the pin landing on the door), and when nothing happens in it, leave it out and stay on the screen; when it all happens on a screen, that screen recreated big and real on a clean cinematic ground (deep and dark with one glowing colour, or bright), one hero element at a time, things transforming (a price becoming what you saved, a flame counting up a streak, a box opening into the thing inside); words big enough to read on a phone, the brand's colour only on what matters, one idea per shot; never a dark neon look, never flat cards on an empty ground. Each shot is a moment, not a slide: one hero thing at a time, with something happening to it about every second (it arrives, is typed into, tapped, opens into the next screen, flies, turns into the next thing); never a list of features shown as a stack of cards or rows, never more than two cards on screen at once.\n\n" + STUDIED : "") +
 		(/\bcelestin\b/i.test(text) ? "\n\n" + CELESTIN_LOOK : "") +
 		(imgs.length ? "\n\nThe user attached " + imgs.length + " image(s) (their product, logo, person or style reference): they are shown to you and to the image model. Describe what's in them exactly and keep it identical in every shot." : "") +
@@ -13415,6 +13420,14 @@ async function produce(msg, only, signal) {
 		await Promise.all([Promise.all(shots), sound]);
 		// (made shot by shot after all: a soundtrack composed to the one take is composed again to this cut)
 		if (retime && d.music.composed) { d.music = {}; await score(); }
+		// (Celestin's own score, made before the film existed: made again on the film's own moments, so it's on the beat)
+		if (d.take && d.music.own && d.music.style && !d.music.synced && plan.oneTake) {
+			try {
+				const filmHtml = await (await vault.get(d.take)).text();
+				plan.beats = await filmBeats(filmHtml, plan.scenes.reduce((n, x) => n + x.seconds, 0));
+				if (plan.beats.length >= 2) { d.music = { key: await vault.put(await ownScore(plan, d.music.style)), composed: true, state: "done", own: true, style: d.music.style, synced: true }; note("Celestin", "Sound: its own " + d.music.style + " score, on the film's own " + plan.beats.length + " moments (each lands on the beat)"); }
+			} catch (e) { if (e.name === "AbortError") throw e; }
+		}
 		const made = (s) => s.clip || (s.still && s.frame) || (s.drawn && s.code);
 		if (!d.scenes.some(made)) throw new Error("None of the shots could be made: " + (d.scenes.find((s) => s.error)?.error || "the video model failed"));
 		// 5. the cut
@@ -16141,12 +16154,56 @@ function scoreStyle(plan) {
 	for (const [k, st] of Object.entries(SCORE_STYLES)) { const m = said.match(new RegExp(st.words.source, "gi")); if (m && m.length > n) { best = k; n = m.length; } }
 	return best;
 }
+// the film's own moments, measured from its picture: where a quarter or more of it changes within half a second (the
+// biggest at each, at least 0.35 s apart), and where new words arrive; each with its strength, 0 to 1
+async function filmBeats(html, total) {
+	const rate = 10, n = Math.floor(total * rate), c = Object.assign(document.createElement("canvas"), { width: 32, height: 18 }), sc = openScene(html, 64, 36), G = [];
+	let texts = [];
+	try {
+		for (let i = 0; i <= n; i++) { const b = await sc.frame(Math.min(total - 0.02, i / rate)); G.push(grayOf(b, c)); if (b.close) b.close(); }
+		texts = await sc.texts().catch(() => []);
+	} finally { sc.close(); }
+	const k5 = 5, ch = [];
+	for (let i = 0; i + k5 < G.length; i++) { let m = 0; for (let j = 0; j < G[i].length; j++) if (Math.abs(G[i + k5][j] - G[i][j]) > 16) m++; ch.push(m / G[i].length); }
+	// (the moment within each change where it moves most: the frame-to-frame peak)
+	const step = G.map((g, i) => { if (!i) return 0; let m = 0; for (let j = 0; j < g.length; j++) if (Math.abs(g[j] - G[i - 1][j]) > 16) m++; return m / g.length; });
+	const out = [];
+	for (let i = 0; i < ch.length; i++) {
+		if (ch[i] < 0.25 || (i && ch[i - 1] >= ch[i]) || (i + 1 < ch.length && ch[i + 1] > ch[i])) continue;
+		let p = i + 1;
+		for (let j = i + 1; j <= i + k5 && j < step.length; j++) if (step[j] > step[p]) p = j;
+		const t = p / rate;
+		if (!out.some((x) => Math.abs(x.t - t) < 0.35)) out.push({ t, s: Math.min(1, ch[i] / 0.6) });
+	}
+	const said = new Set();
+	for (const x of texts.slice().sort((a, b) => a[0] - b[0])) { const w0 = x.length >= 7 && x[1] >= 0.045 ? String(x[6]) : ""; if (!w0 || said.has(w0)) continue; said.add(w0); if (!out.some((y) => Math.abs(y.t - x[0]) < 0.35)) out.push({ t: x[0], s: 0.35 }); }
+	return out.filter((x) => x.t > 0.15 && x.t < total - 0.3).sort((a, b) => a.t - b.t);
+}
+// a tempo near the style's own, and where its beats fall, that put the film's moments on the beat (or the half beat), the
+// strongest weighing most
+function beatFit(beats, base) {
+	let best = null;
+	for (let bpm = Math.round(base * 0.82); bpm <= Math.round(base * 1.18); bpm += 0.5) {
+		const q = 30 / bpm;
+		for (let ph = 0; ph < q * 2; ph += 0.01) {
+			let cost = 0;
+			for (const x of beats) { const d = (((x.t - ph) % q) + q) % q; cost += (0.3 + x.s) * Math.min(d, q - d); }
+			if (!best || cost < best.cost) best = { bpm, phase: ph, cost };
+		}
+	}
+	const q = 30 / best.bpm;
+	best.snap = (t) => { const g = best.phase + Math.round((t - best.phase) / q) * q; return Math.abs(g - t) <= 0.07 ? g : t; };
+	return best;
+}
 async function ownScore(plan, style) {
 	const said = String((plan.music && plan.music.prompt) || "") + " " + String(plan.look || "");
 	const key = SCORE_STYLES[style] ? style : scoreStyle(plan) || (/\b(tense|dark|dramatic|suspense|sad|epic|serious|mysterious|cinematic)\b/i.test(said) ? "epic" : /\b(calm|gentle|soft|slow|ambient|lo-?fi|warm|chill)\b/i.test(said) ? "calm" : "tech");
 	const S = SCORE_STYLES[key];
 	const times = cutTimes(plan), secs = Math.max(4, Math.min(180, times.total)), sr = 48000, oc = new OfflineAudioContext(2, Math.ceil(secs * sr), sr);
-	const beat = 60 / S.bpm, bar = beat * 4, root = S.minor ? 45 : 48, hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+	// (on the picture, once the film is made: the tempo and the bars where its moments fall)
+	const fit = Array.isArray(plan.beats) && plan.beats.length >= 2 ? beatFit(plan.beats, S.bpm) : null;
+	const beat = 60 / (fit ? fit.bpm : S.bpm), bar = beat * 4, root = S.minor ? 45 : 48, hz = (m) => 440 * Math.pow(2, (m - 69) / 12);
+	const lead = fit ? Math.ceil(fit.phase / bar - 1e-9) : 0, from = fit ? fit.phase - lead * bar : 0;
 	const comp = oc.createDynamicsCompressor(), out = oc.createGain(), rev = oc.createConvolver(), revIn = oc.createGain();
 	comp.threshold.value = -16; comp.ratio.value = 3;
 	comp.connect(oc.destination); out.connect(comp);
@@ -16160,7 +16217,7 @@ async function ownScore(plan, style) {
 	const noise = oc.createBuffer(1, Math.round(sr * 0.6), sr), nd = noise.getChannelData(0);
 	for (let i = 0; i < nd.length; i++) nd[i] = rnd();
 	const tone = (wave, f, t, dur, lv, cut, att = 0.01, send = 0.25, pan = 0) => {
-		if (t >= secs) return;
+		if (t >= secs || t < 0) return;
 		const o = oc.createOscillator(), fl = oc.createBiquadFilter(), g = oc.createGain(), p = oc.createStereoPanner();
 		o.type = wave; o.frequency.value = f; fl.type = "lowpass"; fl.frequency.value = cut; p.pan.value = pan;
 		const end = Math.min(secs, t + dur);
@@ -16169,25 +16226,27 @@ async function ownScore(plan, style) {
 		o.start(t); o.stop(end + 0.02);
 	};
 	const hit = (t, hp, lp, dur, lv, pan = 0) => {
-		if (t >= secs) return;
+		if (t >= secs || t < 0) return;
 		const b = oc.createBufferSource(), h = oc.createBiquadFilter(), l = oc.createBiquadFilter(), g = oc.createGain(), p = oc.createStereoPanner();
 		b.buffer = noise; h.type = "highpass"; h.frequency.value = hp; l.type = "lowpass"; l.frequency.value = lp; p.pan.value = pan;
 		g.gain.setValueAtTime(lv, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
 		b.connect(h).connect(l).connect(g).connect(p).connect(out); b.start(t); b.stop(Math.min(secs, t + dur + 0.02));
 	};
-	const kick = (t, lv = 0.5) => { if (t >= secs) return; const o = oc.createOscillator(), g = oc.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.11); g.gain.setValueAtTime(lv, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3); o.connect(g).connect(out); o.start(t); o.stop(t + 0.32); };
-	const bars = Math.ceil(secs / bar), drumsFrom = S.late ? Math.max(1, Math.floor(bars / 2)) : 1;
+	const kick = (t, lv = 0.5) => { if (t >= secs || t < 0) return; const o = oc.createOscillator(), g = oc.createGain(); o.frequency.setValueAtTime(140, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.11); g.gain.setValueAtTime(lv, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3); o.connect(g).connect(out); o.start(t); o.stop(t + 0.32); };
+	const bars = Math.ceil((secs - from) / bar), drumsFrom = S.late ? Math.max(1, Math.floor(bars / 2)) : 1;
 	for (let b = 0; b < bars; b++) {
-		const t0 = b * bar, ch = S.prog[b % S.prog.length], grow = Math.min(1, (b + 1) / Math.max(1, bars - 1));
+		const t0 = from + b * bar, ch = S.prog[b % S.prog.length], grow = Math.min(1, (b + 1) / Math.max(1, bars - 1));
+		if (t0 + bar <= 0) continue;
 		// the pad: the chord, two voices a little apart, its brightness growing for a swell
 		for (const iv of ch) for (const det of [-6, 6]) {
 			const o = oc.createOscillator(), fl = oc.createBiquadFilter(), g = oc.createGain();
 			o.type = S.pad[0]; o.frequency.value = hz(root + 12 + iv); o.detune.value = det;
 			fl.type = "lowpass"; fl.frequency.value = S.pad[1] * (S.swell ? 0.5 + grow : 1);
-			g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(S.pad[2], t0 + Math.min(0.6, bar * 0.2)); g.gain.setValueAtTime(S.pad[2], t0 + bar - 0.2); g.gain.linearRampToValueAtTime(0, t0 + bar + 0.15);
+			const p0 = Math.max(0, t0);
+			g.gain.setValueAtTime(0, p0); g.gain.linearRampToValueAtTime(S.pad[2], p0 + Math.min(0.6, bar * 0.2)); g.gain.setValueAtTime(S.pad[2], Math.max(p0 + 0.61, t0 + bar - 0.2)); g.gain.linearRampToValueAtTime(0, Math.max(p0 + 0.7, t0 + bar + 0.15));
 			const sg = oc.createGain(); sg.gain.value = 0.4;
 			o.connect(fl).connect(g); g.connect(out); g.connect(sg).connect(revIn);
-			o.start(t0); o.stop(Math.min(secs, t0 + bar + 0.2));
+			o.start(p0); o.stop(Math.min(secs, Math.max(p0 + 0.75, t0 + bar + 0.2)));
 		}
 		// the melody line over it: arpeggio, keys or mallets, from the second bar
 		if (S.arp && b >= 1) {
@@ -16207,8 +16266,21 @@ async function ownScore(plan, style) {
 		for (const q of S.snap || []) hit(t0 + q * beat, 2500, 9000, 0.05, 0.14, 0.2);
 		for (const q of S.hat || []) hit(t0 + q * beat + (S.swing && q % 1 ? S.swing * beat : 0), 7000, 16000, 0.04, S.soft ? 0.035 : 0.06, 0.3);
 	}
+	// on the picture: a hit on each of the film's moments, a whoosh into the strongest
+	if (fit) for (const x of plan.beats) {
+		if (x.t < 0.25 || x.t > secs - 1) continue;
+		const t = fit.snap(x.t);
+		kick(t, 0.18 + 0.32 * x.s);
+		hit(t, 1800, 10000, 0.18 + 0.3 * x.s, 0.05 + 0.1 * x.s, x.t % 2 < 1 ? -0.2 : 0.2);
+		if (x.s >= 0.6 && t > 0.6) {
+			const w = t - 0.42, b = oc.createBufferSource(), f = oc.createBiquadFilter(), g = oc.createGain();
+			b.buffer = noise; f.type = "bandpass"; f.Q.value = 2; f.frequency.setValueAtTime(300, w); f.frequency.exponentialRampToValueAtTime(3500, w + 0.42);
+			g.gain.setValueAtTime(0.0001, w); g.gain.exponentialRampToValueAtTime(0.1, w + 0.36); g.gain.exponentialRampToValueAtTime(0.0001, w + 0.46);
+			b.connect(f).connect(g).connect(out); b.start(w); b.stop(w + 0.48);
+		}
+	}
 	// a whoosh into each scene, and a hit as the last one (or the end card) lands
-	for (const sh of times.shots.slice(1)) {
+	for (const sh of fit ? [] : times.shots.slice(1)) {
 		const t = Math.max(0, sh.start - 0.45);
 		if (t > secs - 1) continue;
 		const b = oc.createBufferSource(), f = oc.createBiquadFilter(), g = oc.createGain();
