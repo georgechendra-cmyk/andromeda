@@ -5445,17 +5445,148 @@ function syntaxError(code, module) {
 		return null;
 	} catch (e) { return e.message; }
 }
+// ---- what Celestin Code's check reads besides plain JavaScript (Nov 28)
+const BABEL_URL = "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js";
+let BABEL_P = null;
+const loadBabel = () => (window.Babel ? Promise.resolve(window.Babel) : (BABEL_P ||= new Promise((ok, no) => { const sc = document.createElement("script"); sc.src = BABEL_URL; sc.onload = () => (window.Babel ? ok(window.Babel) : no(new Error("no parser"))); sc.onerror = () => { BABEL_P = null; no(new Error("the parser didn't load")); }; document.head.appendChild(sc); })));
+// a JS, JSX, TS or TSX file parsed for real: null, or the error with its line and column
+async function parseError(p, t) {
+	const B = await loadBabel();
+	const ts = /\.(c|m)?tsx?$/i.test(p), x = /\.(jsx|tsx)$/i.test(p) || (!ts && /<[A-Za-z][\w.]*[\s/>][\s\S]*?(\/>|<\/)/.test(t.replace(/(["'`])(?:\\.|(?!\1)[^\\\n])*\1/g, "")));
+	try { B.transform(t, { filename: p.split("/").pop(), presets: [...(ts ? [["typescript", { isTSX: /x$/i.test(p), allExtensions: true }]] : []), ...(x ? ["react"] : [])], sourceType: "unambiguous", code: false, ast: false, babelrc: false, configFile: false }); return null; }
+	catch (e) { return String((e && e.message) || e).split("\n")[0].replace(/^[^:]*\.(c|m)?[jt]sx?:\s*/i, "").replace(/^unknown( file)?:\s*/i, ""); }
+}
+// a path from a file, resolved in the project ("./x", "../lib/y", "/img/z.png"), with the usual extensions tried
+const PATH_TRIES = ["", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json", ".css", ".scss", "/index.ts", "/index.tsx", "/index.js", "/index.jsx"];
+function joinPath(from, spec) {
+	const parts = (spec.startsWith("/") ? [] : from.split("/").slice(0, -1)).concat(spec.split("/")), out = [];
+	for (const x of parts) { if (!x || x === ".") continue; if (x === "..") out.pop(); else out.push(x); }
+	return out.join("/");
+}
+const resolveIn = (from, spec, has) => { const j = joinPath(from, spec); for (const e of PATH_TRIES) if (has(j + e)) return j + e; return null; };
+// what a file asks for from the project's own files: [spec, names (for a JS import), kind]
+function localRefs(p, t) {
+	const out = [], local = (x) => /^\.{1,2}\//.test(x) || (x.startsWith("/") && !x.startsWith("//"));
+	if (/\.(c|m)?[jt]sx?$/i.test(p)) {
+		const code = t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");
+		for (const m of code.matchAll(/\bimport\s+(type\s+)?([\w$]+\s*,?\s*)?(\{[^}]*\})?(\*\s+as\s+[\w$]+)?\s*from\s*["']([^"']+)["']/g)) {
+			if (!local(m[5])) continue;
+			const names = [];
+			if (m[2] && m[2].replace(/[\s,]/g, "")) names.push("default");
+			if (m[3]) for (const n of m[3].slice(1, -1).split(",")) { const nm = n.trim().replace(/^type\s+/, "").split(/\s+as\s+/)[0].trim(); if (nm && nm !== "default") names.push(nm); else if (nm === "default") names.push("default"); }
+			out.push([m[5], names, "import"]);
+		}
+		for (const m of code.matchAll(/\b(?:import|require)\s*\(\s*["']([^"']+)["']\s*\)|\bimport\s*["']([^"']+)["']|\bexport\s+(?:\*|\{[^}]*\})\s*from\s*["']([^"']+)["']/g)) { const sp = m[1] || m[2] || m[3]; if (local(sp)) out.push([sp, [], "import"]); }
+	} else if (/\.html?$/i.test(p)) {
+		const page = t.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, (x) => x.replace(/>[\s\S]*$/, ">")).replace(/<!--[\s\S]*?-->/g, "");
+		for (const m of page.matchAll(/<(script|link|img|source|video|audio|iframe)\b[^>]*?\s(src|href)=["']([^"'#?]+)/gi)) {
+			const sp = m[3].trim();
+			if (/^(https?:|\/\/|data:|blob:|mailto:|tel:|javascript:)|[{}$+<>]/.test(sp) || (m[1].toLowerCase() === "link" && !/\.(css|ico|png|svg|webmanifest|json)$/i.test(sp))) continue;
+			out.push([/^\.{0,2}\//.test(sp) ? sp : "./" + sp, [], m[1].toLowerCase()]);
+		}
+	} else if (/\.s?css$/i.test(p)) {
+		for (const m of t.matchAll(/url\(\s*["']?([^"')]+)["']?\s*\)|@import\s+["']([^"']+)["']/g)) { const sp = (m[1] || m[2]).trim(); if (/^(https?:|\/\/|data:|#)/.test(sp)) continue; out.push([/^\.{0,2}\//.test(sp) ? sp : "./" + sp, [], "css"]); }
+	}
+	return out;
+}
+// the names a JS or TS file exports (null: not an ES module, or it re-exports everything from elsewhere: not checked)
+function exportsOf(t) {
+	if (!/\bexport\b/.test(t) || /\bexport\s+\*\s+from\b/.test(t)) return null;
+	const names = new Set();
+	for (const m of t.matchAll(/\bexport\s+(?:declare\s+)?(?:async\s+)?(?:function\*?|class|const|let|var|type|interface|enum|abstract\s+class|namespace)\s+([\w$]+)/g)) names.add(m[1]);
+	for (const m of t.matchAll(/\bexport\s+(?:type\s+)?\{([^}]*)\}/g)) for (const n of m[1].split(",")) { const p = n.trim().replace(/^type\s+/, "").split(/\s+as\s+/); const nm = (p[1] || p[0]).trim(); if (nm) names.add(nm); }
+	if (/\bexport\s+default\b/.test(t) || names.has("default")) names.add("default");
+	return names;
+}
+// every local reference that's broken by what this job changed: in the files it changed, and anywhere a file it deleted
+// or a name it removed was still used
+async function refProblems(list, run) {
+	const out = [], has = (x) => projectHas(x), changed = new Set(list), gone = new Set([...run.before.keys()].filter((x) => !projectHas(x)));
+	const remote = PROJECT && PROJECT.kind === "github", open = (x) => changed.has(x) || (PROJECT && (PROJECT.pending.has(x) || PROJECT.cache.has(x)));
+	const all = projectPaths().filter((x) => /\.((c|m)?[jt]sx?|html?|s?css)$/i.test(x) && (!remote || open(x))).slice(0, 600), texts = new Map();
+	let fetches = 40;
+	const read = async (x) => { if (!texts.has(x)) { if (remote && !open(x) && fetches-- <= 0) return ""; texts.set(x, await pRead(x).catch(() => "")); } return texts.get(x); };
+	for (const p of all) {
+		const t = await read(p);
+		for (const [spec, names, kind] of localRefs(p, t)) {
+			const target = resolveIn(p, spec, has);
+			if (!target) {
+				const was = PATH_TRIES.map((e) => joinPath(p, spec) + e).find((x) => gone.has(x));
+				if (changed.has(p) || was) out.push(p + ": " + (kind === "import" ? "imports" : "uses") + " \"" + spec + "\", " + (was ? "which this job deleted" : "which isn't in the project"));
+				continue;
+			}
+			if (!names.length || !/\.(c|m)?[jt]sx?$/i.test(target) || !(changed.has(p) || changed.has(target))) continue;
+			const ex = exportsOf(await read(target));
+			if (!ex) continue;
+			const missing = names.filter((n) => !ex.has(n));
+			if (missing.length) out.push(p + ": imports " + missing.map((n) => (n === "default" ? "a default export" : n)).join(", ") + " from \"" + spec + "\", which " + target + " doesn't export");
+		}
+	}
+	return [...new Set(out)].slice(0, 30);
+}
+// CSS: braces that close, comments and strings that end
+function cssError(t) {
+	let depth = 0, line = 1;
+	for (let i = 0; i < t.length; i++) {
+		const c = t[i];
+		if (c === "\n") line++;
+		else if (c === "/" && t[i + 1] === "*") { const e = t.indexOf("*/", i + 2); if (e < 0) return "a comment that never ends (line " + line + ")"; line += (t.slice(i, e).match(/\n/g) || []).length; i = e + 1; }
+		else if (c === '"' || c === "'") { const e = t.indexOf(c, i + 1), nl = t.indexOf("\n", i + 1); if (e < 0 || (nl >= 0 && nl < e && t[nl - 1] !== "\\")) return "a string that never ends (line " + line + ")"; i = e; }
+		else if (c === "{") depth++;
+		else if (c === "}") { if (--depth < 0) return "a } with no { (line " + line + ")"; }
+	}
+	return depth > 0 ? depth + " { never closed" : null;
+}
+// where an edit's old text most likely is, when it isn't there exactly: the same text with other spacing (shown as it's
+// really written), or the lines that share the most with it, numbered like read_file
+function nearText(t, old) {
+	const lines = t.split("\n"), want = old.split("\n").map((l) => l.trim()).filter(Boolean), n = Math.max(1, old.split("\n").length);
+	if (!want.length || !lines.length) return " Read the file again and copy the exact text (spaces, tabs and quotes matter).";
+	const squash = (x) => x.replace(/\s+/g, " ").trim(), target = squash(old);
+	const show = (a, b) => lines.slice(a, b).map((l, k) => String(a + k + 1).padStart(6) + "\t" + l).join("\n");
+	for (let i = 0; i < lines.length; i++) {
+		if (squash(lines[i]) !== squash(want[0].replace(/^\s+/, ""))) continue;
+		for (const m of [n, n - 1, n + 1]) if (m > 0 && squash(lines.slice(i, i + m).join("\n")) === target) return " The same text is there with different spacing or indentation, at lines " + (i + 1) + " to " + (i + m) + ". Copy it exactly as it's written:\n" + show(i, i + m);
+	}
+	// (how alike two lines are: the share of their letter pairs they have in common, 0 to 1)
+	const pairs = (x) => { const m = new Map(); for (let i = 0; i < x.length - 1; i++) { const k = x.slice(i, i + 2); m.set(k, (m.get(k) || 0) + 1); } return m; };
+	const alike = (A, B, la, lb) => { let c = 0; for (const [k, v] of A) c += Math.min(v, B.get(k) || 0); return (2 * c) / Math.max(1, la + lb - 2); };
+	const ws = want.map((w) => [w, pairs(w)]).filter(([w]) => w.length >= 6), scored = [];
+	if (!ws.length) return " Read the file again and copy the exact text (spaces, tabs and quotes matter).";
+	for (let i = 0; i < lines.length; i++) {
+		const l = lines[i].trim();
+		if (l.length < 6) continue;
+		const P = pairs(l);
+		let best = 0, at = 0;
+		for (const [w, W] of ws) { const x = alike(P, W, l.length, w.length); if (x > best) { best = x; at = want.indexOf(w); } }
+		if (best < 0.72) continue;
+		const from = Math.max(0, i - at), win = lines.slice(from, from + n + 2).map((x) => x.trim()).filter((x) => x.length >= 6).map((x) => [x, pairs(x)]);
+		scored.push([ws.reduce((sum, [w, W]) => sum + Math.max(0, ...win.map(([x, X]) => alike(X, W, x.length, w.length))), 0), from]);
+	}
+	scored.sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+	const best = scored.filter((x, k, all) => all.findIndex((y) => Math.abs(y[1] - x[1]) < n) === k).slice(0, 2);
+	if (!best.length) return " Nothing in it looks like that text: search for a word from it, or read the part you mean again, and copy the exact text.";
+	return " The closest lines in it" + (best[0][0] < ws.length - 0.05 ? " (they differ: the file has changed since you read it, or the text was misremembered)" : "") + ":\n" + best.map(([, from]) => show(from, Math.min(lines.length, from + n + 2))).join("\n…\n").slice(0, 3000) + "\nCopy old_string exactly from these lines (without the numbers).";
+}
 async function checkProject(paths, run) {
 	const list = (paths && paths.length ? paths.map(normPath) : [...run.before.keys()]).filter(projectHas);
-	const problems = [], checked = [], skipped = [];
+	const problems = [], checked = [], skipped = [], py = [];
 	for (const p of list) {
 		let t;
 		try { t = await pRead(p); } catch { continue; }
 		if (/\.json$/i.test(p)) { try { JSON.parse(t); checked.push(p); } catch (e) { problems.push(p + ": invalid JSON: " + e.message); } }
-		else if (/\.(c?js|mjs)$/i.test(p) && !/<[A-Za-z][\w.]*[\s/>]/.test(t.replace(/(["'`]).*?\1/g, ""))) {
+		else if (/\.(c|m)?tsx?$/i.test(p) || /\.jsx$/i.test(p) || (/\.(c?js|mjs)$/i.test(p) && /<[A-Za-z][\w.]*[\s/>]/.test(t.replace(/(["'`]).*?\1/g, "")))) {
+			try { const err = await parseError(p, t); err ? problems.push(p + ": syntax error: " + err) : checked.push(p); }
+			catch { skipped.push(p); }
+		}
+		else if (/\.(c?js|mjs)$/i.test(p)) {
 			const err = syntaxError(t, /\.mjs$/i.test(p) || /^\s*(import|export)\s/m.test(t));
-			err ? problems.push(p + ": syntax error: " + err) : checked.push(p);
-		} else if (/\.html?$/i.test(p)) {
+			// (where it is: the parser says the line and column)
+			if (err) { let at = ""; try { at = await parseError(p, t); } catch {} problems.push(p + ": syntax error: " + (at || err)); } else checked.push(p);
+		}
+		else if (/\.s?css$/i.test(p)) { const err = /\.css$/i.test(p) ? cssError(t) : null; err ? problems.push(p + ": " + err) : checked.push(p); }
+		else if (/\.py$/i.test(p)) py.push([p, t]);
+		else if (/\.html?$/i.test(p)) {
 			let k = 0, bad = false;
 			for (const [, attrs, code] of t.matchAll(/<script(?![^>]*\bsrc=)([^>]*)>([\s\S]*?)<\/script>/gi)) {
 				k++;
@@ -5475,6 +5606,11 @@ async function checkProject(paths, run) {
 			if (!bad) checked.push(p);
 		} else skipped.push(p);
 	}
+	if (py.length) {
+		const r = await runPython("import ast, json\nfor p, s in json.loads(" + JSON.stringify(JSON.stringify(py.slice(0, 20))) + "):\n    try:\n        ast.parse(s, filename=p)\n        print('OK ' + p)\n    except SyntaxError as e:\n        print('BAD ' + p + ': syntax error: ' + str(e.msg) + ' (line ' + str(e.lineno) + ', column ' + str(e.offset) + ')')\n", [], 90000).catch(() => ({ text: "" }));
+		for (const [p] of py) { const l = String(r.text || "").split("\n").find((x) => x === "OK " + p || x.startsWith("BAD " + p + ":")); if (!l) skipped.push(p); else if (l.startsWith("OK ")) checked.push(p); else problems.push(l.slice(4)); }
+	}
+	try { problems.push(...(await refProblems(list, run))); } catch {}
 	return { ok: !problems.length, count: problems.length, text: (problems.length ? "Problems:\n" + problems.join("\n") : "No problems found.") + (checked.length ? "\nChecked: " + checked.join(", ") : "") + (skipped.length ? "\nCan't be checked here (look over them carefully yourself): " + skipped.join(", ") : "") };
 }
 const AGENT_TOOLS = [
@@ -5492,7 +5628,7 @@ const AGENT_TOOLS = [
 	["find_videos", "Find videos on YouTube about anything (a creator, a game, a how-to, an ad style): their real videos, with channel, views and length.", { query: { type: "string" } }, ["query"]],
 	["watch_video", "Watch a YouTube video or short with the model best at watching and listening: it describes exactly what's seen and heard (people, what they say and how, style, editing, sound), or answers your question about it.", { url: { type: "string" }, question: { type: "string" } }, ["url"]],
 	["read_wikis", "Read what the wikis say about something (fandom wikis and Wikipedia), whole, as text: people, characters, creators, games, shows, lore, quotes.", { query: { type: "string" } }, ["query"]],
-	["check", "Check your work: syntax of JavaScript, JSON and HTML scripts, and small web pages are run for errors. With no paths it checks every file you changed.", { paths: { type: "array", items: { type: "string" } } }, []],
+	["check", "Check your work: the syntax of JavaScript, TypeScript, JSX, TSX, JSON, CSS, Python and HTML scripts (with line numbers), broken references between the project's files (an import, script, stylesheet or picture that isn't there, a name the other file doesn't export), and small web pages run for errors. With no paths it checks every file you changed.", { paths: { type: "array", items: { type: "string" } } }, []],
 	["finish", "End the task with a short summary for the user: what you changed and why, how to try it, and anything they must do themselves. For a question, the answer goes here.", { summary: { type: "string" } }, ["summary"]],
 ].map(([name, description, properties, required]) => ({ type: "function", function: { name, description, parameters: { type: "object", properties, required } } }));
 const AGENT_RULES = `You are Celestin Code, the lead engineer on a team, working directly in the user's project through tools. You have what the best coding agents have (files, search, the docs, the web, running code, the user's computer when it's connected) and a team on top: helpers who look into things in parallel, experts measured best at exactly one skill, and a different top model who reviews your work. Work the way the best engineers in the world do:
@@ -5606,7 +5742,7 @@ async function runTool(name, a, run, msg) {
 				const found = t.match(new RegExp(loose, "g"));
 				if (found && found.length === 1) { from = found[0]; n = 1; }
 			}
-			if (!n) return "old_string wasn't found in " + p + ". Read the file again and copy the exact text (spaces, tabs and quotes matter).";
+			if (!n) return "old_string wasn't found in " + p + "." + nearText(t, old);
 			if (n > 1 && !a.replace_all) return "old_string appears " + n + " times in " + p + ". Include more surrounding lines so it's unique, or set replace_all.";
 			const out = a.replace_all ? t.split(from).join(neu) : t.replace(from, () => neu);
 			await pWrite(p, out, run);
@@ -5808,6 +5944,18 @@ async function runAgent(text, atts) {
 			if (summary != null && run.before.size) { const chk = String(await runTool("check", {}, run, msg)); if (/^Problems:/.test(chk)) climb = "it said it was done, but Celestin's own check still finds problems:\n" + chk.slice(0, 3000); }
 			else if (summary != null && !run.before.size && !(/\?\s*$/.test(String(text || "")) || (/^\s*(how|what|why|where|which|who|does|do|is|are|can|could|should|would|explain|tell me)\b/i.test(String(text || "")) && !/\b(make|fix|add|change|build|update|remove|implement|create|write|edit|rename|refactor|support|read)\b/i.test(String(text || ""))))) climb = "it stopped without changing anything, though a change was asked for";
 			else if (summary == null && (sinceEdit >= 24 || onRung >= 70)) climb = sinceEdit >= 24 ? "it went " + sinceEdit + " turns without changing anything" : "it took " + onRung + " turns";
+			// (no stronger model left: what its own check still finds goes back to it once; still there, the person is told)
+			if (climb && /own check still finds/.test(climb) && !(ci + 1 < Math.min(cands.length, 5))) {
+				if (!run.lastFix) {
+					run.lastFix = true;
+					messages.push({ role: "user", content: "(Celestin: you said you were done, but Celestin's own check still finds problems:\n" + climb.split("\n").slice(1).join("\n").slice(0, 3000) + "\nFix them, check again, then finish.)" });
+					log("Sent back to fix", "its own check still finds problems");
+					summary = null; sinceEdit = 0;
+					continue;
+				}
+				summary = String(summary || "Done.") + "\n\n**Not fully working yet:** Celestin's own check still finds these, which weren't fixed:\n" + climb.split("\n").slice(1).filter((l) => l.trim() && !/^(Checked|Can't be checked|Problems:\s*$)/.test(l)).slice(0, 8).map((l) => "- " + l.replace(/^Problems:\s*/, "")).join("\n");
+				climb = "";
+			}
 			if (climb && ci + 1 < Math.min(cands.length, 5)) {
 				const was = shortName(model);
 				model = cands[++ci];
