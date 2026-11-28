@@ -16,9 +16,11 @@ CREATE TABLE IF NOT EXISTS users (
 	period_at INTEGER NOT NULL DEFAULT 0, -- when this month of the plan ends and the next month's credits arrive
 	plan_terms TEXT, -- the plan as it was when they paid: they never get less until it ends (more if it got better)
 	email_ok INTEGER NOT NULL DEFAULT 0, -- someone has proven the email is theirs (a code sent to it, or Google)
+	team_mc INTEGER NOT NULL DEFAULT 0, -- spent this week from the team's own allowance (background work: agents, front desks, jobs, tasks)
+	team_at INTEGER NOT NULL DEFAULT 0, -- when the team's week ends (0 = no week running)
 	created_at INTEGER NOT NULL
 );
--- (an older database gets plan, plan_until, week_mc, week_at, plan_mc, email_ok and period_at added by the server itself)
+-- (an older database gets plan, plan_until, week_mc, week_at, plan_mc, email_ok, period_at, team_mc and team_at added by the server itself)
 
 CREATE TABLE IF NOT EXISTS sessions (
 	token_hash TEXT PRIMARY KEY,
