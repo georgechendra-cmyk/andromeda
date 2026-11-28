@@ -164,6 +164,7 @@ const COMPUTER = [
 	["browse_type", "Type into a field on the open page by its number, replacing what's in it (enter: true presses Enter after). Never a password: use browse_login.", { n: N("the field's number"), text: S("what to type"), what: S("what the field is, in a few words (like: the search box)"), enter: { type: "boolean", description: "press Enter after" } }, ["n", "text", "what"]],
 	["browse_login", "Sign in on the open page with the login the user saved for this site in their password vault on their computer: the computer types it in itself, so you never see it, and only on the exact site it was saved for. If none is saved, ask them to add it under Plugins, then Passwords. Never ask the user for a password.", { site: S("the site, as the user will see it when asked (like: instagram.com)") }, ["site"]],
 	["browse_look", "See the open page as a picture.", {}, []],
+	["browse_ask", "Hand the window to the user for something only they can or should do: type a code a site sent them, a search or detail only they know, a password that isn't saved, or prove they're human. Celestin's cursor clicks into the field (n, when there is one), highlights it and waits until they press Continue or Enter. Returns the page after.", { what: S("what they need to do, in a few words (like: type the code the bank texted you)"), n: N("the field's number, if it's one field") }, ["what"]],
 ];
 const JOBS = new Map();
 let jobN = 0;
@@ -236,6 +237,24 @@ const BROWSERS = WIN ? [join(process.env["ProgramFiles(x86)"] || "C:/Program Fil
 	: process.platform === "darwin" ? ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"] : ["/usr/bin/google-chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/microsoft-edge"];
 let BR = null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// what Celestin's window is doing: work (it's acting), paused (the user took over), hand (it's waiting for them), stop,
+// idle. Kept here, so a new page shows the same; the page tells it what the user pressed (the __celSay binding)
+const CEL = { state: "idle", step: "", hand: "" };
+let CEL_IDLE = null, CEL_CTX = 0, CEL_FRAME = "";
+const OVERLAY = "(() => { if (window.__cel) return; const C = window.__cel = { acting: false, s: { state: 'idle', step: '', hand: '' } };" +
+	" const say = (st) => { C.s.state = st; try { window.__celSay && window.__celSay(JSON.stringify({ state: st })); } catch (e) {} draw(); };" +
+	" let sh = null; const mk = () => { if (sh || !document.documentElement) return; const root = document.createElement('div'); root.id = '__cel_root'; sh = root.attachShadow({ mode: 'closed' });" +
+	" sh.innerHTML = '<style>.bar{position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:2147483647;display:none;align-items:center;gap:10px;padding:6px 6px 6px 14px;border-radius:999px;background:rgba(18,18,20,.93);color:#fff;font:500 13px/1.25 system-ui,-apple-system,Segoe UI,sans-serif;box-shadow:0 8px 28px rgba(0,0,0,.28);max-width:calc(100vw - 24px)}.bar.on{display:flex}.dot{width:7px;height:7px;border-radius:50%;background:#30d158;flex:none}.bar.paused .dot,.bar.hand .dot{background:#ff9f0a}.t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}button{font:inherit;border:0;border-radius:999px;padding:6px 13px;cursor:pointer;white-space:nowrap}.go{background:#fff;color:#111}.stop{background:rgba(255,255,255,.15);color:#fff}.cur{position:fixed;left:0;top:0;z-index:2147483647;pointer-events:none;transition:transform .45s cubic-bezier(.2,.8,.2,1),opacity .3s;transform:translate(-60px,-60px);opacity:0}.cur.on{opacity:1}.cur svg{display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35))}.cur b{position:absolute;left:17px;top:19px;padding:2px 7px;border-radius:6px;background:#111;color:#fff;font:600 11px system-ui,sans-serif;white-space:nowrap}.ring{position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #0a84ff;border-radius:8px;box-shadow:0 0 0 5px rgba(10,132,255,.22);display:none}.tip{position:fixed;z-index:2147483647;pointer-events:none;padding:7px 11px;border-radius:9px;background:#0a84ff;color:#fff;font:500 12.5px/1.35 system-ui,sans-serif;display:none;max-width:300px}</style>' +" +
+	" '<div class=\"bar\" role=\"status\"><i class=\"dot\"></i><span class=\"t\"></span><button class=\"go\" hidden>Continue</button><button class=\"stop\">Stop</button></div><div class=\"cur\"><svg width=\"22\" height=\"22\" viewBox=\"0 0 24 24\"><path d=\"M4 2l16 9.5-7 1.6L9.6 20z\" fill=\"#111\" stroke=\"#fff\" stroke-width=\"1.6\" stroke-linejoin=\"round\"/></svg><b>Celestin</b></div><div class=\"ring\"></div><div class=\"tip\"></div>';" +
+	" document.documentElement.appendChild(root); sh.querySelector('.stop').onclick = () => say('stop'); sh.querySelector('.go').onclick = () => { C.s.hand = ''; ring(null); say('work'); }; draw(); };" +
+	" const draw = () => { if (!sh) return; const s = C.s, bar = sh.querySelector('.bar'), on = s.state !== 'idle' && s.state !== 'stop'; bar.className = 'bar' + (on ? ' on ' + s.state : ''); sh.querySelector('.t').textContent = s.state === 'paused' ? 'Paused: you\u2019re using this window. Continue when you\u2019re ready' : s.state === 'hand' ? 'Your turn: ' + (s.hand || 'do it here') + ', then Continue' : 'Celestin: ' + (s.step || 'working'); sh.querySelector('.go').hidden = !(s.state === 'paused' || s.state === 'hand'); sh.querySelector('.stop').hidden = !on; if (!on) { sh.querySelector('.cur').classList.remove('on'); ring(null); } };" +
+	" const ring = (r, tip) => { if (!sh) return; const g = sh.querySelector('.ring'), t = sh.querySelector('.tip'); if (!r) { g.style.display = t.style.display = 'none'; return; } Object.assign(g.style, { display: 'block', left: (r.left - 4) + 'px', top: (r.top - 4) + 'px', width: (r.width + 8) + 'px', height: (r.height + 8) + 'px' }); if (tip) { t.textContent = tip; Object.assign(t.style, { display: 'block', left: Math.max(8, r.left) + 'px', top: (r.bottom + 10) + 'px' }); } };" +
+	" C.set = (s) => { mk(); Object.assign(C.s, s); draw(); return 1; };" +
+	" C.move = (x, y) => { mk(); const c = sh.querySelector('.cur'); c.classList.add('on'); c.style.transform = 'translate(' + (x - 4) + 'px,' + (y - 2) + 'px)'; return 1; };" +
+	" C.hand = (sel, what) => { mk(); const e = sel && document.querySelector(sel); if (e) { const r = e.getBoundingClientRect(); ring(r, 'Your turn: ' + what); } C.s.hand = what; say('hand'); return 1; };" +
+	" const human = (ev) => { if (C.acting || !ev.isTrusted) return; if (ev.type === 'keydown' && ev.key === 'Escape' && C.s.state !== 'idle' && C.s.state !== 'stop') { say('stop'); return; } if (C.s.state === 'hand' && ev.type === 'keydown' && ev.key === 'Enter') { setTimeout(() => { C.s.hand = ''; ring(null); say('work'); }, 50); return; } if (C.s.state === 'work') say('paused'); };" +
+	" for (const k of ['pointerdown', 'keydown']) addEventListener(k, (ev) => { if (sh && ev.composedPath && ev.composedPath().some((n) => n && n.id === '__cel_root')) return; human(ev); }, true);" +
+	" if (document.readyState === 'loading') addEventListener('DOMContentLoaded', mk); else mk(); })()";
 async function br() {
 	if (BR && BR.ws.readyState === 1) return BR;
 	if (typeof WebSocket === "undefined") throw new Error("Using websites needs Node 22 or newer on this computer: update it from nodejs.org, then start the connector again.");
@@ -252,10 +271,16 @@ async function br() {
 	await new Promise((ok, no) => { ws.onopen = ok; ws.onerror = () => no(new Error("Couldn't reach the browser window.")); });
 	const wait = new Map();
 	let n = 0;
-	ws.onmessage = (ev) => { const m = JSON.parse(ev.data); if (m.id && wait.has(m.id)) { wait.get(m.id)(m); wait.delete(m.id); } };
+	// (the cursor and its bar live in a world of their own, "celestin": the page's own code can't see them, fake them, or
+	// press Continue for the user; the page tells the connector what the user pressed through a binding only that world has)
+	ws.onmessage = (ev) => { const m = JSON.parse(ev.data); if (m.id && wait.has(m.id)) { wait.get(m.id)(m); wait.delete(m.id); } else if (m.method === "Runtime.bindingCalled" && m.params && m.params.name === "__celSay") { try { const st = JSON.parse(m.params.payload).state; if (["work", "paused", "hand", "stop"].includes(st)) CEL.state = st; } catch {} } else if (m.method === "Runtime.executionContextCreated" && m.params && m.params.context && m.params.context.name === "celestin" && m.params.context.auxData && m.params.context.auxData.frameId === CEL_FRAME) CEL_CTX = m.params.context.id; };
 	const send = (method, params = {}) => new Promise((ok) => { const i = ++n; wait.set(i, ok); ws.send(JSON.stringify({ id: i, method, params })); setTimeout(() => { if (wait.delete(i)) ok({ error: { message: method + " took too long" } }); }, 30000); });
 	await send("Page.enable");
+	CEL_FRAME = ((await send("Page.getFrameTree")).result || {}).frameTree?.frame?.id || "";
+	await send("Runtime.addBinding", { name: "__celSay", executionContextName: "celestin" });
+	await send("Page.addScriptToEvaluateOnNewDocument", { source: OVERLAY, worldName: "celestin" });
 	await send("Runtime.enable");
+	{ const w = await send("Page.createIsolatedWorld", { frameId: CEL_FRAME, worldName: "celestin" }); if (w.result) { CEL_CTX = w.result.executionContextId; await send("Runtime.evaluate", { expression: OVERLAY, contextId: CEL_CTX }); } }
 	BR = { proc, ws, send };
 	proc.on("exit", () => { BR = null; });
 	ws.onclose = () => { BR = null; };
@@ -276,9 +301,26 @@ const SNAP = "(() => { const out = []; let n = 0; const vis = (e) => { const b =
 	" out.push(n + '. ' + (e.tagName === 'A' ? 'link' : e.tagName === 'INPUT' ? (pw ? 'password field (use browse_login)' : (e.type || 'text') + ' field') : e.tagName === 'TEXTAREA' ? 'text box' : e.tagName === 'SELECT' ? 'choice' : 'button') + (label ? ': ' + label : '') + val); if (n >= 160) break; }" +
 	" return { url: location.href, title: document.title, text: (document.body ? document.body.innerText : '').replace(/\\n{3,}/g, '\\n\\n').slice(0, 9000), items: out }; })()";
 async function settle() { for (let i = 0; i < 40; i++) { const st = await inPage("document.readyState").catch(() => ""); if (st === "complete") break; await sleep(250); } await sleep(600); }
-async function snapshot(lead) { await settle(); const p = await inPage(SNAP); return text((lead ? lead + "\n\n" : "") + "Page: " + p.title + " (" + p.url + ")\n\n" + p.text + "\n\nWhat's on it to use (by number):\n" + (p.items.join("\n") || "(nothing)")); }
-async function clickAt(x, y) { const b = await br(); for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await b.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 }); }
-async function pressEnter() { const b = await br(); await b.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }); await b.send("Input.dispatchKeyEvent", { type: "char", text: "\r", key: "Enter" }); await b.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }); }
+async function snapshot(lead) { await settle(); await celSync(); const p = await inPage(SNAP); return text((lead ? lead + "\n\n" : "") + "Page: " + p.title + " (" + p.url + ")\n\n" + p.text + "\n\nWhat's on it to use (by number):\n" + (p.items.join("\n") || "(nothing)")); }
+async function clickAt(x, y) { const b = await br(); await acting(true); try { for (const type of ["mouseMoved", "mousePressed", "mouseReleased"]) await b.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1 }); } finally { await acting(false); } }
+// (run in Celestin's own world on the page, never the page's)
+async function celIn(expr) { if (!CEL_CTX || !BR) return 0; const r = await BR.send("Runtime.evaluate", { expression: expr, contextId: CEL_CTX, returnByValue: true }); return r.result && r.result.result ? r.result.result.value : 0; }
+const celSync = () => celIn("window.__cel ? window.__cel.set(" + JSON.stringify(CEL) + ") : 0").catch(() => 0);
+const acting = (on) => celIn("window.__cel ? (window.__cel.acting = " + (on ? "true" : "false") + ", 1) : 0").catch(() => 0);
+// before every action: stopped means stopped; paused waits for them (ten minutes at most)
+async function gate(step) {
+	clearTimeout(CEL_IDLE);
+	if (CEL.state === "stop") { CEL.state = "idle"; await celSync(); throw new Error("STOPPED: the user pressed Stop in Celestin's window. Stop now: don't do anything more in it, and tell them in one line what was done so far."); }
+	for (let i = 0; CEL.state === "paused" && i < 1200; i++) await sleep(500);
+	if (CEL.state === "paused") throw new Error("The user is still using Celestin's window (they took over ten minutes ago). Stop, and ask them what they'd like you to do.");
+	if (CEL.state === "stop") return gate(step);
+	CEL.state = "work"; CEL.step = String(step || "working").slice(0, 90);
+	await celSync();
+	// (nothing for a minute: the bar goes away, the window is theirs)
+	CEL_IDLE = setTimeout(() => { if (CEL.state === "work") { CEL.state = "idle"; celSync(); } }, 60000);
+}
+async function glide(x, y) { await celIn("window.__cel ? window.__cel.move(" + Number(x) + "," + Number(y) + ") : 0").catch(() => 0); await sleep(480); }
+async function pressEnter() { const b = await br(); await acting(true); setTimeout(() => acting(false), 400); await b.send("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }); await b.send("Input.dispatchKeyEvent", { type: "char", text: "\r", key: "Enter" }); await b.send("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }); }
 // a control by its number: scrolled into view, its middle (and whether it's a password field)
 async function controlAt(n) {
 	const r = await inPage("(() => { const e = document.querySelector('[data-celestin-n=\"" + Number(n) + "\"]'); if (!e) return null; e.scrollIntoView({ block: 'center', inline: 'center' }); const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2, pw: e.type === 'password' }; })()");
@@ -287,6 +329,8 @@ async function controlAt(n) {
 }
 // focus a field (found by an expression) by clicking it, its contents selected so typing replaces them
 async function focusField(expr) {
+	const r0 = await inPage("(() => { const e = " + expr + "; if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()");
+	if (r0) await glide(r0.x, r0.y);
 	const r = await inPage("(() => { const e = " + expr + "; if (!e) return null; e.scrollIntoView({ block: 'center' }); const b = e.getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; })()");
 	if (!r) return false;
 	await clickAt(r.x, r.y);
@@ -300,23 +344,40 @@ async function browse(name, a) {
 		let url = String(a.url || "").trim();
 		if (!/^https?:\/\//i.test(url)) url = "https://" + url;
 		const b = await br();
+		await gate("opening " + url.replace(/^https?:\/\//, "").slice(0, 60));
 		await b.send("Page.navigate", { url });
 		return snapshot("");
 	}
 	if (name === "browse_read") return snapshot("");
-	if (name === "browse_click") { const c = await controlAt(a.n); await clickAt(c.x, c.y); await sleep(1200); return snapshot("Clicked " + a.n + "."); }
+	if (name === "browse_click") { await gate("clicking " + String(a.what || "#" + a.n)); const c = await controlAt(a.n); await glide(c.x, c.y); await clickAt(c.x, c.y); await sleep(1200); return snapshot("Clicked " + a.n + "."); }
+	if (name === "browse_ask") {
+		await br(); await gate("handing it to you");
+		let sel = "";
+		if (a.n) { const c = await controlAt(a.n); await glide(c.x, c.y); await clickAt(c.x, c.y); sel = "[data-celestin-n=\"" + Number(a.n) + "\"]"; }
+		CEL.state = "hand"; CEL.hand = String(a.what || "").slice(0, 120);
+		await celIn("window.__cel ? window.__cel.hand(" + JSON.stringify(sel) + "," + JSON.stringify(CEL.hand) + ") : 0");
+		for (let i = 0; CEL.state === "hand" && i < 1200; i++) await sleep(500);
+		if (CEL.state === "stop") return gate("");
+		if (CEL.state === "hand") { CEL.state = "idle"; await celSync(); return text("They haven't finished it after ten minutes: ask them in the chat whether to go on."); }
+		CEL.hand = "";
+		return snapshot("They did it (" + String(a.what || "") + ") and pressed Continue.");
+	}
 	if (name === "browse_type") {
+		await gate("typing into " + String(a.what || "#" + a.n));
 		const c = await controlAt(a.n);
 		if (c.pw) throw new Error("That's a password field: use browse_login, so the password is typed by this computer and never passes through you.");
+		await glide(c.x, c.y);
 		await clickAt(c.x, c.y);
 		await inPage("(() => { const a = document.activeElement; if (a && a.select) a.select(); return 1; })()");
 		const b = await br();
-		await b.send("Input.insertText", { text: String(a.text ?? "") });
+		await acting(true);
+		try { await b.send("Input.insertText", { text: String(a.text ?? "") }); } finally { await acting(false); }
 		if (a.enter) { await pressEnter(); await sleep(1500); }
 		return snapshot("Typed into " + a.n + ".");
 	}
 	if (name === "browse_look") { const b = await br(), r = await b.send("Page.captureScreenshot", { format: "jpeg", quality: 70 }); if (!r.result) throw new Error("Couldn't see the page."); return [{ type: "image", data: r.result.data, mimeType: "image/jpeg" }]; }
 	if (name === "browse_login") {
+		await br(); await gate("signing in with your saved login");
 		await settle();
 		const loc = await inPage("({ host: location.hostname, proto: location.protocol })");
 		if (loc.proto !== "https:" && !/^(localhost|127.0.0.1)$/.test(loc.host)) throw new Error("Logins are only filled on secure (https) pages.");
@@ -328,7 +389,7 @@ async function browse(name, a) {
 		const b = await br();
 		let hasPw = await inPage("!!(" + pwField + ")");
 		// the username (pages that ask for it on its own first: then Enter, and the password on the next page)
-		if (await focusField(userField)) await b.send("Input.insertText", { text: x.user });
+		if (await focusField(userField)) { await acting(true); try { await b.send("Input.insertText", { text: x.user }); } finally { await acting(false); } }
 		if (!hasPw) {
 			await pressEnter(); await sleep(2500); await settle();
 			hasPw = await inPage("!!(" + pwField + ")");
@@ -337,7 +398,8 @@ async function browse(name, a) {
 		// still the site it was saved for, and the password field is what has the focus: only then is it typed
 		if (!fits(x.site, await inPage("location.hostname"))) throw new Error("The page is no longer on " + x.site + ": nothing was filled.");
 		if (!(await focusField(pwField)) || !(await inPage("(document.activeElement && document.activeElement.type) === 'password'"))) throw new Error("Couldn't put the cursor in the password field, so nothing was typed.");
-		await b.send("Input.insertText", { text: unseal(x.secret) });
+		await acting(true);
+		try { await b.send("Input.insertText", { text: unseal(x.secret) }); } finally { await acting(false); }
 		await pressEnter();
 		await sleep(2500);
 		return snapshot("Signed in to " + x.site + " with the login saved on this computer (typed by the computer itself: it never reached you). If the site asks for a code, the user types it in the browser window.");
