@@ -15341,16 +15341,25 @@ function segmentOf(html, at, secs) {
 // what the editor cuts: a film made in one take is one shot, its own titles and ending in it
 // a film watched the way its viewer will see it: a small copy (a third of the size, 12 frames a second, with its sound) to
 // the model best at watching; what it finds, worst first, each with when and how to fix it
+// the owner's own eye, from their own verdicts: what they and their family scored, and why (the watcher judges like them)
+const OWNER_EYE = "Watch it the way the owner of this product and their family watch films, and score it as they would. Their own past verdicts:\n" +
+	"- An ad they scored 5 for visuals and 2 for creativity: for its first two seconds the sound glitched and the screen showed the same thing; everything was zoomed in out of proportion while the mouse cursor stayed normal size; words ran off the screen and were huge; navy and cyan, a techy typeface, its own drawing of the app; no idea a viewer would remember.\n" +
+	"- Their family's favourite, 8 of 10: big clear words over the real product, a bold change of the background colour on each new idea, quick and easy to follow. Notes: more enthusiasm, a bit of humour, make the concept clear at once, prove why it's better.\n" +
+	"- The owner's own favourite: black and white, the real app on screen, one visual idea carried through the whole film.\n" +
+	"- What they always notice: anything that jumps, pops or teleports instead of moving; anything frozen; words cut off, too small or overlapping; a slideshow of separate cards instead of one continuous film; backdrops instead of the story happening in a place; music that doesn't fit the film's feeling or isn't on its beat; a copy of someone else's style; anything that looks made by AI.\n" +
+	"- Their bar is 9 of 10 for both visuals and creativity, and every film hyper smooth. Be as honest and as hard to please as they are: a film they'd score 6 is a 6.";
 async function watchFilm(d, signal) {
 	const w = videoWatcher();
 	if (!w) return null;
 	const blob = await cut({ ...takeView(d), tier: "watch" }, () => {});
 	if (!blob || blob.size > 6e6) return null;
 	const data = await new Promise((ok) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result)); fr.readAsDataURL(blob); });
-	const ask = "You're the creative director of a top motion-design studio, watching this film with its sound before it goes out. The bar is 9 out of 10: smooth, beautiful, creative, clear, the level of the best product shorts people share. Watch all of it, frame by frame where it matters. Reply with ONLY JSON: {\"visuals\": 1 to 10, \"creativity\": 1 to 10, \"clear\": true or false (would a stranger understand what it shows and sells), \"problems\": [{\"at\": seconds, \"what\": \"exactly what's wrong: a frozen picture, a sound glitch or a sound out of time, words cut off, too small or overlapping, a jump or something popping in, anything that teleports instead of moving, an empty, ugly or confusing frame, a boring stretch or the moment a viewer would swipe away (say why), anything made up\", \"fix\": \"what to change\"}]}, the worst first, at most 6; nothing that's already good.";
+	const ask = OWNER_EYE + "\n\nYou're the creative director of a top motion-design studio, watching this film with its sound before it goes out. The bar is 9 out of 10: smooth, beautiful, creative, clear, the level of the best product shorts people share. Watch all of it, frame by frame where it matters. Reply with ONLY JSON: {\"visuals\": 1 to 10, \"creativity\": 1 to 10, \"smooth\": 1 to 10 (every move, cut and word: 10 is glassy, never a judder, stutter, jump or pop), \"clear\": true or false (would a stranger understand what it shows and sells), \"problems\": [{\"at\": seconds, \"what\": \"exactly what's wrong: a frozen picture, a sound glitch or a sound out of time, words cut off, too small or overlapping, a jump or something popping in, anything that teleports instead of moving, an empty, ugly or confusing frame, a boring stretch or the moment a viewer would swipe away (say why), anything made up\", \"fix\": \"what to change\"}]}, the worst first, at most 6; nothing that's already good.";
 	const out = String(await stream(w.id, [{ role: "user", content: [{ type: "file", file: { file_data: data.replace(/^data:[^;,]*/, "data:video/mp4"), format: "video/mp4" } }, { type: "text", text: ask }] }], null, signal, { max_tokens: 6000 }));
 	const j = parseJSON(out) || {};
-	return { by: w, visuals: j.visuals, creativity: j.creativity, clear: j.clear, problems: (Array.isArray(j.problems) ? j.problems : []).filter((p) => p && p.what).slice(0, 6) };
+	// (not smooth enough: fixed like any problem a viewer would notice)
+	if (Number(j.smooth) > 0 && Number(j.smooth) < 9 && Array.isArray(j.problems) && !j.problems.some((p) => p && /smooth|judder|stutter|jump|pop|teleport|jerk/i.test(String(p.what || "")))) j.problems.unshift({ at: null, what: "It isn't perfectly smooth (" + j.smooth + " of 10): somewhere a move, cut or word judders, stutters, jumps or pops", fix: "make every move travel on an eased curve over at least a quarter second, cross-fade every change, and never let anything appear, vanish or change place in a single frame" });
+	return { by: w, visuals: j.visuals, creativity: j.creativity, smooth: j.smooth, clear: j.clear, problems: (Array.isArray(j.problems) ? j.problems : []).filter((p) => p && p.what).slice(0, 6) };
 }
 function takeView(d) {
 	const p = d.plan, secs = p.scenes.reduce((n, x) => n + x.seconds, 0);
