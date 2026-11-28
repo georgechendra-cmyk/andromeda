@@ -60,14 +60,14 @@ const DEFAULT_CONFIG = {
 	// more. Packs (the only thing sold since Nov 7) sell a credit at 2.2x down to 2.0x, and never expire.
 	// Nonstop coding is about 60 credits an hour (CODE_HOUR in the site, measured Nov 4 with the owner's price rule; it was
 	// 140 before): every plan codes nonstop in any 5 hours; Nova about 35 hours a month, Pulsar about 183, Quasar about 386.
-	// (Nov 7 the owner took the plans off sale; Nov 28, "subscription yes": back on sale, paid a month at a time, with a
-	// reminder before each month ends; see planReminders)
-	plans: [
+	// (off sale: Nov 7, and again Nov 28, the owner: not until a plan gives close to what Claude's own plans do. Moving them
+	// back into plans puts them on sale, paid a month at a time, with planReminders before each month ends)
+	plans: [],
+	retiredPlans: [
 		{ id: "nova", name: "Nova", credits: 420, hours: 5, week: 0, month: 2100, team: 150, days: 30, prices: { USD: 20, IDR: 319000, EUR: 19, GBP: 16, SGD: 27, AUD: 30 }, lemonVariant: "" },
 		{ id: "pulsar", name: "Pulsar", credits: 900, hours: 5, week: 0, month: 11000, team: 700, days: 30, popular: true, prices: { USD: 100, IDR: 1599000, EUR: 93, GBP: 79, SGD: 135, AUD: 152 }, lemonVariant: "" },
 		{ id: "quasar", name: "Quasar", credits: 1000, hours: 5, week: 0, month: 23150, team: 1500, days: 30, prices: { USD: 200, IDR: 3199000, EUR: 186, GBP: 158, SGD: 270, AUD: 304 }, lemonVariant: "" },
 	],
-	retiredPlans: [],
 	// credit packs: bought credits that never expire, used once the plan's window or week runs out, so there's no waiting.
 	// Round local prices, not exchange-rate conversions; a credit costs more this way than in a plan
 	packs: [
