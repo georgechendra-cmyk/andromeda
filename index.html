@@ -15945,6 +15945,27 @@ async function teamFilm(plan, brief, cands, msg, signal, W, H, onStatus, runs, b
 	}
 	return null;
 }
+// ---- three studios pitch, a judge with the owner's eye picks (the owner, Nov 28: "take advantage of having all the models")
+async function conceptRound(brief, msg, onStatus) {
+	const labs = new Set(), makers = [];
+	for (const m of rank("write", "medium")) { const p = provider(m.id); if (labs.has(p)) continue; labs.add(p); makers.push(m); if (makers.length >= 3) break; }
+	if (makers.length < 2) return null;
+	onStatus("Three studios are pitching ideas: " + makers.map(shortName).join(", "));
+	const ask = "Invent ONE concept for this film: your own, from this subject, never a stock move (no word wheels, no selection boxes, no rows of cards, no title cards, no diagrams of boxes and lines, never another creator's signature move).\n\n" + String(brief).slice(0, 5000) +
+		"\n\nReply with ONLY JSON: {\"title\": \"a few words\", \"hero\": \"the one visual idea on screen from the first second, and what it keeps becoming\", \"hook\": \"exactly what the first second shows\", \"beats\": [\"what happens, in order, every 2 to 3 seconds, each growing out of the last\"], \"payoff\": \"the ending and its last image\", \"why\": \"why a viewer keeps watching to the end\"}";
+	const ideas = (await Promise.all(makers.map(async (m) => {
+		try { const j = parseJSON(await once(m.id, [{ role: "user", content: ask }], { response_format: { type: "json_object" }, ...effortFor(m.id, capEffort(EFFORT.get(m.id) || "", "medium", m.id)) }, msg)); return j && j.hero ? { by: m, j } : null; }
+		catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; return null; }
+	}))).filter(Boolean);
+	if (!ideas.length) return null;
+	if (ideas.length === 1) return { concept: ideas[0].j, note: shortName(ideas[0].by) + " pitched the concept" };
+	const judge = rank("reasoning", "medium").find((m) => !ideas.some((x) => provider(x.by.id) === provider(m.id))) || rank("reasoning", "medium")[0];
+	onStatus("A judge (" + shortName(judge) + ") is picking the strongest idea");
+	let pick = null;
+	try { pick = parseJSON(await once(judge.id, [{ role: "user", content: OWNER_EYE + "\n\nThree studios each pitched a concept for this film:\n" + ideas.map((x, i) => (i + 1) + ". " + JSON.stringify(x.j)).join("\n") + "\n\nThe brief:\n" + String(brief).slice(0, 2500) + "\n\nPick the one this owner and their family would rate highest for creativity and for keeping people watching, or join the best of two into one (never three). Reply with ONLY JSON: {\"pick\": 1, \"concept\": {the chosen or joined concept, the same fields}, \"why\": \"one sentence\"}" }], { response_format: { type: "json_object" } }, msg)); } catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	const chosen = pick && pick.concept && pick.concept.hero ? pick.concept : ideas[0].j;
+	return { concept: chosen, note: "Concepts: " + ideas.map((x) => shortName(x.by)).join(", ") + " each pitched one; " + shortName(judge) + " picked" + (pick && pick.why ? " (" + String(pick.why).slice(0, 140) + ")" : "") };
+}
 async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, onStatus) {
 	// (the engine: a film that fits it, or a change to one made with it; plan.full forces the full way)
 	const ENG = !plan.full && (prev ? /FILM\.play\s*\(/.test(prev) : engineFits(plan)), SYS = ENG ? ENGINE_SYSTEM : FILM_ANIMATOR;
@@ -16013,6 +16034,11 @@ async function animateFilm(plan, cands, msg, signal, W, H, prev, change, deep, o
 				if (SKETCH_NOW.url && msg && msg.data) { msg.data.sketch = await vault.put(await (await fetch(SKETCH_NOW.url)).blob()); onStatus("Sketched: now animating it"); }
 			}
 		} catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
+	}
+	// (a new engine film: three studios pitch, a judge picks, the writer builds the chosen concept)
+	if (ENG && !prev && !(signal && signal.aborted)) {
+		try { const c = await conceptRound(brief, msg, onStatus); if (c) { brief += "\n\nThe concept, chosen from three studios' pitches by a judge with the owner's eye (build exactly this idea; the craft is yours):\n" + JSON.stringify(c.concept); if (msg && msg.used) msg.used.push({ name: "Celestin", desc: c.note }); } }
+		catch (e) { if (e.name === "AbortError" || e.status === 401 || e.status === 402) throw e; }
 	}
 	// (a new film with a sketch of two scenes or more: made by a team, all its scenes at the same time; if the team can't
 	// make it run, one animator makes it whole, as before)
